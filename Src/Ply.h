@@ -234,9 +234,11 @@ typedef struct PlyFace
 	int *vertices;
 	int segment;
 } PlyFace;
+
+static char VertexIndicesPropName[] = "vertex_indices";
 static PlyProperty face_props[] =
 {
-	{ _strdup( "vertex_indices" ) , PLY_INT , PLY_INT , offsetof( PlyFace , vertices ) , 1 , PLY_UCHAR, PLY_UCHAR , offsetof(PlyFace,nr_vertices) },
+	{ VertexIndicesPropName , PLY_INT, PLY_INT, offsetof(PlyFace, vertices), 1, PLY_UCHAR, PLY_UCHAR, offsetof(PlyFace, nr_vertices) },
 };
 
 template< class Real >
