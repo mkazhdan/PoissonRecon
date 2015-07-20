@@ -30,7 +30,6 @@ DAMAGE.
 #define MULTI_GRID_OCTREE_DATA_INCLUDED
 
 #define NEW_CODE 1
-#define NEW_NEW_CODE 1
 
 //#define MAX_MEMORY_GB 15
 #define MAX_MEMORY_GB 0
@@ -461,13 +460,6 @@ public:
 		std::vector< Real >& kernelDensityWeights ,
 		SparseNodeData< PointData >& pointInfo , SparseNodeData< Point3D< Real > >& normalInfo , std::vector< Real >& centerWeights ,
 		XForm4x4< Real >& xForm , int boundaryType=BSplineElements< 2 >::NONE , bool makeComplete=false );
-
-	template< class PointReal , class Data , class _Data >
-	int SetTree( OrientedPointStreamWithData< PointReal , Data >* pointStream , int minDepth , int maxDepth , int fullDepth , int splatDepth , Real samplesPerNode ,
-		Real scaleFactor , bool useConfidence , bool useNormalWeight , 
-		std::vector< Real >& kernelDensityWeights ,
-		SparseNodeData< ProjectiveData< _Data > >& dataValues ,
-		XForm4x4< Real >& xForm , int boundaryType=BSplineElements< 2 >::NONE);
 
 	template< class PointReal , class Data , class _Data >
 	int SetTree( OrientedPointStreamWithData< PointReal , Data >* pointStream , int minDepth , int maxDepth , int fullDepth , int splatDepth , Real samplesPerNode ,
