@@ -1,4 +1,4 @@
-<CENTER><H2>Screened Poisson Surface Reconstruction (Version 6.13a)</H2></CENTER>
+<CENTER><H2>Screened Poisson Surface Reconstruction (Version 7.0)</H2></CENTER>
 <CENTER>
 <A HREF="#LINKS">links</A>
 <A HREF="#EXECUTABLES">executables</A>
@@ -11,8 +11,9 @@ Papers:
 <A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">SGP 2006</A>,
 <A href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">ToG 2013</A>
 <br>
-Executables (<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/PoissonRecon.Win32.zip">Win32</A>, <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/PoissonRecon.x64.zip">Win64</A>)<BR>
+Executables (<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/PoissonRecon.Win32.zip">Win32</A>, <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/PoissonRecon.x64.zip">Win64</A>)<BR>
 (Older Versions:
+<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/">V6.13a</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13/">V6.13</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.12/">V6.12</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.11/">V6.11</A>,
@@ -52,6 +53,11 @@ by the x-, y- and z-coordinates of the point's normal. (No information about the
 <DT>[<b>--out</b> &#60;<i>output triangle mesh</i>&#62;]
 <DD> This string is the name of the file to which the triangle mesh will be written. 
 The file is written in <A HREF="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</A> format.
+
+<DT>[<b>--color</b> &#60;<i>pull factor</i>&#62;]
+<DD> If specified, the reconstruction code assumes that the input is equipped with colors and will extrapolate
+the color values to the vertices of the reconstructed mesh. The floating point value specifies the relative importance
+of finer color estimates over lower ones. (In practice, we have found that a pull factor of 16 works well.)
 
 <DT>[<b>--voxel</b> &#60;<i>output voxel grid</i>&#62;]
 <DD> This string is the name of the file to which the sampled implicit function will be written.
@@ -285,6 +291,13 @@ As an examples, the reconstructed bunny can be converted into the ASCII mesh for
 <LI> Included <I>stdlib.h</I> in <I>Geometry.h</I>. [<A HREF="http://asmaloney.com/">asmaloney</A>]
 <LI> Fixed default value bug in declaration of <U>Octree::SetTree</U>. [<A HREF="http://asmaloney.com/">asmaloney</A>]
 </OL>
+
+<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/">Version 7.0</A>:
+<OL>
+<LI> Added functionality to support color extrapolation if present in the input.
+<LI> Modified a bug with the way in which sample contributions were scaled.
+</OL>
+
 
 <HR>
 <A HREF="http://www.cs.jhu.edu/~misha">HOME</A>
