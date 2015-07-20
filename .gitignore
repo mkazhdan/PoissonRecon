@@ -1,6 +1,4 @@
 *.sdf
-*.suo
-*.filters
 /Obj/
 /Debug/
 /Bin/
