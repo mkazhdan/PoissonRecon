@@ -29,7 +29,9 @@ DAMAGE.
 #include <stdio.h>
 #include <stdlib.h>
 #include <float.h>
+#ifdef _OPENMP
 #include <omp.h>
+#endif // _OPENMP
 #include <algorithm>
 #include "CmdLineParser.h"
 #include "Geometry.h"
