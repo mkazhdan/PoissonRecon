@@ -265,7 +265,8 @@ int SparseMatrix<T>::SolveSymmetric( const SparseMatrix<T>& M , const Vector<T2>
 	M.Multiply( solution , r );
 	r = b - r;
 	Vector< T2 > d = r;
-	double delta_new , delta_0;
+	double delta_new = 0.0;
+	double delta_0 = 0.0;
 	for( int i=0 ; i<r.Dimensions() ; i++ ) delta_new += r.m_pV[i] * r.m_pV[i];
 	delta_0 = delta_new;
 	if( delta_new<eps ) return 0;

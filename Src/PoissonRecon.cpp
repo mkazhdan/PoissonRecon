@@ -428,7 +428,7 @@ int Execute( int argc , char* argv[] )
 		if( !fp ) fprintf( stderr , "Failed to open voxel file for writing: %s\n" , VoxelGrid.value );
 		else
 		{
-			int res;
+			int res = 0;
 			Pointer( Real ) values = tree.Evaluate( ( ConstPointer( Real ) )solution , res , isoValue , VoxelDepth.value );
 			fwrite( &res , sizeof(int) , 1 , fp );
 			if( sizeof(Real)==sizeof(float) ) fwrite( values , sizeof(float) , res*res*res , fp );
