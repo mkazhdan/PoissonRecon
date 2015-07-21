@@ -136,7 +136,7 @@ void Octree< Real >::XSliceValues< Vertex >::reset( void )
 }
 
 template< class Real >
-template< class Vertex , class _Vertex >
+template< class Vertex >
 void Octree< Real >::GetMCIsoSurface( ConstPointer( Real ) kernelDensityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > > >* colorData , ConstPointer( Real ) solution , Real isoValue , CoredMeshData< Vertex >& mesh , bool nonLinearFit , bool addBarycenter , bool polygonMesh )
 {
 	typename BSplineData< 2 >::template CornerEvaluator< 2 > evaluator;
@@ -205,7 +205,7 @@ void Octree< Real >::GetMCIsoSurface( ConstPointer( Real ) kernelDensityWeights 
 			SetXSliceIsoEdges( d , o-1 , slabValues , threads );
 
 			// Add the triangles
-			SetIsoSurface< Vertex , _Vertex >( d , o-1 , slabValues[d].sliceValues(o-1) , slabValues[d].sliceValues(o) , slabValues[d].xSliceValues(o-1) , mesh , polygonMesh , addBarycenter , vertexOffset , threads );
+			SetIsoSurface( d , o-1 , slabValues[d].sliceValues(o-1) , slabValues[d].sliceValues(o) , slabValues[d].xSliceValues(o-1) , mesh , polygonMesh , addBarycenter , vertexOffset , threads );
 
 			if( o&1 ) break;
 		}
@@ -791,7 +791,7 @@ void Octree< Real >::SetXSliceIsoEdges( int depth , int slab , std::vector< Slab
 	}
 }
 template< class Real >
-template< class Vertex , class _Vertex >
+template< class Vertex >
 void Octree< Real >::SetIsoSurface( int depth , int offset , const SliceValues< Vertex >& bValues , const SliceValues< Vertex >& fValues , const XSliceValues< Vertex >& xValues , CoredMeshData< Vertex >& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , int threads )
 {
 	std::vector< std::pair< int , Vertex > > polygon;
@@ -902,7 +902,7 @@ void Octree< Real >::SetIsoSurface( int depth , int offset , const SliceValues< 
 						else if( ( iter=xValues.edgeVertexMap.find( key ) )!=xValues.edgeVertexMap.end() ) polygon[k] = iter->second;
 						else fprintf( stderr , "[ERROR] Couldn't find vertex in edge map\n" ) , exit( 0 );
 					}
-					AddIsoPolygons< Vertex , _Vertex >( mesh , polygon , polygonMesh , addBarycenter , vOffset );
+					AddIsoPolygons( mesh , polygon , polygonMesh , addBarycenter , vOffset );
 				}
 			}
 		}
@@ -1061,7 +1061,7 @@ bool Octree< Real >::GetIsoVertex( ConstPointer( Real ) kernelDensityWeights , c
 }
 
 template< class Real >
-template< class Vertex , class _Vertex>
+template< class Vertex >
 int Octree< Real >::AddIsoPolygons( CoredMeshData< Vertex >& mesh , std::vector< std::pair< int , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , int& vOffset )
 {
 	if( polygonMesh )
@@ -1087,9 +1087,9 @@ int Octree< Real >::AddIsoPolygons( CoredMeshData< Vertex >& mesh , std::vector<
 		if( isCoplanar )
 		{
 			Vertex c;
-			_Vertex _c;
+			typename Vertex::Wrapper _c;
 			_c *= 0;
-			for( int i=0 ; i<(int)polygon.size() ; i++ ) _c += _Vertex( polygon[i].second );
+			for( int i=0 ; i<(int)polygon.size() ; i++ ) _c += typename Vertex::Wrapper( polygon[i].second );
 			_c /= Real( polygon.size() );
 			c = Vertex( _c );
 			int cIdx;

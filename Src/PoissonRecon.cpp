@@ -287,7 +287,7 @@ PlyProperty PlyColorProperties[]=
 
 bool ValidPlyColorProperties( const bool* props ){ return ( props[0] || props[3] ) && ( props[1] || props[4] ) && ( props[2] || props[5] ); }
 
-template< class Real , class Vertex , class _Vertex >
+template< class Real , class Vertex >
 int Execute( int argc , char* argv[] )
 {
 	Reset< Real >();
@@ -407,6 +407,7 @@ int Execute( int argc , char* argv[] )
 	Pointer( Real ) solution = tree.SolveSystem( *pointInfo , constraints , ShowResidual.set , Iters.value , MaxSolveDepth.value , CGDepth.value , CSSolverAccuracy.value );
 	delete pointInfo;
 	FreePointer( constraints );
+
 	DumpOutput2( comments , "# Linear system solved in: %9.1f (s), %9.1f (MB)\n" , Time()-t , tree.maxMemoryUsage );
 	DumpOutput( "Memory Usage: %.3f MB\n" , float( MemoryInfo::Usage() )/(1<<20) );
 	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
@@ -447,7 +448,7 @@ int Execute( int argc , char* argv[] )
 	if( Out.set )
 	{
 		t = Time() , tree.maxMemoryUsage = 0;
-		tree.template GetMCIsoSurface< Vertex , _Vertex >( kernelDensityWeights ? GetPointer( *kernelDensityWeights ) : NullPointer( Real ) , Color.set ? &colorData : NULL , solution , isoValue , mesh , true , !NonManifold.set , PolygonMesh.set );
+		tree.GetMCIsoSurface( kernelDensityWeights ? GetPointer( *kernelDensityWeights ) : NullPointer( Real ) , Color.set ? &colorData : NULL , solution , isoValue , mesh , true , !NonManifold.set , PolygonMesh.set );
 		if( PolygonMesh.set ) DumpOutput2( comments , "#         Got polygons in: %9.1f (s), %9.1f (MB)\n" , Time()-t , tree.maxMemoryUsage );
 		else                  DumpOutput2( comments , "#        Got triangles in: %9.1f (s), %9.1f (MB)\n" , Time()-t , tree.maxMemoryUsage );
 		maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
@@ -502,18 +503,18 @@ int main( int argc , char* argv[] )
 	cmdLineParse( argc-1 , &argv[1] , sizeof(params)/sizeof(cmdLineReadable*) , params , 1 );
 	if( Density.set )
 		if( Color.set )
-			if( Double.set ) Execute< double , PlyColorAndValueVertex< float > , _PlyColorAndValueVertex< float > >( argc , argv );
-			else             Execute< float  , PlyColorAndValueVertex< float > , _PlyColorAndValueVertex< float > >( argc , argv );
+			if( Double.set ) Execute< double , PlyColorAndValueVertex< float > >( argc , argv );
+			else             Execute< float  , PlyColorAndValueVertex< float > >( argc , argv );
 		else
-			if( Double.set ) Execute< double , PlyValueVertex< float > , PlyValueVertex< float > >( argc , argv );
-			else             Execute< float  , PlyValueVertex< float > , PlyValueVertex< float > >( argc , argv );
+			if( Double.set ) Execute< double , PlyValueVertex< float > >( argc , argv );
+			else             Execute< float  , PlyValueVertex< float > >( argc , argv );
 	else
 		if( Color.set )
-			if( Double.set ) Execute< double , PlyColorVertex< float > , _PlyColorVertex< float > >( argc , argv );
-			else             Execute< float  , PlyColorVertex< float > , _PlyColorVertex< float > >( argc , argv );
+			if( Double.set ) Execute< double , PlyColorVertex< float > >( argc , argv );
+			else             Execute< float  , PlyColorVertex< float > >( argc , argv );
 		else
-			if( Double.set ) Execute< double , PlyVertex< float > , PlyVertex< float > >( argc , argv );
-			else             Execute< float  , PlyVertex< float > , PlyVertex< float > >( argc , argv );
+			if( Double.set ) Execute< double , PlyVertex< float > >( argc , argv );
+			else             Execute< float  , PlyVertex< float > >( argc , argv );
 #ifdef _WIN32
 	if( Performance.set )
 	{

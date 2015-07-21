@@ -574,7 +574,6 @@ int Octree< Real >::SetTree( OrientedPointStream< PointReal >* pointStream , int
 #endif
 
 	_fData.set( maxDepth , _boundaryType );
-
 	_minDepth = minDepth;
 	_fullDepth = fullDepth;
 	double pointWeightSum = 0;
@@ -2751,6 +2750,8 @@ template< class V >
 V Octree< Real >::getCornerValue( const typename TreeOctNode::ConstNeighborKey3& neighborKey , const TreeOctNode* node , int corner , ConstPointer( V ) solution , ConstPointer( V ) metSolution , const typename BSplineData< 2 >::template CornerEvaluator< 2 >& evaluator , const Stencil< double , 3 >& stencil , const Stencil< double , 3 > stencils[8] , bool isInterior ) const
 {
 	V value(0);
+	// [NOTE] For screening, we force the samples to have value 0.0, so Dirichlet boundary constraints are implemented
+	// by having the points on the boundary have value -0.5. Hence the offsetting.
 	if( _boundaryType==-1 ) value = -0.5;
 	int d , off[3];
 	node->depthAndOffset( d , off );
@@ -3142,6 +3143,8 @@ Pointer( V ) Octree< Real >::Evaluate( ConstPointer( V ) coefficients , int& res
 						vTables.valueTable[ idx[2] + z*vTables.functionCount ];
 				}
 	}
+	// [NOTE] For screening, we force the samples to have value 0.0, so Dirichlet boundary constraints are implemented
+	// by having the points on the boundary have value -0.5. Hence the offsetting.
 	if( _boundaryType==-1 ) for( int i=0 ; i<res*res*res ; i++ ) values[i] -= Real(0.5);
 	for( int i=0 ; i<res*res*res ; i++ ) values[i] -= isoValue;
 

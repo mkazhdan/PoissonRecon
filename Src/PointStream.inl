@@ -153,10 +153,10 @@ void PLYOrientedPointStream< Real >::reset( void )
 		{
 			foundVertices = true;
 			_pCount = num_elems , _pIdx = 0;
-			for( int i=0 ; i<PlyOrientedVertex< Real >::Components ; i++ ) 
-				if( !ply_get_property( _ply , elem_name , &(PlyOrientedVertex< Real >::Properties[i]) ) )
+			for( int i=0 ; i<PlyOrientedVertex< Real >::ReadComponents ; i++ ) 
+				if( !ply_get_property( _ply , elem_name , &(PlyOrientedVertex< Real >::ReadProperties[i]) ) )
 				{
-					fprintf( stderr , "[ERROR] Failed to find property in ply file: %s\n" , PlyOrientedVertex< Real >::Properties[i].name );
+					fprintf( stderr , "[ERROR] Failed to find property in ply file: %s\n" , PlyOrientedVertex< Real >::ReadProperties[i].name );
 					exit( 0 );
 				}
 		}
@@ -337,10 +337,10 @@ void PLYOrientedPointStreamWithData< Real , Data >::reset( void )
 		{
 			foundVertices = true;
 			_pCount = num_elems , _pIdx = 0;
-			for( int i=0 ; i<PlyOrientedVertex< Real >::Components ; i++ ) 
-				if( !ply_get_property( _ply , elem_name , &(PlyOrientedVertex< Real >::Properties[i]) ) )
+			for( int i=0 ; i<PlyOrientedVertex< Real >::ReadComponents ; i++ ) 
+				if( !ply_get_property( _ply , elem_name , &(PlyOrientedVertex< Real >::ReadProperties[i]) ) )
 				{
-					fprintf( stderr , "[ERROR] Failed to find property in ply file: %s\n" , PlyOrientedVertex< Real >::Properties[i].name );
+					fprintf( stderr , "[ERROR] Failed to find property in ply file: %s\n" , PlyOrientedVertex< Real >::ReadProperties[i].name );
 					exit( 0 );
 				}
 			if( _validationFunction )

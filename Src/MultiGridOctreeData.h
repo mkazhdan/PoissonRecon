@@ -30,6 +30,7 @@ DAMAGE.
 #define MULTI_GRID_OCTREE_DATA_INCLUDED
 
 #define NEW_CODE 1
+#define NEW_NEW_CODE 1
 
 //#define MAX_MEMORY_GB 15
 #define MAX_MEMORY_GB 0
@@ -408,10 +409,10 @@ protected:
 	template< class Vertex >
 	void SetXSliceIsoEdges( int depth , int slice , std::vector< SlabValues< Vertex > >& slabValues , int threads );
 
-	template< class Vertex , class _Vertex >
+	template< class Vertex >
 	void SetIsoSurface( int depth , int offset , const SliceValues< Vertex >& bValues , const SliceValues< Vertex >& fValues , const XSliceValues< Vertex >& xValues , CoredMeshData< Vertex >& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , int threads );
 
-	template< class Vertex , class _Vertex >
+	template< class Vertex >
 	static int AddIsoPolygons( CoredMeshData< Vertex >& mesh , std::vector< std::pair< int , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , int& vOffset );
 
 	template< class Vertex >
@@ -474,7 +475,7 @@ public:
 	Pointer( Real ) SolveSystem( SparseNodeData< PointData >& pointInfo , Pointer( Real ) constraints , bool showResidual , int iters , int maxSolveDepth , int cgDepth=0 , double cgAccuracy=0 );
 
 	Real GetIsoValue( ConstPointer( Real ) solution , const std::vector< Real >& centerWeights );
-	template< class Vertex , class _Vertex >
+	template< class Vertex >
 	void GetMCIsoSurface( ConstPointer( Real ) kernelDensityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > > >* colorData , ConstPointer( Real ) solution , Real isoValue , CoredMeshData< Vertex >& mesh , bool nonLinearFit=true , bool addBarycenter=false , bool polygonMesh=false );
 };
 template< class Real >
