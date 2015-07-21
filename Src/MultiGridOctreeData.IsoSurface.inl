@@ -272,7 +272,7 @@ Real Octree< Real >::GetIsoValue( ConstPointer( Real ) solution , const std::vec
 				int mn = 2+o , mx = (1<<d)-2-o;
 				bool isInterior = ( off[0]>=mn && off[0]<mx && off[1]>=mn && off[1]<mx && off[2]>=mn && off[2]<mx );
 
-				value = getCenterValue( neighborKey , node , solution , GetPointer( metSolution ) , evaluator , vStencils[d].stencil , vStencils[d].stencils[c] , isInterior );
+				value = getCenterValue( neighborKey , node , ( ConstPointer( Real ) )solution , ( ConstPointer( Real ) )GetPointer( metSolution ) , evaluator , vStencils[d].stencil , vStencils[d].stencils[c] , isInterior );
 			}
 			centerValues[i] = value;
 			Real w = centerWeights[ node->nodeData.nodeIndex ];

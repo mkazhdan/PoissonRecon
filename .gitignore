@@ -1,4 +1,5 @@
 *.sdf
+*.suo
 /Obj/
 /Debug/
 /Bin/

@@ -2751,7 +2751,6 @@ template< class V >
 V Octree< Real >::getCornerValue( const typename TreeOctNode::ConstNeighborKey3& neighborKey , const TreeOctNode* node , int corner , ConstPointer( V ) solution , ConstPointer( V ) metSolution , const typename BSplineData< 2 >::template CornerEvaluator< 2 >& evaluator , const Stencil< double , 3 >& stencil , const Stencil< double , 3 > stencils[8] , bool isInterior ) const
 {
 	V value(0);
-#pragma message ( "[WARNING] Why is this here?" )
 	if( _boundaryType==-1 ) value = -0.5;
 	int d , off[3];
 	node->depthAndOffset( d , off );
@@ -3143,7 +3142,6 @@ Pointer( V ) Octree< Real >::Evaluate( ConstPointer( V ) coefficients , int& res
 						vTables.valueTable[ idx[2] + z*vTables.functionCount ];
 				}
 	}
-#pragma message ( "[WARNING] Why is this here?" )
 	if( _boundaryType==-1 ) for( int i=0 ; i<res*res*res ; i++ ) values[i] -= Real(0.5);
 	for( int i=0 ; i<res*res*res ; i++ ) values[i] -= isoValue;
 

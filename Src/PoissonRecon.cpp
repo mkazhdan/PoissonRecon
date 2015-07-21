@@ -428,7 +428,7 @@ int Execute( int argc , char* argv[] )
 		else
 		{
 			int res;
-			Pointer( Real ) values = tree.Evaluate( solution , res , isoValue , VoxelDepth.value );
+			Pointer( Real ) values = tree.Evaluate( ( ConstPointer( Real ) )solution , res , isoValue , VoxelDepth.value );
 			fwrite( &res , sizeof(int) , 1 , fp );
 			if( sizeof(Real)==sizeof(float) ) fwrite( values , sizeof(float) , res*res*res , fp );
 			else
