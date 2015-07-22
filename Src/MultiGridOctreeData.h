@@ -30,7 +30,6 @@ DAMAGE.
 #define MULTI_GRID_OCTREE_DATA_INCLUDED
 
 #define NEW_CODE 1
-#define NEW_NEW_CODE 1
 
 //#define MAX_MEMORY_GB 15
 #define MAX_MEMORY_GB 0
@@ -70,8 +69,6 @@ DAMAGE.
 
 #define FORCE_NEUMANN_FIELD 1		// This flag forces the normal component across the boundary of the integration domain to be zero.
 									// This should be enabled if GRADIENT_DOMAIN_SOLUTION is not, so that CG doesn't run into trouble.
-
-#define ROBERTO_TOLDO_FIX 1
 
 #if !FORCE_NEUMANN_FIELD
 #pragma message( "[WARNING] Not zeroing out normal component on boundary" )
@@ -216,16 +213,16 @@ public:
 	struct PointData
 	{
 		Point3D< Real > position;
-		Real weightedCoarserValue;
+		Real weightedCoarserDValue;
 		Real weight;
-		PointData( Point3D< Real > p=Point3D< Real >() , Real w=0 ) { position = p , weight = w , weightedCoarserValue = Real(0); }
+		PointData( Point3D< Real > p=Point3D< Real >() , Real w=0 ) { position = p , weight = w , weightedCoarserDValue = Real(0); }
 	};
 	template< class Data >
 	struct SparseNodeData
 	{
 		std::vector< int > indices;
 		std::vector< Data > data;
-		int index( const TreeOctNode* node ) const { return node->nodeData.nodeIndex>=indices.size() ? -1 : indices[ node->nodeData.nodeIndex ]; }
+		int index( const TreeOctNode* node ) const { return node->nodeData.nodeIndex>=(int)indices.size() ? -1 : indices[ node->nodeData.nodeIndex ]; }
 	};
 protected:
 	SortedTreeNodes _sNodes;
@@ -293,8 +290,8 @@ protected:
 	void SetPointValuesFromCoarser( SparseNodeData< PointData >& pointInfo , int depth , const SortedTreeNodes& sNodes , ConstPointer( Real ) coarseCoefficients );
 	// Evalutes the solution @(depth) at the points @(depth-1) and updates the met constraints @(depth-1)
 	void SetPointConstraintsFromFiner ( const SparseNodeData< PointData >& pointInfo , int depth , const SortedTreeNodes& sNodes , ConstPointer( Real ) finerCoefficients , Pointer( Real ) metConstraints ) const;
-	Real _WeightedCoarserFunctionValue( const PointData& pointData , const typename TreeOctNode::NeighborKey3& neighborKey3 , const TreeOctNode* node , ConstPointer( Real ) coarseCoefficients ) const;
-	Real _WeightedFinerFunctionValue  ( const PointData& pointData , const typename TreeOctNode::NeighborKey3& neighborKey3 , const TreeOctNode* node , ConstPointer( Real )  finerCoefficients ) const;
+	Real _CoarserFunctionValue( const PointData& pointData , const typename TreeOctNode::NeighborKey3& neighborKey3 , const TreeOctNode* node , ConstPointer( Real ) coarseCoefficients ) const;
+	Real _FinerFunctionValue  ( const PointData& pointData , const typename TreeOctNode::NeighborKey3& neighborKey3 , const TreeOctNode* node , ConstPointer( Real )  finerCoefficients ) const;
 
 	// Down samples constraints @(depth) to constraints @(depth-1)
 	template< class C > void DownSample( int depth , const SortedTreeNodes& sNodes , ConstPointer( C ) fineConstraints    , Pointer( C ) coarseConstraints ) const;

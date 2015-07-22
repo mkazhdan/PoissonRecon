@@ -247,7 +247,7 @@ Real Octree< Real >::GetIsoValue( ConstPointer( Real ) solution , const std::vec
 	for( int d=maxDepth ; d>=_minDepth ; d-- )
 	{
 		std::vector< typename TreeOctNode::ConstNeighborKey3 > neighborKeys( std::max< int >( 1 , threads ) );
-		for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( d );
+		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( d );
 #pragma omp parallel for num_threads( threads ) reduction( + : isoValue , weightSum )
 		for( int i=_sNodes.nodeCount[d] ; i<_sNodes.nodeCount[d+1] ; i++ )
 		{
@@ -279,8 +279,7 @@ Real Octree< Real >::GetIsoValue( ConstPointer( Real ) solution , const std::vec
 			if( w!=0 ) isoValue += value * w , weightSum += w;
 		}
 	}
-	if( _boundaryType==-1 ) return isoValue/weightSum - Real(0.5);
-	else                    return isoValue/weightSum;
+	return isoValue / weightSum;
 }
 
 template< class Real >
@@ -296,7 +295,7 @@ void Octree< Real >::SetSliceIsoCorners( ConstPointer( Real ) solution , ConstPo
 {
 	typename Octree< Real >::template SliceValues< Vertex >& sValues = slabValues[depth].sliceValues( slice );
 	std::vector< typename TreeOctNode::ConstNeighborKey3 > neighborKeys( std::max< int >( 1 , threads ) );
-	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
+	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 #pragma omp parallel for num_threads( threads )
 	for( int i=_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slice-z] ; i<_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slice-z+1] ; i++ )
 	{
@@ -364,7 +363,7 @@ void Octree< Real >::SetSliceIsoVertices( ConstPointer( Real ) kernelDensityWeig
 {
 	typename Octree< Real >::template SliceValues< Vertex >& sValues = slabValues[depth].sliceValues( slice );
 	std::vector< typename TreeOctNode::ConstNeighborKey3 > neighborKeys( std::max< int >( 1 , threads ) );
-	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
+	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 #pragma omp parallel for num_threads( threads )
 	for( int i=_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slice-z] ; i<_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slice-z+1] ; i++ )
 	{
@@ -456,7 +455,7 @@ void Octree< Real >::SetXSliceIsoVertices( ConstPointer( Real ) kernelDensityWei
 	typename Octree< Real >::template XSliceValues< Vertex >& xValues = slabValues[depth].xSliceValues( slab   );
 
 	std::vector< typename TreeOctNode::ConstNeighborKey3 > neighborKeys( std::max< int >( 1 , threads ) );
-	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
+	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 #pragma omp parallel for num_threads( threads )
 	for( int i=_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slab] ; i<_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slab+1] ; i++ )
 	{
@@ -661,7 +660,7 @@ void Octree< Real >::SetSliceIsoEdges( int depth , int slice , int z , std::vect
 {
 	typename Octree< Real >::template SliceValues< Vertex >& sValues = slabValues[depth].sliceValues( slice );
 	std::vector< typename TreeOctNode::ConstNeighborKey3 > neighborKeys( std::max< int >( 1 , threads ) );
-	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
+	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 #pragma omp parallel for num_threads( threads )
 	for( int i=_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slice-z] ; i<_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slice-z+1] ; i++ )
 	{
@@ -721,7 +720,7 @@ void Octree< Real >::SetXSliceIsoEdges( int depth , int slab , std::vector< Slab
 	typename Octree< Real >::template XSliceValues< Vertex >& xValues = slabValues[depth].xSliceValues( slab   );
 
 	std::vector< typename TreeOctNode::ConstNeighborKey3 > neighborKeys( std::max< int >( 1 , threads ) );
-	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
+	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 #pragma omp parallel for num_threads( threads )
 	for( int i=_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slab] ; i<_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][slab+1] ; i++ )
 	{
@@ -797,7 +796,7 @@ void Octree< Real >::SetIsoSurface( int depth , int offset , const SliceValues< 
 	std::vector< std::pair< int , Vertex > > polygon;
 	std::vector< typename TreeOctNode::ConstNeighborKey3 > neighborKeys( std::max< int >( 1 , threads ) );
 	std::vector< std::vector< IsoEdge > > edgess( std::max< int >( 1 , threads ) );
-	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
+	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 #pragma omp parallel for num_threads( threads )
 	for( int i=_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][offset] ; i<_sNodes.nodeCount[depth]+_sNodes.sliceOffsets[depth][offset+1] ; i++ )
 	{
@@ -834,7 +833,7 @@ void Octree< Real >::SetIsoSurface( int depth , int offset , const SliceValues< 
 							if( iter!=sValues.faceEdgeMap.end() )
 							{
 								const std::vector< IsoEdge >& _edges = iter->second;
-								for( int j=0 ; j<_edges.size() ; j++ ) edges.push_back( IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
+								for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
 							}
 							else fprintf( stderr , "[ERROR] Invalid faces: %d  %d %d\n" , i , d , o ) , exit( 0 );
 						}
@@ -854,7 +853,7 @@ void Octree< Real >::SetIsoSurface( int depth , int offset , const SliceValues< 
 							if( iter!=xValues.faceEdgeMap.end() )
 							{
 								const std::vector< IsoEdge >& _edges = iter->second;
-								for( int j=0 ; j<_edges.size() ; j++ ) edges.push_back( IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
+								for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
 							}
 							else fprintf( stderr , "[ERROR] Invalid faces: %d  %d %d\n" , i , d , o ) , exit( 0 );
 						}
@@ -871,7 +870,7 @@ void Octree< Real >::SetIsoSurface( int depth , int offset , const SliceValues< 
 					while( current!=start )
 					{
 						int idx;
-						for( idx=0 ; idx<edges.size() ; idx++ ) if( edges[idx][0]==current ) break;
+						for( idx=0 ; idx<(int)edges.size() ; idx++ ) if( edges[idx][0]==current ) break;
 						if( idx==edges.size() )
 						{
 							typename hash_map< long long , long long >::const_iterator iter;
@@ -890,10 +889,10 @@ void Octree< Real >::SetIsoSurface( int depth , int offset , const SliceValues< 
 					loops.back().push_back( start );
 				}
 				// Add the loops to the mesh
-				for( int j=0 ; j<loops.size() ; j++ )
+				for( size_t j=0 ; j<loops.size() ; j++ )
 				{
 					std::vector< std::pair< int , Vertex > > polygon( loops[j].size() );
-					for( int k=0 ; k<loops[j].size() ; k++ )
+					for( size_t k=0 ; k<loops[j].size() ; k++ )
 					{
 						long long key = loops[j][k];
 						typename hash_map< long long , std::pair< int , Vertex > >::const_iterator iter;
