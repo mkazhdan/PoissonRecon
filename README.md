@@ -195,10 +195,10 @@ to remove all subsets of the surface where the sampling density corresponds to a
 <TD WIDTH="25%"><TABLE><TR><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.1.color.trimmed.jpg" WIDTH="100%"><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.2.color.trimmed.jpg" WIDTH="100%"></TR></TABLE>
 </TR>
 <TR>
-<TH>Unscreened
-<TH>Screened
-<TH>Screened + Color
-<TH>Screened + Color + Trimmed
+<TH ALIGN="CENTER">Unscreened
+<TH ALIGN="CENTER">Screened
+<TH ALIGN="CENTER">Screened + Color
+<TH ALIGN="CENTER">Screened + Color + Trimmed
 </TR>
 </TABLE>
 
