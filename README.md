@@ -162,26 +162,52 @@ The default value 0.001.
 
 <HR>
 <A NAME="USAGE"><B>USAGE</B></A><br>
-For testing purposes, two oriented point sets are provided:
+For testing purposes, three point sets are provided:
+
 <OL>
+
+<LI> <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.points.ply"><B>Eagle</B></A>:
+A set of 796,825 oriented point samples with color (represented in PLY format) was obtained in the EPFL <A HREF="http://lgg.epfl.ch/statues.php">Scanning 3D Statues from Photos</A> course.<br>
+<UL>
+<LI>The original Poisson Reconstruction algorithm can be invoked by calling:
+<BLOCKQUOTE><CODE>% PoissonRecon --in eagle.points.ply --out eagle.unscreened.ply --depth 10 --pointWeight 0</CODE></BLOCKQUOTE>
+using the <b>--pointWeight 0</b> argument to disable the screening.<br>
+
+<LI>By default, screening is enabled so the call:
+<BLOCKQUOTE><CODE>% PoissonRecon --in eagle.points.ply --out eagle.screened.ply --depth 10</CODE></BLOCKQUOTE>
+produces a reconstruction that more faithfully fits the input point positions.<BR>
+
+<LI> A reconstruction of the eagle that extrapolates the color values from the input samples can be obtained by calling:
+<BLOCKQUOTE><CODE>% PoissonRecon --in eagle.points.ply --out eagle.screened.color.ply --depth 10 --color 16</CODE></BLOCKQUOTE>
+using the <b>--color 16</b> to indicate both that color should be used, and the extent to which finer color estimates should be preferenced over coarser estimates.
+
+<LI> Finally, a reconstruction the eagle that does not close up the holes can be obtained by first calling:
+<BLOCKQUOTE><CODE>% PoissonRecon --in eagle.points.ply --out eagle.screened.color.ply --depth 10 --color 16 --density</CODE></BLOCKQUOTE>
+using the <B>--density</B> flag to indicate that density estimates should be output with the vertices of the mesh, and then calling:
+<BLOCKQUOTE><CODE>% SurfaceTrimmer --in eagle.screened.color.ply --out eagle.screened.color.trimmed.ply --trim 7</CODE></BLOCKQUOTE>
+to remove all subsets of the surface where the sampling density corresponds to a depth smaller than 7.
+</UL>
+<TABLE BORDER=1>
+<TR>
+<TD WIDTH="25%"><TABLE><TR><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.unscreened.1.jpg" WIDTH="100%"><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.unscreened.2.jpg" WIDTH="100%"></TR></TABLE>
+<TD WIDTH="25%"><TABLE><TR><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.1.jpg" WIDTH="100%"><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.2.jpg" WIDTH="100%"></TR></TABLE>
+<TD WIDTH="25%"><TABLE><TR><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.1.color.jpg" WIDTH="100%"><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.2.color.jpg" WIDTH="100%"></TR></TABLE>
+<TD WIDTH="25%"><TABLE><TR><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.1.color.trimmed.jpg" WIDTH="100%"><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.2.color.trimmed.jpg" WIDTH="100%"></TR></TABLE>
+</TR>
+<TR>
+<TH>Unscreened
+<TH>Screened
+<TH>Screened + Color
+<TH>Screened + Color + Trimmed
+</TR>
+</TABLE>
 
 <LI> <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/bunny.points.ply"><B>Bunny</B></A>:
 A set of 362,271 oriented point samples (represented in PLY format) was obtained by merging the data from the original Stanford Bunny
 <A HREF="ftp://graphics.stanford.edu/pub/3Dscanrep/bunny.tar.gz">range scans</A>. The orientation of the sample points was estimated
 using the connectivity information within individual range scans.<br>
-The original Poisson Reconstruction algorithm can be invoked by calling:
-<BLOCKQUOTE><CODE>% PoissonRecon --in bunny.points.ply --out bunny.unscreened.ply --depth 10 --pointWeight 0</CODE></BLOCKQUOTE>
-using the <b>--pointWeight 0</b> argument to disable the screening.<br>
-By default, screening is enabled so the call:
-<BLOCKQUOTE><CODE>% PoissonRecon --in bunny.points.ply --out bunny.screened.ply --depth 10</CODE></BLOCKQUOTE>
-produces a reconstruction that more faithfully fits the input point positions.<BR>
-A reconstruction of the bunny that does not close up the holes can be obtained by first calling:
-<BLOCKQUOTE><CODE>% PoissonRecon --in bunny.points.ply --out bunny.screened.ply --depth 10 --density</CODE></BLOCKQUOTE>
-to obtain a surface storing depth estimates with each vertex, and then calling:
-<BLOCKQUOTE><CODE>% SurfaceTrimmer --in bunny.screened.ply --out bunny.screened.trimmed.ply --trim 7 --aRatio 0</CODE></BLOCKQUOTE>
-to remove all subsets of the surface where the sampling density corresponds to a depth smaller than 7.<BR>
-To fill in small holes in the reconstruction, the default value of the area ratio can be used instead:
-<BLOCKQUOTE><CODE>% SurfaceTrimmer --in bunny.screened.ply --out bunny.screened.trimmed.ply --trim 7</CODE></BLOCKQUOTE>
+The surface of the model can be reconstructed by calling the surface reconstructor as follows:
+<BLOCKQUOTE><CODE>% PoissonRecon --in bunny.points.ply --out bunny.ply --depth 10</CODE></BLOCKQUOTE>
 
 <LI> <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/horse.npts"><B>Horse</B></A>:
 A set of 100,000 oriented point samples (represented in ASCII format) was obtained by sampling a virtual horse model with a sampling density proportional to curvature, giving a set of non-uniformly distributed points.<br>
