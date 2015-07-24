@@ -430,7 +430,7 @@ template< class Vertex >
 CoredVectorMeshData< Vertex >::CoredVectorMeshData( void ) : writelock(0)
 {
 	oocPointIndex = polygonIndex = 0;
-	omp_init_lock(&writelock);
+	omp_init_lock(reinterpret_cast<omp_lock_t*>(&writelock));
 }
 template< class Vertex >
 void CoredVectorMeshData< Vertex >::resetIterator ( void ) { oocPointIndex = polygonIndex = 0; }
