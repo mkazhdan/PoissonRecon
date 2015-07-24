@@ -1,0 +1,15 @@
+language: cpp
+
+compiler:
+  - gcc
+  - clang
+
+script: make all
+
+env:
+  - OMP_NUM_THREADS=4
+
+os:
+  - linux
+
+sudo: false
