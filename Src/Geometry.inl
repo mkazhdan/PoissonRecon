@@ -27,6 +27,7 @@ DAMAGE.
 */
 
 #include <stdio.h>
+#include <omp.h>
 
 template<class Real>
 Real Random(void){return Real(rand())/RAND_MAX;}
@@ -426,7 +427,11 @@ int Triangulation<Real>::flipMinimize(int eIndex){
 // CoredVectorMeshData //
 /////////////////////////
 template< class Vertex >
-CoredVectorMeshData< Vertex >::CoredVectorMeshData( void ) { oocPointIndex = polygonIndex = 0; }
+CoredVectorMeshData< Vertex >::CoredVectorMeshData( void ) : writelock(0)
+{
+	oocPointIndex = polygonIndex = 0;
+	omp_init_lock(&writelock);
+}
 template< class Vertex >
 void CoredVectorMeshData< Vertex >::resetIterator ( void ) { oocPointIndex = polygonIndex = 0; }
 template< class Vertex >
@@ -450,11 +455,13 @@ template< class Vertex >
 int CoredVectorMeshData< Vertex >::addPolygon_s( const std::vector< int >& polygon )
 {
 	size_t sz;
-#pragma omp critical (CoredVectorMeshData_addPolygon_s)
+//#pragma omp critical (CoredVectorMeshData_addPolygon_s)
+	omp_set_lock(reinterpret_cast<omp_lock_t*>(&writelock));
 	{
 		sz = polygon.size();
 		polygons.push_back( polygon );
 	}
+	omp_unset_lock(reinterpret_cast<omp_lock_t*>(&writelock));
 	return (int)sz;
 }
 template< class Vertex >
