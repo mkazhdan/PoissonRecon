@@ -27,7 +27,9 @@ DAMAGE.
 */
 
 #include <stdio.h>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 template<class Real>
 Real Random(void){return Real(rand())/RAND_MAX;}
@@ -430,7 +432,9 @@ template< class Vertex >
 CoredVectorMeshData< Vertex >::CoredVectorMeshData( void ) : writelock(0)
 {
 	oocPointIndex = polygonIndex = 0;
+#ifdef _OPENMP
 	omp_init_lock(reinterpret_cast<omp_lock_t*>(&writelock));
+#endif
 }
 template< class Vertex >
 void CoredVectorMeshData< Vertex >::resetIterator ( void ) { oocPointIndex = polygonIndex = 0; }
@@ -456,12 +460,16 @@ int CoredVectorMeshData< Vertex >::addPolygon_s( const std::vector< int >& polyg
 {
 	size_t sz;
 //#pragma omp critical (CoredVectorMeshData_addPolygon_s)
+#ifdef _OPENMP
 	omp_set_lock(reinterpret_cast<omp_lock_t*>(&writelock));
+#endif
 	{
 		sz = polygon.size();
 		polygons.push_back( polygon );
 	}
+#ifdef _OPENMP
 	omp_unset_lock(reinterpret_cast<omp_lock_t*>(&writelock));
+#endif
 	return (int)sz;
 }
 template< class Vertex >
