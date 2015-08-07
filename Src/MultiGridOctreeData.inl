@@ -32,6 +32,18 @@ DAMAGE.
 #include "PointStream.h"
 #include "MAT.h"
 
+#include <cmath> //isnan, isfinite
+
+#ifdef _MSC_VER
+//Visual 2012 (and previous versions) don't know isnan and isfinite
+#if _MSC_VER <= 1700
+
+inline int isnan(double x) { return x != x; }
+inline int isfinite(double x) { return !isnan(x) && !isnan(x - x); }
+
+#endif
+#endif
+
 #define ITERATION_POWER 1.0/3
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
 #define SPLAT_ORDER 2
