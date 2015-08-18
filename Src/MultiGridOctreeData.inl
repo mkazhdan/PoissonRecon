@@ -313,7 +313,7 @@ void Octree< Real >::MultiSplatPointData( ConstPointer( Real ) kernelDensityWeig
 	TreeOctNode* temp = &tree;
 	while( temp->depth()<=depth )
 	{
-		SplatPointData( temp , position , _v * Real( pow( 1<<temp->depth() , dim ) ) , dataInfo , neighborKey );
+		SplatPointData( temp , position , _v * Real( 1 << (temp->depth() * dim) ) , dataInfo , neighborKey );
 		if( temp->depth()<depth )
 		{
 			if( !temp->children ) temp->initChildren();

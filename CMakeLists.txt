@@ -23,7 +23,7 @@ add_library( ${PROJECT_NAME} STATIC ${header_list} ${inline_list} ${source_list}
 # Add prepocessor definitions
 set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _CRT_SECURE_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS NOMINMAX )
 
-option( POISSON_RECON_WITH_OPEN_MP "Check to compile PoissonRecon plugin with OpenMP support" OFF )
+#option( POISSON_RECON_WITH_OPEN_MP "Check to compile PoissonRecon plugin with OpenMP support" OFF )
 if ( POISSON_RECON_WITH_OPEN_MP )
 	find_package(OpenMP)
 	if (OPENMP_FOUND)

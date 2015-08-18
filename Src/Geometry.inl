@@ -429,13 +429,7 @@ int Triangulation<Real>::flipMinimize(int eIndex){
 // CoredVectorMeshData //
 /////////////////////////
 template< class Vertex >
-CoredVectorMeshData< Vertex >::CoredVectorMeshData( void ) : writelock(0)
-{
-	oocPointIndex = polygonIndex = 0;
-#ifdef _OPENMP
-	omp_init_lock(reinterpret_cast<omp_lock_t*>(&writelock));
-#endif
-}
+CoredVectorMeshData< Vertex >::CoredVectorMeshData( void ) : oocPointIndex(0), polygonIndex(0) {}
 template< class Vertex >
 void CoredVectorMeshData< Vertex >::resetIterator ( void ) { oocPointIndex = polygonIndex = 0; }
 template< class Vertex >
@@ -459,17 +453,11 @@ template< class Vertex >
 int CoredVectorMeshData< Vertex >::addPolygon_s( const std::vector< int >& polygon )
 {
 	size_t sz;
-//#pragma omp critical (CoredVectorMeshData_addPolygon_s)
-#ifdef _OPENMP
-	omp_set_lock(reinterpret_cast<omp_lock_t*>(&writelock));
-#endif
+	#pragma omp critical (CoredVectorMeshData_addPolygon_s)
 	{
 		sz = polygon.size();
 		polygons.push_back( polygon );
 	}
-#ifdef _OPENMP
-	omp_unset_lock(reinterpret_cast<omp_lock_t*>(&writelock));
-#endif
 	return (int)sz;
 }
 template< class Vertex >
