@@ -322,7 +322,6 @@ class CoredVectorMeshData : public CoredMeshData< Vertex >
 	std::vector< std::vector< int > > polygons;
 	int polygonIndex;
 	int oocPointIndex;
-	void* writelock;
 public:
 	CoredVectorMeshData(void);
 
