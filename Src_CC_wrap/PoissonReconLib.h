@@ -15,8 +15,8 @@
 //#                                                                        #
 //##########################################################################
 
-#ifndef CC_POISSON_RECON_LIB_6_11_WRAPPER
-#define CC_POISSON_RECON_LIB_6_11_WRAPPER
+#ifndef CC_POISSON_RECON_LIB_WRAPPER
+#define CC_POISSON_RECON_LIB_WRAPPER
 
 #include "../Src/Ply.h"
 #include "../Src/Geometry.h"
