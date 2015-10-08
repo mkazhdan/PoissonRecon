@@ -65,8 +65,8 @@ void ASCIIOrientedPointStream< Real >::reset( void ) { fseek( _fp , SEEK_SET , 0
 template< class Real >
 bool ASCIIOrientedPointStream< Real >::nextPoint( OrientedPoint3D< Real >& p )
 {
-	float c[2*DIMENSION];
-	if( fscanf( _fp , " %f %f %f %f %f %f " , &c[0] , &c[1] , &c[2] , &c[3] , &c[4] , &c[5] )!=2*DIMENSION ) return false;
+	float c[2*3];
+	if( fscanf( _fp , " %f %f %f %f %f %f " , &c[0] , &c[1] , &c[2] , &c[3] , &c[4] , &c[5] )!=2*3 ) return false;
 	p.p[0] = c[0] , p.p[1] = c[1] , p.p[2] = c[2];
 	p.n[0] = c[3] , p.n[1] = c[4] , p.n[2] = c[5];
 	return true;
@@ -244,8 +244,8 @@ void ASCIIOrientedPointStreamWithData< Real , Data >::reset( void ) { fseek( _fp
 template< class Real , class Data >
 bool ASCIIOrientedPointStreamWithData< Real , Data >::nextPoint( OrientedPoint3D< Real >& p , Data& d )
 {
-	float c[2*DIMENSION];
-	if( fscanf( _fp , " %f %f %f %f %f %f " , &c[0] , &c[1] , &c[2] , &c[3] , &c[4] , &c[5] )!=2*DIMENSION ) return false;
+	float c[2*3];
+	if( fscanf( _fp , " %f %f %f %f %f %f " , &c[0] , &c[1] , &c[2] , &c[3] , &c[4] , &c[5] )!=2*3 ) return false;
 	p.p[0] = c[0] , p.p[1] = c[1] , p.p[2] = c[2];
 	p.n[0] = c[3] , p.n[1] = c[4] , p.n[2] = c[5];
 	d = _readData( _fp );
