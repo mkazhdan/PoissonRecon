@@ -344,8 +344,6 @@ If higher order degrees are desired, additional template parameters can be easil
 Similarly, to reduce compilation times, support for specific degrees can be removed.)
 <LI> Added the <B>--primalVoxel</B> flag to support to extraction of a voxel grid using primal sampling.
 <LI> Changed the implementation of the voxel sampling so that computation is now linear, rather than log-linear, in the number of samples.
-<LI> Changed the realization of the normal/vector field to use a more compactly supported basis. This gives rise to a smaller system (using less memory and providing a faster solver). Earlier results can be obtained
-  by setting:<PRE>#define NORMAL_DEGREE 2</PRE> in the file <I>MultiGridOctreeData.h</I>.
 </OL>
 
 <HR>
