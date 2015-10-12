@@ -214,8 +214,11 @@
     <None Include="Src\Array.inl" />
     <None Include="Src\CmdLineParser.inl" />
     <None Include="Src\MAT.inl" />
+    <None Include="Src\MultiGridOctreeData.Evaluation.inl" />
     <None Include="Src\MultiGridOctreeData.IsoSurface.inl" />
     <None Include="Src\MultiGridOctreeData.SortedTreeNodes.inl" />
+    <None Include="Src\MultiGridOctreeData.System.inl" />
+    <None Include="Src\MultiGridOctreeData.WeightedSamples.inl" />
     <None Include="Src\PointStream.inl" />
     <None Include="Src\BSplineData.inl" />
     <None Include="Src\Geometry.inl" />
