@@ -683,7 +683,7 @@ int Octree< Real >::SetTree( OrientedPointStream< PointReal >* pointStream , int
 		myCenter = Point3D< Real >( Real(0.5) , Real(0.5) , Real(0.5) );
 		myWidth = Real(1.0);
 		Real normalLength = Real( Length( n ) );
-		if( isnan( normalLength ) || !isfinite( normalLength ) || normalLength<=EPSILON ) continue;
+        if( isnan( normalLength ) || !std::isfinite( normalLength ) || normalLength<=EPSILON ) continue;
 		if( !useConfidence ) n /= normalLength;
 
 		Real pointWeight = Real(1.f);
