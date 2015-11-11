@@ -68,12 +68,10 @@ template< class C > void AlignedFreePointer( Array< C >& a ){ a.Free( ); }
 template< class C > void       VFreePointer( Array< C >& a ){ a.Free( ); }
 template< class C > void      DeletePointer( Array< C >& a ){ a.Delete( ); }
 
-template< class C > Array< C >          NewPointer(                  size_t size ,                 const char* name=NULL ){ return Array< C >::New         (     size ,                     name ); }
-template< class C > Array< C >        AllocPointer(                  size_t size ,                 const char* name=NULL ){ return Array< C >::Alloc       (     size ,             false , name ); }
+template< class C > Array< C >          NewPointer(                  size_t size ,                    const char* name=NULL ){ return Array< C >::New         (     size ,                     name ); }
+template< class C > Array< C >        AllocPointer(                  size_t size ,                    const char* name=NULL ){ return Array< C >::Alloc       (     size ,             false , name ); }
 template< class C > Array< C > AlignedAllocPointer(                  size_t size , size_t alignment , const char* name=NULL ){ return Array< C >::AlignedAlloc(     size , alignment , false , name ); }
-template< class C > Array< C >      ReAllocPointer( Array< C >&  a , size_t size ,                 const char* name=NULL ){ return Array< C >::ReAlloc     ( a , size ,             false , name ); }
-
-//template< class C > Array< C > NullPointer( void ){ return Array< C >( ); }
+template< class C > Array< C >      ReAllocPointer( Array< C >&  a , size_t size ,                    const char* name=NULL ){ return Array< C >::ReAlloc     ( a , size ,             false , name ); }
 
 template< class C >       C* PointerAddress(      Array< C >& a ) { return a.pointer(); }
 template< class C > const C* PointerAddress( ConstArray< C >& a ) { return a.pointer(); }

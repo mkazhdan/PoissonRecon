@@ -33,8 +33,9 @@ DAMAGE.
 #include "BinaryNode.h"
 #include "MarchingCubes.h"
 
-#define DIMENSION 3
+#define NEW_OCTNODE_CODE 1
 
+#define DIMENSION 3
 
 template< class NodeData >
 class OctNode
@@ -43,42 +44,13 @@ private:
 	static int UseAlloc;
 	unsigned long long _depthAndOffset;
 
-	class AdjacencyCountFunction
-	{
-	public:
-		int count;
-		void Function( const OctNode< NodeData >* node1 , const OctNode< NodeData >* node2 );
-	};
-	template<class NodeAdjacencyFunction>
-	void __processNodeFaces(OctNode* node,NodeAdjacencyFunction* F,int cIndex1,int cIndex2,int cIndex3,int cIndex4);
-	template< class NodeAdjacencyFunction >
-	void __processNodeFaces( const OctNode* node , NodeAdjacencyFunction* F , int cIndex1 , int cIndex2 , int cIndex3 , int cIndex4 ) const;
-	template<class NodeAdjacencyFunction>
-	void __processNodeEdges(OctNode* node,NodeAdjacencyFunction* F,int cIndex1,int cIndex2);
-	template<class NodeAdjacencyFunction>
-	void __processNodeNodes(OctNode* node,NodeAdjacencyFunction* F);
-	template<class NodeAdjacencyFunction>
-	static void __ProcessNodeAdjacentNodes(int dx,int dy,int dz,OctNode* node1,int radius1,OctNode* node2,int radius2,int cWidth2,NodeAdjacencyFunction* F);
-	template<class TerminatingNodeAdjacencyFunction>
-	static void __ProcessTerminatingNodeAdjacentNodes(int dx,int dy,int dz,OctNode* node1,int radius1,OctNode* node2,int radius2,int cWidth2,TerminatingNodeAdjacencyFunction* F);
-	template<class PointAdjacencyFunction>
-	static void __ProcessPointAdjacentNodes(int dx,int dy,int dz,OctNode* node2,int radius2,int cWidth2,PointAdjacencyFunction* F);
-	template<class NodeAdjacencyFunction>
-	static void __ProcessFixedDepthNodeAdjacentNodes(int dx,int dy,int dz,OctNode* node1,int radius1,OctNode* node2,int radius2,int cWidth2,int depth,NodeAdjacencyFunction* F);
-	template<class NodeAdjacencyFunction>
-	static void __ProcessMaxDepthNodeAdjacentNodes(int dx,int dy,int dz,OctNode* node1,int radius1,OctNode* node2,int radius2,int cWidth2,int depth,NodeAdjacencyFunction* F);
-
-	// This is made private because the division by two has been pulled out.
-	static inline int Overlap(int c1,int c2,int c3,int dWidth);
-	inline static int ChildOverlap(int dx,int dy,int dz,int d,int cRadius2);
-
-	const OctNode* __faceNeighbor(int dir,int off) const;
-	const OctNode* __edgeNeighbor(int o,const int i[2],const int idx[2]) const;
-	OctNode* __faceNeighbor(int dir,int off,int forceChildren);
-	OctNode* __edgeNeighbor(int o,const int i[2],const int idx[2],int forceChildren);
+	const OctNode* __faceNeighbor( int dir , int off ) const;
+	const OctNode* __edgeNeighbor( int o , const int i[2] , const int idx[2] ) const;
+	OctNode* __faceNeighbor( int dir , int off , int forceChildren );
+	OctNode* __edgeNeighbor( int o , const int i[2] , const int idx[2] , int forceChildren);
 public:
-	static const int DepthShift,OffsetShift,OffsetShift1,OffsetShift2,OffsetShift3;
-	static const int DepthMask,OffsetMask;
+	static const int DepthShift , OffsetShift , OffsetShift1 , OffsetShift2 , OffsetShift3;
+	static const int DepthMask , OffsetMask;
 
 	static Allocator< OctNode > NodeAllocator;
 	static int UseAllocator( void );
@@ -88,8 +60,8 @@ public:
 	OctNode* children;
 	NodeData nodeData;
 
-	OctNode(void);
-	~OctNode(void);
+	OctNode( void );
+	~OctNode( void );
 	int initChildren( void );
 
 	void depthAndOffset( int& depth , int offset[DIMENSION] ) const; 
@@ -97,10 +69,12 @@ public:
 	int depth( void ) const;
 	static inline void DepthAndOffset( const long long& index , int& depth , int offset[DIMENSION] );
 	template< class Real > static inline void CenterAndWidth( const long long& index , Point3D< Real >& center , Real& width );
+	template< class Real > static inline void StartAndWidth( const long long& index , Point3D< Real >& start , Real& width );
 	static inline int Depth( const long long& index );
 	static inline void Index( int depth , const int offset[3] , short& d , short off[DIMENSION] );
 	static inline unsigned long long Index( int depth , const int offset[3] );
 	template< class Real > void centerAndWidth( Point3D<Real>& center , Real& width ) const;
+	template< class Real > void startAndWidth( Point3D< Real >& start , Real& width ) const;
 	template< class Real > bool isInside( Point3D< Real > p ) const;
 
 	size_t leaves( void ) const;
@@ -110,185 +84,92 @@ public:
 
 	const OctNode* root( void ) const;
 
-	const OctNode* nextLeaf(const OctNode* currentLeaf=NULL) const;
-	OctNode* nextLeaf(OctNode* currentLeaf=NULL);
-	const OctNode* nextNode(const OctNode* currentNode=NULL) const;
-	OctNode* nextNode(OctNode* currentNode=NULL);
-	const OctNode* nextBranch(const OctNode* current) const;
-	OctNode* nextBranch(OctNode* current);
-	const OctNode* prevBranch(const OctNode* current) const;
-	OctNode* prevBranch(OctNode* current);
+	const OctNode* nextLeaf( const OctNode* currentLeaf=NULL ) const;
+	OctNode* nextLeaf( OctNode* currentLeaf=NULL );
+	const OctNode* nextNode( const OctNode* currentNode=NULL ) const;
+	OctNode* nextNode( OctNode* currentNode=NULL );
+	const OctNode* nextBranch( const OctNode* current ) const;
+	OctNode* nextBranch( OctNode* current );
+	const OctNode* prevBranch( const OctNode* current ) const;
+	OctNode* prevBranch( OctNode* current );
 
-	void setFullDepth(int maxDepth);
+	void setFullDepth( int maxDepth );
 
-	void printLeaves(void) const;
-	void printRange(void) const;
-
-	template<class NodeAdjacencyFunction>
-	void processNodeFaces(OctNode* node,NodeAdjacencyFunction* F,int fIndex,int processCurrent=1);
-	template< class NodeAdjacencyFunction >
-	void processNodeFaces( const OctNode* node , NodeAdjacencyFunction* F , int fIndex , int processCurrent=1 ) const;
-	template<class NodeAdjacencyFunction>
-	void processNodeEdges(OctNode* node,NodeAdjacencyFunction* F,int eIndex,int processCurrent=1);
-	template<class NodeAdjacencyFunction>
-	void processNodeCorners(OctNode* node,NodeAdjacencyFunction* F,int cIndex,int processCurrent=1);
-	template<class NodeAdjacencyFunction>
-	void processNodeNodes(OctNode* node,NodeAdjacencyFunction* F,int processCurrent=1);
-	
-	template<class NodeAdjacencyFunction>
-	static void ProcessNodeAdjacentNodes(int maxDepth,OctNode* node1,int width1,OctNode* node2,int width2,NodeAdjacencyFunction* F,int processCurrent=1);
-	template<class NodeAdjacencyFunction>
-	static void ProcessNodeAdjacentNodes(int dx,int dy,int dz,OctNode* node1,int radius1,OctNode* node2,int radius2,int width2,NodeAdjacencyFunction* F,int processCurrent=1);
-	template<class TerminatingNodeAdjacencyFunction>
-	static void ProcessTerminatingNodeAdjacentNodes(int maxDepth,OctNode* node1,int width1,OctNode* node2,int width2,TerminatingNodeAdjacencyFunction* F,int processCurrent=1);
-	template<class TerminatingNodeAdjacencyFunction>
-	static void ProcessTerminatingNodeAdjacentNodes(int dx,int dy,int dz,OctNode* node1,int radius1,OctNode* node2,int radius2,int width2,TerminatingNodeAdjacencyFunction* F,int processCurrent=1);
-	template<class PointAdjacencyFunction>
-	static void ProcessPointAdjacentNodes(int maxDepth,const int center1[3],OctNode* node2,int width2,PointAdjacencyFunction* F,int processCurrent=1);
-	template<class PointAdjacencyFunction>
-	static void ProcessPointAdjacentNodes(int dx,int dy,int dz,OctNode* node2,int radius2,int width2,PointAdjacencyFunction* F,int processCurrent=1);
-	template<class NodeAdjacencyFunction>
-	static void ProcessFixedDepthNodeAdjacentNodes(int maxDepth,OctNode* node1,int width1,OctNode* node2,int width2,int depth,NodeAdjacencyFunction* F,int processCurrent=1);
-	template<class NodeAdjacencyFunction>
-	static void ProcessFixedDepthNodeAdjacentNodes(int dx,int dy,int dz,OctNode* node1,int radius1,OctNode* node2,int radius2,int width2,int depth,NodeAdjacencyFunction* F,int processCurrent=1);
-	template<class NodeAdjacencyFunction>
-	static void ProcessMaxDepthNodeAdjacentNodes(int maxDepth,OctNode* node1,int width1,OctNode* node2,int width2,int depth,NodeAdjacencyFunction* F,int processCurrent=1);
-	template<class NodeAdjacencyFunction>
-	static void ProcessMaxDepthNodeAdjacentNodes(int dx,int dy,int dz,OctNode* node1,int radius1,OctNode* node2,int radius2,int width2,int depth,NodeAdjacencyFunction* F,int processCurrent=1);
+	void printLeaves( void ) const;
+	void printRange( void ) const;
 
 	template< class Real > static int CornerIndex( const Point3D<Real>& center , const Point3D<Real> &p );
 
-	OctNode* faceNeighbor(int faceIndex,int forceChildren=0);
-	const OctNode* faceNeighbor(int faceIndex) const;
-	OctNode* edgeNeighbor(int edgeIndex,int forceChildren=0);
-	const OctNode* edgeNeighbor(int edgeIndex) const;
-	OctNode* cornerNeighbor(int cornerIndex,int forceChildren=0);
-	const OctNode* cornerNeighbor(int cornerIndex) const;
+	OctNode* faceNeighbor( int faceIndex , int forceChildren=0 );
+	const OctNode* faceNeighbor( int faceIndex ) const;
+	OctNode* edgeNeighbor( int edgeIndex , int forceChildren=0 );
+	const OctNode* edgeNeighbor( int edgeIndex ) const;
+	OctNode* cornerNeighbor( int cornerIndex , int forceChildren=0 );
+	const OctNode* cornerNeighbor( int cornerIndex ) const;
 
-	template< class Real > OctNode* getNearestLeaf(const Point3D<Real>& p);
-	template< class Real > const OctNode* getNearestLeaf(const Point3D<Real>& p) const;
+	int write( const char* fileName ) const;
+	int write( FILE* fp ) const;
+	int read( const char* fileName );
+	int read( FILE* fp );
 
-	static int CommonEdge(const OctNode* node1,int eIndex1,const OctNode* node2,int eIndex2);
-	static int CompareForwardDepths(const void* v1,const void* v2);
-	static int CompareByDepthAndXYZ( const void* v1 , const void* v2 );
-	static int CompareByDepthAndZIndex( const void* v1 , const void* v2 );
-	static int CompareForwardPointerDepths(const void* v1,const void* v2);
-	static int CompareBackwardDepths(const void* v1,const void* v2);
-	static int CompareBackwardPointerDepths(const void* v1,const void* v2);
-
-
-	template<class NodeData2>
-	OctNode& operator = ( const OctNode< NodeData2 >& node );
-
-	template< class Real >
-	static inline int Overlap2(const int &depth1,const int offSet1[DIMENSION],const Real& multiplier1,const int &depth2,const int offSet2[DIMENSION],const Real& multiplier2);
-
-
-	int write(const char* fileName) const;
-	int write(FILE* fp) const;
-	int read(const char* fileName);
-	int read(FILE* fp);
-
-	class Neighbors5
+	template< unsigned int Width >
+	struct Neighbors
 	{
-	public:
-		OctNode* neighbors[5][5][5];
-		Neighbors5( void );
+		OctNode* neighbors[Width][Width][Width];
+		Neighbors( void );
 		void clear( void );
 	};
-	class ConstNeighbors5
+	template< unsigned int Width >
+	struct ConstNeighbors
 	{
-	public:
-		const OctNode* neighbors[5][5][5];
-		ConstNeighbors5( void );
+		const OctNode* neighbors[Width][Width][Width];
+		ConstNeighbors( void );
 		void clear( void );
 	};
 
-	class NeighborKey5
+	template< unsigned int LeftRadius , unsigned int RightRadius >
+	class NeighborKey
 	{
 		int _depth;
 	public:
-		Neighbors5* neighbors;
+		static const int Width = LeftRadius + RightRadius + 1;
+		Neighbors< Width >* neighbors;
 
-		NeighborKey5( void );
-		~NeighborKey5( void );
-
-		void set( int depth );
-		Neighbors5& getNeighbors( OctNode* node );
-		Neighbors5& setNeighbors( OctNode* node ,  int xStart=0 , int xEnd=5 , int yStart=0 , int yEnd=5 , int zStart=0 , int zEnd=5 );
-	};
-	class ConstNeighborKey5
-	{
-		int _depth;
-	public:
-		ConstNeighbors5* neighbors;
-
-		ConstNeighborKey5( void );
-		~ConstNeighborKey5( void );
-
-		void set( int depth );
-		ConstNeighbors5& getNeighbors( const OctNode* node );
-	};
-
-	class Neighbors3
-	{
-	public:
-		OctNode* neighbors[3][3][3];
-		Neighbors3( void );
-		void clear( void );
-	};
-	class ConstNeighbors3
-	{
-	public:
-		const OctNode* neighbors[3][3][3];
-		ConstNeighbors3( void );
-		void clear( void );
-	};
-	class NeighborKey3
-	{
-		int _depth;
-	public:
-		Neighbors3* neighbors;
-
-		NeighborKey3( void );
-		NeighborKey3( const NeighborKey3& key3 );
-		~NeighborKey3( void );
+		NeighborKey( void );
+		NeighborKey( const NeighborKey& key );
+		~NeighborKey( void );
 		int depth( void ) const { return _depth; }
 
 		void set( int depth );
-		template< class Real > Neighbors3& setNeighbors( OctNode* root , Point3D< Real > p , int d );
-		template< class Real > Neighbors3& getNeighbors( OctNode* root , Point3D< Real > p , int d );		
-		Neighbors3& setNeighbors( OctNode* node , bool flags[3][3][3] );
-		Neighbors3& setNeighbors( OctNode* node );
-		Neighbors3& getNeighbors( OctNode* node );
-		void setNeighbors( OctNode* node , typename OctNode< NodeData >::Neighbors5& neighbors );
-		void getNeighbors( OctNode* node , typename OctNode< NodeData >::Neighbors5& neighbors );
-
-		template< class Real > bool setChildNeighbors( Point3D< Real > p , int d , Neighbors3& childNeighbors ) const;
-		template< class Real > bool getChildNeighbors( Point3D< Real > p , int d , Neighbors3& childNeighbors ) const;
+		template< bool CreateNodes > typename OctNode< NodeData >::template Neighbors< LeftRadius+RightRadius+1 >& getNeighbors( OctNode* node );
+		template< bool CreateNodes , unsigned int _LeftRadius , unsigned int _RightRadius > void getNeighbors( OctNode* node , Neighbors< _LeftRadius + _RightRadius + 1 >& neighbors );
+		template< bool CreateNodes > bool getChildNeighbors( int cIdx , int d , Neighbors< Width >& childNeighbors ) const;
+		template< bool CreateNodes , class Real > bool getChildNeighbors( Point3D< Real > p , int d , Neighbors< Width >& childNeighbors ) const;
 	};
-	class ConstNeighborKey3
+
+	template< unsigned int LeftRadius , unsigned int RightRadius >
+	class ConstNeighborKey
 	{
 		int _depth;
 	public:
-		ConstNeighbors3* neighbors;
+		static const int Width = LeftRadius + RightRadius + 1;
+		ConstNeighbors<Width>* neighbors;
 
-		ConstNeighborKey3( void );
-		ConstNeighborKey3( const ConstNeighborKey3& key3 );
-		~ConstNeighborKey3( void );
+		ConstNeighborKey( void );
+		ConstNeighborKey( const ConstNeighborKey& key );
+		~ConstNeighborKey( void );
 		int depth( void ) const { return _depth; }
 
 		void set( int depth );
-		ConstNeighbors3& getNeighbors( const OctNode* node );
-		ConstNeighbors3& getNeighbors( const OctNode* node , int minDepth );
-		void getNeighbors( const OctNode* node , typename OctNode< NodeData >::ConstNeighbors5& neighbors );
+		typename OctNode< NodeData >::template ConstNeighbors< LeftRadius+RightRadius+1 >& getNeighbors( const OctNode* node );
+		template< unsigned int _LeftRadius , unsigned int _RightRadius > void getNeighbors( const OctNode* node , ConstNeighbors< _LeftRadius + _RightRadius + 1 >& neighbors );
 	};
 
-	void centerIndex(int maxDepth,int index[DIMENSION]) const;
-	int width(int maxDepth) const;
+	void centerIndex( int maxDepth , int index[DIMENSION] ) const;
+	int width( int maxDepth ) const;
 };
 
 
 #include "Octree.inl"
 
-#endif // OCT_NODE
+#endif // OCT_NODE_INCLUDED
