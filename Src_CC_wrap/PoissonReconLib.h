@@ -89,7 +89,7 @@ public:
 		bool showResidual;
 		int kernelDepth;
 		int maxSolveDepth;
-		int boundary;
+		bool dirichlet;
 
 		//DGM: the above parameters are hidden in PoissonRecon
 

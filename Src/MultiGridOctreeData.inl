@@ -36,6 +36,19 @@ const double MATRIX_ENTRY_EPSILON = 0;
 const double EPSILON              = 1e-6;
 const double ROUND_EPS            = 1e-5;
 
+//Visual 2012 and previous versions don't know isnan or isfinite
+#if defined(_MSC_VER) && (_MSC_VER <= 1700)
+
+#define ISNAN _isnan
+#define ISFINITE !_finite
+
+#else
+
+#include <cmath>
+#define ISNAN isnan
+#define ISFINITE std::isfinite
+
+#endif
 
 
 //////////////////
@@ -224,7 +237,7 @@ int Octree< Real >::SetTree( OrientedPointStream< PointReal >* pointStream , int
 		n *= Real(-1.);
 		if( !_InBounds(p) ) continue;
 		Real normalLength = Real( Length( n ) );
-		if( isnan( normalLength ) || !isfinite( normalLength ) || normalLength<=EPSILON ) continue;
+		if( ISNAN( normalLength ) || !ISFINITE( normalLength ) || normalLength<=EPSILON ) continue;
 		if( !useConfidence ) n /= normalLength;
 
 		Real pointWeight = Real(1.f);

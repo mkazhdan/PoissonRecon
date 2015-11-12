@@ -35,6 +35,8 @@
 #define DumpOutput(...) ((void)0)
 #include "../Src/MultiGridOctreeData.h" //only after DumpOutput has been defined!
 
+#define BSPLINE_DEGREE 2
+
 PoissonReconLib::Parameters::Parameters()
 	: depth(8) //8
 	, cgDepth(0) //0
@@ -44,7 +46,7 @@ PoissonReconLib::Parameters::Parameters()
 	, fullDepth(5) //5
 	, minDepth(0) //0
 	, maxSolveDepth(0) //?
-	, boundary(1) //1
+	, dirichlet(true) //true
 	, threads(1) //ideally omp_get_num_procs()
 	, samplesPerNode(1.0f) //1.0f
 	, scale(1.1f) //1.1f
@@ -63,7 +65,7 @@ PoissonReconLib::Parameters::Parameters()
 #endif
 }
 
-template< class PointCoordinateType, class Real, class Vertex >
+template< class PointCoordinateType, class Real, int Degree, class Vertex >
 bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoordinateType >* pointStream, CoredVectorMeshData< Vertex >& mesh)
 {
 	XForm4x4< Real > xForm = XForm4x4< Real >::Identity();
@@ -88,13 +90,14 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoord
 	params.fullDepth = std::min(params.fullDepth, params.depth);
 
 	tree.maxMemoryUsage = 0;
-	typename Octree< Real >::template SparseNodeData< typename Octree< Real >::PointData >* pointInfo = new typename Octree< Real >::template SparseNodeData< typename Octree< Real >::PointData >();
-	typename Octree< Real >::template SparseNodeData< Point3D< Real > >* normalInfo = new typename Octree< Real >::template SparseNodeData< Point3D< Real > >();
-	std::vector< Real >* kernelDensityWeights = new std::vector< Real >();
-	std::vector< Real >* centerWeights = new std::vector< Real >();
+	SparseNodeData< PointData< Real > , 0 >* pointInfo = new SparseNodeData< PointData < Real > , 0 >();
+	SparseNodeData< Point3D< Real > , NORMAL_DEGREE >* normalInfo = new SparseNodeData< Point3D< Real > , NORMAL_DEGREE >();
+	SparseNodeData< Real , WEIGHT_DEGREE >* densityWeights = new SparseNodeData< Real , WEIGHT_DEGREE >();
+	SparseNodeData< Real , NORMAL_DEGREE >* nodeWeights = new SparseNodeData< Real , NORMAL_DEGREE >();
 	typedef typename Octree< Real >::template ProjectiveData< Point3D< Real > > ProjectiveColor;
+	SparseNodeData< ProjectiveColor , DATA_DEGREE >* colorData = 0;
 
-	int pointCount = tree.template SetTree< PointCoordinateType >(
+	int pointCount = tree.template SetTree< PointCoordinateType, NORMAL_DEGREE , WEIGHT_DEGREE , DATA_DEGREE , Point3D< unsigned char > >(
 									pointStream,
 									params.minDepth,
 									params.depth,
@@ -106,18 +109,36 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoord
 									params.normalWeights,
 									params.pointWeight,
 									params.adaptiveExp,
-									*kernelDensityWeights,
+									*densityWeights,
 									*pointInfo,
 									*normalInfo,
-									*centerWeights,
+									*nodeWeights,
+									colorData,
 									xForm,
-									params.boundary,
+									params.dirichlet,
 									params.complete );
 
 	if( !params.density )
 	{
-		delete kernelDensityWeights;
-		kernelDensityWeights = NULL;
+		delete densityWeights;
+		densityWeights = NULL;
+	}
+	//reamp indexes
+	{
+		std::vector< int > indexMap;
+		if( NORMAL_DEGREE > Degree )
+			tree.template EnableMultigrid< NORMAL_DEGREE >( &indexMap );
+		else
+			tree.template EnableMultigrid<        Degree >( &indexMap );
+		
+		if (pointInfo)
+			pointInfo->remapIndices( indexMap );
+		if (normalInfo)
+			normalInfo->remapIndices( indexMap );
+		if (densityWeights)
+			densityWeights->remapIndices( indexMap );
+		if (nodeWeights)
+			nodeWeights->remapIndices( indexMap );
 	}
 
 	//DumpOutput( "Input Points: %d\n" , pointCount );
@@ -126,32 +147,33 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoord
 	double maxMemoryUsage = tree.maxMemoryUsage;
 	tree.maxMemoryUsage = 0;
 
-	Pointer( Real ) constraints = tree.SetLaplacianConstraints( *normalInfo );
+	DenseNodeData< Real , Degree > constraints = tree.template SetLaplacianConstraints< Degree >( *normalInfo );
 	delete normalInfo;
 	normalInfo = 0;
 
 	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
 	tree.maxMemoryUsage = 0;
 
-	Pointer( Real ) solution = tree.SolveSystem( *pointInfo , constraints , params.showResidual , params.iters, params.maxSolveDepth, params.cgDepth, params.cgAccuracy );
+	DenseNodeData< Real , Degree > solution = tree.SolveSystem( *pointInfo , constraints , params.showResidual , params.iters, params.maxSolveDepth, params.cgDepth, params.cgAccuracy );
 
 	delete pointInfo;
 	pointInfo = 0;
-	FreePointer( constraints );
+	constraints.resize(0);
 
 	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
 
-	Real isoValue = tree.GetIsoValue( solution , *centerWeights );
-	delete centerWeights;
-	centerWeights = 0;
+	Real isoValue = tree.GetIsoValue( solution , *nodeWeights );
+	delete nodeWeights;
+	nodeWeights = 0;
 
 	//DumpOutput( "Iso-Value: %e\n" , isoValue );
 
 	//output
 	tree.maxMemoryUsage = 0;
 
-	tree.GetMCIsoSurface(	kernelDensityWeights ? GetPointer( *kernelDensityWeights ) : NullPointer( Real ),
-							NULL,
+	tree.template GetMCIsoSurface< Degree , WEIGHT_DEGREE , DATA_DEGREE >(
+							densityWeights ? GetPointer( *densityWeights ) : NullPointer( Real ),
+							0,
 							solution,
 							isoValue,
 							mesh,
@@ -163,12 +185,12 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoord
 
 	//DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
 
-	FreePointer( solution );
+	solution.resize(0);
 
 	return true;
 }
 
-template< class PointCoordinateType, class Real, class Vertex >
+template< class PointCoordinateType, class Real, int Degree, class Vertex >
 bool Execute(PoissonReconLib::Parameters params, OrientedPointStreamWithData< PointCoordinateType , Point3D< unsigned char > >* pointStream, CoredVectorMeshData< Vertex >& mesh)
 {
 	XForm4x4< Real > xForm = XForm4x4< Real >::Identity();
@@ -193,14 +215,16 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStreamWithData< Po
 	params.fullDepth = std::min(params.fullDepth, params.depth);
 
 	tree.maxMemoryUsage = 0;
-	typename Octree< Real >::template SparseNodeData< typename Octree< Real >::PointData >* pointInfo = new typename Octree< Real >::template SparseNodeData< typename Octree< Real >::PointData >();
-	typename Octree< Real >::template SparseNodeData< Point3D< Real > >* normalInfo = new typename Octree< Real >::template SparseNodeData< Point3D< Real > >();
-	std::vector< Real >* kernelDensityWeights = new std::vector< Real >();
-	std::vector< Real >* centerWeights = new std::vector< Real >();
+	SparseNodeData< PointData< Real > , 0 >* pointInfo = new SparseNodeData< PointData < Real > , 0 >();
+	SparseNodeData< Point3D< Real > , NORMAL_DEGREE >* normalInfo = new SparseNodeData< Point3D< Real > , NORMAL_DEGREE >();
+	SparseNodeData< Real , WEIGHT_DEGREE >* densityWeights = new SparseNodeData< Real , WEIGHT_DEGREE >();
+	SparseNodeData< Real , NORMAL_DEGREE >* nodeWeights = new SparseNodeData< Real , NORMAL_DEGREE >();
 	typedef typename Octree< Real >::template ProjectiveData< Point3D< Real > > ProjectiveColor;
-	typename Octree< Real >::template SparseNodeData< ProjectiveColor > colorData;
+	SparseNodeData< ProjectiveColor , DATA_DEGREE > colorData;
 
-	int pointCount = tree.template SetTree< PointCoordinateType >(
+
+	int pointCount = tree.template SetTree< PointCoordinateType, NORMAL_DEGREE , WEIGHT_DEGREE , DATA_DEGREE , Point3D< unsigned char > >
+								(
 									pointStream,
 									params.minDepth,
 									params.depth,
@@ -212,16 +236,16 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStreamWithData< Po
 									params.normalWeights,
 									params.pointWeight,
 									params.adaptiveExp,
-									*kernelDensityWeights,
+									*densityWeights,
 									*pointInfo,
 									*normalInfo,
-									*centerWeights,
-									colorData,
+									*nodeWeights,
+									&colorData,
 									xForm,
-									params.boundary,
+									params.dirichlet,
 									params.complete );
 
-	for (const OctNode< TreeNodeData >* n = tree.tree.nextNode(); n != NULL; n = tree.tree.nextNode(n))
+	for (const OctNode< TreeNodeData >* n = tree.tree().nextNode(); n != NULL; n = tree.tree().nextNode( n ) )
 	{
 		int idx = colorData.index(n);
 		if (idx >= 0)
@@ -230,8 +254,26 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStreamWithData< Po
 
 	if( !params.density )
 	{
-		delete kernelDensityWeights;
-		kernelDensityWeights = NULL;
+		delete densityWeights;
+		densityWeights = NULL;
+	}
+	//reamp indexes
+	{
+		std::vector< int > indexMap;
+		if( NORMAL_DEGREE > Degree )
+			tree.template EnableMultigrid< NORMAL_DEGREE >( &indexMap );
+		else
+			tree.template EnableMultigrid<        Degree >( &indexMap );
+		
+		if (pointInfo)
+			pointInfo->remapIndices( indexMap );
+		if (normalInfo)
+			normalInfo->remapIndices( indexMap );
+		if (densityWeights)
+			densityWeights->remapIndices( indexMap );
+		if (nodeWeights)
+			nodeWeights->remapIndices( indexMap );
+		colorData.remapIndices( indexMap );
 	}
 
 	//DumpOutput( "Input Points: %d\n" , pointCount );
@@ -240,31 +282,32 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStreamWithData< Po
 	double maxMemoryUsage = tree.maxMemoryUsage;
 	tree.maxMemoryUsage = 0;
 
-	Pointer( Real ) constraints = tree.SetLaplacianConstraints( *normalInfo );
+	DenseNodeData< Real , Degree > constraints = tree.template SetLaplacianConstraints< Degree >( *normalInfo );
 	delete normalInfo;
 	normalInfo = 0;
 
 	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
 	tree.maxMemoryUsage = 0;
 
-	Pointer( Real ) solution = tree.SolveSystem( *pointInfo , constraints , params.showResidual , params.iters, params.maxSolveDepth, params.cgDepth, params.cgAccuracy );
+	DenseNodeData< Real , Degree > solution = tree.SolveSystem( *pointInfo , constraints , params.showResidual , params.iters, params.maxSolveDepth, params.cgDepth, params.cgAccuracy );
 
 	delete pointInfo;
 	pointInfo = 0;
-	FreePointer( constraints );
+	constraints.resize(0);
 
 	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
 
-	Real isoValue = tree.GetIsoValue( solution , *centerWeights );
-	delete centerWeights;
-	centerWeights = 0;
+	Real isoValue = tree.GetIsoValue( solution , *nodeWeights );
+	delete nodeWeights;
+	nodeWeights = 0;
 
 	//DumpOutput( "Iso-Value: %e\n" , isoValue );
 
 	//output
 	tree.maxMemoryUsage = 0;
 
-	tree.GetMCIsoSurface(	kernelDensityWeights ? GetPointer( *kernelDensityWeights ) : NullPointer( Real ),
+	tree.template GetMCIsoSurface< Degree , WEIGHT_DEGREE , DATA_DEGREE >(
+							densityWeights ? GetPointer( *densityWeights ) : NullPointer( Real ),
 							&colorData,
 							solution,
 							isoValue,
@@ -277,7 +320,7 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStreamWithData< Po
 
 	//DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
 
-	FreePointer( solution );
+	solution.resize(0);
 
 	return true;
 }
@@ -286,13 +329,15 @@ bool PoissonReconLib::Reconstruct(Parameters params, OrientedPointStreamWithData
 {
 	return Execute<	float,
 					float,
-					 PlyColorAndValueVertex< float > > (params, pointStream, mesh);
+					BSPLINE_DEGREE,
+					PlyColorAndValueVertex< float > > (params, pointStream, mesh);
 }
 
 bool PoissonReconLib::Reconstruct(Parameters params, OrientedPointStream< float >* pointStream, CoredVectorMeshData< PlyValueVertex< float > >& mesh)
 {
 	return Execute<	float,
 					float,
+					BSPLINE_DEGREE,
 					PlyValueVertex< float > > (params, pointStream, mesh);
 }
 
@@ -300,12 +345,14 @@ bool PoissonReconLib::Reconstruct(Parameters params, OrientedPointStreamWithData
 {
 	return Execute<	double,
 					double,
-					 PlyColorAndValueVertex< double > > (params, pointStream, mesh);
+					BSPLINE_DEGREE,
+					PlyColorAndValueVertex< double > > (params, pointStream, mesh);
 }
 
 bool PoissonReconLib::Reconstruct(Parameters params, OrientedPointStream< double >* pointStream, CoredVectorMeshData< PlyValueVertex< double > >& mesh)
 {
 	return Execute<	double,
 					double,
+					BSPLINE_DEGREE,
 					PlyValueVertex< double > > (params, pointStream, mesh);
 }
