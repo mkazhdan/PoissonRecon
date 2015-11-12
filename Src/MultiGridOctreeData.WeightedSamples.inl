@@ -477,7 +477,7 @@ V Octree< Real >::Evaluate( const SparseNodeData< V , DataDegree >& coefficients
 		if( idx>=0 )
 		{
 			int d , off[3] , pIdx[3];
-			_DepthAndOffset( d , off );
+			_DepthAndOffset( n , d , off );
 			for( int dd=0 ; dd<3 ; dd++ ) pIdx[dd] =  std::max< int >( 0 , std::min< int >( BSplineData< DataDegree >::SupportSize-1 , -BSplineData< DataDegree >::SupportStart + (int)floor( ( p[dd]-s[dd] ) / w ) ) );
 			value += 
 				coefficients.data[idx] *
