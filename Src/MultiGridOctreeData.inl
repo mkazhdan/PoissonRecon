@@ -40,7 +40,7 @@ const double ROUND_EPS            = 1e-5;
 #if defined(_MSC_VER) && (_MSC_VER <= 1700)
 
 #define ISNAN _isnan
-#define ISFINITE !_finite
+#define ISFINITE _finite
 
 #else
 
