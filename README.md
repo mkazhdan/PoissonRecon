@@ -1,4 +1,4 @@
-<CENTER><H2>Screened Poisson Surface Reconstruction (Version 7.0)</H2></CENTER>
+<CENTER><H2>Screened Poisson Surface Reconstruction (Version 8.0)</H2></CENTER>
 <CENTER>
 <A HREF="#LINKS">links</A>
 <A HREF="#EXECUTABLES">executables</A>
@@ -11,8 +11,10 @@ Papers:
 <A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">SGP 2006</A>,
 <A href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">ToG 2013</A>
 <br>
-Executables (<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/PoissonRecon.Win32.zip">Win32</A>, <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/PoissonRecon.x64.zip">Win64</A>)<BR>
+Executables (<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/PoissonRecon.Win32.zip">Win32</A>, <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/PoissonRecon.x64.zip">Win64</A>)<BR>
+<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/PoissonRecon.zip">Source Code</A> <A HREF="https://github.com/mkazhdan/PoissonRecon">GitHub Repository</A><BR>
 (Older Versions:
+<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/">V7.0</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/">V6.13a</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13/">V6.13</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.12/">V6.12</A>,
@@ -54,6 +56,14 @@ by the x-, y- and z-coordinates of the point's normal. (No information about the
 <DD> This string is the name of the file to which the triangle mesh will be written. 
 The file is written in <A HREF="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</A> format.
 
+<DT>[<b>--linearFit</b>]
+<DD> Enabling this flag has the reconstructor use linear interpolation to estimate the positions of iso-vertices.
+
+<DT>[<b>--degree</b> &#60;<i>B-spline degree</i>&#62;]
+<DD> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.
+Larger degrees support higher order approximations, but come at the cost of denser system matrices (incurring a cost in both space and time).<BR>
+The default value for this parameter is 2.
+
 <DT>[<b>--color</b> &#60;<i>pull factor</i>&#62;]
 <DD> If specified, the reconstruction code assumes that the input is equipped with colors and will extrapolate
 the color values to the vertices of the reconstructed mesh. The floating point value specifies the relative importance
@@ -82,6 +92,9 @@ The default value for this parameter is 5.
 <DD> This integer is the depth of the regular grid over which the implicit function is to be sampled.
 Running at depth <i>d</i> corresponds to sampling on a voxel grid whose resolution is 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>.<br>
 The default value for this parameter is the value of the <B>--depth</B> parameter.
+
+<DT>[<b>--primalVoxel</b>]
+<DD> Enabling this flag when outputing to a voxel file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
 
 <DT>[<b>--cgDepth</b> &#60;<i>conjugate gradients solver depth</i>&#62;]
 <DD> This integer is the depth up to which a conjugate-gradients solver will be used to solve the linear system. Beyond this depth Gauss-Seidel relaxation will be used.<br>
@@ -163,7 +176,6 @@ The default value 0.001.
 <HR>
 <A NAME="USAGE"><B>USAGE</B></A><br>
 For testing purposes, three point sets are provided:
-
 <OL>
 
 <LI> <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.points.ply"><B>Eagle</B></A>:
@@ -195,10 +207,10 @@ to remove all subsets of the surface where the sampling density corresponds to a
 <TD WIDTH="25%"><TABLE><TR><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.1.color.trimmed.jpg" WIDTH="100%"><TD WIDTH="50%"><IMG SRC="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.2.color.trimmed.jpg" WIDTH="100%"></TR></TABLE>
 </TR>
 <TR>
-<TH ALIGN="CENTER">Unscreened
-<TH ALIGN="CENTER">Screened
-<TH ALIGN="CENTER">Screened + Color
-<TH ALIGN="CENTER">Screened + Color + Trimmed
+<TH>Unscreened
+<TH>Screened
+<TH>Screened + Color
+<TH>Screened + Color + Trimmed
 </TR>
 </TABLE>
 
@@ -324,6 +336,15 @@ As an examples, the reconstructed bunny can be converted into the ASCII mesh for
 <LI> Modified a bug with the way in which sample contributions were scaled.
 </OL>
 
+<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/">Version 8.0</A>:
+<OL>
+<LI> Added support for different degree B-splines.
+(Note that as the B-spline degree is a template parameter, only degree 1 through 4 are supported.
+If higher order degrees are desired, additional template parameters can be easily added in the body of the <U>Execute</U> function inside of <I>PoissonRecon.cpp</I>.
+Similarly, to reduce compilation times, support for specific degrees can be removed.)
+<LI> Added the <B>--primalVoxel</B> flag to support to extraction of a voxel grid using primal sampling.
+<LI> Changed the implementation of the voxel sampling so that computation is now linear, rather than log-linear, in the number of samples.
+</OL>
 
 <HR>
 <A HREF="http://www.cs.jhu.edu/~misha">HOME</A>

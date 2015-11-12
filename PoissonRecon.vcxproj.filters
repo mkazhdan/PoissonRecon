@@ -139,5 +139,14 @@
     <None Include="Src\MultiGridOctreeData.IsoSurface.inl">
       <Filter>Include Files</Filter>
     </None>
+    <None Include="Src\MultiGridOctreeData.Evaluation.inl">
+      <Filter>Include Files</Filter>
+    </None>
+    <None Include="Src\MultiGridOctreeData.WeightedSamples.inl">
+      <Filter>Include Files</Filter>
+    </None>
+    <None Include="Src\MultiGridOctreeData.System.inl">
+      <Filter>Include Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
