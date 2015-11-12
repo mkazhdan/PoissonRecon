@@ -400,7 +400,7 @@ template< class T >
 template< class T2 >
 void SparseMatrix< T >::getDiagonal( Pointer( T2 ) diagonal , int threads ) const
 {
-	diagonal.Resize( SparseMatrix< T >::rows );
+	diagonal->Resize( SparseMatrix< T >::rows );
 #pragma omp parallel for num_threads( threads )
 	for( int i=0 ; i<rows ; i++ )
 	{
