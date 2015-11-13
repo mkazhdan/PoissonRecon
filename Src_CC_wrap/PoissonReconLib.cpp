@@ -48,7 +48,7 @@ PoissonReconLib::Parameters::Parameters()
 	, maxSolveDepth(0) //?
 	, dirichlet(true) //true
 	, threads(1) //ideally omp_get_num_procs()
-	, samplesPerNode(1.0f) //1.0f
+	, samplesPerNode(1.5f) //1.5f
 	, scale(1.1f) //1.1f
 	, cgAccuracy(1.0e-3f) //1.0e-3f
 	, pointWeight(4.0f) //4.0f
@@ -95,7 +95,7 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoord
 	SparseNodeData< Real , WEIGHT_DEGREE >* densityWeights = new SparseNodeData< Real , WEIGHT_DEGREE >();
 	SparseNodeData< Real , NORMAL_DEGREE >* nodeWeights = new SparseNodeData< Real , NORMAL_DEGREE >();
 	typedef typename Octree< Real >::template ProjectiveData< Point3D< Real > > ProjectiveColor;
-	SparseNodeData< ProjectiveColor , DATA_DEGREE >* colorData = 0;
+	SparseNodeData< ProjectiveColor , DATA_DEGREE >* colorData = NULL;
 
 	int pointCount = tree.template SetTree< PointCoordinateType, NORMAL_DEGREE , WEIGHT_DEGREE , DATA_DEGREE , Point3D< unsigned char > >(
 									pointStream,
@@ -141,39 +141,30 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoord
 			nodeWeights->remapIndices( indexMap );
 	}
 
-	//DumpOutput( "Input Points: %d\n" , pointCount );
-	//DumpOutput( "Leaves/Nodes: %d/%d\n" , tree.tree.leaves() , tree.tree.nodes() );
-
 	double maxMemoryUsage = tree.maxMemoryUsage;
 	tree.maxMemoryUsage = 0;
-
 	DenseNodeData< Real , Degree > constraints = tree.template SetLaplacianConstraints< Degree >( *normalInfo );
 	delete normalInfo;
-	normalInfo = 0;
-
+	normalInfo = NULL;
 	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
+
 	tree.maxMemoryUsage = 0;
-
 	DenseNodeData< Real , Degree > solution = tree.SolveSystem( *pointInfo , constraints , params.showResidual , params.iters, params.maxSolveDepth, params.cgDepth, params.cgAccuracy );
-
 	delete pointInfo;
-	pointInfo = 0;
+	pointInfo = NULL;
 	constraints.resize(0);
-
 	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
 
 	Real isoValue = tree.GetIsoValue( solution , *nodeWeights );
 	delete nodeWeights;
-	nodeWeights = 0;
-
+	nodeWeights = NULL;
 	//DumpOutput( "Iso-Value: %e\n" , isoValue );
 
 	//output
 	tree.maxMemoryUsage = 0;
-
 	tree.template GetMCIsoSurface< Degree , WEIGHT_DEGREE , DATA_DEGREE >(
-							densityWeights ? GetPointer( *densityWeights ) : NullPointer( Real ),
-							0,
+							densityWeights,
+							colorData,
 							solution,
 							isoValue,
 							mesh,
