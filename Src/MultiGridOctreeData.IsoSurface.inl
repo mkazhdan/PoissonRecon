@@ -268,8 +268,11 @@ Real Octree< Real >::GetIsoValue( const DenseNodeData< Real , FEMDegree >& solut
 			}
 			nodeValues[i] = value;
 			int idx = nodeWeights.index( _sNodes.treeNodes[i] );
-			Real w = nodeWeights.data[ idx ];
-			if( w!=0 ) isoValue += value * w , weightSum += w;
+			if( idx!=-1 )
+			{
+				Real w = nodeWeights.data[ idx ];
+				if( w!=0 ) isoValue += value * w , weightSum += w;
+			}
 		}
 	}
 	metSolution.resize( 0 );
