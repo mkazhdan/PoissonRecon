@@ -4,3 +4,5 @@
 /Debug/
 /Bin/
 *.opensdf
+
+*.user
