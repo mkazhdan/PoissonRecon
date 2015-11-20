@@ -27,6 +27,7 @@
 #endif
 
 //PoissonRecon
+#include "../Src/MemoryUsage.h"
 #include "../Src/Ply.h"
 #include "../Src/Array.h"
 #include "../Src/Octree.h"
@@ -130,7 +131,7 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoord
 			tree.template EnableMultigrid< NORMAL_DEGREE >( &indexMap );
 		else
 			tree.template EnableMultigrid<        Degree >( &indexMap );
-		
+
 		if (pointInfo)
 			pointInfo->remapIndices( indexMap );
 		if (normalInfo)
@@ -255,7 +256,7 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStreamWithData< Po
 			tree.template EnableMultigrid< NORMAL_DEGREE >( &indexMap );
 		else
 			tree.template EnableMultigrid<        Degree >( &indexMap );
-		
+
 		if (pointInfo)
 			pointInfo->remapIndices( indexMap );
 		if (normalInfo)
