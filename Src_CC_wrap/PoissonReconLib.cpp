@@ -28,6 +28,7 @@
 
 //PoissonRecon
 #include "../Src/MemoryUsage.h"
+#include "../Src/MyTime.h"
 #include "../Src/Ply.h"
 #include "../Src/Array.h"
 #include "../Src/Octree.h"
