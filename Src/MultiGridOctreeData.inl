@@ -45,7 +45,7 @@ const double ROUND_EPS            = 1e-5;
 #else
 
 #include <cmath>
-#define ISNAN isnan
+#define ISNAN std::isnan
 #define ISFINITE std::isfinite
 
 #endif
