@@ -27,86 +27,61 @@ DAMAGE.
 */
 // [COMMENTS]
 // -- Throughout the code, should make a distinction between indices and offsets
-// -- Make an instance of _Evaluate that samples the finite-elements correctly (specifically, to handle the boundaries)
+// -- Make an instance of _evaluate that samples the finite-elements correctly (specifically, to handle the boundaries)
 // -- Make functions like depthAndOffset parity dependent (ideally all "depth"s should be relative to the B-Slpline resolution
 // -- Make all points relative to the unit-cube, regardless of degree parity
 // -- It's possible that for odd degrees, the iso-surfacing will fail because the leaves in the SortedTreeNodes do not form a partition of space
 // -- [MAYBE] Treat normal field as a sum of delta functions, rather than a smoothed signal (again, so that high degrees aren't forced to generate smooth reconstructions)
 // -- [MAYBE] Make the degree of the B-Spline with which the normals are splatted independent of the degree of the FEM system. (This way, higher degree systems aren't forced to generate smoother normal fields.)
+// -- [MAYBE] Remove the isValidFEM/isValidSpace functions since the octree supports all degrees/boundary types (up to the max degree for which finalizedBrooded... was called)
 
 // [TODO]
 // -- Currently, the implementation assumes that the boundary constraints are the same for vector fields and scalar fields
-// -- Fix up the ordering in the divergence evaluation
+// -- Modify the setting of the flags so that only the subset of the broods that are needed 
 
 #ifndef MULTI_GRID_OCTREE_DATA_INCLUDED
 #define MULTI_GRID_OCTREE_DATA_INCLUDED
 
-#define NEW_CODE 1
-#define NEW_NEW_CODE 0		// Enabling this ensures that all the nodes contained in the support of the normal field are in the tree
+#define NEW_CODE
+#define FAST_SET_UP				// If enabled, kernel density estimation is done aglomeratively
 
-#define DATA_DEGREE 1		// The order of the B-Spline used to splat in data for color interpolation
-#define WEIGHT_DEGREE 2		// The order of the B-Spline used to splat in the weights for density estimation
-#define NORMAL_DEGREE 2		// The order of the B-Spline used to splat int the normals for constructing the Laplacian constraints
+#define POINT_DATA_RES 0		// Specifies the resolution of the subgrid storing points with each voxel (0==1 but is faster)
 
-//#define MAX_MEMORY_GB 15
+#define DATA_DEGREE 1			// The order of the B-Spline used to splat in data for color interpolation
+#define WEIGHT_DEGREE 2			// The order of the B-Spline used to splat in the weights for density estimation
+#define NORMAL_DEGREE 2			// The order of the B-Spline used to splat int the normals for constructing the Laplacian constraints
+//#define MAX_MEMORY_GB 15		// The maximum memory the application is allowed to use
 #define MAX_MEMORY_GB 0
 
-#define GRADIENT_DOMAIN_SOLUTION 1	// Given the constraint vector-field V(p), there are two ways to solve for the coefficients, x, of the indicator function
-									// with respect to the B-spline basis {B_i(p)}
-									// 1] Find x minimizing:
-									//			|| V(p) - \sum_i \nabla x_i B_i(p) ||^2
-									//		which is solved by the system A_1x = b_1 where:
-									//			A_1[i,j] = < \nabla B_i(p) , \nabla B_j(p) >
-									//			b_1[i]   = < \nabla B_i(p) , V(p) >
-									// 2] Formulate this as a Poisson equation:
-									//			\sum_i x_i \Delta B_i(p) = \nabla \cdot V(p)
-									//		which is solved by the system A_2x = b_2 where:
-									//			A_2[i,j] = - < \Delta B_i(p) , B_j(p) >
-									//			b_2[i]   = - < B_i(p) , \nabla \cdot V(p) >
-									// Although the two system matrices should be the same (assuming that the B_i satisfy dirichlet/neumann boundary conditions)
-									// the constraint vectors can differ when V does not satisfy the Neumann boundary conditions:
-									//		A_1[i,j] = \int_R < \nabla B_i(p) , \nabla B_j(p) >
-									//               = \int_R [ \nabla \cdot ( B_i(p) \nabla B_j(p) ) - B_i(p) \Delta B_j(p) ]
-									//               = \int_dR < N(p) , B_i(p) \nabla B_j(p) > + A_2[i,j]
-									// and the first integral is zero if either f_i is zero on the boundary dR or the derivative of B_i across the boundary is zero.
-									// However, for the constraints we have:
-									//		b_1(i)   = \int_R < \nabla B_i(p) , V(p) >
-									//               = \int_R [ \nabla \cdot ( B_i(p) V(p) ) - B_i(p) \nabla \cdot V(p) ]
-									//               = \int_dR < N(p) ,  B_i(p) V(p) > + b_2[i]
-									// In particular, this implies that if the B_i satisfy the Neumann boundary conditions (rather than Dirichlet),
-									// and V is not zero across the boundary, then the two constraints are different.
-									// Forcing the < V(p) , N(p) > = 0 on the boundary, by killing off the component of the vector-field in the normal direction
-									// (FORCE_NEUMANN_FIELD), makes the two systems equal, and the value of this flag should be immaterial.
-									// Note that under interpretation 1, we have:
-									//		\sum_i b_1(i) = < \nabla \sum_ i B_i(p) , V(p) > = 0
-									// because the B_i's sum to one. However, in general, we could have
-									//		\sum_i b_2(i) \neq 0.
-									// This could cause trouble because the constant functions are in the kernel of the matrix A, so CG will misbehave if the constraint
-									// has a non-zero DC term. (Again, forcing < V(p) , N(p) > = 0 along the boundary resolves this problem.)
-
-#define FORCE_NEUMANN_FIELD 1		// This flag forces the normal component across the boundary of the integration domain to be zero.
-									// This should be enabled if GRADIENT_DOMAIN_SOLUTION is not, so that CG doesn't run into trouble.
-
-#if !FORCE_NEUMANN_FIELD
-#pragma message( "[WARNING] Not zeroing out normal component on boundary" )
-#endif // !FORCE_NEUMANN_FIELD
-
-#include "Hash.h"
+#include <unordered_map>
+#include <omp.h>
 #include "BSplineData.h"
 #include "PointStream.h"
+#include "Geometry.h"
+#include "Octree.h"
+#include "SparseMatrix.h"
 
 #ifndef _OPENMP
 int omp_get_num_procs( void ){ return 1; }
 int omp_get_thread_num( void ){ return 0; }
 #endif // _OPENMP
 
+#define DERIVATIVES( Degree ) ( ( Degree>1 ) ? 2 : ( Degree==1 ? 1 : 0 ) )
+
 class TreeNodeData
 {
 public:
-	static size_t NodeCount;
+	enum
+	{
+		SPACE_FLAG = 1 ,
+		FEM_FLAG = 2 ,
+		GHOST_FLAG = 1<<7
+	};
 	int nodeIndex;
 	char flags;
 
+	void setGhostFlag( bool f ){ if( f ) flags |= GHOST_FLAG ; else flags &= ~GHOST_FLAG; }
+	bool getGhostFlag( void ) const { return ( flags & GHOST_FLAG )!=0; }
 	TreeNodeData( void );
 	~TreeNodeData( void );
 };
@@ -132,6 +107,7 @@ public:
 // This class stores the octree nodes, sorted by depth and then by z-slice.
 // To support primal representations, the initializer takes a function that
 // determines if a node should be included/indexed in the sorted list.
+// [NOTE] Indexing of nodes is _GLOBAL_
 class SortedTreeNodes
 {
 	typedef OctNode< TreeNodeData > TreeOctNode;
@@ -174,7 +150,11 @@ public:
 		int cCount , eCount , fCount , nodeOffset , nodeCount;
 		SliceTableData( void ){ fCount = eCount = cCount = 0 , cTable = NullPointer( SquareCornerIndices ) , eTable = NullPointer( SquareEdgeIndices ) , fTable = NullPointer( SquareFaceIndices ) , _cMap = _eMap = _fMap = NullPointer( int ); }
 		~SliceTableData( void ){ clear(); }
+#ifdef BRUNO_LEVY_FIX
+		void clear( void ){ DeletePointer( cTable ) ; DeletePointer( eTable ) ; DeletePointer( fTable ) ; DeletePointer( _cMap ) ; DeletePointer( _eMap ) ; DeletePointer( _fMap ) ; fCount = eCount = cCount = 0; }
+#else // !BRUNO_LEVY_FIX
 		void clear( void ){ DeletePointer( cTable ) ; DeletePointer( eTable ) ; DeletePointer( fTable ) ; fCount = eCount = cCount = 0; }
+#endif // BRUNO_LEVY_FIX
 		SquareCornerIndices& cornerIndices( const TreeOctNode* node );
 		SquareCornerIndices& cornerIndices( int idx );
 		const SquareCornerIndices& cornerIndices( const TreeOctNode* node ) const;
@@ -200,7 +180,11 @@ public:
 		int fCount , eCount , nodeOffset , nodeCount;
 		XSliceTableData( void ){ fCount = eCount = 0 , eTable = NullPointer( SquareCornerIndices ) , fTable = NullPointer( SquareEdgeIndices ) , _eMap = _fMap = NullPointer( int ); }
 		~XSliceTableData( void ){ clear(); }
+#ifdef BRUNO_LEVY_FIX
+		void clear( void ) { DeletePointer( fTable ) ; DeletePointer( eTable ) ; DeletePointer( _eMap ) ; DeletePointer( _fMap ) ; fCount = eCount = 0; }
+#else // !BRUNO_LEVY_FIX
 		void clear( void ) { DeletePointer( fTable ) ; DeletePointer( eTable ) ; fCount = eCount = 0; }
+#endif // BRUNO_LEVY_FIX
 		SquareCornerIndices& edgeIndices( const TreeOctNode* node );
 		SquareCornerIndices& edgeIndices( int idx );
 		const SquareCornerIndices& edgeIndices( const TreeOctNode* node ) const;
@@ -219,195 +203,390 @@ public:
 };
 
 template< int Degree >
-struct PointSupportKey : public OctNode< TreeNodeData >::NeighborKey< BSplineEvaluationData< Degree >::SupportEnd , -BSplineEvaluationData< Degree >::SupportStart >
+struct PointSupportKey : public OctNode< TreeNodeData >::NeighborKey< BSplineSupportSizes< Degree >::SupportEnd , -BSplineSupportSizes< Degree >::SupportStart >
 {
-	static const int LeftRadius  =  BSplineEvaluationData< Degree >::SupportEnd;
-	static const int RightRadius = -BSplineEvaluationData< Degree >::SupportStart;
+	static const int LeftRadius  =  BSplineSupportSizes< Degree >::SupportEnd;
+	static const int RightRadius = -BSplineSupportSizes< Degree >::SupportStart;
 	static const int Size = LeftRadius + RightRadius + 1;
 };
 template< int Degree >
-struct ConstPointSupportKey : public OctNode< TreeNodeData >::ConstNeighborKey< BSplineEvaluationData< Degree >::SupportEnd , -BSplineEvaluationData< Degree >::SupportStart >
+struct ConstPointSupportKey : public OctNode< TreeNodeData >::ConstNeighborKey< BSplineSupportSizes< Degree >::SupportEnd , -BSplineSupportSizes< Degree >::SupportStart >
 {
-	static const int LeftRadius  =  BSplineEvaluationData< Degree >::SupportEnd;
-	static const int RightRadius = -BSplineEvaluationData< Degree >::SupportStart;
+	static const int LeftRadius  =  BSplineSupportSizes< Degree >::SupportEnd;
+	static const int RightRadius = -BSplineSupportSizes< Degree >::SupportStart;
 	static const int Size = LeftRadius + RightRadius + 1;
 };
 
-template< class Real >
-struct PointData
+template< class Real , bool HasGradients >
+struct SinglePointData
 {
 	Point3D< Real > position;
-	Real weightedCoarserDValue;
 	Real weight;
-	PointData( Point3D< Real > p=Point3D< Real >() , Real w=0 ) { position = p , weight = w , weightedCoarserDValue = Real(0); }
+	Real value , _value;
+	SinglePointData  operator +  ( const SinglePointData& p ) const { return SinglePointData( position + p.position , value + p.value , weight + p.weight ); }
+	SinglePointData& operator += ( const SinglePointData& p ){ position += p.position ; weight += p.weight , value += p.value ; return *this; }
+	SinglePointData  operator *  ( Real s ) const { return SinglePointData( position*s , weight*s , value*s ); }
+	SinglePointData& operator *= ( Real s ){ position *= s , weight *= s , value *= s ; return *this; }
+	SinglePointData  operator /  ( Real s ) const { return SinglePointData( position/s , weight/s , value/s ); }
+	SinglePointData& operator /= ( Real s ){ position /= s , weight /= s , value /= s ; return *this; }
+	SinglePointData( void ) : position( Point3D< Real >() ) , weight(0) , value(0) , _value(0) { ; }
+	SinglePointData( Point3D< Real > p , Real v , Real w ) { position = p , value = v , weight = w , _value = (Real)0; }
 };
+template< class Real >
+struct SinglePointData< Real , true > : public SinglePointData< Real , false >
+{
+	using SinglePointData< Real , false >::position;
+	using SinglePointData< Real , false >::weight;
+	using SinglePointData< Real , false >::value;
+	using SinglePointData< Real , false >::_value;
+	Point3D< Real > gradient , _gradient;
+	SinglePointData  operator +  ( const SinglePointData& p ) const { return SinglePointData( position + p.position , weight + p.weight , value + p.value , gradient + p.gradient ); }
+	SinglePointData& operator += ( const SinglePointData& p ){ position += p.position , weight += p.weight , value += p.value , gradient += p.gradient ; return *this; }
+	SinglePointData  operator *  ( Real s ) const { return SinglePointData( position*s , weight*s , value*s , gradient*s ); }
+	SinglePointData& operator *= ( Real s ){ position *= s , weight *= s , value *= s , gradient *= s ; return *this; }
+	SinglePointData  operator /  ( Real s ) const { return SinglePointData( position/s , weight/s , value/s , gradient/s ); }
+	SinglePointData& operator /= ( Real s ){ position /= s , weight /= s , value /= s , gradient /= s ; return *this; }
+	SinglePointData( void ) : SinglePointData< Real , false >() , gradient( Point3D< Real >() ) , _gradient( Point3D< Real >() ) { ; }
+	SinglePointData( Point3D< Real > p , Real v , Point3D< Real > g , Real w ) : SinglePointData< Real , false >( p , v , w ) { gradient = g , _gradient = Point3D< Real >(); }
+};
+
+#if POINT_DATA_RES
+template< class Real , bool HasGradients >
+struct PointData
+{
+	static const int RES = POINT_DATA_RES;
+	static const int SAMPLES = RES * RES * RES;
+
+	SinglePointData< Real , HasGradients > points[SAMPLES];
+	SinglePointData< Real , HasGradients >& operator[] ( int idx ) { return points[idx]; }
+	const SinglePointData< Real , HasGradients >& operator[] ( int idx ) const { return points[idx]; }
+
+	static void SetIndices( Point3D< Real > p , Point3D< Real > c , Real w , int x[3] )
+	{
+		for( int d=0 ; d<3 ; d++ ) x[d] = std::max< int >( 0 , std::min< int >( RES-1 , int( floor( ( p[d]-( c[d]-w/2 ) ) / w * RES ) ) ) );
+	}
+
+	void addPoint( SinglePointData< Real , HasGradients > p , Point3D< Real > center , Real width  )
+	{
+		int x[3];
+		SetIndices( p.position , center , width , x );
+		points[ x[0]+x[1]*RES+x[2]*RES*RES ] += p;
+	}
+
+	PointData  operator +  ( const PointData& p ) const { PointData _p ; for( int c=0 ; c<SAMPLES ;  c++ ) _p.points[c] = points[c] + _p.points[c] ; return _p; }
+	PointData& operator += ( const PointData& p ){ for( int c=0 ; c<SAMPLES ; c++ ) points[c] += p.points[c] ; return *this; }
+	PointData  operator *  ( Real s ) const { PointData _p ; for( int c=0 ; c<SAMPLES ;  c++ ) _p.points[c] = points[c] * s ; return _p; }
+	PointData& operator *= ( Real s ){ for( int c=0 ; c<SAMPLES ; c++ ) points[c] *= s ; return *this; }
+	PointData  operator /  ( Real s ) const { PointData _p ; for( int c=0 ; c<SAMPLES ;  c++ ) _p.points[c] = points[c] / s ; return _p; }
+	PointData& operator /= ( Real s ){ for( int c=0 ; c<SAMPLES ; c++ ) points[c] /= s ; return *this; }
+};
+#else // !POINT_DATA_RES
+template< class Real , bool HasGradients > using PointData = SinglePointData< Real , HasGradients >;
+#endif // POINT_DATA_RES
+
 template< class Data , int Degree >
 struct SparseNodeData
 {
-	std::vector< int > indices;
-	std::vector< Data > data;
-	template< class TreeNodeData >
-	int index( const OctNode< TreeNodeData >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)indices.size() ) ? -1 : indices[ node->nodeData.nodeIndex ]; }
-#if NEW_NEW_CODE
-	int index( int nodeIndex ) const { return ( nodeIndex<0 || nodeIndex>=(int)indices.size() ) ? -1 : indices[ nodeIndex ]; }
-#endif // NEW_NEW_CODE
-	void resize( size_t sz ){ indices.resize( sz , -1 ); }
+	size_t size( void ) const { return _data.size(); }
+	const Data& operator[] ( int idx ) const { return _data[idx]; }
+	Data& operator[] ( int idx ) { return _data[idx]; }
+	void reserve( size_t sz ){ if( sz>_indices.size() ) _indices.resize( sz , -1 ); }
+	Data* operator()( const OctNode< TreeNodeData >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	const Data* operator()( const OctNode< TreeNodeData >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	Data& operator[]( const OctNode< TreeNodeData >* node )
+	{
+		if( node->nodeData.nodeIndex>=(int)_indices.size() ) _indices.resize( node->nodeData.nodeIndex+1 , -1 );
+		if( _indices[ node->nodeData.nodeIndex ]==-1 )
+		{
+			_indices[ node->nodeData.nodeIndex ] = (int)_data.size();
+			_data.push_back( Data() );
+		}
+		return _data[ _indices[ node->nodeData.nodeIndex ] ];
+	}
 	void remapIndices( const std::vector< int >& map )
 	{
-		std::vector< int > temp = indices;
-		indices.resize( map.size() );
+		std::vector< int > temp = _indices;
+		_indices.resize( map.size() );
 		for( size_t i=0 ; i<map.size() ; i++ )
-			if( map[i]<(int)temp.size() ) indices[i] = temp[ map[i] ];
-			else                          indices[i] = -1;
+			if( map[i]<(int)temp.size() ) _indices[i] = temp[ map[i] ];
+			else                          _indices[i] = -1;
 	}
+	template< class _Data , int _Degree > friend struct SparseNodeData;
+	template< class _Data , int _Degree >
+	void init( const SparseNodeData< _Data , _Degree >& snd ){ _indices = snd._indices , _data.resize( snd._data.size() ); }
+	void remove( const OctNode< TreeNodeData >* node ){ if( node->nodeData.nodeIndex<(int)_indices.size() && node->nodeData.nodeIndex>=0 ) _indices[ node->nodeData.nodeIndex ] = -1; }
+protected:
+	std::vector< int > _indices;
+	std::vector< Data > _data;
 };
 template< class Data , int Degree >
 struct DenseNodeData
 {
-	Pointer( Data ) data;
-	DenseNodeData( void ) { data = NullPointer( Data ); }
-	DenseNodeData( size_t sz ){ if( sz ) data = NewPointer< Data >( sz ) ; else data = NullPointer( Data ); }
-	void resize( size_t sz ){ DeletePointer( data ) ; if( sz ) data = NewPointer< Data >( sz ) ; else data = NullPointer( Data ); }
-	Data& operator[] ( int idx ) { return data[idx]; }
-	const Data& operator[] ( int idx ) const { return data[idx]; }
+	DenseNodeData( void ){ _data = NullPointer( Data ) ; _sz = 0; }
+	DenseNodeData( size_t sz ){ _sz = sz ; if( sz ) _data = NewPointer< Data >( sz ) ; else _data = NullPointer( Data ); }
+	DenseNodeData( const DenseNodeData&  d ) : DenseNodeData() { _resize( d._sz ) ; if( _sz ) memcpy( _data , d._data , sizeof(Data) * _sz ); }
+	DenseNodeData(       DenseNodeData&& d ){ _data = d._data , _sz = d._sz ; d._data = NullPointer( Data ) , d._sz = 0; }
+	DenseNodeData& operator = ( const DenseNodeData&  d ){ _resize( d._sz ) ; if( _sz ) memcpy( _data , d._data , sizeof(Data) * _sz ) ; return *this; }
+	DenseNodeData& operator = (       DenseNodeData&& d ){ size_t __sz = _sz ; Pointer( Data ) __data = _data ; _data = d._data , _sz = d._sz ; d._data = __data , d._sz = __sz ; return *this; }
+	~DenseNodeData( void ){ DeletePointer( _data ) ; _sz = 0; }
+
+	Data& operator[] ( int idx ) { return _data[idx]; }
+	const Data& operator[] ( int idx ) const { return _data[idx]; }
+	size_t size( void ) const { return _sz; }
+	Data& operator[]( const OctNode< TreeNodeData >* node ) { return _data[ node->nodeData.nodeIndex ]; }
+	Data* operator()( const OctNode< TreeNodeData >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	const Data* operator()( const OctNode< TreeNodeData >* node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	int index( const OctNode< TreeNodeData >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_data.size() ) ? -1 : node->nodeData.nodeIndex; }
+protected:
+	size_t _sz;
+	void _resize( size_t sz ){ DeletePointer( _data ) ; if( sz ) _data = NewPointer< Data >( sz ) ; else _data = NullPointer( Data ) ; _sz = sz; }
+	Pointer( Data ) _data;
 };
 
-template< class C , int N > struct Stencil{ C values[N][N][N]; };
+// This is may be necessary in case the memory usage is larger than what fits on the stack
+template< class C , int N > struct Stencil
+{
+	Stencil( void ){ _values = NewPointer< C >( N * N * N ); }
+	~Stencil( void ){ DeletePointer( _values ); }
+	C& operator()( int i , int j , int k ){ return _values[ i*N*N + j*N + k ]; }
+	const C& operator()( int i , int j , int k ) const { return _values[ i*N*N + j*N + k ]; }
+protected:
+	Pointer( C ) _values;
+};
 
-template< int Degree1 , int Degree2 >
+template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
 class SystemCoefficients
 {
-	typedef typename BSplineIntegrationData< Degree1 , Degree2 >::FunctionIntegrator FunctionIntegrator;
-	static const int OverlapSize  = BSplineIntegrationData< Degree1 , Degree2 >::OverlapSize;
-	static const int OverlapStart = BSplineIntegrationData< Degree1 , Degree2 >::OverlapStart;
-	static const int OverlapEnd   = BSplineIntegrationData< Degree1 , Degree2 >::OverlapEnd;
+	typedef typename BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::FunctionIntegrator FunctionIntegrator;
+	static const int OverlapSize  = BSplineOverlapSizes< Degree1 , Degree2 >::OverlapSize;
+	static const int OverlapStart = BSplineOverlapSizes< Degree1 , Degree2 >::OverlapStart;
+	static const int OverlapEnd   = BSplineOverlapSizes< Degree1 , Degree2 >::OverlapEnd;
 public:
-	static double GetLaplacian  ( const typename FunctionIntegrator::     Integrator& integrator , const int off1[3] , const int off2[3] );
-	static double GetLaplacian  ( const typename FunctionIntegrator::ChildIntegrator& integrator , const int off1[3] , const int off2[3] );
-	static double GetDivergence1( const typename FunctionIntegrator::     Integrator& integrator , const int off1[3] , const int off2[3] , Point3D< double > normal1 );
-	static double GetDivergence1( const typename FunctionIntegrator::ChildIntegrator& integrator , const int off1[3] , const int off2[3] , Point3D< double > normal1 );
-	static double GetDivergence2( const typename FunctionIntegrator::     Integrator& integrator , const int off1[3] , const int off2[3] , Point3D< double > normal2 );
-	static double GetDivergence2( const typename FunctionIntegrator::ChildIntegrator& integrator , const int off1[3] , const int off2[3] , Point3D< double > normal2 );
-	static Point3D< double > GetDivergence1 ( const typename FunctionIntegrator::     Integrator& integrator , const int off1[3] , const int off2[3] );
-	static Point3D< double > GetDivergence1 ( const typename FunctionIntegrator::ChildIntegrator& integrator , const int off1[3] , const int off2[3] );
-	static Point3D< double > GetDivergence2 ( const typename FunctionIntegrator::     Integrator& integrator , const int off1[3] , const int off2[3] );
-	static Point3D< double > GetDivergence2 ( const typename FunctionIntegrator::ChildIntegrator& integrator , const int off1[3] , const int off2[3] );
-	static void SetCentralDivergenceStencil ( const typename FunctionIntegrator::     Integrator& integrator , Stencil< Point3D< double > , OverlapSize >& stencil , bool scatter );
-	static void SetCentralDivergenceStencils( const typename FunctionIntegrator::ChildIntegrator& integrator , Stencil< Point3D< double > , OverlapSize > stencil[2][2][2] , bool scatter );
-	static void SetCentralLaplacianStencil  ( const typename FunctionIntegrator::     Integrator& integrator , Stencil< double , OverlapSize >& stencil );
-	static void SetCentralLaplacianStencils ( const typename FunctionIntegrator::ChildIntegrator& integrator , Stencil< double , OverlapSize > stencil[2][2][2] );
+	typedef typename BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::FunctionIntegrator::template      Integrator< DERIVATIVES( Degree1 ) , DERIVATIVES( Degree2 ) >      Integrator;
+	typedef typename BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( Degree1 ) , DERIVATIVES( Degree2 ) > ChildIntegrator;
+
+	// The FEMSystemFunctor is a class that takes an object of type Integrator/ChildIntegrator, as well as a pair of indices of octree nodes
+	// and returns the corresponding system coefficient.
+	template< class _FEMSystemFunctor > static void SetCentralSystemStencil ( const _FEMSystemFunctor& F , const      Integrator& integrator , Stencil< double , OverlapSize >& stencil           );
+	template< class _FEMSystemFunctor > static void SetCentralSystemStencils( const _FEMSystemFunctor& F , const ChildIntegrator& integrator , Stencil< double , OverlapSize >  stencils[2][2][2] );
+	template< bool Reverse , class _FEMSystemFunctor > static void SetCentralConstraintStencil ( const _FEMSystemFunctor& F , const      Integrator& integrator , Stencil<          double   , OverlapSize >& stencil           );
+	template< bool Reverse , class _FEMSystemFunctor > static void SetCentralConstraintStencils( const _FEMSystemFunctor& F , const ChildIntegrator& integrator , Stencil<          double   , OverlapSize >  stencils[2][2][2] );
+	template< bool Reverse , class _FEMSystemFunctor > static void SetCentralConstraintStencil ( const _FEMSystemFunctor& F , const      Integrator& integrator , Stencil< Point3D< double > , OverlapSize >& stencil           );
+	template< bool Reverse , class _FEMSystemFunctor > static void SetCentralConstraintStencils( const _FEMSystemFunctor& F , const ChildIntegrator& integrator , Stencil< Point3D< double > , OverlapSize >  stencils[2][2][2] );
 };
 
-// Note that throughout this code, the "depth" parameter refers to the depth in the octree, not the corresponding depth
-// of the B-Spline element
+template< int FEMDegree , BoundaryType BType >
+struct FEMSystemFunctor
+{
+	double massWeight , lapWeight , biLapWeight;
+	FEMSystemFunctor( double mWeight=0 , double lWeight=0 , double bWeight=0 ) : massWeight( mWeight ) , lapWeight( lWeight ) , biLapWeight( bWeight ) { ; }
+	double integrate( const typename SystemCoefficients< FEMDegree , BType , FEMDegree , BType >::     Integrator& integrator , const int off1[] , const int off2[] ) const { return _integrate( integrator , off1 , off2 ); }
+	double integrate( const typename SystemCoefficients< FEMDegree , BType , FEMDegree , BType >::ChildIntegrator& integrator , const int off1[] , const int off2[] ) const { return _integrate( integrator , off1 , off2 ); }
+	bool vanishesOnConstants( void ) const { return massWeight==0; }
+protected:
+	template< class I > double _integrate( const I& integrator , const int off1[] , const int off2[] ) const;
+};
+template< int SFDegree , BoundaryType SFBType , int FEMDegree , BoundaryType FEMBType >
+struct FEMSFConstraintFunctor
+{
+	double massWeight , lapWeight , biLapWeight;
+	FEMSFConstraintFunctor( double mWeight=0 , double lWeight=0 , double bWeight=0 ) : massWeight( mWeight ) , lapWeight( lWeight ) , biLapWeight( bWeight ) { ; }
+	template< bool Reverse >
+	double integrate( const typename SystemCoefficients< Reverse ? FEMDegree : SFDegree , Reverse ? FEMBType : SFBType , Reverse ? SFDegree : FEMDegree , Reverse ? SFBType : FEMBType >::     Integrator& integrator , const int off1[] , const int off2[] ) const { return _integrate< Reverse >( integrator , off1 , off2 ); }
+	template< bool Reverse >
+	double integrate( const typename SystemCoefficients< Reverse ? FEMDegree : SFDegree , Reverse ? FEMBType : SFBType , Reverse ? SFDegree : FEMDegree , Reverse ? SFBType : FEMBType >::ChildIntegrator& integrator , const int off1[] , const int off2[] ) const { return _integrate< Reverse >( integrator , off1 , off2 ); }
+protected:
+	template< bool Reverse , class I > double _integrate( const I& integrator , const int off1[] , const int off[2] ) const;
+};
+template< int VFDegree , BoundaryType VFBType , int FEMDegree , BoundaryType FEMBType >
+struct FEMVFConstraintFunctor
+{
+	double lapWeight , biLapWeight;
+	FEMVFConstraintFunctor( double lWeight=0 , double bWeight=0 ) : lapWeight( lWeight ) , biLapWeight( bWeight ) { ; }
+	template< bool Reverse >
+	Point3D< double > integrate( const typename SystemCoefficients< Reverse ? FEMDegree : VFDegree , Reverse ? FEMBType : VFBType , Reverse ? VFDegree : FEMDegree , Reverse ? VFBType : FEMBType >::     Integrator& integrator , const int off1[] , const int off2[] ) const { return _integrate< Reverse >( integrator , off1 , off2 ); }
+	template< bool Reverse >
+	Point3D< double > integrate( const typename SystemCoefficients< Reverse ? FEMDegree : VFDegree , Reverse ? FEMBType : VFBType , Reverse ? VFDegree : FEMDegree , Reverse ? VFBType : FEMBType >::ChildIntegrator& integrator , const int off1[] , const int off2[] ) const { return _integrate< Reverse >( integrator , off1 , off2 ); }
+protected:
+	template< bool Reverse , class I > Point3D< double > _integrate( const I& integrator , const int off1[] , const int off[2] ) const;
+};
+
+inline void SetGhostFlag( OctNode< TreeNodeData >* node , bool flag ){ if( node && node->parent ) node->parent->nodeData.setGhostFlag( flag ); }
+inline bool GetGhostFlag( const OctNode< TreeNodeData >* node ){ return node==NULL || node->parent==NULL || node->parent->nodeData.getGhostFlag( ); }
+inline bool IsActiveNode( const OctNode< TreeNodeData >* node ){ return !GetGhostFlag( node ); }
+
 template< class Real >
 class Octree
 {
 	typedef OctNode< TreeNodeData > TreeOctNode;
+	static int _NodeCount;
+	static void _NodeInitializer( TreeOctNode& node ){ node.nodeData.nodeIndex = _NodeCount++; }
 public:
-	template< int FEMDegree > static void FunctionIndex( const TreeOctNode* node , int idx[3] );
+#if 0
+	struct LocalDepth
+	{
+		LocalDepth( int d=0 ) : _d(d) { ; }
+		operator int&()       { return _d; }
+		operator int () const { return _d; }
+	protected:
+		int _d;
+	};
+	struct LocalOffset
+	{
+		LocalOffset( const int* off=NULL ){ if( off ) memcpy( _off , off , sizeof(_off) ) ; else memset( _off , 0 , sizeof( _off ) ); }
+		operator        int*()       { return _off; }
+		operator const  int*() const { return _off; }
+	protected:
+		int _off[3];
+	};
+#else
+	typedef int LocalDepth;
+	typedef int LocalOffset[3];
+#endif
+
+	static void ResetNodeCount( void ){ _NodeCount = 0 ; }
+	static int NodeCount( void ){ return _NodeCount; }
+	template< int FEMDegree , BoundaryType BType > void functionIndex( const TreeOctNode* node , int idx[3] ) const;
+
+	struct PointSample{ const TreeOctNode* node ; ProjectiveData< OrientedPoint3D< Real > , Real > sample; };
 
 	typedef typename TreeOctNode::     NeighborKey< 1 , 1 >      AdjacenctNodeKey;
 	typedef typename TreeOctNode::ConstNeighborKey< 1 , 1 > ConstAdjacenctNodeKey;
 
-	template< class V >
-	struct ProjectiveData
-	{
-		V v;
-		Real w;
-		ProjectiveData( V vv=V(0) , Real ww=Real(0) ) : v(vv) , w(ww) { }
-		operator V (){ return w!=0 ? v/w : v*w; }
-		ProjectiveData& operator += ( const ProjectiveData& p ){ v += p.v , w += p.w ; return *this; }
-		ProjectiveData& operator -= ( const ProjectiveData& p ){ v -= p.v , w -= p.w ; return *this; }
-		ProjectiveData& operator *= ( Real s ){ v *= s , w *= s ; return *this; }
-		ProjectiveData& operator /= ( Real s ){ v /= s , w /= s ; return *this; }
-		ProjectiveData operator + ( const ProjectiveData& p ) const { return ProjectiveData( v+p.v , w+p.w ); }
-		ProjectiveData operator - ( const ProjectiveData& p ) const { return ProjectiveData( v-p.v , w-p.w ); }
-		ProjectiveData operator * ( Real s ) const { return ProjectiveData( v*s , w*s ); }
-		ProjectiveData operator / ( Real s ) const { return ProjectiveData( v/s , w/s ); }
-	};
-	template< int FEMDegree > static bool IsValidNode( const TreeOctNode* node , bool dirichlet );
-protected:
-	template< int FEMDegree > bool _IsValidNode( const TreeOctNode* node ) const { return node && ( node->nodeData.flags & ( 1<<( FEMDegree&1 ) ) ) ; }
+	template< int FEMDegree , BoundaryType BType > bool isValidFEMNode( const TreeOctNode* node ) const;
+	bool isValidSpaceNode( const TreeOctNode* node ) const;
+	TreeOctNode* leaf( Point3D< Real > p );
+	const TreeOctNode* leaf( Point3D< Real > p ) const;
 
-	TreeOctNode _tree;
+	template< bool HasGradients >
+	struct InterpolationInfo
+	{
+		SparseNodeData< PointData< Real , HasGradients > , 0 > iData;
+		Real valueWeight , gradientWeight;
+		InterpolationInfo( const class Octree< Real >& tree , const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent , Real v , Real g ) : valueWeight(v) , gradientWeight(g)
+		{ iData = tree._densifyInterpolationInfo< HasGradients >( samples , pointValue , adaptiveExponent ); }
+		PointData< Real , HasGradients >* operator()( const OctNode< TreeNodeData >* node ){ return iData(node); }
+		const PointData< Real , HasGradients >* operator()( const OctNode< TreeNodeData >* node ) const { return iData(node); }
+	};
+protected:
+	bool _isValidSpaceNode( const TreeOctNode* node ) const { return !GetGhostFlag( node ) && ( node->nodeData.flags & TreeNodeData::SPACE_FLAG ); }
+	bool _isValidFEMNode( const TreeOctNode* node ) const { return !GetGhostFlag( node ) && ( node->nodeData.flags & TreeNodeData::FEM_FLAG ); }
+
+	TreeOctNode* _tree;
 	TreeOctNode* _spaceRoot;
 	SortedTreeNodes _sNodes;
-	int _splatDepth;
-	int _maxDepth;
-	int _minDepth;
-	int _fullDepth;
-	bool _constrainValues;
-	bool _dirichlet;
-	Real _scale;
-	Point3D< Real > _center;
-	int _multigridDegree;
+	LocalDepth _fullDepth , _maxDepth;
 
-	bool _InBounds( Point3D< Real > ) const;
-	template< int FEMDegree > static int _Dimension( int depth ){ return BSplineData< FEMDegree >::Dimension( depth-1 ); }
-	static int _Resolution( int depth ){ return 1<<(depth-1); }
-	template< int FEMDegree > static bool _IsInteriorlySupported( int d , int x , int y , int z )
+	static bool _InBounds( Point3D< Real > p );
+
+	int _depthOffset;
+	int _localToGlobal( LocalDepth d ) const { return d + _depthOffset; }
+	LocalDepth _localDepth( const TreeOctNode* node ) const { return node->depth() - _depthOffset; }
+	LocalDepth _localMaxDepth( const TreeOctNode* tree ) const { return tree->maxDepth() - _depthOffset; }
+	int _localInset( LocalDepth d ) const { return _depthOffset<=1 ? 0 : 1<<( d + _depthOffset - 1 ); }
+	void _localDepthAndOffset( const TreeOctNode* node , LocalDepth& d , LocalOffset& off ) const
 	{
-		if( d-1>=0 )
+		node->depthAndOffset( d , off ) ; d -= _depthOffset;
+		int inset = _localInset( d );
+		off[0] -= inset , off[1] -= inset , off[2] -= inset;
+	}
+	template< int FEMDegree , BoundaryType BType > static int _BSplineBegin( LocalDepth depth ){ return BSplineEvaluationData< FEMDegree , BType >::Begin( depth ); }
+	template< int FEMDegree , BoundaryType BType > static int _BSplineEnd  ( LocalDepth depth ){ return BSplineEvaluationData< FEMDegree , BType >::End  ( depth ); }
+	template< int FEMDegree , BoundaryType BType >
+	bool _outOfBounds( const TreeOctNode* node ) const
+	{
+		if( !node ) return true;
+		LocalDepth d ; LocalOffset off;
+		_localDepthAndOffset( node , d , off );
+		return d<0 || BSplineEvaluationData< FEMDegree , BType >::OutOfBounds( d , off[0] ) || BSplineEvaluationData< FEMDegree , BType >::OutOfBounds( d , off[1] ) || BSplineEvaluationData< FEMDegree , BType >::OutOfBounds( d , off[2] );
+	}
+	int _sNodesBegin( LocalDepth d ) const { return _sNodes.begin( _localToGlobal( d ) ); }
+	int _sNodesEnd  ( LocalDepth d ) const { return _sNodes.end  ( _localToGlobal( d ) ); }
+	int _sNodesSize ( LocalDepth d ) const { return _sNodes.size ( _localToGlobal( d ) ); }
+	int _sNodesBegin( LocalDepth d , int slice ) const { return _sNodes.begin( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	int _sNodesEnd  ( LocalDepth d , int slice ) const { return _sNodes.end  ( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	int _sNodesSize ( LocalDepth d , int slice ) const { return _sNodes.size ( _localToGlobal( d ) , slice + _localInset( d ) ); }
+
+	template< int FEMDegree > static bool _IsInteriorlySupported( LocalDepth depth , const LocalOffset off )
+	{
+		if( depth>=0 )
 		{
 			int begin , end;
-			BSplineEvaluationData< FEMDegree >::InteriorSupportedSpan( d-1 , begin , end );
-			return ( x>=begin && x<end && y>=begin && y<end && z>=begin && z<end );
+			BSplineSupportSizes< FEMDegree >::InteriorSupportedSpan( depth , begin , end );
+			return ( off[0]>=begin && off[0]<end && off[1]>=begin && off[1]<end && off[2]>=begin && off[2]<end );
 		}
 		else return false;
 	}
-	template< int FEMDegree > static bool _IsInteriorlySupported( const TreeOctNode* node )
+	template< int FEMDegree > bool _isInteriorlySupported( const TreeOctNode* node ) const
 	{
 		if( !node ) return false;
-		int d , off[3];
-		node->depthAndOffset( d , off );
-		return _IsInteriorlySupported< FEMDegree >( d , off[0] , off[1] , off[2] );
+		LocalDepth d ; LocalOffset off;
+		_localDepthAndOffset( node , d , off );
+		return _IsInteriorlySupported< FEMDegree >( d , off );
 	}
-	template< int FEMDegree1 , int FEMDegree2 > static bool _IsInteriorlyOverlapped( int d , int x , int y , int z )
+	template< int FEMDegree1 , int FEMDegree2 > static bool _IsInteriorlyOverlapped( LocalDepth depth , const LocalOffset off )
 	{
-		if( d-1>=0 )
+		if( depth>=0 )
 		{
 			int begin , end;
-			BSplineIntegrationData< FEMDegree1 , FEMDegree2 >::InteriorOverlappedSpan( d-1 , begin , end );
-			return ( x>=begin && x<end && y>=begin && y<end && z>=begin && z<end );
+			BSplineIntegrationData< FEMDegree1 , BOUNDARY_NEUMANN , FEMDegree2 , BOUNDARY_NEUMANN >::InteriorOverlappedSpan( depth , begin , end );
+			return ( off[0]>=begin && off[0]<end && off[1]>=begin && off[1]<end && off[2]>=begin && off[2]<end );
 		}
 		else return false;
 	}
-	template< int FEMDegree1 , int FEMDegree2 > static bool _IsInteriorlyOverlapped( const TreeOctNode* node )
+	template< int FEMDegree1 , int FEMDegree2 > bool _isInteriorlyOverlapped( const TreeOctNode* node ) const
 	{
 		if( !node ) return false;
-		int d , off[3];
-		node->depthAndOffset( d , off );
-		return _IsInteriorlyOverlapped< FEMDegree1 , FEMDegree2 >( d , off[0] , off[1] , off[2] );
+		LocalDepth d ; LocalOffset off;
+		_localDepthAndOffset( node , d , off );
+		return _IsInteriorlyOverlapped< FEMDegree1 , FEMDegree2 >( d , off );
 	}
-	static void _DepthAndOffset( const TreeOctNode* node , int& d , int off[3] ){ node->depthAndOffset( d , off ) ; d -= 1; }
-	static int  _Depth( const TreeOctNode* node ){ return node->depth()-1; }
-	static void _StartAndWidth( const TreeOctNode* node , Point3D< Real >& start , Real& width )
+	void _startAndWidth( const TreeOctNode* node , Point3D< Real >& start , Real& width ) const
 	{
-		int d , off[3];
-		_DepthAndOffset( node , d , off );
+		LocalDepth d ; LocalOffset off;
+		_localDepthAndOffset( node , d , off );
 		if( d>=0 ) width = Real( 1.0 / (1<<  d ) );
 		else       width = Real( 1.0 * (1<<(-d)) );
 		for( int dd=0 ; dd<DIMENSION ; dd++ ) start[dd] = Real( off[dd] ) * width;
 	}
-	static void _CenterAndWidth( const TreeOctNode* node , Point3D< Real >& center , Real& width )
+	void _centerAndWidth( const TreeOctNode* node , Point3D< Real >& center , Real& width ) const
 	{
 		int d , off[3];
-		_DepthAndOffset( node , d , off );
+		_localDepthAndOffset( node , d , off );
 		width = Real( 1.0 / (1<<d) );
 		for( int dd=0 ; dd<DIMENSION ; dd++ ) center[dd] = Real( off[dd] + 0.5 ) * width;
 	}
-	template< int LeftRadius , int RightRadius >
-	static typename TreeOctNode::ConstNeighbors< LeftRadius + RightRadius + 1 >& _Neighbors( TreeOctNode::ConstNeighborKey< LeftRadius , RightRadius >& key , int depth ){ return key.neighbors[ depth + 1 ]; }
-	template< int LeftRadius , int RightRadius >
-	static typename TreeOctNode::Neighbors< LeftRadius + RightRadius + 1 >& _Neighbors( TreeOctNode::NeighborKey< LeftRadius , RightRadius >& key , int depth ){ return key.neighbors[ depth + 1 ]; }
-	template< int LeftRadius , int RightRadius >
-	static const typename TreeOctNode::template Neighbors< LeftRadius + RightRadius + 1 >& _Neighbors( const typename TreeOctNode::template NeighborKey< LeftRadius , RightRadius >& key , int depth ){ return key.neighbors[ depth + 1 ]; }
-	template< int LeftRadius , int RightRadius >
-	static const typename TreeOctNode::template ConstNeighbors< LeftRadius + RightRadius + 1 >& _Neighbors( const typename TreeOctNode::template ConstNeighborKey< LeftRadius , RightRadius >& key , int depth ){ return key.neighbors[ depth + 1 ]; }
+	int _childIndex( const TreeOctNode* node , Point3D< Real > p ) const
+	{
+		Point3D< Real > c ; Real w;
+		_centerAndWidth( node , c , w );
+		return ( p[0]<c[0] ? 0 : 1 ) | ( p[1]<c[1] ? 0 : 2 ) | ( p[2]<c[2] ? 0 : 4 );
+	}
 
-	static void _SetFullDepth( TreeOctNode* node , int depth );
-	void _setFullDepth( int depth );
+	template< int Degree , BoundaryType BType > void _setFullDepth( TreeOctNode* node , LocalDepth depth ) const;
+	template< int Degree , BoundaryType BType > void _setFullDepth( LocalDepth depth );
+
+	template< int LeftRadius , int RightRadius >
+	static typename TreeOctNode::ConstNeighbors< LeftRadius + RightRadius + 1 >& _neighbors( TreeOctNode::ConstNeighborKey< LeftRadius , RightRadius >& key , const TreeOctNode* node ){ return key.neighbors[ node->depth() ]; }
+	template< int LeftRadius , int RightRadius >
+	static typename TreeOctNode::Neighbors< LeftRadius + RightRadius + 1 >& _neighbors( TreeOctNode::NeighborKey< LeftRadius , RightRadius >& key , const TreeOctNode* node ){ return key.neighbors[ node->depth() ]; }
+	template< int LeftRadius , int RightRadius >
+	static const typename TreeOctNode::template Neighbors< LeftRadius + RightRadius + 1 >& _neighbors( const typename TreeOctNode::template NeighborKey< LeftRadius , RightRadius >& key , const TreeOctNode* node ){ return key.neighbors[ node->depth() ]; }
+	template< int LeftRadius , int RightRadius >
+	static const typename TreeOctNode::template ConstNeighbors< LeftRadius + RightRadius + 1 >& _neighbors( const typename TreeOctNode::template ConstNeighborKey< LeftRadius , RightRadius >& key , const TreeOctNode* node ){ return key.neighbors[ node->depth() ]; }
+
+public:
+	LocalDepth depth( const TreeOctNode* node ) const { return _localDepth( node ); }
+	void depthAndOffset( const TreeOctNode* node , LocalDepth& depth , LocalOffset& offset ) const { _localDepthAndOffset( node , depth , offset ); }
+
+	int nodesBegin( LocalDepth d ) const { return _sNodes.begin( _localToGlobal( d ) ); }
+	int nodesEnd  ( LocalDepth d ) const { return _sNodes.end  ( _localToGlobal( d ) ); }
+	int nodesSize ( LocalDepth d ) const { return _sNodes.size ( _localToGlobal( d ) ); }
+	int nodesBegin( LocalDepth d , int slice ) const { return _sNodes.begin( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	int nodesEnd  ( LocalDepth d , int slice ) const { return _sNodes.end  ( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	int nodesSize ( LocalDepth d , int slice ) const { return _sNodes.size ( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	const TreeOctNode* node( int idx ) const { return _sNodes.treeNodes[idx]; }
+protected:
 
 	////////////////////////////////////
 	// System construction code       //
@@ -415,252 +594,382 @@ protected:
 	////////////////////////////////////
 	template< int FEMDegree >
 	void _setMultiColorIndices( int start , int end , std::vector< std::vector< int > >& indices ) const;
-	template< int FEMDegree >
-	int _SolveSystemGS( const BSplineData< FEMDegree >& bsData , SparseNodeData< PointData< Real > , 0 >& pointInfo , int depth , DenseNodeData< Real , FEMDegree >& solution , DenseNodeData< Real , FEMDegree >& constraints , DenseNodeData< Real , FEMDegree >& metSolutionConstraints , int iters , bool coarseToFine , bool showResidual=false , double* bNorm2=NULL , double* inRNorm2=NULL , double* outRNorm2=NULL , bool forceSilent=false );
-	template< int FEMDegree >
-	int _SolveSystemCG( const BSplineData< FEMDegree >& bsData , SparseNodeData< PointData< Real > , 0 >& pointInfo , int depth , DenseNodeData< Real , FEMDegree >& solution , DenseNodeData< Real , FEMDegree >& constraints , DenseNodeData< Real , FEMDegree >& metSolutionConstraints , int iters , bool coarseToFine , bool showResidual=false , double* bNorm2=NULL , double* inRNorm2=NULL , double* outRNorm2=NULL , double accuracy=0 );
-	template< int FEMDegree >
-	int _SetMatrixRow( const SparseNodeData< PointData< Real > , 0 >& pointInfo , const typename TreeOctNode::Neighbors< BSplineIntegrationData< FEMDegree , FEMDegree >::OverlapSize >& neighbors , Pointer( MatrixEntry< Real > ) row , int offset , const typename BSplineIntegrationData< FEMDegree , FEMDegree >::FunctionIntegrator::Integrator& integrator , const Stencil< double , BSplineIntegrationData< FEMDegree , FEMDegree >::OverlapSize >& stencil , const BSplineData< FEMDegree >& bsData ) const;
-	template< int FEMDegree >
-	int _GetMatrixRowSize( const typename TreeOctNode::Neighbors< BSplineIntegrationData< FEMDegree , FEMDegree >::OverlapSize >& neighbors ) const;
+	struct _SolverStats
+	{
+		double evaluateTime , systemTime , solveTime;
+		double bNorm2 , inRNorm2 , outRNorm2;
+	};
+	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
+	int _solveSystemGS( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real , FEMDegree >& solution , DenseNodeData< Real , FEMDegree >& constraints , DenseNodeData< Real , FEMDegree >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms );
+	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
+	int _solveSystemCG( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real , FEMDegree >& solution , DenseNodeData< Real , FEMDegree >& constraints , DenseNodeData< Real , FEMDegree >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double accuracy );
+	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
+	int _setMatrixRow( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& neighbors , Pointer( MatrixEntry< Real > ) row , int offset , const typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , const Stencil< double , BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& stencil , const BSplineData< FEMDegree , BType >& bsData ) const;
+	template< int FEMDegree , BoundaryType BType >
+	int _getMatrixRowSize( const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& neighbors ) const;
 
 	template< int FEMDegree1 , int FEMDegree2 > static void _SetParentOverlapBounds( const TreeOctNode* node , int& startX , int& endX , int& startY , int& endY , int& startZ , int& endZ );
-	template< int FEMDegree >
-	void _UpdateConstraintsFromCoarser( const SparseNodeData< PointData< Real > , 0 >& pointInfo , const typename TreeOctNode::Neighbors< BSplineIntegrationData< FEMDegree , FEMDegree >::OverlapSize >& neighbors , const typename TreeOctNode::Neighbors< BSplineIntegrationData< FEMDegree , FEMDegree >::OverlapSize >& pNeighbors , TreeOctNode* node , DenseNodeData< Real , FEMDegree >& constraints , const DenseNodeData< Real , FEMDegree >& metSolution , const typename BSplineIntegrationData< FEMDegree , FEMDegree >::FunctionIntegrator::ChildIntegrator& childIntegrator , const Stencil< double , BSplineIntegrationData< FEMDegree , FEMDegree >::OverlapSize >& stencil , const BSplineData< FEMDegree >& bsData ) const;
-	// Updates the constraints @(depth-1) based on the solution coefficients @(depth)
-	template< int FEMDegree >
-	void _UpdateConstraintsFromFiner( const typename BSplineIntegrationData< FEMDegree , FEMDegree >::FunctionIntegrator::ChildIntegrator& childIntegrator , const BSplineData< FEMDegree >& bsData , int highDepth , const DenseNodeData< Real , FEMDegree >& fineSolution , DenseNodeData< Real , FEMDegree >& coarseConstraints ) const;
-	// Evaluate the points @(depth) using coefficients @(depth-1)
-	template< int FEMDegree >
-	void _SetPointValuesFromCoarser( SparseNodeData< PointData< Real > , 0 >& pointInfo , int highDepth , const BSplineData< FEMDegree >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients );
-	// Evalutes the solution @(depth) at the points @(depth-1) and updates the met constraints @(depth-1)
-	template< int FEMDegree >
-	void _SetPointConstraintsFromFiner( const SparseNodeData< PointData< Real > , 0 >& pointInfo , int highDepth , const BSplineData< FEMDegree >& bsData , const DenseNodeData< Real , FEMDegree >& finerCoefficients , DenseNodeData< Real , FEMDegree >& metConstraints ) const;
-	template< int FEMDegree >
-	Real _CoarserFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients ) const;
-	template< int FEMDegree >
-	Real _FinerFunctionValue  ( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree >& bsData , const DenseNodeData< Real , FEMDegree >& coefficients ) const;
-	template< int FEMDegree >
-	int _GetSliceMatrixAndUpdateConstraints( const SparseNodeData< PointData< Real > , 0 >& pointInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real , FEMDegree >& constraints , typename BSplineIntegrationData< FEMDegree , FEMDegree >::FunctionIntegrator::Integrator& integrator , typename BSplineIntegrationData< FEMDegree , FEMDegree >::FunctionIntegrator::ChildIntegrator& childIntegrator , const BSplineData< FEMDegree >& bsData , int depth , int slice , const DenseNodeData< Real , FEMDegree >& metSolution , bool coarseToFine );
-	template< int FEMDegree >
-	int _GetMatrixAndUpdateConstraints( const SparseNodeData< PointData< Real > , 0 >& pointInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real , FEMDegree >& constraints , typename BSplineIntegrationData< FEMDegree , FEMDegree >::FunctionIntegrator::Integrator& integrator , typename BSplineIntegrationData< FEMDegree , FEMDegree >::FunctionIntegrator::ChildIntegrator& childIntegrator , const BSplineData< FEMDegree >& bsData , int depth , const DenseNodeData< Real , FEMDegree >* metSolution , bool coarseToFine );
+	// Updates the constraints @(depth) based on the solution coefficients @(depth-1)
+
+	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
+	void _updateConstraintsFromCoarser( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& neighbors , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& pNeighbors , TreeOctNode* node , DenseNodeData< Real , FEMDegree >& constraints , const DenseNodeData< Real , FEMDegree >& metSolution , const typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const Stencil< double , BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& stencil , const BSplineData< FEMDegree , BType >& bsData ) const;
+
+	// evaluate the points @(depth) using coefficients @(depth-1)
+	template< int FEMDegree , BoundaryType BType , bool HasGradients >
+	void _setPointValuesFromCoarser( InterpolationInfo< HasGradients >& interpolationInfo , LocalDepth highDepth , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients );
+
+	// Updates the cumulative integral constraints @(depth-1) based on the change in solution coefficients @(depth)
+	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor >
+	void _updateCumulativeIntegralConstraintsFromFiner( const FEMSystemFunctor& F , 
+		const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real , FEMDegree >& fineSolution , DenseNodeData< Real , FEMDegree >& cumulativeConstraints ) const;
+	// Updates the cumulative interpolation constraints @(depth-1) based on the change in solution coefficient @(depth)
+	template< int FEMDegree , BoundaryType BType , bool HasGradients >
+	void _updateCumulativeInterpolationConstraintsFromFiner( const InterpolationInfo< HasGradients >& interpolationInfo ,
+		const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real , FEMDegree >& fineSolution , DenseNodeData< Real , FEMDegree >& cumulativeConstraints ) const;
+
+	template< int FEMDegree , BoundaryType BType >
+	Real _coarserFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients ) const;
+	template< int FEMDegree , BoundaryType BType >
+	Point3D< Real > _coarserFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients ) const;
+	template< int FEMDegree , BoundaryType BType >
+	Real   _finerFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& coefficients ) const;
+	template< int FEMDegree , BoundaryType BType >
+	Point3D< Real >   _finerFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& coefficients ) const;
+	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
+	int _getSliceMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real , FEMDegree >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , int slice , const DenseNodeData< Real , FEMDegree >& metSolution , bool coarseToFine );
+	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
+	int _getMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real , FEMDegree >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , const DenseNodeData< Real , FEMDegree >& metSolution , bool coarseToFine );
 
 	// Down samples constraints @(depth) to constraints @(depth-1)
-	template< class C , int FEMDegree > void _DownSample( int highDepth , DenseNodeData< C , FEMDegree >& constraints ) const;
+	template< class C , int FEMDegree , BoundaryType BType > void _downSample( LocalDepth highDepth , DenseNodeData< C , FEMDegree >& constraints ) const;
 	// Up samples coefficients @(depth-1) to coefficients @(depth)
-	template< class C , int FEMDegree > void _UpSample( int highDepth , DenseNodeData< C , FEMDegree >& coefficients ) const;
-	template< class C , int FEMDegree > static void _UpSample( int highDepth , ConstPointer( C ) lowCoefficients , Pointer( C ) highCoefficients , bool dirichlet , int threads );
+	template< class C , int FEMDegree , BoundaryType BType > void _upSample( LocalDepth highDepth , DenseNodeData< C , FEMDegree >& coefficients ) const;
+	template< class C , int FEMDegree , BoundaryType BType > static void _UpSample( LocalDepth highDepth , ConstPointer( C ) lowCoefficients , Pointer( C ) highCoefficients , int threads );
+public:
+	template< class C , int FEMDegree , BoundaryType BType > DenseNodeData< C , FEMDegree > coarseCoefficients( const  DenseNodeData< C , FEMDegree >& coefficients ) const;
+	template< class C , int FEMDegree , BoundaryType BType > DenseNodeData< C , FEMDegree > coarseCoefficients( const SparseNodeData< C , FEMDegree >& coefficients ) const;
+protected:
 
 	/////////////////////////////////////////////
 	// Code for splatting point-sample data    //
 	// MultiGridOctreeData.WeightedSamples.inl //
 	/////////////////////////////////////////////
 	template< int WeightDegree >
-	void _AddWeightContribution( SparseNodeData< Real , WeightDegree >& densityWeights , TreeOctNode* node , Point3D< Real > position , PointSupportKey< WeightDegree >& weightKey , Real weight=Real(1.0) );
-	template< int WeightDegree >
-	Real _GetSamplesPerNode( const SparseNodeData< Real , WeightDegree >& densityWeights , const TreeOctNode* node , Point3D< Real > position , ConstPointSupportKey< WeightDegree >& weightKey ) const;
-	template< int WeightDegree >
-	Real _GetSamplesPerNode( const SparseNodeData< Real , WeightDegree >& densityWeights ,       TreeOctNode* node , Point3D< Real > position ,      PointSupportKey< WeightDegree >& weightKey );
-	template< int WeightDegree >
-	void _GetSampleDepthAndWeight( const SparseNodeData< Real , WeightDegree >& densityWeights , const TreeOctNode* node , Point3D< Real > position , ConstPointSupportKey< WeightDegree >& weightKey , Real& depth , Real& weight ) const;
-	template< int WeightDegree >
-	void _GetSampleDepthAndWeight( const SparseNodeData< Real , WeightDegree >& densityWeights ,       TreeOctNode* node , Point3D< Real > position ,      PointSupportKey< WeightDegree >& weightKey , Real& depth , Real& weight );
+	void _addWeightContribution( SparseNodeData< Real , WeightDegree >& densityWeights , TreeOctNode* node , Point3D< Real > position , PointSupportKey< WeightDegree >& weightKey , Real weight=Real(1.0) );
+	template< int WeightDegree , class PointSupportKey >
+	Real _getSamplesPerNode( const SparseNodeData< Real , WeightDegree >& densityWeights , const TreeOctNode* node , Point3D< Real > position , PointSupportKey& weightKey ) const;
+	template< int WeightDegree , class PointSupportKey >
+	void _getSampleDepthAndWeight( const SparseNodeData< Real , WeightDegree >& densityWeights , const TreeOctNode* node , Point3D< Real > position , PointSupportKey& weightKey , Real& depth , Real& weight ) const;
+	template< int WeightDegree , class PointSupportKey >
+	void _getSampleDepthAndWeight( const SparseNodeData< Real , WeightDegree >& densityWeights , Point3D< Real > position , PointSupportKey& weightKey , Real& depth , Real& weight ) const;
+	template< bool CreateNodes ,                    int DataDegree , class V > void      _splatPointData( TreeOctNode* node ,                                           Point3D< Real > point , V v , SparseNodeData< V , DataDegree >& data ,                                              PointSupportKey< DataDegree >& dataKey                                                   );
+	template< bool CreateNodes , int WeightDegree , int DataDegree , class V > Real      _splatPointData( const SparseNodeData< Real , WeightDegree >& densityWeights , Point3D< Real > point , V v , SparseNodeData< V , DataDegree >& data , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim=DIMENSION );
+	template< bool CreateNodes , int WeightDegree , int DataDegree , class V > Real _multiSplatPointData( const SparseNodeData< Real , WeightDegree >* densityWeights , TreeOctNode* node , Point3D< Real > point , V v , SparseNodeData< V , DataDegree >& data , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , int dim=DIMENSION );
+	template< class V , int DataDegree , BoundaryType BType , class Coefficients > V _evaluate( const Coefficients& coefficients , Point3D< Real > p , const BSplineData< DataDegree , BType >& bsData , const ConstPointSupportKey< DataDegree >& dataKey ) const;
 public:
-	template< int WeightDegree >
-	void _GetSampleDepthAndWeight( const SparseNodeData< Real , WeightDegree >& densityWeights , Point3D< Real > position ,      PointSupportKey< WeightDegree >& weightKey , Real& depth , Real& weight );
-	template< int WeightDegree >
-	void _GetSampleDepthAndWeight( const SparseNodeData< Real , WeightDegree >& densityWeights , Point3D< Real > position , ConstPointSupportKey< WeightDegree >& weightKey , Real& depth , Real& weight );
-protected:
-	template< int DataDegree , class V > void _SplatPointData( TreeOctNode* node , Point3D< Real > point , V v , SparseNodeData< V , DataDegree >& data , PointSupportKey< DataDegree >& dataKey );
-	template< int WeightDegree , int DataDegree , class V > Real      _SplatPointData( const SparseNodeData< Real , WeightDegree >& densityWeights , Point3D< Real > point , V v , SparseNodeData< V , DataDegree >& data , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , int minDepth , int maxDepth , int dim=DIMENSION );
-	template< int WeightDegree , int DataDegree , class V > void _MultiSplatPointData( const SparseNodeData< Real , WeightDegree >* densityWeights , Point3D< Real > point , V v , SparseNodeData< V , DataDegree >& data , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , int maxDepth , int dim=DIMENSION );
-	template< class V , int DataDegree > V _Evaluate( const DenseNodeData< V , DataDegree >& coefficients , Point3D< Real > p , const BSplineData< DataDegree >& bsData , const ConstPointSupportKey< DataDegree >& neighborKey ) const;
-	template< class V , int DataDegree > V _Evaluate( const SparseNodeData< V , DataDegree >& coefficients , Point3D< Real > p , const BSplineData< DataDegree >& bsData , const ConstPointSupportKey< DataDegree >& dataKey ) const;
-public:
-	template< class V , int DataDegree > V Evaluate( const  DenseNodeData< V , DataDegree >& coefficients , Point3D< Real > p , const BSplineData< DataDegree >& bsData ) const;
-	template< class V , int DataDegree > V Evaluate( const SparseNodeData< V , DataDegree >& coefficients , Point3D< Real > p , const BSplineData< DataDegree >& bsData ) const;
-	template< class V , int DataDegree > Pointer( V ) Evaluate( const DenseNodeData< V , DataDegree >& coefficients , int& res , Real isoValue=0.f , int depth=-1 , bool primal=false );
+	template< class V , int DataDegree , BoundaryType BType > Pointer( V ) voxelEvaluate( const DenseNodeData< V , DataDegree >& coefficients , int& res , Real isoValue=0.f , LocalDepth depth=-1 , bool primal=false );
 
-	template< int NormalDegree > int _HasNormals( TreeOctNode* node , const SparseNodeData< Point3D< Real > , NormalDegree >& normalInfo );
-	void _MakeComplete( void );
-	void _SetValidityFlags( void );
-	template< int NormalDegree > void _ClipTree( const SparseNodeData< Point3D< Real > , NormalDegree >& normalInfo );
+	template< int NormalDegree >
+	struct HasNormalDataFunctor
+	{
+		const SparseNodeData< Point3D< Real > , NormalDegree >& normalInfo;
+		HasNormalDataFunctor( const SparseNodeData< Point3D< Real > , NormalDegree >& ni ) : normalInfo( ni ){ ; }
+		bool operator() ( const TreeOctNode* node ) const
+		{
+			const Point3D< Real >* n = normalInfo( node );
+			if( n )
+			{
+				const Point3D< Real >& normal = *n;
+				if( normal[0]!=0 || normal[1]!=0 || normal[2]!=0 ) return true;
+			}
+			if( node->children ) for( int c=0 ; c<Cube::CORNERS ; c++ ) if( (*this)( node->children + c ) ) return true;
+			return false;
+		}
+	};
+	struct TrivialHasDataFunctor{ bool operator() ( const TreeOctNode* node ) const{ return true; } };
+
+	// [NOTE] The input/output for this method is pre-scaled by weight
+	template< bool HasGradients > bool _setInterpolationInfoFromChildren( TreeOctNode* node , SparseNodeData< PointData< Real , HasGradients > , 0 >& iInfo ) const;
+	template< bool HasGradients > SparseNodeData< PointData< Real , HasGradients > , 0 > _densifyInterpolationInfo( const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent ) const;
+
+	template< int FEMDegree , BoundaryType BType > void _setValidityFlags( void );
+	template< class HasDataFunctor > void _clipTree( const HasDataFunctor& f );
+
+	template< int FEMDegree , BoundaryType BType > SparseNodeData<          Real   , 0 > leafValues   ( const DenseNodeData< Real , FEMDegree >& coefficients ) const;
+	template< int FEMDegree , BoundaryType BType > SparseNodeData< Point3D< Real > , 0 > leafGradients( const DenseNodeData< Real , FEMDegree >& coefficients ) const;
 
 	////////////////////////////////////
 	// Evaluation Methods             //
 	// MultiGridOctreeData.Evaluation //
 	////////////////////////////////////
 	static const int CHILDREN = Cube::CORNERS;
-	template< int FEMDegree >
+	template< int FEMDegree , BoundaryType BType >
 	struct _Evaluator
 	{
-		typename BSplineEvaluationData< FEMDegree >::Evaluator evaluator;
-		typename BSplineEvaluationData< FEMDegree >::ChildEvaluator childEvaluator;
-		Stencil< double , BSplineEvaluationData< FEMDegree >::SupportSize > cellStencil;
-		Stencil< double , BSplineEvaluationData< FEMDegree >::SupportSize > cellStencils  [CHILDREN];
-		Stencil< double , BSplineEvaluationData< FEMDegree >::SupportSize > edgeStencil             [Cube::EDGES  ];
-		Stencil< double , BSplineEvaluationData< FEMDegree >::SupportSize > edgeStencils  [CHILDREN][Cube::EDGES  ];
-		Stencil< double , BSplineEvaluationData< FEMDegree >::SupportSize > faceStencil             [Cube::FACES  ];
-		Stencil< double , BSplineEvaluationData< FEMDegree >::SupportSize > faceStencils  [CHILDREN][Cube::FACES  ];
-		Stencil< double , BSplineEvaluationData< FEMDegree >::SupportSize > cornerStencil           [Cube::CORNERS];
-		Stencil< double , BSplineEvaluationData< FEMDegree >::SupportSize > cornerStencils[CHILDREN][Cube::CORNERS];
+		typename BSplineEvaluationData< FEMDegree , BType >::Evaluator evaluator;
+		typename BSplineEvaluationData< FEMDegree , BType >::ChildEvaluator childEvaluator;
+		Stencil< double , BSplineSupportSizes< FEMDegree >::SupportSize > cellStencil;
+		Stencil< double , BSplineSupportSizes< FEMDegree >::SupportSize > cellStencils  [CHILDREN];
+		Stencil< double , BSplineSupportSizes< FEMDegree >::SupportSize > edgeStencil             [Cube::EDGES  ];
+		Stencil< double , BSplineSupportSizes< FEMDegree >::SupportSize > edgeStencils  [CHILDREN][Cube::EDGES  ];
+		Stencil< double , BSplineSupportSizes< FEMDegree >::SupportSize > faceStencil             [Cube::FACES  ];
+		Stencil< double , BSplineSupportSizes< FEMDegree >::SupportSize > faceStencils  [CHILDREN][Cube::FACES  ];
+		Stencil< double , BSplineSupportSizes< FEMDegree >::SupportSize > cornerStencil           [Cube::CORNERS];
+		Stencil< double , BSplineSupportSizes< FEMDegree >::SupportSize > cornerStencils[CHILDREN][Cube::CORNERS];
 
-		Stencil< Point3D< double > , BSplineEvaluationData< FEMDegree >::SupportSize > dCellStencil;
-		Stencil< Point3D< double > , BSplineEvaluationData< FEMDegree >::SupportSize > dCellStencils  [CHILDREN];
-		Stencil< Point3D< double > , BSplineEvaluationData< FEMDegree >::SupportSize > dEdgeStencil             [Cube::EDGES  ];
-		Stencil< Point3D< double > , BSplineEvaluationData< FEMDegree >::SupportSize > dEdgeStencils  [CHILDREN][Cube::EDGES  ];
-		Stencil< Point3D< double > , BSplineEvaluationData< FEMDegree >::SupportSize > dFaceStencil             [Cube::FACES  ];
-		Stencil< Point3D< double > , BSplineEvaluationData< FEMDegree >::SupportSize > dFaceStencils  [CHILDREN][Cube::FACES  ];
-		Stencil< Point3D< double > , BSplineEvaluationData< FEMDegree >::SupportSize > dCornerStencil           [Cube::CORNERS];
-		Stencil< Point3D< double > , BSplineEvaluationData< FEMDegree >::SupportSize > dCornerStencils[CHILDREN][Cube::CORNERS];
-		void set( int depth , bool dirichlet );
+		Stencil< Point3D< double > , BSplineSupportSizes< FEMDegree >::SupportSize > dCellStencil;
+		Stencil< Point3D< double > , BSplineSupportSizes< FEMDegree >::SupportSize > dCellStencils  [CHILDREN];
+		Stencil< Point3D< double > , BSplineSupportSizes< FEMDegree >::SupportSize > dEdgeStencil             [Cube::EDGES  ];
+		Stencil< Point3D< double > , BSplineSupportSizes< FEMDegree >::SupportSize > dEdgeStencils  [CHILDREN][Cube::EDGES  ];
+		Stencil< Point3D< double > , BSplineSupportSizes< FEMDegree >::SupportSize > dFaceStencil             [Cube::FACES  ];
+		Stencil< Point3D< double > , BSplineSupportSizes< FEMDegree >::SupportSize > dFaceStencils  [CHILDREN][Cube::FACES  ];
+		Stencil< Point3D< double > , BSplineSupportSizes< FEMDegree >::SupportSize > dCornerStencil           [Cube::CORNERS];
+		Stencil< Point3D< double > , BSplineSupportSizes< FEMDegree >::SupportSize > dCornerStencils[CHILDREN][Cube::CORNERS];
+
+		void set( LocalDepth depth );
+		_Evaluator( void ){ _bsData = NULL; }
+		~_Evaluator( void ){ if( _bsData ) delete _bsData , _bsData = NULL; }
+	protected:
+		BSplineData< FEMDegree , BType >* _bsData;
+		friend Octree;
 	};
-	template< class V , int FEMDegree >
-	V _getCenterValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node ,              const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const;
-	template< class V , int FEMDegree >
-	V _getCornerValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const;
-	template< class V , int FEMDegree >
-	V _getEdgeValue  ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge   , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const;
+	template< class V , int FEMDegree , BoundaryType BType >
+	V _getCenterValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node ,                     const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	template< class V , int FEMDegree , BoundaryType BType >
+	V _getCornerValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner        , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	template< class V , int FEMDegree , BoundaryType BType >
+	V _getEdgeValue  ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge          , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	template< class V , int FEMDegree , BoundaryType BType >
+	V _getValue      ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const;
 
-	template< int FEMDegree >
-	std::pair< Real , Point3D< Real > > _getCornerValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const;
-	template< int FEMDegree >
-	std::pair< Real , Point3D< Real > > _getEdgeValueAndGradient  ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge   , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const;
+	template< int FEMDegree , BoundaryType BType >
+	std::pair< Real , Point3D< Real > > _getCenterValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node ,                     const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	template< int FEMDegree , BoundaryType BType >
+	std::pair< Real , Point3D< Real > > _getCornerValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner        , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	template< int FEMDegree , BoundaryType BType >
+	std::pair< Real , Point3D< Real > > _getEdgeValueAndGradient  ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge          , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	template< int FEMDegree , BoundaryType BType >
+	std::pair< Real , Point3D< Real > > _getValueAndGradient      ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const;
+
+public:
+	template< int Degree , BoundaryType BType >
+	class MultiThreadedEvaluator
+	{
+		const Octree* _tree;
+		int _threads;
+		std::vector< ConstPointSupportKey< Degree > > _neighborKeys;
+		_Evaluator< Degree , BType > _evaluator;
+		const DenseNodeData< Real , Degree >& _coefficients;
+		DenseNodeData< Real , Degree > _coarseCoefficients;
+	public:
+		MultiThreadedEvaluator( const Octree* tree , const DenseNodeData< Real , Degree >& coefficients , int threads=1 );
+		Real value( Point3D< Real > p , int thread=0 , const TreeOctNode* node=NULL );
+		std::pair< Real , Point3D< Real > > valueAndGradient( Point3D< Real > , int thread=0 , const TreeOctNode* node=NULL );
+	};
 
 	////////////////////////////////////////
 	// Iso-Surfacing Methods              //
 	// MultiGridOctreeData.IsoSurface.inl //
 	////////////////////////////////////////
-	struct IsoEdge
+protected:
+	struct _IsoEdge
 	{
 		long long edges[2];
-		IsoEdge( void ){ edges[0] = edges[1] = 0; }
-		IsoEdge( long long v1 , long long v2 ){ edges[0] = v1 , edges[1] = v2; }
+		_IsoEdge( void ){ edges[0] = edges[1] = 0; }
+		_IsoEdge( long long v1 , long long v2 ){ edges[0] = v1 , edges[1] = v2; }
 		long long& operator[]( int idx ){ return edges[idx]; }
 		const long long& operator[]( int idx ) const { return edges[idx]; }
 	};
-	struct FaceEdges
+	struct _FaceEdges
 	{
-		IsoEdge edges[2];
+		_IsoEdge edges[2];
 		int count;
 	};
 	template< class Vertex >
-	struct SliceValues
+	struct _SliceValues
 	{
 		typename SortedTreeNodes::SliceTableData sliceData;
 		Pointer( Real ) cornerValues ; Pointer( Point3D< Real > ) cornerGradients ; Pointer( char ) cornerSet;
 		Pointer( long long ) edgeKeys ; Pointer( char ) edgeSet;
-		Pointer( FaceEdges ) faceEdges ; Pointer( char ) faceSet;
+		Pointer( _FaceEdges ) faceEdges ; Pointer( char ) faceSet;
 		Pointer( char ) mcIndices;
-		hash_map< long long , std::vector< IsoEdge > > faceEdgeMap;
-		hash_map< long long , std::pair< int , Vertex > > edgeVertexMap;
-		hash_map< long long , long long > vertexPairMap;
+		std::unordered_map< long long, std::vector< _IsoEdge > > faceEdgeMap;
+		std::unordered_map< long long, std::pair< int, Vertex > > edgeVertexMap;
+		std::unordered_map< long long, long long > vertexPairMap;
 
-		SliceValues( void );
-		~SliceValues( void );
+		_SliceValues( void );
+		~_SliceValues( void );
 		void reset( bool nonLinearFit );
 	protected:
 		int _oldCCount , _oldECount , _oldFCount , _oldNCount;
 	};
 	template< class Vertex >
-	struct XSliceValues
+	struct _XSliceValues
 	{
 		typename SortedTreeNodes::XSliceTableData xSliceData;
 		Pointer( long long ) edgeKeys ; Pointer( char ) edgeSet;
-		Pointer( FaceEdges ) faceEdges ; Pointer( char ) faceSet;
-		hash_map< long long , std::vector< IsoEdge > > faceEdgeMap;
-		hash_map< long long , std::pair< int , Vertex > > edgeVertexMap;
-		hash_map< long long , long long > vertexPairMap;
+		Pointer( _FaceEdges ) faceEdges ; Pointer( char ) faceSet;
+		std::unordered_map< long long, std::vector< _IsoEdge > > faceEdgeMap;
+		std::unordered_map< long long, std::pair< int, Vertex > > edgeVertexMap;
+		std::unordered_map< long long, long long > vertexPairMap;
 
-		XSliceValues( void );
-		~XSliceValues( void );
+		_XSliceValues( void );
+		~_XSliceValues( void );
 		void reset( void );
 	protected:
 		int _oldECount , _oldFCount;
 	};
 	template< class Vertex >
-	struct SlabValues
+	struct _SlabValues
 	{
-		XSliceValues< Vertex > _xSliceValues[2];
-		SliceValues< Vertex > _sliceValues[2];
-		SliceValues< Vertex >& sliceValues( int idx ){ return _sliceValues[idx&1]; }
-		const SliceValues< Vertex >& sliceValues( int idx ) const { return _sliceValues[idx&1]; }
-		XSliceValues< Vertex >& xSliceValues( int idx ){ return _xSliceValues[idx&1]; }
-		const XSliceValues< Vertex >& xSliceValues( int idx ) const { return _xSliceValues[idx&1]; }
+	protected:
+		_XSliceValues< Vertex > _xSliceValues[2];
+		_SliceValues< Vertex > _sliceValues[2];
+	public:
+		_SliceValues< Vertex >& sliceValues( int idx ){ return _sliceValues[idx&1]; }
+		const _SliceValues< Vertex >& sliceValues( int idx ) const { return _sliceValues[idx&1]; }
+		_XSliceValues< Vertex >& xSliceValues( int idx ){ return _xSliceValues[idx&1]; }
+		const _XSliceValues< Vertex >& xSliceValues( int idx ) const { return _xSliceValues[idx&1]; }
 	};
-	template< class Vertex , int FEMDegree >
-	void SetSliceIsoCorners( const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , Real isoValue , int depth , int slice ,         std::vector< SlabValues< Vertex > >& sValues , const _Evaluator< FEMDegree >& evaluator , int threads );
-	template< class Vertex , int FEMDegree >
-	void SetSliceIsoCorners( const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , Real isoValue , int depth , int slice , int z , std::vector< SlabValues< Vertex > >& sValues , const _Evaluator< FEMDegree >& evaluator , int threads );
-	template< int WeightDegree , int ColorDegree , class Vertex >
-	void SetSliceIsoVertices( const BSplineData< ColorDegree >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > > , ColorDegree >* colorData , Real isoValue , int depth , int slice ,         int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< SlabValues< Vertex > >& sValues , int threads );
-	template< int WeightDegree , int ColorDegree , class Vertex >
-	void SetSliceIsoVertices( const BSplineData< ColorDegree >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > > , ColorDegree >* colorData , Real isoValue , int depth , int slice , int z , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< SlabValues< Vertex > >& sValues , int threads );
-	template< int WeightDegree , int ColorDegree , class Vertex >
-	void SetXSliceIsoVertices( const BSplineData< ColorDegree >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > > , ColorDegree >* colorData , Real isoValue , int depth , int slab , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< SlabValues< Vertex > >& sValues , int threads );
+	template< class Vertex , int FEMDegree , BoundaryType BType >
+	void _setSliceIsoCorners( const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , Real isoValue , LocalDepth depth , int slice ,         std::vector< _SlabValues< Vertex > >& sValues , const _Evaluator< FEMDegree , BType >& evaluator , int threads );
+	template< class Vertex , int FEMDegree , BoundaryType BType >
+	void _setSliceIsoCorners( const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , Real isoValue , LocalDepth depth , int slice , int z , std::vector< _SlabValues< Vertex > >& sValues , const _Evaluator< FEMDegree , BType >& evaluator , int threads );
+	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
+	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , LocalDepth depth , int slice ,         int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
+	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
+	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , LocalDepth depth , int slice , int z , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
+	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
+	void _setXSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , LocalDepth depth , int slab , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 	template< class Vertex >
-	void CopyFinerSliceIsoEdgeKeys( int depth , int slice ,         std::vector< SlabValues< Vertex > >& sValues , int threads );
+	void _setSliceIsoEdges( LocalDepth depth , int slice ,         std::vector< _SlabValues< Vertex > >& slabValues , int threads );
 	template< class Vertex >
-	void CopyFinerSliceIsoEdgeKeys( int depth , int slice , int z , std::vector< SlabValues< Vertex > >& sValues , int threads );
+	void _setSliceIsoEdges( LocalDepth depth , int slice , int z , std::vector< _SlabValues< Vertex > >& slabValues , int threads );
 	template< class Vertex >
-	void CopyFinerXSliceIsoEdgeKeys( int depth , int slab , std::vector< SlabValues< Vertex > >& sValues , int threads );
+	void _setXSliceIsoEdges( LocalDepth depth , int slice , std::vector< _SlabValues< Vertex > >& slabValues , int threads );
 	template< class Vertex >
-	void SetSliceIsoEdges( int depth , int slice ,         std::vector< SlabValues< Vertex > >& slabValues , int threads );
+	void _copyFinerSliceIsoEdgeKeys( LocalDepth depth , int slice ,         std::vector< _SlabValues< Vertex > >& sValues , int threads );
 	template< class Vertex >
-	void SetSliceIsoEdges( int depth , int slice , int z , std::vector< SlabValues< Vertex > >& slabValues , int threads );
+	void _copyFinerSliceIsoEdgeKeys( LocalDepth depth , int slice , int z , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 	template< class Vertex >
-	void SetXSliceIsoEdges( int depth , int slice , std::vector< SlabValues< Vertex > >& slabValues , int threads );
+	void _copyFinerXSliceIsoEdgeKeys( LocalDepth depth , int slab , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 
 	template< class Vertex >
-	void SetIsoSurface( int depth , int offset , const SliceValues< Vertex >& bValues , const SliceValues< Vertex >& fValues , const XSliceValues< Vertex >& xValues , CoredMeshData< Vertex >& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , int threads );
+	void _setIsoSurface( LocalDepth depth , int offset , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , const _XSliceValues< Vertex >& xValues , CoredMeshData< Vertex >& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , int threads );
 
 	template< class Vertex >
-	static int AddIsoPolygons( CoredMeshData< Vertex >& mesh , std::vector< std::pair< int , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , int& vOffset );
+	static int _addIsoPolygons( CoredMeshData< Vertex >& mesh , std::vector< std::pair< int , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , int& vOffset );
 
-	template< int WeightDegree , int ColorDegree , class Vertex >
-	bool GetIsoVertex( const BSplineData< ColorDegree >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > > , ColorDegree >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int edgeIndex , int z , const SliceValues< Vertex >& sValues , Vertex& vertex );
-	template< int WeightDegree , int ColorDegree , class Vertex >
-	bool GetIsoVertex( const BSplineData< ColorDegree >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > > , ColorDegree >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int cornerIndex , const SliceValues< Vertex >& bValues , const SliceValues< Vertex >& fValues , Vertex& vertex );
+	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
+	bool _getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int edgeIndex , int z , const _SliceValues< Vertex >& sValues , Vertex& vertex );
+	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
+	bool _getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int cornerIndex , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , Vertex& vertex );
 
+	void _init( TreeOctNode* node , LocalDepth maxDepth , bool (*Refine)( LocalDepth d , LocalOffset off ) );
+
+	double _maxMemoryUsage , _localMemoryUsage;
 public:
-	static double maxMemoryUsage;
 	int threads;
+	double maxMemoryUsage( void ) const { return _maxMemoryUsage; }
+	double localMemoryUsage( void ) const { return _localMemoryUsage; }
+	void resetLocalMemoryUsage( void ){ _localMemoryUsage = 0; }
+	double memoryUsage( void );
 
-	static double MemoryUsage( void );
 	Octree( void );
 
-	// After calling set tree, the indices of the octree node will be stored by depth, and within depth they will be sorted by slice
-	template< class PointReal , int NormalDegree , int WeightDegree , int DataDegree , class Data , class _Data >
-	int SetTree( OrientedPointStream< PointReal >* pointStream , int minDepth , int maxDepth , int fullDepth , int splatDepth , Real samplesPerNode ,
-		Real scaleFactor , bool useConfidence , bool useNormalWeight ,
-		Real constraintWeight , int adaptiveExponent ,
-		SparseNodeData< Real , WeightDegree >& densityWeights , SparseNodeData< PointData< Real > , 0 >& pointInfo , SparseNodeData< Point3D< Real > , NormalDegree >& normalInfo , SparseNodeData< Real , NormalDegree >& nodeWeights ,
-		SparseNodeData< ProjectiveData< _Data > , DataDegree >* dataValues ,
-		XForm4x4< Real >& xForm , bool dirichlet=false , bool makeComplete=false );
+	void init( LocalDepth maxDepth , bool (*Refine)( LocalDepth d , LocalOffset off ) );
+	template< class Data >
+	int init( OrientedPointStream< Real >& pointStream , LocalDepth maxDepth , bool useConfidence , std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >* sampleData );
+	template< int DensityDegree >
+	SparseNodeData< Real , DensityDegree > setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode );
+	template< int NormalDegree , int DensityDegree >
+	SparseNodeData< Point3D< Real > , NormalDegree > setNormalField( const std::vector< PointSample >& samples , const SparseNodeData< Real , DensityDegree >& density , Real& pointWeightSum , bool forceNeumann );
+	template< int DataDegree , bool CreateNodes , int DensityDegree , class Data >
+	SparseNodeData< ProjectiveData< Data , Real > , DataDegree > setDataField( const std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >& sampleData , const SparseNodeData< Real , DensityDegree >* density );
+	template< int MaxDegree , int FEMDegree , BoundaryType FEMBType , class HasDataFunctor > void inalizeForBroodedMultigrid( LocalDepth fullDepth , const HasDataFunctor& F , std::vector< int >* map=NULL );
 
-	template< int FEMDegree > void EnableMultigrid( std::vector< int >* map );
+	// Generate an empty set of constraints
+	template< int FEMDegree > DenseNodeData< Real , FEMDegree > initDenseNodeData( void );
 
-	template< int FEMDegree , int NormalDegree >
-	DenseNodeData< Real , FEMDegree > SetLaplacianConstraints( const SparseNodeData< Point3D< Real > , NormalDegree >& normalInfo );
-	template< int FEMDegree >
-	DenseNodeData< Real , FEMDegree > SolveSystem( SparseNodeData< PointData< Real > , 0 >& pointInfo , DenseNodeData< Real , FEMDegree >& constraints , bool showResidual , int iters , int maxSolveDepth , int cgDepth=0 , double cgAccuracy=0 );
+	// Add finite-elements constraints (derived from a sparse scalar field)
+	template< int FEMDegree , BoundaryType FEMBType , int SFDegree , BoundaryType SFBType , class FEMSFConstraintFunctor > void addFEMConstraints( const FEMSFConstraintFunctor& F , const SparseNodeData< Real , SFDegree >& sfCoefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
+	{ return _addFEMConstraints< FEMDegree , FEMBType , SFDegree , SFBType , FEMSFConstraintFunctor , const SparseNodeData< Real   , SFDegree > , Real , double >( F , sfCoefficients , constraints , maxDepth ); }
+	// Add finite-elements constraints (derived from a dense scalar field)
+	template< int FEMDegree , BoundaryType FEMBType , int SFDegree , BoundaryType SFBType , class FEMSFConstraintFunctor > void addFEMConstraints( const FEMSFConstraintFunctor& F , const  DenseNodeData< Real , SFDegree >& sfCoefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
+	{ return _addFEMConstraints< FEMDegree , FEMBType , SFDegree , SFBType , FEMSFConstraintFunctor , const  DenseNodeData< Real   , SFDegree > , Real , double >( F , sfCoefficients , constraints , maxDepth ); }
+	// Add finite-elements constraints (derived from a sparse vector field)
+	template< int FEMDegree , BoundaryType FEMBType , int VFDegree , BoundaryType VFBType , class FEMVFConstraintFunctor > void addFEMConstraints( const FEMVFConstraintFunctor& F , const SparseNodeData< Point3D< Real > , VFDegree >& vfCoefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
+	{ return _addFEMConstraints< FEMDegree , FEMBType , VFDegree , VFBType , FEMVFConstraintFunctor , const SparseNodeData< Point3D< Real > , VFDegree > , Point3D< Real > , Point3D< double > >( F , vfCoefficients , constraints , maxDepth ); }
+	// Add finite-elements constraints (derived from a dense vector field)
+	template< int FEMDegree , BoundaryType FEMBType , int VFDegree , BoundaryType VFBType , class FEMVFConstraintFunctor > void addFEMConstraints( const FEMVFConstraintFunctor& F , const  DenseNodeData< Point3D< Real > , VFDegree >& vfCoefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
+	{ return _addFEMConstraints< FEMDegree , FEMBType , VFDegree , VFBType , FEMVFConstraintFunctor , const  DenseNodeData< Point3D< Real > , VFDegree > , Point3D< Real > , Point3D< double > >( F , vfCoefficients , constraints , maxDepth ); }
+	// Add interpolation constraints
+	template< int FEMDegree , BoundaryType FEMBType , bool HasGradients > void addInterpolationConstraints( const InterpolationInfo< HasGradients >& interpolationInfo , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth );
 
-	template< int FEMDegree , int NormalDegree >
-	Real GetIsoValue( const DenseNodeData< Real , FEMDegree >& solution , const SparseNodeData< Real , NormalDegree >& nodeWeights );
-	template< int FEMDegree , int WeightDegree , int ColorDegree , class Vertex >
-	void GetMCIsoSurface( const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > > , ColorDegree >* colorData , const DenseNodeData< Real , FEMDegree >& solution , Real isoValue , CoredMeshData< Vertex >& mesh , bool nonLinearFit=true , bool addBarycenter=false , bool polygonMesh=false );
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const SparseNodeData< Real , Degree1 >& coefficients1 , const SparseNodeData< Real , Degree2 >& coefficients2 ) const
+	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , false >( F , (const InterpolationInfo< false >*)NULL , coefficients1 , coefficients2 ); }
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const SparseNodeData< Real , Degree1 >& coefficients1 , const DenseNodeData< Real , Degree2 >& coefficients2 ) const
+	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , false >( F , (const InterpolationInfo< false >*)NULL , coefficients1 , coefficients2 ); }
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const DenseNodeData< Real , Degree1 >& coefficients1 , const SparseNodeData< Real , Degree2 >& coefficients2 ) const
+	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , false >( F , (const InterpolationInfo< false >*)NULL , coefficients1 , coefficients2 ); }
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const DenseNodeData< Real , Degree1 >& coefficients1 , const DenseNodeData< Real , Degree2 >& coefficients2 ) const
+	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , false >( F , (const InterpolationInfo< false >*)NULL , coefficients1 , coefficients2 ); }
 
-	const TreeOctNode& tree( void ) const{ return _tree; }
-	size_t leaves( void ) const { return _tree.leaves(); }
-	size_t nodes( void ) const { return _tree.nodes(); }
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const SparseNodeData< Real , Degree1 >& coefficients1 , const SparseNodeData< Real , Degree2 >& coefficients2 ) const
+	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , HasGradients >( F , iInfo , coefficients1 , coefficients2 ); }
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const SparseNodeData< Real , Degree1 >& coefficients1 , const DenseNodeData< Real , Degree2 >& coefficients2 ) const
+	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , HasGradients >( F , iInfo , coefficients1 , coefficients2 ); }
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const DenseNodeData< Real , Degree1 >& coefficients1 , const SparseNodeData< Real , Degree2 >& coefficients2 ) const
+	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , HasGradients >( F , iInfo , coefficients1 , coefficients2 ); }
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const DenseNodeData< Real , Degree1 >& coefficients1 , const DenseNodeData< Real , Degree2 >& coefficients2 ) const
+	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , HasGradients >( F , iInfo , coefficients1 , coefficients2 ); }
+
+	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
+	void setSystemMatrix( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , SparseMatrix< Real >& matrix ) const;
+
+	// Solve the linear system
+	struct SolverInfo
+	{
+		// How to solve
+		LocalDepth cgDepth;
+		int iters;
+		double cgAccuracy , lowResIterMultiplier;
+		// What to output
+		bool verbose , showResidual;
+
+		SolverInfo( void ) : cgDepth(0) , iters(1), cgAccuracy(0) , lowResIterMultiplier(0) , verbose(false) , showResidual(false) { ; }
+	};
+	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
+	DenseNodeData< Real , FEMDegree > solveSystem( const FEMSystemFunctor& F , InterpolationInfo< HasGradients >* iData , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxSolveDepth , const SolverInfo& solverInfo );
+
+	template< int FEMDegree , BoundaryType BType , int WeightDegree , int ColorDegree , class Vertex >
+	void getMCIsoSurface( const SparseNodeData< Real , WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , const DenseNodeData< Real , FEMDegree >& solution , Real isoValue , CoredMeshData< Vertex >& mesh , bool nonLinearFit=true , bool addBarycenter=false , bool polygonMesh=false );
+
+
+	const TreeOctNode& tree( void ) const{ return *_tree; }
+	size_t leaves( void ) const { return _tree->leaves(); }
+	size_t nodes( void ) const { int count = 0 ; for( const TreeOctNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( IsActiveNode( n ) ) count++ ; return count; }
+	size_t ghostNodes( void ) const { int count = 0 ; for( const TreeOctNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( !IsActiveNode( n ) ) count++ ; return count; }
+	inline size_t validSpaceNodes( void ) const { int count = 0 ; for( const TreeOctNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( isValidSpaceNode( n ) ) count++ ;  return count; }
+	inline size_t validSpaceNodes( LocalDepth d ) const { int count = 0 ; for( const TreeOctNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( _localDepth(n)==d && isValidSpaceNode( n ) ) count++ ; return count; }
+	template< int Degree , BoundaryType BType > size_t validFEMNodes( void ) const { int count = 0 ; for( const TreeOctNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( isValidFEMNode< Degree , BType >( n ) ) count++ ;  return count; }
+	template< int Degree , BoundaryType BType > size_t validFEMNodes( LocalDepth d ) const { int count = 0 ; for( const TreeOctNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( _localDepth(n)==d && isValidFEMNode< Degree , BType >( n ) ) count++ ; return count; }
+	LocalDepth depth( void ) const { return _localMaxDepth( _tree ); }
+	void resetNodeIndices( void ){ _NodeCount = 0 ; for( TreeOctNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) _NodeInitializer( *node ) , node->nodeData.flags=0; }
+
+protected:
+	template< class D > static bool _IsZero( const D& d );
+	template< class D > static Real _Dot( const D& d1 , const D& d2 );
+	template< int FEMDegree , BoundaryType FEMBType , int CDegree , BoundaryType CBType , class FEMConstraintFunctor , class Coefficients , class D , class _D >
+	void _addFEMConstraints( const FEMConstraintFunctor& F , const Coefficients& coefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth );
+	template< int FEMDegree1 , BoundaryType FEMBType1 , int FEMDegree2 , BoundaryType FEMBType2 , class DotFunctor , bool HasGradients , class Coefficients1 , class Coefficients2 >
+	double _dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 ) const;
 };
+template< class Real > int Octree< Real >::_NodeCount = 0;
 
-template< class Real >
-void Reset( void )
-{
-	TreeNodeData::NodeCount=0;
-	Octree< Real >::maxMemoryUsage = 0;
-}
+
+template< class Real > void Reset( void ){ Octree< Real >::ResetNodeCount(); }
+
 
 #include "MultiGridOctreeData.inl"
 #include "MultiGridOctreeData.SortedTreeNodes.inl"

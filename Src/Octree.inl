@@ -29,6 +29,7 @@ DAMAGE.
 #include <stdlib.h>
 #include <math.h>
 #include <algorithm>
+#include <functional>
 
 /////////////
 // OctNode //
@@ -54,58 +55,115 @@ void OctNode< NodeData >::SetAllocator(int blockSize)
 	}
 	else{UseAlloc=0;}
 }
-template< class NodeData >
-int OctNode< NodeData >::UseAllocator(void){return UseAlloc;}
+template< class NodeData > int OctNode< NodeData >::UseAllocator( void ){ return UseAlloc; }
 
 template< class NodeData >
-OctNode< NodeData >::OctNode(void){
-	parent=children=NULL;
+OctNode< NodeData >::OctNode( void (*Initializer)( OctNode& ) )
+{
+	parent = children = NULL;
 	_depthAndOffset = 0;
+	if( Initializer ) Initializer( *this );
+}
+template< class NodeData >
+OctNode< NodeData >::~OctNode( void )
+{
+	if( !UseAlloc && children ) delete[] children;
+	parent = children = NULL;
 }
 
 template< class NodeData >
-OctNode< NodeData >::~OctNode(void){
-	if(!UseAlloc){if(children){delete[] children;}}
-	parent=children=NULL;
+OctNode< NodeData >* OctNode< NodeData >::NewBrood( void (*Initializer)( OctNode& ) )
+{
+	OctNode< NodeData >* brood;
+	if( UseAlloc ) brood = NodeAllocator.newElements( Cube::CORNERS );
+	else brood = new OctNode[Cube::CORNERS];
+	for( int i=0 ; i<2 ; i++ ) for( int j=0 ; j<2 ; j++ ) for( int k=0 ; k<2 ; k++ )
+	{
+		int off[] = { i , j , k };
+		int idx = Cube::CornerIndex( i , j , k );
+		if( Initializer ) Initializer( brood[idx] );
+		brood[idx]._depthAndOffset = Index( 0 , off );
+	}
+	return brood;
 }
 template< class NodeData >
-void OctNode< NodeData >::setFullDepth( int maxDepth )
+void OctNode< NodeData >::ResetDepthAndOffset( OctNode* root , int d , int off[3] )
+{
+	// Recursive lambda requires an explicit declaration
+#define PARENT_DEPTH_AND_OFFSET( d , off ) ( d-- , off[0]>>=1 , off[1]>>=1 , off[2]>>=1 )
+#define  CHILD_DEPTH_AND_OFFSET( d , off ) ( d++ , off[0]<<=1 , off[1]<<=1 , off[2]<<=1 )
+	std::function< OctNode* ( OctNode* , int& , int[] ) > _nextBranch = [&]( OctNode* current , int& d , int off[3] )
+	{
+		if( current==root ) return (OctNode*)NULL;
+		else
+		{
+			int c = (int)( current - current->parent->children );
+
+			if( c==Cube::CORNERS-1 )
+			{
+				PARENT_DEPTH_AND_OFFSET( d , off );
+				return _nextBranch( current->parent , d , off );
+			}
+			else
+			{
+				int x , y , z;
+				Cube::FactorCornerIndex( c+1 , x , y , z );
+				PARENT_DEPTH_AND_OFFSET( d , off ) ; CHILD_DEPTH_AND_OFFSET( d , off );
+				off[0] |= x , off[1] |= y , off[2] |= z;
+				return current+1;
+			}
+		}
+	};
+	auto _nextNode = [&]( OctNode* current , int& d , int off[3] )
+	{
+		if( !current ) return root;
+		else if( current->children )
+		{
+			CHILD_DEPTH_AND_OFFSET( d , off );
+			return current->children;
+		}
+		else return _nextBranch( current , d , off );
+	};
+#undef PARENT_DEPTH_AND_OFFSET
+#undef  CHILD_DEPTH_AND_OFFSET
+	for( OctNode* node=_nextNode( NULL , d , off ) ; node ; node = _nextNode( node , d , off ) ) node->_depthAndOffset = Index( d , off );
+}
+
+template< class NodeData >
+void OctNode< NodeData >::setFullDepth( int maxDepth , void (*Initializer)( OctNode& ) )
 {
 	if( maxDepth )
 	{
-		if( !children ) initChildren();
-		for( int i=0 ; i<8 ; i++ ) children[i].setFullDepth( maxDepth-1 );
+		if( !children ) initChildren( Initializer );
+		for( int i=0 ; i<8 ; i++ ) children[i].setFullDepth( maxDepth-1 , Initializer );
 	}
 }
 
 template< class NodeData >
-int OctNode< NodeData >::initChildren( void )
+int OctNode< NodeData >::initChildren( void (*Initializer)( OctNode& ) )
 {
-	if( UseAlloc ) children=NodeAllocator.newElements(8);
-	else
 	{
-		if( children ) delete[] children;
-		children = NULL;
-		children = new OctNode[Cube::CORNERS];
-	}
-	if( !children )
-	{
-		fprintf(stderr,"Failed to initialize children in OctNode::initChildren\n");
-		exit(0);
-		return 0;
-	}
-	int d , off[3];
-	depthAndOffset( d , off );
-	for( int i=0 ; i<2 ; i++ ) for( int j=0 ; j<2 ; j++ ) for( int k=0 ; k<2 ; k++ )
-	{
-		int idx=Cube::CornerIndex(i,j,k);
-		children[idx].parent = this;
-		children[idx].children = NULL;
-		int off2[3];
-		off2[0] = (off[0]<<1)+i;
-		off2[1] = (off[1]<<1)+j;
-		off2[2] = (off[2]<<1)+k;
-		children[idx]._depthAndOffset = Index( d+1 , off2 );
+		if( UseAlloc ) children = NodeAllocator.newElements( Cube::CORNERS );
+		else
+		{
+			if( children ) delete[] children;
+			children = new OctNode[Cube::CORNERS];
+		}
+		if( !children ) fprintf( stderr , "[ERROR] OctNode::initChildren: Failed to initialize children in OctNode::initChildren\n" ) , exit(0);
+		int d , off[3];
+		depthAndOffset( d , off );
+		for( int i=0 ; i<2 ; i++ ) for( int j=0 ; j<2 ; j++ ) for( int k=0 ; k<2 ; k++ )
+		{
+			int idx=Cube::CornerIndex(i,j,k);
+			children[idx].parent = this;
+			children[idx].children = NULL;
+			if( Initializer ) Initializer( children[idx] );
+			int off2[3];
+			off2[0] = (off[0]<<1)+i;
+			off2[1] = (off[1]<<1)+j;
+			off2[2] = (off[2]<<1)+k;
+			children[idx]._depthAndOffset = Index( d+1 , off2 );
+		}
 	}
 	return 1;
 }
@@ -263,7 +321,7 @@ template< class NodeData >
 const OctNode< NodeData >* OctNode< NodeData >::nextBranch( const OctNode* current ) const
 {
 	if( !current->parent || current==this ) return NULL;
-	if(current-current->parent->children==Cube::CORNERS-1) return nextBranch( current->parent );
+	if( current-current->parent->children==Cube::CORNERS-1 ) return nextBranch( current->parent );
 	else return current+1;
 }
 template< class NodeData >
@@ -288,19 +346,22 @@ OctNode< NodeData >* OctNode< NodeData >::prevBranch( OctNode* current )
 }
 template< class NodeData >
 const OctNode< NodeData >* OctNode< NodeData >::nextLeaf(const OctNode* current) const{
-	if(!current){
+	if( !current )
+	{
 		const OctNode< NodeData >* temp=this;
-		while(temp->children){temp=&temp->children[0];}
+		while( temp->children ) temp=&temp->children[0];
 		return temp;
 	}
-	if(current->children){return current->nextLeaf();}
-	const OctNode* temp=nextBranch(current);
-	if(!temp){return NULL;}
-	else{return temp->nextLeaf();}
+	if( current->children ) return current->nextLeaf();
+	const OctNode* temp = nextBranch(current);
+	if( !temp ) return NULL;
+	else return temp->nextLeaf();
 }
 template< class NodeData >
-OctNode< NodeData >* OctNode< NodeData >::nextLeaf(OctNode* current){
-	if(!current){
+OctNode< NodeData >* OctNode< NodeData >::nextLeaf( OctNode* current )
+{
+	if( !current )
+	{
 		OctNode< NodeData >* temp=this;
 		while(temp->children){temp=&temp->children[0];}
 		return temp;
@@ -350,21 +411,23 @@ int OctNode< NodeData >::CornerIndex(const Point3D<Real>& center,const Point3D<R
 }
 
 template< class NodeData >
-OctNode< NodeData >* OctNode< NodeData >::faceNeighbor(int faceIndex,int forceChildren){return __faceNeighbor(faceIndex>>1,faceIndex&1,forceChildren);}
+OctNode< NodeData >* OctNode< NodeData >::faceNeighbor( int faceIndex , int forceChildren , void (*Initializer)( OctNode& ) ){return __faceNeighbor( faceIndex>>1 , faceIndex&1 , forceChildren , Initializer ); }
 template< class NodeData >
 const OctNode< NodeData >* OctNode< NodeData >::faceNeighbor(int faceIndex) const {return __faceNeighbor(faceIndex>>1,faceIndex&1);}
 template< class NodeData >
-OctNode< NodeData >* OctNode< NodeData >::__faceNeighbor(int dir,int off,int forceChildren){
+OctNode< NodeData >* OctNode< NodeData >::__faceNeighbor( int dir , int off , int forceChildren , void (*Initializer)( OctNode& ) )
+{
 	if(!parent){return NULL;}
 	int pIndex=int(this-parent->children);
 	pIndex^=(1<<dir);
 	if((pIndex & (1<<dir))==(off<<dir)){return &parent->children[pIndex];}
 	else{
 		OctNode* temp=parent->__faceNeighbor(dir,off,forceChildren);
-		if(!temp){return NULL;}
-		if(!temp->children){
-			if(forceChildren){temp->initChildren();}
-			else{return temp;}
+		if( !temp ) return NULL;
+		if( !temp->children )
+		{
+			if( forceChildren ) temp->initChildren( Initializer );
+			else return temp;
 		}
 		return &temp->children[pIndex];
 	}
@@ -383,15 +446,16 @@ const OctNode< NodeData >* OctNode< NodeData >::__faceNeighbor(int dir,int off) 
 }
 
 template< class NodeData >
-OctNode< NodeData >* OctNode< NodeData >::edgeNeighbor(int edgeIndex,int forceChildren){
+OctNode< NodeData >* OctNode< NodeData >::edgeNeighbor( int edgeIndex , int forceChildren , void (*Initializer)( OctNode& ) )
+{
 	int idx[2],o,i[2];
-	Cube::FactorEdgeIndex(edgeIndex,o,i[0],i[1]);
+	Cube::FactorEdgeIndex( edgeIndex , o , i[0] , i[1] );
 	switch(o){
 		case 0:	idx[0]=1;	idx[1]=2;	break;
 		case 1:	idx[0]=0;	idx[1]=2;	break;
 		case 2:	idx[0]=0;	idx[1]=1;	break;
 	};
-	return __edgeNeighbor(o,i,idx,forceChildren);
+	return __edgeNeighbor( o , i , idx , forceChildren , Initializer );
 }
 template< class NodeData >
 const OctNode< NodeData >* OctNode< NodeData >::edgeNeighbor(int edgeIndex) const {
@@ -434,7 +498,8 @@ const OctNode< NodeData >* OctNode< NodeData >::__edgeNeighbor(int o,const int i
 	else{return NULL;}
 }
 template< class NodeData >
-OctNode< NodeData >* OctNode< NodeData >::__edgeNeighbor(int o,const int i[2],const int idx[2],int forceChildren){
+OctNode< NodeData >* OctNode< NodeData >::__edgeNeighbor( int o , const int i[2] , const int idx[2] , int forceChildren , void (*Initializer)( OctNode& ) )
+{
 	if(!parent){return NULL;}
 	int pIndex=int(this-parent->children);
 	int aIndex,x[DIMENSION];
@@ -457,10 +522,11 @@ OctNode< NodeData >* OctNode< NodeData >::__edgeNeighbor(int o,const int i[2],co
 	}
 	else if(aIndex==3)	{	// I can get the neighbor from the parent's edge adjacent neighbor
 		OctNode* temp=parent->__edgeNeighbor(o,i,idx,forceChildren);
-		if(!temp){return NULL;}
-		if(!temp->children){
-			if(forceChildren){temp->initChildren();}
-			else{return temp;}
+		if( !temp ) return NULL;
+		if( !temp->children )
+		{
+			if( forceChildren ) temp->initChildren( Initializer );
+			else return temp;
 		}
 		return &temp->children[pIndex];
 	}
@@ -516,7 +582,8 @@ const OctNode< NodeData >* OctNode< NodeData >::cornerNeighbor(int cornerIndex) 
 	else{return NULL;}
 }
 template< class NodeData >
-OctNode< NodeData >* OctNode< NodeData >::cornerNeighbor(int cornerIndex,int forceChildren){
+OctNode< NodeData >* OctNode< NodeData >::cornerNeighbor( int cornerIndex , int forceChildren , void (*Initializer)( OctNode& ) )
+{
 	int pIndex,aIndex=0;
 	if(!parent){return NULL;}
 
@@ -527,11 +594,12 @@ OctNode< NodeData >* OctNode< NodeData >::cornerNeighbor(int cornerIndex,int for
 		return &parent->children[pIndex];
 	}
 	else if(aIndex==0){				// Agree on all bits
-		OctNode* temp=((OctNode*)parent)->cornerNeighbor(cornerIndex,forceChildren);
-		if(!temp){return NULL;}
-		if(!temp->children){
-			if(forceChildren){temp->initChildren();}
-			else{return temp;}
+		OctNode* temp=((OctNode*)parent)->cornerNeighbor( cornerIndex , forceChildren , Initializer );
+		if( !temp ) return NULL;
+		if( !temp->children )
+		{
+			if(forceChildren) temp->initChildren( Initializer );
+			else return temp;
 		}
 		return &temp->children[pIndex];
 	}
@@ -623,7 +691,7 @@ void OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::set( int d )
 template< class NodeData >
 template< unsigned int LeftRadius , unsigned int RightRadius >
 template< bool CreateNodes >
-bool OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getChildNeighbors( int cIdx , int d , Neighbors< Width >& cNeighbors ) const
+bool OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getChildNeighbors( int cIdx , int d , Neighbors< Width >& cNeighbors , void (*Initializer)( OctNode& ) ) const
 {
 	Neighbors< Width >& pNeighbors = neighbors[d];
 	// Check that we actuall have a center node
@@ -655,7 +723,7 @@ bool OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getChildNeigh
 				{
 					if( pNeighbors.neighbors[px][py][pz] )
 					{
-						if( !pNeighbors.neighbors[px][py][pz]->children ) pNeighbors.neighbors[px][py][pz]->initChildren();
+						if( !pNeighbors.neighbors[px][py][pz]->children ) pNeighbors.neighbors[px][py][pz]->initChildren( Initializer );
 						cNeighbors.neighbors[xx][yy][zz] = pNeighbors.neighbors[px][py][pz]->children + ( cornerIndex | (_x&1) );
 					}
 					else cNeighbors.neighbors[xx][yy][zz] = NULL;
@@ -674,7 +742,7 @@ bool OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getChildNeigh
 template< class NodeData >
 template< unsigned int LeftRadius , unsigned int RightRadius >
 template< bool CreateNodes , class Real >
-bool OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getChildNeighbors( Point3D< Real > p , int d , Neighbors< Width >& cNeighbors ) const
+bool OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getChildNeighbors( Point3D< Real > p , int d , Neighbors< Width >& cNeighbors , void (*Initializer)( OctNode& ) ) const
 {
 	Neighbors< Width >& pNeighbors = neighbors[d];
 	// Check that we actuall have a center node
@@ -682,13 +750,13 @@ bool OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getChildNeigh
 	Point3D< Real > c;
 	Real w;
 	pNeighbors.neighbors[LeftRadius][LeftRadius][LeftRadius]->centerAndWidth( c , w );
-	return getChildNeighbors< CreateNodes >( CornerIndex( c , p ) , d , cNeighbors );
+	return getChildNeighbors< CreateNodes >( CornerIndex( c , p ) , d , cNeighbors , Initializer );
 }
 
 template< class NodeData >
 template< unsigned int LeftRadius , unsigned int RightRadius >
 template< bool CreateNodes >
-typename OctNode< NodeData >::template Neighbors< LeftRadius+RightRadius+1 >& OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getNeighbors( OctNode< NodeData >* node )
+typename OctNode< NodeData >::template Neighbors< LeftRadius+RightRadius+1 >& OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getNeighbors( OctNode< NodeData >* node , void (*Initializer)( OctNode& ) )
 {
 	Neighbors< Width >& neighbors = this->neighbors[ node->depth() ];
 	if( node==neighbors.neighbors[LeftRadius][LeftRadius][LeftRadius] )
@@ -704,8 +772,7 @@ typename OctNode< NodeData >::template Neighbors< LeftRadius+RightRadius+1 >& Oc
 		if( !node->parent ) neighbors.neighbors[LeftRadius][LeftRadius][LeftRadius] = node;
 		else
 		{
-			Neighbors< Width >& pNeighbors = getNeighbors< CreateNodes >( node->parent );
-
+			Neighbors< Width >& pNeighbors = getNeighbors< CreateNodes >( node->parent , Initializer );
 
 			// Get the indices of the child node that would contain the point (and its antipode)
 			int cx , cy , cz;
@@ -732,7 +799,7 @@ typename OctNode< NodeData >::template Neighbors< LeftRadius+RightRadius+1 >& Oc
 						{
 							if( pNeighbors.neighbors[px][py][pz] )
 							{
-								if( !pNeighbors.neighbors[px][py][pz]->children ) pNeighbors.neighbors[px][py][pz]->initChildren();
+								if( !pNeighbors.neighbors[px][py][pz]->children ) pNeighbors.neighbors[px][py][pz]->initChildren( Initializer );
 								neighbors.neighbors[xx][yy][zz] = pNeighbors.neighbors[px][py][pz]->children + ( cornerIndex | (_x&1) );
 							}
 							else neighbors.neighbors[xx][yy][zz] = NULL;
@@ -753,7 +820,7 @@ typename OctNode< NodeData >::template Neighbors< LeftRadius+RightRadius+1 >& Oc
 template< class NodeData >
 template< unsigned int LeftRadius , unsigned int RightRadius >
 template< bool CreateNodes , unsigned int _LeftRadius , unsigned int _RightRadius >
-void OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getNeighbors( OctNode< NodeData >* node , Neighbors< _LeftRadius + _RightRadius + 1 >& neighbors )
+void OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getNeighbors( OctNode< NodeData >* node , Neighbors< _LeftRadius + _RightRadius + 1 >& neighbors , void (*Initializer)( OctNode& ) )
 {
 	neighbors.clear();
 	if( !node ) return;
@@ -765,7 +832,7 @@ void OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getNeighbors(
 	// If we can get the data from the the key for the parent node, do that
 	else if( _PLeftRadius<=LeftRadius && _PRightRadius<=RightRadius )
 	{
-		getNeighbors< CreateNodes >( node->parent );
+		getNeighbors< CreateNodes >( node->parent , Initializer );
 		const Neighbors< LeftRadius + RightRadius + 1 >& pNeighbors = this->neighbors[ node->depth()-1 ];
 		// Get the indices of the child node that would contain the point (and its antipode)
 		int cx , cy , cz;
@@ -792,7 +859,7 @@ void OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getNeighbors(
 					{
 						if( pNeighbors.neighbors[px][py][pz] )
 						{
-							if( !pNeighbors.neighbors[px][py][pz]->children ) pNeighbors.neighbors[px][py][pz]->initChildren();
+							if( !pNeighbors.neighbors[px][py][pz]->children ) pNeighbors.neighbors[px][py][pz]->initChildren( Initializer );
 							neighbors.neighbors[xx][yy][zz] = pNeighbors.neighbors[px][py][pz]->children + ( cornerIndex | (_x&1) );
 						}
 						else neighbors.neighbors[xx][yy][zz] = NULL;
@@ -811,7 +878,7 @@ void OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getNeighbors(
 	else
 	{
 		Neighbors< _PLeftRadius + _PRightRadius + 1 > pNeighbors;
-		getNeighbors< CreateNodes , _PLeftRadius , _PRightRadius >( node->parent , pNeighbors );
+		getNeighbors< CreateNodes , _PLeftRadius , _PRightRadius >( node->parent , pNeighbors , Initializer );
 
 		// Get the indices of the child node that would contain the point (and its antipode)
 		int cx , cy , cz;
@@ -838,7 +905,7 @@ void OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getNeighbors(
 					{
 						if( pNeighbors.neighbors[px][py][pz] )
 						{
-							if( !pNeighbors.neighbors[px][py][pz]->children ) pNeighbors.neighbors[px][py][pz]->initChildren();
+							if( !pNeighbors.neighbors[px][py][pz]->children ) pNeighbors.neighbors[px][py][pz]->initChildren( Initializer );
 							neighbors.neighbors[xx][yy][zz] = pNeighbors.neighbors[px][py][pz]->children + ( cornerIndex | (_x&1) );
 						}
 						else neighbors.neighbors[xx][yy][zz] = NULL;
@@ -1033,24 +1100,24 @@ int OctNode< NodeData >::write(FILE* fp) const{
 	return 1;
 }
 template< class NodeData >
-int OctNode< NodeData >::read(const char* fileName){
-	FILE* fp=fopen(fileName,"rb");
-	if(!fp){return 0;}
-	int ret=read(fp);
-	fclose(fp);
+int OctNode< NodeData >::read( const char* fileName , void (*Initializer)( OctNode& ) )
+{
+	FILE* fp = fopen( fileName , "rb" );
+	if( !fp ) return 0;
+	int ret = read( fp , Initializer );
+	fclose( fp );
 	return ret;
 }
 template< class NodeData >
-int OctNode< NodeData >::read(FILE* fp){
-	fread(this,sizeof(OctNode< NodeData >),1,fp);
-	parent=NULL;
-	if(children){
+int OctNode< NodeData >::read( FILE* fp , void (*Initializer)( OctNode& ) )
+{
+	fread( this , sizeof( OctNode< NodeData > ) , 1 , fp );
+	parent = NULL;
+	if( children )
+	{
 		children=NULL;
-		initChildren();
-		for(int i=0;i<Cube::CORNERS;i++){
-			children[i].read(fp);
-			children[i].parent=this;
-		}
+		initChildren( Initializer );
+		for( int i=0 ; i<Cube::CORNERS ; i++ ) children[i].read(fp) , children[i].parent=this;
 	}
 	return 1;
 }

@@ -75,38 +75,38 @@ bool ASCIIOrientedPointStream< Real >::nextPoint( OrientedPoint3D< Real >& p )
 ///////////////////////////////
 // BinaryOrientedPointStream //
 ///////////////////////////////
-template< class Real >
-BinaryOrientedPointStream< Real >::BinaryOrientedPointStream( const char* fileName )
+template< class Real , class RealOnDisk >
+BinaryOrientedPointStream< Real , RealOnDisk >::BinaryOrientedPointStream( const char* fileName )
 {
 	_pointsInBuffer = _currentPointIndex = 0;
 	_fp = fopen( fileName , "rb" );
 	if( !_fp ) fprintf( stderr , "Failed to open file for reading: %s\n" , fileName ) , exit( 0 );
 }
-template< class Real >
-BinaryOrientedPointStream< Real >::~BinaryOrientedPointStream( void )
+template< class Real , class RealOnDisk >
+BinaryOrientedPointStream< Real , RealOnDisk >::~BinaryOrientedPointStream( void )
 {
 	fclose( _fp );
 	_fp = NULL;
 }
-template< class Real >
-void BinaryOrientedPointStream< Real >::reset( void )
+template< class Real , class RealOnDisk >
+void BinaryOrientedPointStream< Real , RealOnDisk >::reset( void )
 {
 	fseek( _fp , SEEK_SET , 0 );
 	_pointsInBuffer = _currentPointIndex = 0;
 }
-template< class Real >
-bool BinaryOrientedPointStream< Real >::nextPoint( OrientedPoint3D< Real >& p )
+template< class Real , class RealOnDisk >
+bool BinaryOrientedPointStream< Real , RealOnDisk >::nextPoint( OrientedPoint3D< Real >& p )
 {
 	if( _currentPointIndex<_pointsInBuffer )
 	{
-		p = _pointBuffer[ _currentPointIndex ];
+		p = OrientedPoint3D< Real >( _pointBuffer[ _currentPointIndex ] );
 		_currentPointIndex++;
 		return true;
 	}
 	else
 	{
 		_currentPointIndex = 0;
-		_pointsInBuffer = int( fread( _pointBuffer , sizeof( OrientedPoint3D< Real > ) , POINT_BUFFER_SIZE , _fp ) );
+		_pointsInBuffer = int( fread( _pointBuffer , sizeof( OrientedPoint3D< RealOnDisk > ) , POINT_BUFFER_SIZE , _fp ) );
 		if( !_pointsInBuffer ) return false;
 		else return nextPoint( p );
 	}
@@ -255,39 +255,39 @@ bool ASCIIOrientedPointStreamWithData< Real , Data >::nextPoint( OrientedPoint3D
 ///////////////////////////////////////
 // BinaryOrientedPointStreamWithData //
 ///////////////////////////////////////
-template< class Real , class Data >
-BinaryOrientedPointStreamWithData< Real , Data >::BinaryOrientedPointStreamWithData( const char* fileName )
+template< class Real , class Data , class RealOnDisk , class DataOnDisk >
+BinaryOrientedPointStreamWithData< Real , Data , RealOnDisk , DataOnDisk >::BinaryOrientedPointStreamWithData( const char* fileName )
 {
 	_pointsInBuffer = _currentPointIndex = 0;
 	_fp = fopen( fileName , "rb" );
 	if( !_fp ) fprintf( stderr , "Failed to open file for reading: %s\n" , fileName ) , exit( 0 );
 }
-template< class Real , class Data >
-BinaryOrientedPointStreamWithData< Real , Data >::~BinaryOrientedPointStreamWithData( void )
+template< class Real , class Data , class RealOnDisk , class DataOnDisk >
+BinaryOrientedPointStreamWithData< Real , Data , RealOnDisk , DataOnDisk >::~BinaryOrientedPointStreamWithData( void )
 {
 	fclose( _fp );
 	_fp = NULL;
 }
-template< class Real , class Data >
-void BinaryOrientedPointStreamWithData< Real , Data >::reset( void )
+template< class Real , class Data , class RealOnDisk , class DataOnDisk >
+void BinaryOrientedPointStreamWithData< Real , Data , RealOnDisk , DataOnDisk >::reset( void )
 {
 	fseek( _fp , SEEK_SET , 0 );
 	_pointsInBuffer = _currentPointIndex = 0;
 }
-template< class Real , class Data >
-bool BinaryOrientedPointStreamWithData< Real , Data >::nextPoint( OrientedPoint3D< Real >& p , Data& d )
+template< class Real , class Data , class RealOnDisk , class DataOnDisk >
+bool BinaryOrientedPointStreamWithData< Real , Data , RealOnDisk , DataOnDisk >::nextPoint( OrientedPoint3D< Real >& p , Data& d )
 {
 	if( _currentPointIndex<_pointsInBuffer )
 	{
-		p = _pointBuffer[ _currentPointIndex ].first;
-		d = _pointBuffer[ _currentPointIndex ].second;
+		p = OrientedPoint3D< Real >( _pointBuffer[ _currentPointIndex ].first );
+		d = Data( _pointBuffer[ _currentPointIndex ].second );
 		_currentPointIndex++;
 		return true;
 	}
 	else
 	{
 		_currentPointIndex = 0;
-		_pointsInBuffer = int( fread( _pointBuffer , sizeof( std::pair< OrientedPoint3D< Real > , Data > ) , POINT_BUFFER_SIZE , _fp ) );
+		_pointsInBuffer = int( fread( _pointBuffer , sizeof( std::pair< OrientedPoint3D< RealOnDisk > , DataOnDisk > ) , POINT_BUFFER_SIZE , _fp ) );
 		if( !_pointsInBuffer ) return false;
 		else return nextPoint( p , d );
 	}
