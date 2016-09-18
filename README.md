@@ -42,7 +42,7 @@
 <A NAME="EXECUTABLES"><B>EXECUTABLES</B></A><BR>
 <UL>
 <DL>
-<FONT SIZE="+1" ><B><A HREF="" ONCLICK="toggleAll( $('poisson_recon') ) ; return false;" >PoissonRecon</A></B></FONT>
+<FONT SIZE="+1" ><B><U>PoissonRecon<//U></B></FONT>
 <DIV ID="poisson_recon">
 <DT><b>--in</b> &#60;<i>input points</i>&#62;
 <DD> This string is the name of the file from which the point set will be read.<br>
@@ -165,8 +165,7 @@ individual components of the surface reconstructor.
 
 <UL>
 <DL>
-<FONT SIZE="+1"><B><A HREF="" ONCLICK="toggleAll( $('ssd_recon') ) ; return false;">SSDRecon</A></B></FONT>
-<DIV ID="ssd_recon">
+<FONT SIZE="+1"><B><U>SSDRecon</U></B></FONT>
 <DT><b>--in</b> &#60;<i>input points</i>&#62;
 <DD> This string is the name of the file from which the point set will be read.<br>
 If the file extension is <i>.ply</i>, the file should be in
@@ -288,8 +287,7 @@ individual components of the surface reconstructor.
 
 <UL>
 <DL>
-<FONT SIZE="+1"><B><A HREF="" ONCLICK="toggleAll( $('surface_trimmer') ) ; return false;">SurfaceTrimmer</A></B></FONT>
-<DIV ID="surface_trimmer">
+<FONT SIZE="+1"><B><U>SurfaceTrimmer</U></B></FONT>
 <DT><b>--in</b> &#60;<i>input triangle mesh</i>&#62;
 <DD> This string is the name of the file from which the triangle mesh will be read. 
 The file is read in <A HREF="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</A> format and it is assumed that the vertices have a <I>value</I> field which stores the signal's value. (When run with <B>--density</B> flag, the reconstructor will output this field with the mesh vertices.)
