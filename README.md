@@ -7,14 +7,17 @@
 </CENTER>
 <HR>
 <A NAME="LINKS"><B>LINKS</B></A><br>
-Papers:
+<UL>
+<B>Papers:</B>
 <A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</A>,
 <A href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</A>,
 <A href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</A>
 <br>
-<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/PoissonRecon.x64.zip">Executables (Win64)</A><BR>
-<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/PoissonRecon.zip">Source Code</A> <A HREF="https://github.com/mkazhdan/PoissonRecon">GitHub Repository</A><BR>
-(Older Versions:
+<B>Executables: </B>
+<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/PoissonRecon.x64.zip">Win64</A><BR>
+<B>Source Code:</B>
+<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/PoissonRecon.zip">ZIP</A> <A HREF="https://github.com/mkazhdan/PoissonRecon">GitHub</A><BR>
+<B>Older Versions:</B>
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/">V8.0</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/">V7.0</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/">V6.13a</A>,
@@ -33,13 +36,14 @@ Papers:
 <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4/">V4</A>,
 <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">V3</A>,
 <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version2/">V2</A>,
-<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</A>)
-<br>
+<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</A>
+</UL>
 <HR>
-<A NAME="EXECUTABLES">
+<A NAME="EXECUTABLES"><B>EXECUTABLES</B></A><BR>
 <UL>
 <DL>
-<B>PoissonRecon:</B><BR>
+<FONT SIZE="+1" ><B><A HREF="" ONCLICK="toggleAll( $('poisson_recon') ) ; return false;" >PoissonRecon</A></B></FONT>
+<DIV ID="poisson_recon">
 <DT><b>--in</b> &#60;<i>input points</i>&#62;
 <DD> This string is the name of the file from which the point set will be read.<br>
 If the file extension is <i>.ply</i>, the file should be in
@@ -154,13 +158,15 @@ The default value for this parameter is equal to the numer of (virtual) processo
 <DT>[<b>--verbose</b>]
 <DD> Enabling this flag provides a more verbose description of the running times and memory usages of
 individual components of the surface reconstructor.
+</DIV>
 </DL>
 </UL>
 
 
 <UL>
 <DL>
-<B>SSDRecon:</B><BR>
+<FONT SIZE="+1"><B><A HREF="" ONCLICK="toggleAll( $('ssd_recon') ) ; return false;">SSDRecon</A></B></FONT>
+<DIV ID="ssd_recon">
 <DT><b>--in</b> &#60;<i>input points</i>&#62;
 <DD> This string is the name of the file from which the point set will be read.<br>
 If the file extension is <i>.ply</i>, the file should be in
@@ -275,13 +281,15 @@ The default value for this parameter is equal to the numer of (virtual) processo
 <DT>[<b>--verbose</b>]
 <DD> Enabling this flag provides a more verbose description of the running times and memory usages of
 individual components of the surface reconstructor.
+</DIV>
 </DL>
 </UL>
 
 
 <UL>
 <DL>
-<B>SurfaceTrimmer:</B><BR>
+<FONT SIZE="+1"><B><A HREF="" ONCLICK="toggleAll( $('surface_trimmer') ) ; return false;">SurfaceTrimmer</A></B></FONT>
+<DIV ID="surface_trimmer">
 <DT><b>--in</b> &#60;<i>input triangle mesh</i>&#62;
 <DD> This string is the name of the file from which the triangle mesh will be read. 
 The file is read in <A HREF="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</A> format and it is assumed that the vertices have a <I>value</I> field which stores the signal's value. (When run with <B>--density</B> flag, the reconstructor will output this field with the mesh vertices.)
@@ -303,7 +311,8 @@ The default value 0.001.
 
 <DT>[<b>--polygonMesh</b>]
 <DD> Enabling this flag tells the trimmer to output a polygon mesh (rather than triangulating the trimming results).
-
+</DIV>
+</DL>
 </UL>
 
 <HR>
