@@ -42,7 +42,7 @@
 <A NAME="EXECUTABLES"><B>EXECUTABLES</B></A><BR>
 <UL>
 <DL>
-<FONT SIZE="+1" ><B><U>PoissonRecon<//U></B></FONT>
+<FONT SIZE="+1" ><B><U>PoissonRecon</U></B></FONT>
 <DIV ID="poisson_recon">
 <DT><b>--in</b> &#60;<i>input points</i>&#62;
 <DD> This string is the name of the file from which the point set will be read.<br>
