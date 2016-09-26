@@ -61,22 +61,23 @@ const char *type_names[] = {
 };
 
 int ply_type_size[] = {
-	0,
-	1,
-	2,
-	4,
-	1,
-	2,
-	4,
-	4,
-	8,
-	1,
-	1,
-	2,
-	2,
-	4,
-	4,
-	8
+	0,      // "invalid",
+	1,      // "char",
+	2,      // "short",
+	4,      // "int",
+	1,      // "uchar",
+	2,      // "ushort",
+	4,      // "uint",
+	4,      // "float",
+	8,      // "double",
+	1,      // "int8",
+	1,      // "uint8",
+	2,      // "int16",
+	2,      // "uint16",
+	4,      // "int32",
+	4,      // "uint32",
+	4,      // "float32",
+  8       // "float64",
 };
 
 typedef union
