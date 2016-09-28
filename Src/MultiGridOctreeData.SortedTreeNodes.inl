@@ -68,7 +68,7 @@ void SortedTreeNodes::set( TreeOctNode& root )
 	}
 
 	// Count the number of nodes in each slice
-	for( TreeOctNode* node = root.nextNode() ; node ; node = root.nextNode( node ) )
+	for( TreeOctNode* node = root.nextNode() ; node ; node = root.nextNode( node ) ) if( !GetGhostFlag( node ) )
 	{
 		int d , off[3];
 		node->depthAndOffset( d , off );
@@ -89,7 +89,7 @@ void SortedTreeNodes::set( TreeOctNode& root )
 	treeNodes = NewPointer< TreeOctNode* >( _sliceStart[_levels-1][(size_t)1<<(_levels-1)] );
 
 	// Add the tree nodes
-	for( TreeOctNode* node=root.nextNode() ; node ; node=root.nextNode( node ) )
+	for( TreeOctNode* node=root.nextNode() ; node ; node=root.nextNode( node ) ) if( !GetGhostFlag( node ) )
 	{
 		int d , off[3];
 		node->depthAndOffset( d , off );
@@ -175,7 +175,7 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 				int xx , yy , zz;
 				Cube::FactorCornerIndex( cc , xx , yy , zz );
 				xx += x , yy += y , zz += z;
-				if( neighbors.neighbors[xx][yy][zz] && cc<ac ){ cornerOwner = false ; break; }
+				if( IsActiveNode( neighbors.neighbors[xx][yy][zz] ) && cc<ac ){ cornerOwner = false ; break; }
 			}
 			if( cornerOwner )
 			{
@@ -187,7 +187,7 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 					Cube::FactorCornerIndex( cc , xx , yy , zz );
 					int ac = Square::CornerIndex( 1-xx , 1-yy );
 					xx += x , yy += y , zz += z;
-					if( neighbors.neighbors[xx][yy][zz] ) sData.cornerIndices( neighbors.neighbors[xx][yy][zz] )[ac] = myCount;
+					if( IsActiveNode( neighbors.neighbors[xx][yy][zz] ) ) sData.cornerIndices( neighbors.neighbors[xx][yy][zz] )[ac] = myCount;
 				}
 			}
 		}
@@ -208,7 +208,7 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 				case 0: yy = ii , zz = jj , xx = 1 ; break;
 				case 1: xx = ii , zz = jj , yy = 1 ; break;
 				}
-				if( neighbors.neighbors[xx][yy][zz] && cc<ac ){ edgeOwner = false ; break; }
+				if( IsActiveNode( neighbors.neighbors[xx][yy][zz] ) && cc<ac ){ edgeOwner = false ; break; }
 			}
 			if( edgeOwner )
 			{
@@ -226,20 +226,20 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 					case 0: yy = ii , zz = jj , xx = 1 ; break;
 					case 1: xx = ii , zz = jj , yy = 1 ; break;
 					}
-					if( neighbors.neighbors[xx][yy][zz] ) sData.edgeIndices( neighbors.neighbors[xx][yy][zz] )[ Square::EdgeIndex( o , aii ) ] = myCount;
+					if( IsActiveNode( neighbors.neighbors[xx][yy][zz] ) ) sData.edgeIndices( neighbors.neighbors[xx][yy][zz] )[ Square::EdgeIndex( o , aii ) ] = myCount;
 				}
 			}
 		}
 		// Process the Faces
 		{
-			bool faceOwner = !( neighbors.neighbors[1][1][2*z] && !z );
+			bool faceOwner = !( IsActiveNode( neighbors.neighbors[1][1][2*z] ) && !z );
 			if( faceOwner )
 			{
 				int myCount = ( i - sData.nodeOffset ) * Square::FACES;
 				sData._fMap[ myCount ] = 1;
 				// Set the face indices
 				sData.faceIndices( node )[0] = myCount;
-				if( neighbors.neighbors[1][1][2*z] ) sData.faceIndices( neighbors.neighbors[1][1][2*z] )[0] = myCount;
+				if( IsActiveNode( neighbors.neighbors[1][1][2*z] ) ) sData.faceIndices( neighbors.neighbors[1][1][2*z] )[0] = myCount;
 			}
 		}
 	}
@@ -304,7 +304,7 @@ void SortedTreeNodes::setXSliceTableData( XSliceTableData& sData , int depth , i
 				Square::FactorCornerIndex( cc , ii , jj );
 				ii += x , jj += y;
 				xx = ii , yy = jj , zz = 1;
-				if( neighbors.neighbors[xx][yy][zz] && cc<ac ){ edgeOwner = false ; break; }
+				if( IsActiveNode( neighbors.neighbors[xx][yy][zz] ) && cc<ac ){ edgeOwner = false ; break; }
 			}
 			if( edgeOwner )
 			{
@@ -319,7 +319,7 @@ void SortedTreeNodes::setXSliceTableData( XSliceTableData& sData , int depth , i
 					Square::FactorCornerIndex( Square::AntipodalCornerIndex( cc ) , aii , ajj );
 					ii += x , jj += y;
 					xx = ii , yy = jj , zz = 1;
-					if( neighbors.neighbors[xx][yy][zz] ) sData.edgeIndices( neighbors.neighbors[xx][yy][zz] )[ Square::CornerIndex( aii , ajj ) ] = myCount;
+					if( IsActiveNode( neighbors.neighbors[xx][yy][zz] ) ) sData.edgeIndices( neighbors.neighbors[xx][yy][zz] )[ Square::CornerIndex( aii , ajj ) ] = myCount;
 				}
 			}
 		}
@@ -327,8 +327,8 @@ void SortedTreeNodes::setXSliceTableData( XSliceTableData& sData , int depth , i
 		for( int o=0 ; o<2 ; o++ ) for( int y=0 ; y<2 ; y++ )
 		{
 			bool faceOwner;
-			if( o==0 ) faceOwner = !( neighbors.neighbors[1][2*y][1] && !y );
-			else       faceOwner = !( neighbors.neighbors[2*y][1][1] && !y );
+			if( o==0 ) faceOwner = !( IsActiveNode( neighbors.neighbors[1][2*y][1] ) && !y );
+			else       faceOwner = !( IsActiveNode( neighbors.neighbors[2*y][1][1] ) && !y );
 			if( faceOwner )
 			{
 				int fe = Square::EdgeIndex( o , y );
@@ -337,8 +337,8 @@ void SortedTreeNodes::setXSliceTableData( XSliceTableData& sData , int depth , i
 				sData._fMap[ myCount ] = 1;
 				// Set the face indices
 				sData.faceIndices( node )[fe] = myCount;
-				if( o==0 && neighbors.neighbors[1][2*y][1] ) sData.faceIndices( neighbors.neighbors[1][2*y][1] )[ae] = myCount;
-				if( o==1 && neighbors.neighbors[2*y][1][1] ) sData.faceIndices( neighbors.neighbors[2*y][1][1] )[ae] = myCount;
+				if( o==0 && IsActiveNode( neighbors.neighbors[1][2*y][1] ) ) sData.faceIndices( neighbors.neighbors[1][2*y][1] )[ae] = myCount;
+				if( o==1 && IsActiveNode( neighbors.neighbors[2*y][1][1] ) ) sData.faceIndices( neighbors.neighbors[2*y][1][1] )[ae] = myCount;
 			}
 		}
 	}

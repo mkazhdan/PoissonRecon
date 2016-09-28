@@ -29,13 +29,8 @@ DAMAGE.
 #ifndef POINT_STREAM_INCLUDED
 #define POINT_STREAM_INCLUDED
 #include "Ply.h"
+#include "Geometry.h"
 
-template< class Real >
-struct OrientedPoint3D
-{
-	Point3D< Real > p , n;
-	OrientedPoint3D( Point3D< Real > pp=Point3D< Real >() , Point3D< Real > nn=Point3D< Real >() ) : p(pp) , n(nn) { ; }
-};
 
 template< class Real >
 class OrientedPointStream
@@ -44,7 +39,29 @@ public:
 	virtual ~OrientedPointStream( void ){}
 	virtual void reset( void ) = 0;
 	virtual bool nextPoint( OrientedPoint3D< Real >& p ) = 0;
+	virtual int nextPoints( OrientedPoint3D< Real >* p , int count )
+	{
+		int c=0;
+		for( int i=0 ; i<count ; i++ , c++ ) if( !nextPoint( p[i] ) ) break;
+		return c;
+	}
+	void boundingBox( Point3D< Real >& min , Point3D< Real >& max )
+	{
+		bool first = true;
+		OrientedPoint3D< Real > p;
+		while( nextPoint( p ) )
+		{
+			for( int i=0 ; i<3 ; i++ )
+			{
+				if( first || p.p[i]<min[i] ) min[i] = p.p[i];
+				if( first || p.p[i]>max[i] ) max[i] = p.p[i];
+			}
+			first = false;
+		}
+		reset();
+	}
 };
+
 template< class Real , class Data >
 class OrientedPointStreamWithData : public OrientedPointStream< Real >
 {
@@ -54,6 +71,55 @@ public:
 	virtual bool nextPoint( OrientedPoint3D< Real >& p , Data& d ) = 0;
 
 	virtual bool nextPoint( OrientedPoint3D< Real >& p ){ Data d ; return nextPoint( p , d ); }
+	virtual int nextPoints( OrientedPoint3D< Real >* p , Data* d , int count )
+	{
+		int c=0;
+		for( int i=0 ; i<count ; i++ , c++ ) if( !nextPoint( p[i] , d[i] ) ) break;
+		return c;
+	}
+	virtual int nextPoints( OrientedPoint3D< Real >* p , int count ){ return OrientedPointStream< Real >::nextPoints( p , count ); }
+};
+
+template< class Real >
+class TransformedOrientedPointStream : public OrientedPointStream< Real >
+{
+	XForm4x4< Real > _xForm;
+	XForm3x3< Real > _normalXForm;
+	OrientedPointStream< Real >& _stream;
+public:
+	TransformedOrientedPointStream( XForm4x4< Real > xForm , OrientedPointStream< Real >& stream ) : _xForm(xForm) , _stream(stream)
+	{
+		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _normalXForm(i,j) = _xForm(i,j);
+		_normalXForm = _normalXForm.transpose().inverse();
+	};
+	virtual void reset( void ){ _stream.reset(); }
+	virtual bool nextPoint( OrientedPoint3D< Real >& p )
+	{
+		bool ret = _stream.nextPoint( p );
+		p.p = _xForm * p.p , p.n = _normalXForm * p.n;
+		return ret;
+	}
+};
+
+template< class Real , class Data >
+class TransformedOrientedPointStreamWithData : public OrientedPointStreamWithData< Real , Data >
+{
+	XForm4x4< Real > _xForm;
+	XForm3x3< Real > _normalXForm;
+	OrientedPointStreamWithData< Real , Data >& _stream;
+public:
+	TransformedOrientedPointStreamWithData( XForm4x4< Real > xForm , OrientedPointStreamWithData< Real , Data >& stream ) : _xForm(xForm) , _stream(stream)
+	{
+		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _normalXForm(i,j) = _xForm(i,j);
+		_normalXForm = _normalXForm.transpose().inverse();
+	};
+	virtual void reset( void ){ _stream.reset(); }
+	virtual bool nextPoint( OrientedPoint3D< Real >& p , Data& d )
+	{
+		bool ret = _stream.nextPoint( p , d );
+		p.p = _xForm * p.p , p.n = _normalXForm * p.n;
+		return ret;
+	}
 };
 
 template< class Real >
@@ -105,12 +171,12 @@ public:
 	bool nextPoint( OrientedPoint3D< Real >& p , Data& d );
 };
 
-template< class Real >
+template< class Real , class RealOnDisk=Real >
 class BinaryOrientedPointStream : public OrientedPointStream< Real >
 {
 	FILE* _fp;
 	static const int POINT_BUFFER_SIZE=1024;
-	OrientedPoint3D< Real > _pointBuffer[ POINT_BUFFER_SIZE ];
+	OrientedPoint3D< RealOnDisk > _pointBuffer[ POINT_BUFFER_SIZE ];
 	int _pointsInBuffer , _currentPointIndex;
 public:
 	BinaryOrientedPointStream( const char* filename );
@@ -119,12 +185,12 @@ public:
 	bool nextPoint( OrientedPoint3D< Real >& p );
 };
 
-template< class Real , class Data >
+template< class Real , class Data , class RealOnDisk=Real , class DataOnDisk=Data >
 class BinaryOrientedPointStreamWithData : public OrientedPointStreamWithData< Real , Data >
 {
 	FILE* _fp;
 	static const int POINT_BUFFER_SIZE=1024;
-	std::pair< OrientedPoint3D< Real > , Data > _pointBuffer[ POINT_BUFFER_SIZE ];
+	std::pair< OrientedPoint3D< RealOnDisk > , DataOnDisk > _pointBuffer[ POINT_BUFFER_SIZE ];
 	int _pointsInBuffer , _currentPointIndex;
 public:
 	BinaryOrientedPointStreamWithData( const char* filename );

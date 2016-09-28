@@ -129,7 +129,7 @@ void PPolynomial<Degree>::reset( size_t newSize )
 template< int Degree >
 PPolynomial< Degree >& PPolynomial< Degree >::compress( double delta )
 {
-	int _polyCount = polyCount;
+	int _polyCount = (int)polyCount;
 	Pointer( StartingPolynomial< Degree > ) _polys = polys;
 
 	polyCount = 1 , polys = NullPointer( StartingPolynomial< Degree > );
@@ -172,7 +172,7 @@ template<int Degree>
 double PPolynomial<Degree>::operator ()( double t ) const
 {
 	double v=0;
-	for( int i=0 ; i<int(polyCount) && t>polys[i].start ; i++ ) v+=polys[i].p(t);
+	for( int i=0 ; i<int(polyCount) && t>polys[i].start ; i++ ) v += polys[i].p(t);
 	return v;
 }
 

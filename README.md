@@ -1,4 +1,4 @@
-<CENTER><H2>Screened Poisson Surface Reconstruction (Version 8.0)</H2></CENTER>
+<CENTER><H2>Screened Poisson Surface Reconstruction <BR>(and Smoothed Signed Distance Reconstruction)<BR>Version 9.0</H2></CENTER>
 <CENTER>
 <A HREF="#LINKS">links</A>
 <A HREF="#EXECUTABLES">executables</A>
@@ -7,13 +7,18 @@
 </CENTER>
 <HR>
 <A NAME="LINKS"><B>LINKS</B></A><br>
-Papers:
-<A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">SGP 2006</A>,
-<A href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">ToG 2013</A>
+<UL>
+<B>Papers:</B>
+<A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</A>,
+<A href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</A>,
+<A href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</A>
 <br>
-Executables (<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/PoissonRecon.Win32.zip">Win32</A>, <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/PoissonRecon.x64.zip">Win64</A>)<BR>
-<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/PoissonRecon.zip">Source Code</A> <A HREF="https://github.com/mkazhdan/PoissonRecon">GitHub Repository</A><BR>
-(Older Versions:
+<B>Executables: </B>
+<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/PoissonRecon.x64.zip">Win64</A><BR>
+<B>Source Code:</B>
+<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/PoissonRecon.zip">ZIP</A> <A HREF="https://github.com/mkazhdan/PoissonRecon">GitHub</A><BR>
+<B>Older Versions:</B>
+<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/">V8.0</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/">V7.0</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/">V6.13a</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13/">V6.13</A>,
@@ -31,13 +36,14 @@ Executables (<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/
 <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4/">V4</A>,
 <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">V3</A>,
 <A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version2/">V2</A>,
-<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</A>)
-<br>
+<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</A>
+</UL>
 <HR>
-<A NAME="EXECUTABLES">
-<B>PoissonRecon:</B><BR>
+<A NAME="EXECUTABLES"><B>EXECUTABLES</B></A><BR>
 <UL>
 <DL>
+<FONT SIZE="+1" ><B><U>PoissonRecon</U></B></FONT>
+<DIV ID="poisson_recon">
 <DT><b>--in</b> &#60;<i>input points</i>&#62;
 <DD> This string is the name of the file from which the point set will be read.<br>
 If the file extension is <i>.ply</i>, the file should be in
@@ -56,24 +62,25 @@ by the x-, y- and z-coordinates of the point's normal. (No information about the
 <DD> This string is the name of the file to which the triangle mesh will be written. 
 The file is written in <A HREF="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</A> format.
 
-<DT>[<b>--linearFit</b>]
-<DD> Enabling this flag has the reconstructor use linear interpolation to estimate the positions of iso-vertices.
+<DT>[<b>--voxel</b> &#60;<i>output voxel grid</i>&#62;]
+<DD> This string is the name of the file to which the sampled implicit function will be written.
+The filw is wrtten out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
+and the next 4 x 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> bytes corresponding to the (single precision) floating point values
+of the implicit function.
 
 <DT>[<b>--degree</b> &#60;<i>B-spline degree</i>&#62;]
 <DD> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.
 Larger degrees support higher order approximations, but come at the cost of denser system matrices (incurring a cost in both space and time).<BR>
 The default value for this parameter is 2.
 
-<DT>[<b>--color</b> &#60;<i>pull factor</i>&#62;]
-<DD> If specified, the reconstruction code assumes that the input is equipped with colors and will extrapolate
-the color values to the vertices of the reconstructed mesh. The floating point value specifies the relative importance
-of finer color estimates over lower ones. (In practice, we have found that a pull factor of 16 works well.)
-
-<DT>[<b>--voxel</b> &#60;<i>output voxel grid</i>&#62;]
-<DD> This string is the name of the file to which the sampled implicit function will be written.
-The filw is wrtten out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
-and the next 4 x 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> bytes corresponding to the (single precision) floating point values
-of the implicit function.
+<DT>[<b>--bType</b> &#60;<i>boundary type</i>&#62;]
+<DD> This integer specifies the boundary type for the finite elements. Valid values are:
+<UL>
+<LI> <B>1</B>: Free boundary constraints
+<LI> <B>2</B>: Dirichlet boundary constraints
+<LI> <B>3</B>: Neumann boundary constraints
+</UL>
+The default value for this parameter is 3 (Neumann).
 
 <DT>[<b>--depth</b> &#60;<i>reconstruction depth</i>&#62;]
 <DD> This integer is the maximum depth of the tree that will be used for surface reconstruction.
@@ -81,24 +88,6 @@ Running at depth <i>d</i> corresponds to solving on a voxel grid whose resolutio
 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>. Note that since the reconstructor adapts the octree to the
 sampling density, the specified reconstruction depth is only an upper bound.<br>
 The default value for this parameter is 8.
-
-<DT>[<b>--fullDepth</b> &#60;<i>adaptive octree depth</i>&#62;]
-<DD> This integer specifies the depth beyond depth the octree will be adapted.
-At coarser depths, the octree will be complete, containing all
-2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> nodes.<br>
-The default value for this parameter is 5.
-
-<DT>[<b>--voxelDepth</b> &#60;<i>voxel sampling depth</i>&#62;]
-<DD> This integer is the depth of the regular grid over which the implicit function is to be sampled.
-Running at depth <i>d</i> corresponds to sampling on a voxel grid whose resolution is 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>.<br>
-The default value for this parameter is the value of the <B>--depth</B> parameter.
-
-<DT>[<b>--primalVoxel</b>]
-<DD> Enabling this flag when outputing to a voxel file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
-
-<DT>[<b>--cgDepth</b> &#60;<i>conjugate gradients solver depth</i>&#62;]
-<DD> This integer is the depth up to which a conjugate-gradients solver will be used to solve the linear system. Beyond this depth Gauss-Seidel relaxation will be used.<br>
-The default value for this parameter is 0.
 
 <DT>[<b>--scale</b> &#60;<i>scale factor</i>&#62;]
 <DD> This floating point value specifies the ratio between the diameter of the cube used for reconstruction
@@ -113,19 +102,10 @@ be needed to provide a smoother, noise-reduced, reconstruction.<br>
 The default value is 1.0.
 
 <DT>[<b>--pointWeight</b> &#60;<i>interpolation weight</i>&#62;]
-<DD> This floating point value specifies the importants that interpolation of the point samples
+<DD> This floating point value specifies the importance that interpolation of the point samples
 is given in the formulation of the screened Poisson equation.<br>
 The results of the original (unscreened) Poisson Reconstruction can be obtained by setting this value to 0.<br>
 The default value for this parameter is 4.
-
-<DT>[<b>--iters</b> &#60;<i>GS iters</i>&#62;]
-<DD> This integer value specifies the number of Gauss-Seidel relaxations to be performed at each level of the hiearchy.<br>
-The default value for this parameter is 8.
-
-<DT>[<b>--threads</b> &#60;<i>number of processing threads</i>&#62;]
-<DD> This integer specifies the number of threads across which the reconstruction
-algorithm should be parallelized.<br>
-The default value for this parameter is equal to the numer of (virtual) processors on the executing  machine.
 
 <DT>[<b>--confidence</b>]
 <DD> Enabling this flag tells the reconstructor to use the size of the normals as confidence information. When the flag
@@ -135,20 +115,179 @@ is not enabled, all normals are normalized to have unit-length prior to reconstr
 <DD> Enabling this flag tells the reconstructor to use the size of the normals to modulate the interpolation weights. When the flag
 is not enabled, all points are given the same weight.
 
-<DT>[<b>--polygonMesh</b>]
-<DD> Enabling this flag tells the reconstructor to output a polygon mesh (rather than triangulating the results of Marching Cubes).
+<DT>[<b>--iters</b> &#60;<i>GS iters</i>&#62;]
+<DD> This integer value specifies the number of Gauss-Seidel relaxations to be performed at each level of the hiearchy.<br>
+The default value for this parameter is 8.
+
+<DT>[<b>--cgDepth</b> &#60;<i>conjugate gradients solver depth</i>&#62;]
+<DD> This integer is the depth up to which a conjugate-gradients solver will be used to solve the linear system. Beyond this depth Gauss-Seidel relaxation will be used.<br>
+The default value for this parameter is 0.
+
+<DT>[<b>--fullDepth</b> &#60;<i>adaptive octree depth</i>&#62;]
+<DD> This integer specifies the depth beyond depth the octree will be adapted.
+At coarser depths, the octree will be complete, containing all 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> nodes.<br>
+The default value for this parameter is 5.
+
+<DT>[<b>--voxelDepth</b> &#60;<i>voxel sampling depth</i>&#62;]
+<DD> This integer is the depth of the regular grid over which the implicit function is to be sampled.
+Running at depth <i>d</i> corresponds to sampling on a voxel grid whose resolution is 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>.<br>
+The default value for this parameter is the value of the <B>--depth</B> parameter.
+
+<DT>[<b>--primalVoxel</b>]
+<DD> Enabling this flag when outputing to a voxel file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
+
+<DT>[<b>--color</b> &#60;<i>pull factor</i>&#62;]
+<DD> If specified, the reconstruction code assumes that the input is equipped with colors and will extrapolate
+the color values to the vertices of the reconstructed mesh. The floating point value specifies the relative importance
+of finer color estimates over lower ones. (In practice, we have found that a pull factor of 16 works well.)
 
 <DT>[<b>--density</b>]
 <DD> Enabling this flag tells the reconstructor to output the estimated depth values of the iso-surface vertices.
 
+<DT>[<b>--linearFit</b>]
+<DD> Enabling this flag has the reconstructor use linear interpolation to estimate the positions of iso-vertices.
+
+<DT>[<b>--polygonMesh</b>]
+<DD> Enabling this flag tells the reconstructor to output a polygon mesh (rather than triangulating the results of Marching Cubes).
+
+<DT>[<b>--threads</b> &#60;<i>number of processing threads</i>&#62;]
+<DD> This integer specifies the number of threads across which the reconstruction
+algorithm should be parallelized.<br>
+The default value for this parameter is equal to the numer of (virtual) processors on the executing  machine.
+
 <DT>[<b>--verbose</b>]
 <DD> Enabling this flag provides a more verbose description of the running times and memory usages of
 individual components of the surface reconstructor.
+</DIV>
 </DL>
 </UL>
-<B>SurfaceTrimmer:</B><BR>
+
+
 <UL>
 <DL>
+<FONT SIZE="+1"><B><U>SSDRecon</U></B></FONT>
+<DT><b>--in</b> &#60;<i>input points</i>&#62;
+<DD> This string is the name of the file from which the point set will be read.<br>
+If the file extension is <i>.ply</i>, the file should be in
+<A HREF="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</A> format, giving the list of oriented
+vertices with the x-, y-, and z-coordinates of the positions encoded by the properties <i>x</i>, <i>y</i>, and
+<i>z</i> and the x-, y-, and z-coordinates of the normals encoded by the properties <i>nx</i>, <i>ny</i>, and
+<i>nz</i> .<br>
+If the file extension is <i>.bnpts</i>, the file should be a binary file, consisting of blocks of 6 32-bit
+floats: x-, y-, and z-coordinates of the point's position, followed by the x-, y-, and z-coordinates
+of the point's normal. (No information about the number of oriented point samples should be specified.)<br>
+Otherwise, the file should be an ascii file with groups of 6,
+white space delimited, numbers: x-, y-, and z-coordinates of the point's position, followed
+by the x-, y- and z-coordinates of the point's normal. (No information about the number of oriented point samples should be specified.)<br> 
+
+<DT>[<b>--out</b> &#60;<i>output triangle mesh</i>&#62;]
+<DD> This string is the name of the file to which the triangle mesh will be written. 
+The file is written in <A HREF="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</A> format.
+
+<DT>[<b>--voxel</b> &#60;<i>output voxel grid</i>&#62;]
+<DD> This string is the name of the file to which the sampled implicit function will be written.
+The filw is wrtten out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
+and the next 4 x 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> bytes corresponding to the (single precision) floating point values
+of the implicit function.
+
+<DT>[<b>--degree</b> &#60;<i>B-spline degree</i>&#62;]
+<DD> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.
+Larger degrees support higher order approximations, but come at the cost of denser system matrices (incurring a cost in both space and time).<BR>
+The default value for this parameter is 2.
+
+<DT>[<b>--depth</b> &#60;<i>reconstruction depth</i>&#62;]
+<DD> This integer is the maximum depth of the tree that will be used for surface reconstruction.
+Running at depth <i>d</i> corresponds to solving on a voxel grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>. Note that since the reconstructor adapts the octree to the
+sampling density, the specified reconstruction depth is only an upper bound.<br>
+The default value for this parameter is 8.
+
+<DT>[<b>--scale</b> &#60;<i>scale factor</i>&#62;]
+<DD> This floating point value specifies the ratio between the diameter of the cube used for reconstruction
+and the diameter of the samples' bounding cube.<br>
+The default value is 1.1.
+
+<DT>[<b>--samplesPerNode</b> &#60;<i>minimum number of samples</i>&#62;]
+<DD> This floating point value specifies the minimum number of sample points that should fall within an
+octree node as the octree construction is adapted to sampling density. For noise-free samples, small values
+in the range [1.0 - 5.0] can be used. For more noisy samples, larger values in the range [15.0 - 20.0] may
+be needed to provide a smoother, noise-reduced, reconstruction.<br>
+The default value is 1.0.
+
+<DT>[<b>--valueWeight</b> &#60;<i>zero-crossing interpolation weight</i>&#62;]
+<DD> This floating point value specifies the importance that interpolation of the point samples
+is given in the formulation of the screened Smoothed Signed Distance Reconstruction.<br>
+The default value for this parameter is 4.
+
+<DT>[<b>--gradientWeight</b> &#60;<i>normal interpolation weight</i>&#62;]
+<DD> This floating point value specifies the importance that interpolation of the points' normals
+is given in the formulation of the screened Smoothed Signed Distance Reconstruction.<br>
+The default value for this parameter is 0.001.
+
+<DT>[<b>--biLapWeight</b> &#60;<i>bi-Laplacian weight weight</i>&#62;]
+<DD> This floating point value specifies the importance that the bi-Laplacian regularization
+is given in the formulation of the screened Smoothed Signed Distance Reconstruction.<br>
+The default value for this parameter is 0.00001.
+
+<DT>[<b>--confidence</b>]
+<DD> Enabling this flag tells the reconstructor to use the size of the normals as confidence information. When the flag
+is not enabled, all normals are normalized to have unit-length prior to reconstruction.
+
+<DT>[<b>--nWeights</b>]
+<DD> Enabling this flag tells the reconstructor to use the size of the normals to modulate the interpolation weights. When the flag
+is not enabled, all points are given the same weight.
+
+<DT>[<b>--iters</b> &#60;<i>GS iters</i>&#62;]
+<DD> This integer value specifies the number of Gauss-Seidel relaxations to be performed at each level of the hiearchy.<br>
+The default value for this parameter is 8.
+
+<DT>[<b>--cgDepth</b> &#60;<i>conjugate gradients solver depth</i>&#62;]
+<DD> This integer is the depth up to which a conjugate-gradients solver will be used to solve the linear system. Beyond this depth Gauss-Seidel relaxation will be used.<br>
+The default value for this parameter is 0.
+
+<DT>[<b>--fullDepth</b> &#60;<i>adaptive octree depth</i>&#62;]
+<DD> This integer specifies the depth beyond depth the octree will be adapted.
+At coarser depths, the octree will be complete, containing all 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> nodes.<br>
+The default value for this parameter is 5.
+
+<DT>[<b>--voxelDepth</b> &#60;<i>voxel sampling depth</i>&#62;]
+<DD> This integer is the depth of the regular grid over which the implicit function is to be sampled.
+Running at depth <i>d</i> corresponds to sampling on a voxel grid whose resolution is 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>.<br>
+The default value for this parameter is the value of the <B>--depth</B> parameter.
+
+<DT>[<b>--primalVoxel</b>]
+<DD> Enabling this flag when outputing to a voxel file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
+
+<DT>[<b>--color</b> &#60;<i>pull factor</i>&#62;]
+<DD> If specified, the reconstruction code assumes that the input is equipped with colors and will extrapolate
+the color values to the vertices of the reconstructed mesh. The floating point value specifies the relative importance
+of finer color estimates over lower ones. (In practice, we have found that a pull factor of 16 works well.)
+
+<DT>[<b>--density</b>]
+<DD> Enabling this flag tells the reconstructor to output the estimated depth values of the iso-surface vertices.
+
+<DT>[<b>--nonLinearFit</b>]
+<DD> Enabling this flag has the reconstructor use quadratic interpolation to estimate the positions of iso-vertices.
+
+<DT>[<b>--polygonMesh</b>]
+<DD> Enabling this flag tells the reconstructor to output a polygon mesh (rather than triangulating the results of Marching Cubes).
+
+<DT>[<b>--threads</b> &#60;<i>number of processing threads</i>&#62;]
+<DD> This integer specifies the number of threads across which the reconstruction
+algorithm should be parallelized.<br>
+The default value for this parameter is equal to the numer of (virtual) processors on the executing  machine.
+
+<DT>[<b>--verbose</b>]
+<DD> Enabling this flag provides a more verbose description of the running times and memory usages of
+individual components of the surface reconstructor.
+</DIV>
+</DL>
+</UL>
+
+
+<UL>
+<DL>
+<FONT SIZE="+1"><B><U>SurfaceTrimmer</U></B></FONT>
 <DT><b>--in</b> &#60;<i>input triangle mesh</i>&#62;
 <DD> This string is the name of the file from which the triangle mesh will be read. 
 The file is read in <A HREF="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</A> format and it is assumed that the vertices have a <I>value</I> field which stores the signal's value. (When run with <B>--density</B> flag, the reconstructor will output this field with the mesh vertices.)
@@ -170,7 +309,8 @@ The default value 0.001.
 
 <DT>[<b>--polygonMesh</b>]
 <DD> Enabling this flag tells the trimmer to output a polygon mesh (rather than triangulating the trimming results).
-
+</DIV>
+</DL>
 </UL>
 
 <HR>
@@ -344,6 +484,13 @@ If higher order degrees are desired, additional template parameters can be easil
 Similarly, to reduce compilation times, support for specific degrees can be removed.)
 <LI> Added the <B>--primalVoxel</B> flag to support to extraction of a voxel grid using primal sampling.
 <LI> Changed the implementation of the voxel sampling so that computation is now linear, rather than log-linear, in the number of samples.
+</OL>
+
+<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">Version 9.0</A>:
+<OL>
+<LI> Added support for free boundary conditions.
+<LI> Extended the solver to support more general linear systems. This makes it possible to use the same framework to implement the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance Reconstruction</A> of Calakli and Taubin (2011).
+<LI> Modified the implementation of density estimation and input representation. This tends to define a slightly larger system. On its own, this results in slightly increased running-time/footprint for full-res reconstructions, but provides a substantially faster implementation when the output complexity is smaller than the input.
 </OL>
 
 <HR>
