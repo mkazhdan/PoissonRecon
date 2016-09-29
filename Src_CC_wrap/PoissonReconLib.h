@@ -75,8 +75,6 @@ public:
 
 		//! If this flag is enabled, the size of a sample's normals is used as a confidence value, affecting the sample's constribution to the reconstruction process
 		bool confidence;
-		//! If this flag is enabled, the size of a sample's normals is used as to modulate the interpolation weight
-		bool normalWeights;
 		//! If this flag is enabled, the sampling density is written out with the vertices
 		bool density;
 
@@ -85,18 +83,17 @@ public:
 
 		//DGM: the above parameters are not documented in PoissonRecon
 
-		bool complete;
 		bool showResidual;
 		int kernelDepth;
 		int maxSolveDepth;
-		bool dirichlet;
+		
+		enum BoundaryType { FREE, DIRICHLET, NEUMANN };
+		BoundaryType boundary;
 
 		//DGM: the above parameters are hidden in PoissonRecon
 
 		//! If this flag is enabled, the isosurface extraction does not add a planar polygon's barycenter in order to ensure that the output mesh is manifold
 		bool nonManifold;
-		//! This flag specifies the coarsest depth at which the system is to be solved
-		int minDepth;
 		//! This flag specifies the accuracy cut-off to be used for CG
 		float cgAccuracy;
 		//! This flag specifies the exponent scale for the adaptive weighting

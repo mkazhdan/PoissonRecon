@@ -25,6 +25,7 @@
 #ifdef WITH_OPENMP
 #include <omp.h>
 #endif
+#include <assert.h>
 
 //PoissonRecon
 #include "../Src/MemoryUsage.h"
@@ -46,18 +47,15 @@ PoissonReconLib::Parameters::Parameters()
 	, adaptiveExp(1) //AdaptiveExponent (1)
 	, iters(8) //8
 	, fullDepth(5) //5
-	, minDepth(0) //0
 	, maxSolveDepth(0) //?
-	, dirichlet(true) //true
+	, boundary(NEUMANN)
 	, threads(1) //ideally omp_get_num_procs()
 	, samplesPerNode(1.5f) //1.5f
 	, scale(1.1f) //1.1f
 	, cgAccuracy(1.0e-3f) //1.0e-3f
 	, pointWeight(4.0f) //4.0f
-	, complete(false)
 	, showResidual(false)
 	, confidence(false)
-	, normalWeights(false)
 	, nonManifold(false)
 	, density(false)
 	, colorInterp(16.0f)
@@ -203,7 +201,7 @@ bool Execute(	PoissonReconLib::Parameters params,
 				solverInfo.iters = params.iters;
 				solverInfo.cgAccuracy = params.cgAccuracy;
 				solverInfo.verbose = false;
-				solverInfo.showResidual = false;
+				solverInfo.showResidual = params.showResidual;
 				solverInfo.lowResIterMultiplier = std::max< double >(1.0, lowResIterMultiplier);
 				solution = tree.template solveSystem< Degree, BType >(FEMSystemFunctor< Degree, BType >(0, 1., 0), iInfo, constraints, solveDepth, solverInfo);
 				if (iInfo)
@@ -288,10 +286,20 @@ bool PoissonReconLib::Reconstruct(	Parameters params,
 									CoredVectorMeshData< PlyColorAndValueVertex< float > >& mesh,
 									XForm4x4< float >& iXForm)
 {
-	return Execute<	float,
-					BSPLINE_DEGREE,
-					BOUNDARY_NEUMANN,
-					PlyColorAndValueVertex< float > >(params, pointStream, true, mesh, iXForm);
+	switch (params.boundary)
+	{
+	case Parameters::FREE:
+		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_FREE, PlyColorAndValueVertex< float > >(params, pointStream, true, mesh, iXForm);
+	case Parameters::DIRICHLET:
+		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_DIRICHLET, PlyColorAndValueVertex< float > >(params, pointStream, true, mesh, iXForm);
+	case Parameters::NEUMANN:
+		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_NEUMANN, PlyColorAndValueVertex< float > >(params, pointStream, true, mesh, iXForm);
+	default:
+		assert(false);
+		break;
+	}
+
+	return false;
 }
 
 bool PoissonReconLib::Reconstruct(	Parameters params,
@@ -299,10 +307,20 @@ bool PoissonReconLib::Reconstruct(	Parameters params,
 									CoredVectorMeshData< PlyValueVertex< float > >& mesh,
 									XForm4x4< float >& iXForm)
 {
-	return Execute<	float,
-					BSPLINE_DEGREE,
-					BOUNDARY_NEUMANN,
-					PlyValueVertex< float > > (params, pointStream, false, mesh, iXForm);
+	switch (params.boundary)
+	{
+	case Parameters::FREE:
+		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_FREE, PlyValueVertex< float > >(params, pointStream, false, mesh, iXForm);
+	case Parameters::DIRICHLET:
+		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_DIRICHLET, PlyValueVertex< float > >(params, pointStream, false, mesh, iXForm);
+	case Parameters::NEUMANN:
+		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_NEUMANN, PlyValueVertex< float > >(params, pointStream, false, mesh, iXForm);
+	default:
+		assert(false);
+		break;
+	}
+
+	return false;
 }
 
 bool PoissonReconLib::Reconstruct(	Parameters params,
@@ -310,10 +328,20 @@ bool PoissonReconLib::Reconstruct(	Parameters params,
 									CoredVectorMeshData< PlyColorAndValueVertex< double > >& mesh,
 									XForm4x4< double >& iXForm)
 {
-	return Execute<	double,
-					BSPLINE_DEGREE,
-					BOUNDARY_NEUMANN,
-					PlyColorAndValueVertex< double > > (params, pointStream, true, mesh, iXForm);
+	switch (params.boundary)
+	{
+	case Parameters::FREE:
+		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_FREE, PlyColorAndValueVertex< double > >(params, pointStream, true, mesh, iXForm);
+	case Parameters::DIRICHLET:
+		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_DIRICHLET, PlyColorAndValueVertex< double > >(params, pointStream, true, mesh, iXForm);
+	case Parameters::NEUMANN:
+		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_NEUMANN, PlyColorAndValueVertex< double > >(params, pointStream, true, mesh, iXForm);
+	default:
+		assert(false);
+		break;
+	}
+
+	return false;
 }
 
 bool PoissonReconLib::Reconstruct(	Parameters params,
@@ -321,8 +349,18 @@ bool PoissonReconLib::Reconstruct(	Parameters params,
 									CoredVectorMeshData< PlyValueVertex< double > >& mesh,
 									XForm4x4< double >& iXForm)
 {
-	return Execute<	double,
-					BSPLINE_DEGREE,
-					BOUNDARY_NEUMANN,
-					PlyValueVertex< double > > (params, pointStream, false, mesh, iXForm);
+	switch (params.boundary)
+	{
+	case Parameters::FREE:
+		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_FREE, PlyValueVertex< double > >(params, pointStream, false, mesh, iXForm);
+	case Parameters::DIRICHLET:
+		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_DIRICHLET, PlyValueVertex< double > >(params, pointStream, false, mesh, iXForm);
+	case Parameters::NEUMANN:
+		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_NEUMANN, PlyValueVertex< double > >(params, pointStream, false, mesh, iXForm);
+	default:
+		assert(false);
+		break;
+	}
+
+	return false;
 }
