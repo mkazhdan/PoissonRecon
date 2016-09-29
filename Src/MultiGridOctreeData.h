@@ -54,7 +54,9 @@ DAMAGE.
 #define MAX_MEMORY_GB 0
 
 #include <unordered_map>
+#ifdef _OPENMP
 #include <omp.h>
+#endif // _OPENMP
 #include "BSplineData.h"
 #include "PointStream.h"
 #include "Geometry.h"
