@@ -104,14 +104,14 @@ public:
 	};
 
 	//! Main entry point (shortcut to Execute)
-	static bool Reconstruct(Parameters params, OrientedPointStream< float >* pointStream, CoredVectorMeshData< PlyValueVertex< float > >& mesh);
+	static bool Reconstruct(Parameters params, OrientedPointStream< float >* pointStream, CoredVectorMeshData< PlyValueVertex< float > >& mesh, XForm4x4< float >& iXForm);
 	//! Main entry point (shortcut to Execute) for colored clouds
-	static bool Reconstruct(Parameters params, OrientedPointStreamWithData< float , Point3D< unsigned char > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< float > >& mesh);
+	static bool Reconstruct(Parameters params, OrientedPointStreamWithData< float, Point3D< float > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< float > >& mesh, XForm4x4< float >& iXForm);
 
 	//! Main entry point (shortcut to Execute)
-	static bool Reconstruct(Parameters params, OrientedPointStream< double >* pointStream, CoredVectorMeshData< PlyValueVertex< double > >& mesh);
+	static bool Reconstruct(Parameters params, OrientedPointStream< double >* pointStream, CoredVectorMeshData< PlyValueVertex< double > >& mesh, XForm4x4< double >& iXForm);
 	//! Main entry point (shortcut to Execute) for colored clouds
-	static bool Reconstruct(Parameters params, OrientedPointStreamWithData< double , Point3D< unsigned char > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< double > >& mesh);
+	static bool Reconstruct(Parameters params, OrientedPointStreamWithData< double, Point3D< double > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< double > >& mesh, XForm4x4< double >& iXForm);
 
 };
 

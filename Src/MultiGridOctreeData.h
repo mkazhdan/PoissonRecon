@@ -291,6 +291,7 @@ struct SparseNodeData
 	const Data& operator[] ( int idx ) const { return _data[idx]; }
 	Data& operator[] ( int idx ) { return _data[idx]; }
 	void reserve( size_t sz ){ if( sz>_indices.size() ) _indices.resize( sz , -1 ); }
+	void clear() { _indices.clear(); }
 	Data* operator()( const OctNode< TreeNodeData >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 	const Data* operator()( const OctNode< TreeNodeData >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 	Data& operator[]( const OctNode< TreeNodeData >* node )

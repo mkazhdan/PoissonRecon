@@ -67,22 +67,47 @@ PoissonReconLib::Parameters::Parameters()
 #endif
 }
 
-template< class PointCoordinateType, class Real, int Degree, class Vertex >
-bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoordinateType >* pointStream, CoredVectorMeshData< Vertex >& mesh)
+template< class Real >
+XForm4x4< Real > GetPointXForm(OrientedPointStream< Real >& stream, Real scaleFactor)
 {
-	XForm4x4< Real > xForm = XForm4x4< Real >::Identity();
-	XForm4x4< Real > iXForm = xForm.inverse();
+	Point3D< Real > min, max;
+	stream.boundingBox(min, max);
 
-	//DGM: reset static parameters!!!
-	TreeNodeData::NodeCount = 0;
+	Real scale = std::max< Real >(max[0] - min[0], std::max< Real >(max[1] - min[1], max[2] - min[2]));
+	scale *= scaleFactor;
+
+	XForm4x4< Real > tXForm = XForm4x4< Real >::Identity();
+	XForm4x4< Real > sXForm = XForm4x4< Real >::Identity();
+	Point3D< Real > center = (max + min) / 2;
+	for (int i = 0; i < 3; i++)
+	{
+		sXForm(i, i) = static_cast<Real>(1.0 / scale);
+		tXForm(3, i) = -center[i] + scale / 2;
+	}
+	return sXForm * tXForm;
+}
+
+template< class Real, int Degree, BoundaryType BType, class Vertex >
+bool Execute(	PoissonReconLib::Parameters params,
+				OrientedPointStream< Real >* pointStream,
+				bool withColors,
+				CoredVectorMeshData< Vertex >& mesh,
+				XForm4x4< Real >& iXForm)
+{
+	typedef typename Octree< Real >::template InterpolationInfo< false > InterpolationInfo;
+	typedef OrientedPointStreamWithData< Real, Point3D< Real > > PointStreamWithData;
+	typedef TransformedOrientedPointStream< Real > XPointStream;
+	typedef TransformedOrientedPointStreamWithData< Real, Point3D< Real > > XPointStreamWithData;
+	Reset< Real >();
+
+	//DGM: do this begore initializing the octree!!
+	OctNode< TreeNodeData >::SetAllocator(MEMORY_ALLOCATOR_BLOCK_SIZE);
 
 	Octree< Real > tree;
 	tree.threads = params.threads;
 
 	if (params.maxSolveDepth == 0)
 		params.maxSolveDepth = params.depth;
-
-	OctNode< TreeNodeData >::SetAllocator( MEMORY_ALLOCATOR_BLOCK_SIZE );
 
 	if (params.maxSolveDepth < 2)
 		return false;
@@ -91,261 +116,213 @@ bool Execute(PoissonReconLib::Parameters params, OrientedPointStream< PointCoord
 		return false;
 	params.fullDepth = std::min(params.fullDepth, params.depth);
 
-	tree.maxMemoryUsage = 0;
-	SparseNodeData< PointData< Real > , 0 >* pointInfo = new SparseNodeData< PointData < Real > , 0 >();
-	SparseNodeData< Point3D< Real > , NORMAL_DEGREE >* normalInfo = new SparseNodeData< Point3D< Real > , NORMAL_DEGREE >();
-	SparseNodeData< Real , WEIGHT_DEGREE >* densityWeights = new SparseNodeData< Real , WEIGHT_DEGREE >();
-	SparseNodeData< Real , NORMAL_DEGREE >* nodeWeights = new SparseNodeData< Real , NORMAL_DEGREE >();
-	typedef typename Octree< Real >::template ProjectiveData< Point3D< Real > > ProjectiveColor;
-	SparseNodeData< ProjectiveColor , DATA_DEGREE >* colorData = NULL;
-
-	int pointCount = tree.template SetTree< PointCoordinateType, NORMAL_DEGREE , WEIGHT_DEGREE , DATA_DEGREE , Point3D< unsigned char > >(
-									pointStream,
-									params.minDepth,
-									params.depth,
-									params.fullDepth,
-									kernelDepth,
-									static_cast<Real>(params.samplesPerNode),
-									params.scale,
-									params.confidence,
-									params.normalWeights,
-									params.pointWeight,
-									params.adaptiveExp,
-									*densityWeights,
-									*pointInfo,
-									*normalInfo,
-									*nodeWeights,
-									colorData,
-									xForm,
-									params.dirichlet,
-									params.complete );
-
-	if( !params.density )
+	try
 	{
-		delete densityWeights;
-		densityWeights = NULL;
-	}
-	//reamp indexes
-	{
-		std::vector< int > indexMap;
-		if( NORMAL_DEGREE > Degree )
-			tree.template EnableMultigrid< NORMAL_DEGREE >( &indexMap );
+		XForm4x4< Real > xForm = XForm4x4< Real >::Identity();
+		{
+			xForm = GetPointXForm(*pointStream, static_cast<Real>(params.scale));
+		}
+		iXForm = xForm.inverse();
+
+		std::vector< typename Octree< Real >::PointSample > samples;
+		std::vector< ProjectiveData< Point3D< Real >, Real > > sampleData;
+
+		if (withColors)
+		{
+			XPointStreamWithData _pointStream(xForm, *((PointStreamWithData*)pointStream));
+			int pointCount = tree.template init< Point3D< Real > >(
+				_pointStream,
+				params.depth,
+				params.confidence,
+				samples,
+				&sampleData);
+		}
 		else
-			tree.template EnableMultigrid<        Degree >( &indexMap );
+		{
+			XPointStream _pointStream(xForm, *pointStream);
+			int pointCount = tree.template init< Point3D< Real > >(
+				_pointStream,
+				params.depth,
+				params.confidence,
+				samples,
+				0);
+		}
 
-		if (pointInfo)
-			pointInfo->remapIndices( indexMap );
-		if (normalInfo)
-			normalInfo->remapIndices( indexMap );
-		if (densityWeights)
-			densityWeights->remapIndices( indexMap );
-		if (nodeWeights)
-			nodeWeights->remapIndices( indexMap );
+		DenseNodeData< Real, Degree > solution;
+		SparseNodeData< Real, WEIGHT_DEGREE > density;
+		{
+			int solveDepth = params.depth;
+
+			tree.resetNodeIndices();
+
+			// Get the kernel density estimator [If discarding, compute anew. Otherwise, compute once.]
+			density = tree.template setDensityEstimator< WEIGHT_DEGREE >(samples, kernelDepth, params.samplesPerNode);
+
+			// Transform the Hermite samples into a vector field
+			Real pointWeightSum = 0;
+			SparseNodeData< Point3D< Real >, NORMAL_DEGREE > normalInfo = tree.template setNormalField< NORMAL_DEGREE >(samples, density, pointWeightSum, BType == BOUNDARY_NEUMANN);
+
+			// Trim the tree and prepare for multigrid
+			{
+				std::vector< int > indexMap;
+
+				tree.template inalizeForBroodedMultigrid< NORMAL_DEGREE, Degree, BType >(params.fullDepth, typename Octree< Real >::template HasNormalDataFunctor< NORMAL_DEGREE >(normalInfo), &indexMap);
+
+				normalInfo.remapIndices(indexMap);
+				if (params.density)
+					density.remapIndices(indexMap);
+			}
+
+			// Add the FEM constraints
+			DenseNodeData< Real, Degree > constraints;
+			{
+				constraints = tree.template initDenseNodeData< Degree >();
+				tree.template addFEMConstraints< Degree, BType, NORMAL_DEGREE, BType >(FEMVFConstraintFunctor< NORMAL_DEGREE, BType, Degree, BType >(1., 0.), normalInfo, constraints, solveDepth);
+			}
+
+			// Free up the normal info [If we don't need it for subseequent iterations.]
+			normalInfo.clear();
+
+			// Add the interpolation constraints
+			InterpolationInfo* iInfo = NULL;
+			if (params.pointWeight > 0)
+			{
+				Real targetValue = static_cast<Real>(0.5);
+				iInfo = new InterpolationInfo(tree, samples, targetValue, params.adaptiveExp, static_cast<Real>(params.pointWeight) * pointWeightSum, (Real)0);
+				tree.template addInterpolationConstraints< Degree, BType >(*iInfo, constraints, solveDepth);
+			}
+
+			//DumpOutput("Leaf Nodes / Active Nodes / Ghost Nodes: %d / %d / %d\n", (int)tree.leaves(), (int)tree.nodes(), (int)tree.ghostNodes());
+			//DumpOutput("Memory Usage: %.3f MB\n", float(MemoryInfo::Usage()) / (1 << 20));
+
+			// Solve the linear system
+			double lowResIterMultiplier = 1.0;
+			{
+				typename Octree< Real >::SolverInfo solverInfo;
+				solverInfo.cgDepth = params.cgDepth;
+				solverInfo.iters = params.iters;
+				solverInfo.cgAccuracy = params.cgAccuracy;
+				solverInfo.verbose = false;
+				solverInfo.showResidual = false;
+				solverInfo.lowResIterMultiplier = std::max< double >(1.0, lowResIterMultiplier);
+				solution = tree.template solveSystem< Degree, BType >(FEMSystemFunctor< Degree, BType >(0, 1., 0), iInfo, constraints, solveDepth, solverInfo);
+				if (iInfo)
+				{
+					delete iInfo;
+					iInfo = NULL;
+				}
+			}
+		}
+
+		Real isoValue = 0;
+		{
+			double valueSum = 0, weightSum = 0;
+			typename Octree< Real >::template MultiThreadedEvaluator< Degree, BType > evaluator(&tree, solution, params.threads);
+
+#pragma omp parallel for num_threads( params.threads ) reduction( + : valueSum , weightSum )
+			for (int j = 0; j < samples.size(); j++)
+			{
+				const ProjectiveData< OrientedPoint3D< Real >, Real >& sample = samples[j].sample;
+				if (sample.weight > 0)
+				{
+					weightSum += sample.weight;
+					valueSum += evaluator.value(sample.data.p / sample.weight, omp_get_thread_num(), samples[j].node) * sample.weight;
+				}
+			}
+			isoValue = static_cast<Real>(valueSum / weightSum);
+			//DumpOutput("Iso-Value: %e\n", isoValue);
+		}
+
+		SparseNodeData< ProjectiveData< Point3D< Real >, Real >, DATA_DEGREE >* colorData = NULL;
+		if (withColors)
+		{
+			colorData = new SparseNodeData< ProjectiveData< Point3D< Real >, Real >, DATA_DEGREE >();
+			*colorData = tree.template setDataField< DATA_DEGREE, false >(samples, sampleData, (SparseNodeData< Real, WEIGHT_DEGREE >*)NULL);
+			for (const OctNode< TreeNodeData >* n = tree.tree().nextNode(); n; n = tree.tree().nextNode(n))
+			{
+				ProjectiveData< Point3D< Real >, Real >* clr = (*colorData)(n);
+				if (clr) (*clr) *= static_cast<Real>(pow(params.colorInterp, tree.depth(n)));
+			}
+		}
+
+		bool linearFit = false;
+		bool polygonMesh = false;
+		tree.template getMCIsoSurface< Degree, BType, WEIGHT_DEGREE, DATA_DEGREE >(
+			&density,
+			colorData,
+			solution,
+			isoValue,
+			mesh,
+			!linearFit,
+			!params.nonManifold,
+			polygonMesh);
+
+		//DumpOutput("Vertices / Polygons: %d / %d\n", mesh.outOfCorePointCount() + mesh.inCorePoints.size(), mesh.polygonCount());
+		if (colorData)
+		{
+			delete colorData;
+			colorData = NULL;
+		}
 	}
-
-	double maxMemoryUsage = tree.maxMemoryUsage;
-	tree.maxMemoryUsage = 0;
-	DenseNodeData< Real , Degree > constraints = tree.template SetLaplacianConstraints< Degree >( *normalInfo );
-	delete normalInfo;
-	normalInfo = NULL;
-	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
-
-	tree.maxMemoryUsage = 0;
-	DenseNodeData< Real , Degree > solution = tree.SolveSystem( *pointInfo , constraints , params.showResidual , params.iters, params.maxSolveDepth, params.cgDepth, params.cgAccuracy );
-	delete pointInfo;
-	pointInfo = NULL;
-	constraints.resize(0);
-	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
-
-	Real isoValue = tree.GetIsoValue( solution , *nodeWeights );
-	delete nodeWeights;
-	nodeWeights = NULL;
-	//DumpOutput( "Iso-Value: %e\n" , isoValue );
-
-	//output
-	tree.maxMemoryUsage = 0;
-	tree.template GetMCIsoSurface< Degree , WEIGHT_DEGREE , DATA_DEGREE >(
-							densityWeights,
-							colorData,
-							solution,
-							isoValue,
-							mesh,
-							true,
-							!params.nonManifold,
-							false );
-
-	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
-
-	//DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
-
-	solution.resize(0);
+	catch (const std::bad_alloc&)
+	{
+		//not enough memory
+		return false;
+	}
+	catch (std::exception e)
+	{
+		//not enough memory
+		return false;
+	}
+	catch (...)
+	{
+		//not enough memory
+		return false;
+	}
 
 	return true;
 }
 
-template< class PointCoordinateType, class Real, int Degree, class Vertex >
-bool Execute(PoissonReconLib::Parameters params, OrientedPointStreamWithData< PointCoordinateType , Point3D< unsigned char > >* pointStream, CoredVectorMeshData< Vertex >& mesh)
-{
-	XForm4x4< Real > xForm = XForm4x4< Real >::Identity();
-	XForm4x4< Real > iXForm = xForm.inverse();
-
-	//DGM: reset static parameters!!!
-	TreeNodeData::NodeCount = 0;
-
-	Octree< Real > tree;
-	tree.threads = params.threads;
-
-	if (params.maxSolveDepth == 0)
-		params.maxSolveDepth = params.depth;
-
-	OctNode< TreeNodeData >::SetAllocator( MEMORY_ALLOCATOR_BLOCK_SIZE );
-
-	if (params.maxSolveDepth < 2)
-		return false;
-	int kernelDepth = params.kernelDepth != 0 ?  params.kernelDepth : params.maxSolveDepth-2;
-	if( kernelDepth > params.depth )
-		return false;
-	params.fullDepth = std::min(params.fullDepth, params.depth);
-
-	tree.maxMemoryUsage = 0;
-	SparseNodeData< PointData< Real > , 0 >* pointInfo = new SparseNodeData< PointData < Real > , 0 >();
-	SparseNodeData< Point3D< Real > , NORMAL_DEGREE >* normalInfo = new SparseNodeData< Point3D< Real > , NORMAL_DEGREE >();
-	SparseNodeData< Real , WEIGHT_DEGREE >* densityWeights = new SparseNodeData< Real , WEIGHT_DEGREE >();
-	SparseNodeData< Real , NORMAL_DEGREE >* nodeWeights = new SparseNodeData< Real , NORMAL_DEGREE >();
-	typedef typename Octree< Real >::template ProjectiveData< Point3D< Real > > ProjectiveColor;
-	SparseNodeData< ProjectiveColor , DATA_DEGREE > colorData;
-
-
-	int pointCount = tree.template SetTree< PointCoordinateType, NORMAL_DEGREE , WEIGHT_DEGREE , DATA_DEGREE , Point3D< unsigned char > >
-								(
-									pointStream,
-									params.minDepth,
-									params.depth,
-									params.fullDepth,
-									kernelDepth,
-									static_cast<Real>(params.samplesPerNode),
-									params.scale,
-									params.confidence,
-									params.normalWeights,
-									params.pointWeight,
-									params.adaptiveExp,
-									*densityWeights,
-									*pointInfo,
-									*normalInfo,
-									*nodeWeights,
-									&colorData,
-									xForm,
-									params.dirichlet,
-									params.complete );
-
-	for (const OctNode< TreeNodeData >* n = tree.tree().nextNode(); n != NULL; n = tree.tree().nextNode( n ) )
-	{
-		int idx = colorData.index(n);
-		if (idx >= 0)
-			colorData.data[idx] *= static_cast<Real>(pow(params.colorInterp, n->depth()));
-	}
-
-	if( !params.density )
-	{
-		delete densityWeights;
-		densityWeights = NULL;
-	}
-	//reamp indexes
-	{
-		std::vector< int > indexMap;
-		if( NORMAL_DEGREE > Degree )
-			tree.template EnableMultigrid< NORMAL_DEGREE >( &indexMap );
-		else
-			tree.template EnableMultigrid<        Degree >( &indexMap );
-
-		if (pointInfo)
-			pointInfo->remapIndices( indexMap );
-		if (normalInfo)
-			normalInfo->remapIndices( indexMap );
-		if (densityWeights)
-			densityWeights->remapIndices( indexMap );
-		if (nodeWeights)
-			nodeWeights->remapIndices( indexMap );
-		colorData.remapIndices( indexMap );
-	}
-
-	//DumpOutput( "Input Points: %d\n" , pointCount );
-	//DumpOutput( "Leaves/Nodes: %d/%d\n" , tree.tree.leaves() , tree.tree.nodes() );
-
-	double maxMemoryUsage = tree.maxMemoryUsage;
-	tree.maxMemoryUsage = 0;
-
-	DenseNodeData< Real , Degree > constraints = tree.template SetLaplacianConstraints< Degree >( *normalInfo );
-	delete normalInfo;
-	normalInfo = 0;
-
-	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
-	tree.maxMemoryUsage = 0;
-
-	DenseNodeData< Real , Degree > solution = tree.SolveSystem( *pointInfo , constraints , params.showResidual , params.iters, params.maxSolveDepth, params.cgDepth, params.cgAccuracy );
-
-	delete pointInfo;
-	pointInfo = 0;
-	constraints.resize(0);
-
-	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
-
-	Real isoValue = tree.GetIsoValue( solution , *nodeWeights );
-	delete nodeWeights;
-	nodeWeights = 0;
-
-	//DumpOutput( "Iso-Value: %e\n" , isoValue );
-
-	//output
-	tree.maxMemoryUsage = 0;
-
-	tree.template GetMCIsoSurface< Degree , WEIGHT_DEGREE , DATA_DEGREE >(
-							densityWeights ? GetPointer( *densityWeights ) : NullPointer( Real ),
-							&colorData,
-							solution,
-							isoValue,
-							mesh,
-							true,
-							!params.nonManifold,
-							false );
-
-	maxMemoryUsage = std::max< double >( maxMemoryUsage , tree.maxMemoryUsage );
-
-	//DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
-
-	solution.resize(0);
-
-	return true;
-}
-
-bool PoissonReconLib::Reconstruct(Parameters params, OrientedPointStreamWithData< float , Point3D< unsigned char > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< float > >& mesh)
+bool PoissonReconLib::Reconstruct(	Parameters params,
+									OrientedPointStreamWithData< float , Point3D< float > >* pointStream,
+									CoredVectorMeshData< PlyColorAndValueVertex< float > >& mesh,
+									XForm4x4< float >& iXForm)
 {
 	return Execute<	float,
-					float,
 					BSPLINE_DEGREE,
-					PlyColorAndValueVertex< float > > (params, pointStream, mesh);
+					BOUNDARY_NEUMANN,
+					PlyColorAndValueVertex< float > >(params, pointStream, true, mesh, iXForm);
 }
 
-bool PoissonReconLib::Reconstruct(Parameters params, OrientedPointStream< float >* pointStream, CoredVectorMeshData< PlyValueVertex< float > >& mesh)
+bool PoissonReconLib::Reconstruct(	Parameters params,
+									OrientedPointStream< float >* pointStream,
+									CoredVectorMeshData< PlyValueVertex< float > >& mesh,
+									XForm4x4< float >& iXForm)
 {
 	return Execute<	float,
-					float,
 					BSPLINE_DEGREE,
-					PlyValueVertex< float > > (params, pointStream, mesh);
+					BOUNDARY_NEUMANN,
+					PlyValueVertex< float > > (params, pointStream, false, mesh, iXForm);
 }
 
-bool PoissonReconLib::Reconstruct(Parameters params, OrientedPointStreamWithData< double , Point3D< unsigned char > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< double > >& mesh)
+bool PoissonReconLib::Reconstruct(	Parameters params,
+									OrientedPointStreamWithData< double , Point3D< double > >* pointStream,
+									CoredVectorMeshData< PlyColorAndValueVertex< double > >& mesh,
+									XForm4x4< double >& iXForm)
 {
 	return Execute<	double,
-					double,
 					BSPLINE_DEGREE,
-					PlyColorAndValueVertex< double > > (params, pointStream, mesh);
+					BOUNDARY_NEUMANN,
+					PlyColorAndValueVertex< double > > (params, pointStream, true, mesh, iXForm);
 }
 
-bool PoissonReconLib::Reconstruct(Parameters params, OrientedPointStream< double >* pointStream, CoredVectorMeshData< PlyValueVertex< double > >& mesh)
+bool PoissonReconLib::Reconstruct(	Parameters params,
+									OrientedPointStream< double >* pointStream,
+									CoredVectorMeshData< PlyValueVertex< double > >& mesh,
+									XForm4x4< double >& iXForm)
 {
 	return Execute<	double,
-					double,
 					BSPLINE_DEGREE,
-					PlyValueVertex< double > > (params, pointStream, mesh);
+					BOUNDARY_NEUMANN,
+					PlyValueVertex< double > > (params, pointStream, false, mesh, iXForm);
 }

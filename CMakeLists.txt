@@ -13,7 +13,7 @@ set( SAMPLE_PROJECT_VERSION_MAJOR 8 )
 set( SAMPLE_PROJECT_VERSION_MINOR 0 )
 
 file( GLOB header_list Src_CC_wrap/*.h )
-list( APPEND header_list Src/Allocator.h Src/Array.h Src/BinaryNode.h Src/BSplineData.h Src/CmdLineParser.h Src/Factor.h Src/FunctionData.h Src/Geometry.h Src/Hash.h Src/MarchingCubes.h Src/MAT.h Src/MemoryUsage.h Src/MultiGridOctreeData.h Src/MyTime.h Src/Octree.h Src/Ply.h Src/PointStream.h Src/Polynomial.h Src/PPolynomial.h Src/SparseMatrix.h )
+list( APPEND header_list Src/Allocator.h Src/Array.h Src/BinaryNode.h Src/BSplineData.h Src/CmdLineParser.h Src/Factor.h Src/FunctionData.h Src/Geometry.h Src/MarchingCubes.h Src/MAT.h Src/MemoryUsage.h Src/MultiGridOctreeData.h Src/MyTime.h Src/Octree.h Src/Ply.h Src/PointStream.h Src/Polynomial.h Src/PPolynomial.h Src/SparseMatrix.h )
 list( APPEND inline_list Src/Array.inl Src/BSplineData.inl Src/CmdLineParser.inl Src/FunctionData.inl Src/Geometry.inl Src/MAT.inl Src/MultiGridOctreeData.inl Src/MultiGridOctreeData.IsoSurface.inl Src/MultiGridOctreeData.SortedTreeNodes.inl Src/Octree.inl Src/PointStream.inl Src/Polynomial.inl Src/PPolynomial.inl Src/SparseMatrix.inl )
 file( GLOB source_list Src_CC_wrap/*.cpp )
 list( APPEND source_list Src/CmdLineParser.cpp Src/Factor.cpp Src/Geometry.cpp Src/MarchingCubes.cpp Src/PlyFile.cpp )
