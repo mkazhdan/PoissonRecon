@@ -13,7 +13,7 @@ SOURCES +=  Src/PoissonRecon.cpp \
             Src/Geometry.cpp
 
 QMAKE_CXXFLAGS+=-fopenmp -Wsign-compare
-QMAKE_CXXFLAGS-=
+macx:QMAKE_CXXFLAGS-= -fopenmp
 
 TARGET=PoissonRecon
 
