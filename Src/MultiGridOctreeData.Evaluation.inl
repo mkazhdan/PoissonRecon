@@ -27,22 +27,22 @@ DAMAGE.
 */
 
 template< class Real >
-template< int FEMDegree >
-void Octree< Real >::_Evaluator< FEMDegree >::set( int depth , bool dirichlet )
+template< int FEMDegree , BoundaryType BType>
+void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 {
-	static const int  LeftPointSupportRadius =  BSplineEvaluationData< FEMDegree >::SupportEnd;
-	static const int RightPointSupportRadius = -BSplineEvaluationData< FEMDegree >::SupportStart;
+	static const int  LeftPointSupportRadius =  BSplineSupportSizes< FEMDegree >::SupportEnd;
+	static const int RightPointSupportRadius = -BSplineSupportSizes< FEMDegree >::SupportStart;
 
-	BSplineEvaluationData< FEMDegree >::SetEvaluator( evaluator , depth , dirichlet );
-	if( depth>0 ) BSplineEvaluationData< FEMDegree >::SetChildEvaluator( childEvaluator , depth-1 , dirichlet );
-	int center = BSplineData< FEMDegree >::Dimension( depth )>>1;
+	BSplineEvaluationData< FEMDegree , BType >::SetEvaluator( evaluator , depth );
+	if( depth>0 ) BSplineEvaluationData< FEMDegree , BType >::SetChildEvaluator( childEvaluator , depth-1 );
+	int center = ( 1<<depth )>>1;
 
 	// First set the stencils for the current depth
 	for( int x=-LeftPointSupportRadius ; x<=RightPointSupportRadius ; x++ ) for( int y=-LeftPointSupportRadius ; y<=RightPointSupportRadius ; y++ ) for( int z=-LeftPointSupportRadius ; z<=RightPointSupportRadius ; z++ )
 	{
 		int fIdx[] = { center+x , center+y , center+z };
 
-		//// The cell stencil
+		// The cell stencil
 		{
 			double vv[3] , dv[3];
 			for( int dd=0 ; dd<DIMENSION ; dd++ )
@@ -50,8 +50,8 @@ void Octree< Real >::_Evaluator< FEMDegree >::set( int depth , bool dirichlet )
 				vv[dd] = evaluator.centerValue( fIdx[dd] , center , false );
 				dv[dd] = evaluator.centerValue( fIdx[dd] , center , true  );
 			}
-			 cellStencil.values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = vv[0] * vv[1] * vv[2];
-			dCellStencil.values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
+			cellStencil( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = vv[0] * vv[1] * vv[2];
+			dCellStencil( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
 		}
 
 		//// The face stencil
@@ -87,8 +87,8 @@ void Octree< Real >::_Evaluator< FEMDegree >::set( int depth , bool dirichlet )
 				dv[2] = evaluator.cornerValue( fIdx[2] , center+off , true  );
 				break;
 			}
-			 faceStencil[f].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = vv[0] * vv[1] * vv[2];
-			dFaceStencil[f].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
+			faceStencil[f]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = vv[0] * vv[1] * vv[2];
+			dFaceStencil[f]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
 		}
 
 		//// The edge stencil
@@ -124,8 +124,8 @@ void Octree< Real >::_Evaluator< FEMDegree >::set( int depth , bool dirichlet )
 				dv[2] = evaluator.centerValue( fIdx[2] , center    , true  );
 				break;
 			}
-			 edgeStencil[e].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = vv[0] * vv[1] * vv[2];
-			dEdgeStencil[e].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
+			edgeStencil[e]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = vv[0] * vv[1] * vv[2];
+			dEdgeStencil[e]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
 		}
 
 		//// The corner stencil
@@ -140,8 +140,8 @@ void Octree< Real >::_Evaluator< FEMDegree >::set( int depth , bool dirichlet )
 			dv[0] = evaluator.cornerValue( fIdx[0] , center+cx , true  );
 			dv[1] = evaluator.cornerValue( fIdx[1] , center+cy , true  );
 			dv[2] = evaluator.cornerValue( fIdx[2] , center+cz , true  );
-			 cornerStencil[c].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = vv[0] * vv[1] * vv[2];
-			dCornerStencil[c].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
+			cornerStencil[c]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = vv[0] * vv[1] * vv[2];
+			dCornerStencil[c]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
 		}
 	}
 
@@ -163,8 +163,8 @@ void Octree< Real >::_Evaluator< FEMDegree >::set( int depth , bool dirichlet )
 				dv[0] = childEvaluator.centerValue( fIdx[0] , center+childX , true  );
 				dv[1] = childEvaluator.centerValue( fIdx[1] , center+childY , true  );
 				dv[2] = childEvaluator.centerValue( fIdx[2] , center+childZ , true  );
-				 cellStencils[child].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = vv[0] * vv[1] * vv[2];
-				dCellStencils[child].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
+				cellStencils[child]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = vv[0] * vv[1] * vv[2];
+				dCellStencils[child]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
 			}
 
 			//// The face stencil
@@ -200,10 +200,10 @@ void Octree< Real >::_Evaluator< FEMDegree >::set( int depth , bool dirichlet )
 					dv[2] = childEvaluator.cornerValue( fIdx[2] , center+childZ+off , true  );
 					break;
 				}
-				 faceStencils[child][f].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = vv[0] * vv[1] * vv[2];
-				dFaceStencils[child][f].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
+				faceStencils[child][f]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = vv[0] * vv[1] * vv[2];
+				dFaceStencils[child][f]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
 			}
-	
+
 			//// The edge stencil
 			for( int e=0 ; e<Cube::EDGES ; e++ )
 			{
@@ -237,10 +237,10 @@ void Octree< Real >::_Evaluator< FEMDegree >::set( int depth , bool dirichlet )
 					dv[2] = childEvaluator.centerValue( fIdx[2] , center+childZ    , true  );
 					break;
 				}
-				 edgeStencils[child][e].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = vv[0] * vv[1] * vv[2];
-				dEdgeStencils[child][e].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
+				edgeStencils[child][e]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = vv[0] * vv[1] * vv[2];
+				dEdgeStencils[child][e]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
 			}
-	
+
 			//// The corner stencil
 			for( int c=0 ; c<Cube::CORNERS ; c++ )
 			{
@@ -253,57 +253,278 @@ void Octree< Real >::_Evaluator< FEMDegree >::set( int depth , bool dirichlet )
 				dv[0] = childEvaluator.cornerValue( fIdx[0] , center+childX+cx , true  );
 				dv[1] = childEvaluator.cornerValue( fIdx[1] , center+childY+cy , true  );
 				dv[2] = childEvaluator.cornerValue( fIdx[2] , center+childZ+cz , true  );
-				 cornerStencils[child][c].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = vv[0] * vv[1] * vv[2];
-				dCornerStencils[child][c].values[x+LeftPointSupportRadius][y+LeftPointSupportRadius][z+LeftPointSupportRadius] = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
+				cornerStencils[child][c]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = vv[0] * vv[1] * vv[2];
+				dCornerStencils[child][c]( x+LeftPointSupportRadius , y+LeftPointSupportRadius , z+LeftPointSupportRadius ) = Point3D< double >( dv[0] * vv[1] * vv[2] , vv[0] * dv[1] * vv[2] , vv[0] * vv[1] * dv[2] );
 			}
 		}
 	}
+	if( _bsData ) delete _bsData;
+	_bsData = new BSplineData< FEMDegree , BType >( depth );
 }
 template< class Real >
-template< class V , int FEMDegree >
-V Octree< Real >::_getCenterValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const
+template< class V , int FEMDegree , BoundaryType BType >
+V Octree< Real >::_getValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const
 {
-	static const int SupportSize = BSplineEvaluationData< FEMDegree >::SupportSize;
-	static const int  LeftPointSupportRadius =   BSplineEvaluationData< FEMDegree >::SupportEnd;
-	static const int RightPointSupportRadius = - BSplineEvaluationData< FEMDegree >::SupportStart;
+	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
+	static const int  LeftSupportRadius = -BSplineSupportSizes< FEMDegree >::SupportStart;
+	static const int RightSupportRadius =  BSplineSupportSizes< FEMDegree >::SupportEnd;
+	static const int  LeftPointSupportRadius =   BSplineSupportSizes< FEMDegree >::SupportEnd;
+	static const int RightPointSupportRadius = - BSplineSupportSizes< FEMDegree >::SupportStart;
 
-	if( node->children ) fprintf( stderr , "[WARNING] getCenterValue assumes leaf node\n" );
+	if( IsActiveNode( node->children ) ) fprintf( stderr , "[WARNING] getValue assumes leaf node\n" );
 	V value(0);
-	int d = _Depth( node );
+
+	while( GetGhostFlag( node ) )
+	{
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
+
+		for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+		{
+			const TreeOctNode* _n = neighbors.neighbors[i][j][k];
+
+			if( _isValidFEMNode( _n ) )
+			{
+				int _pIdx[3];
+				Point3D< Real > _s ; Real _w;
+				_startAndWidth( _n , _s , _w );
+				int _fIdx[3];
+				functionIndex< FEMDegree , BType >( _n , _fIdx );
+				for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
+				value += 
+					solution[ _n->nodeData.nodeIndex ] *
+					(Real)
+					(
+						evaluator._bsData->baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) *
+						evaluator._bsData->baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) *
+						evaluator._bsData->baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
+						);
+			}
+		}
+		node = node->parent;
+	}
+
+	LocalDepth d = _localDepth( node );
+
+	for( int dd=0 ; dd<3 ; dd++ )
+		if     ( p[dd]==0 ) p[dd] = (Real)(0.+1e-6);
+		else if( p[dd]==1 ) p[dd] = (Real)(1.-1e-6);
+
+		{
+			const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
+
+			for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+			{
+				const TreeOctNode* _n = neighbors.neighbors[i][j][k];
+				if( _isValidFEMNode( _n ) )
+				{
+					int _pIdx[3];
+					Point3D< Real > _s ; Real _w;
+					_startAndWidth( _n , _s , _w );
+					int _fIdx[3];
+					functionIndex< FEMDegree , BType >( _n , _fIdx );
+					for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
+					value += 
+						solution[ _n->nodeData.nodeIndex ] *
+						(Real)
+						(
+							evaluator._bsData->baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) *
+							evaluator._bsData->baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) *
+							evaluator._bsData->baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
+							);
+				}
+			}
+			if( d>0 )
+			{
+				const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
+				for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+				{
+					const TreeOctNode* _n = neighbors.neighbors[i][j][k];
+					if( _isValidFEMNode( _n ) )
+					{
+						int _pIdx[3];
+						Point3D< Real > _s ; Real _w;
+						_startAndWidth( _n , _s , _w );
+						int _fIdx[3];
+						functionIndex< FEMDegree , BType >( _n , _fIdx );
+						for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
+						value += 
+							coarseSolution[ _n->nodeData.nodeIndex ] *
+							(Real)
+							(
+								evaluator._bsData->baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) *
+								evaluator._bsData->baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) *
+								evaluator._bsData->baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
+								);
+					}
+				}
+			}
+		}
+		return value;
+}
+template< class Real >
+template< int FEMDegree , BoundaryType BType >
+std::pair< Real , Point3D< Real > > Octree< Real >::_getValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const
+{
+	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
+	static const int  LeftSupportRadius = -BSplineSupportSizes< FEMDegree >::SupportStart;
+	static const int RightSupportRadius =  BSplineSupportSizes< FEMDegree >::SupportEnd;
+	static const int  LeftPointSupportRadius =   BSplineSupportSizes< FEMDegree >::SupportEnd;
+	static const int RightPointSupportRadius = - BSplineSupportSizes< FEMDegree >::SupportStart;
+
+	if( IsActiveNode( node->children ) ) fprintf( stderr , "[WARNING] _getValueAndGradient assumes leaf node\n" );
+	Real value(0);
+	Point3D< Real > gradient;
+
+	while( GetGhostFlag( node ) )
+	{
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
+
+		for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+		{
+			const TreeOctNode* _n = neighbors.neighbors[i][j][k];
+
+			if( _isValidFEMNode( _n ) )
+			{
+				int _pIdx[3];
+				Point3D< Real > _s; Real _w;
+				_startAndWidth( _n , _s , _w );
+				int _fIdx[3];
+				functionIndex< FEMDegree , BType >( _n , _fIdx );
+				for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
+				value += 
+					solution[ _n->nodeData.nodeIndex ] *
+					(Real)
+					(
+						evaluator._bsData->baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData->baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData->baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
+					);
+				gradient += 
+					Point3D< Real >
+					(
+						evaluator._bsData->dBaseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData-> baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData-> baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] ) ,
+						evaluator._bsData-> baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData->dBaseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData-> baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] ) ,
+						evaluator._bsData-> baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData-> baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData->dBaseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
+					) * solution[ _n->nodeData.nodeIndex ];
+			}
+		}
+		node = node->parent;
+	}
+
+
+	LocalDepth d = _localDepth( node );
+
+	for( int dd=0 ; dd<3 ; dd++ )
+		if     ( p[dd]==0 ) p[dd] = (Real)(0.+1e-6);
+		else if( p[dd]==1 ) p[dd] = (Real)(1.-1e-6);
+
+		{
+			const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
+
+			for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+			{
+				const TreeOctNode* _n = neighbors.neighbors[i][j][k];
+
+				if( _isValidFEMNode( _n ) )
+				{
+					int _pIdx[3];
+					Point3D< Real > _s ; Real _w;
+					_startAndWidth( _n , _s , _w );
+					int _fIdx[3];
+					functionIndex< FEMDegree , BType >( _n , _fIdx );
+					for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
+					value += 
+						solution[ _n->nodeData.nodeIndex ] *
+						(Real)
+						(
+							evaluator._bsData->baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData->baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData->baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
+						);
+					gradient += 
+						Point3D< Real >
+						(
+							evaluator._bsData->dBaseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData-> baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData-> baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] ) ,
+							evaluator._bsData-> baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData->dBaseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData-> baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] ) ,
+							evaluator._bsData-> baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData-> baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData->dBaseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
+						) * solution[ _n->nodeData.nodeIndex ];
+				}
+			}
+			if( d>0 )
+			{
+				const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
+				for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+				{
+					const TreeOctNode* _n = neighbors.neighbors[i][j][k];
+
+					if( _isValidFEMNode( _n ) )
+					{
+						int _pIdx[3];
+						Point3D< Real > _s ; Real _w;
+						_startAndWidth( _n , _s , _w );
+						int _fIdx[3];
+						functionIndex< FEMDegree , BType >( _n , _fIdx );
+						for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
+						value += 
+							coarseSolution[ _n->nodeData.nodeIndex ] *
+							(Real)
+							(
+								evaluator._bsData->baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData->baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData->baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
+							);
+						gradient += 
+							Point3D< Real >
+							(
+								evaluator._bsData->dBaseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData-> baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData-> baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] ) ,
+								evaluator._bsData-> baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData->dBaseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData-> baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] ) ,
+								evaluator._bsData-> baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData-> baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData->dBaseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
+							) * coarseSolution[ _n->nodeData.nodeIndex ];
+					}
+				}
+			}
+		}
+		return std::pair< Real , Point3D< Real > >( value , gradient );
+}
+template< class Real >
+template< class V , int FEMDegree , BoundaryType BType >
+V Octree< Real >::_getCenterValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
+{
+	static const int SupportSize = BSplineEvaluationData< FEMDegree , BType >::SupportSize;
+	static const int  LeftPointSupportRadius =   BSplineEvaluationData< FEMDegree , BType >::SupportEnd;
+	static const int RightPointSupportRadius = - BSplineEvaluationData< FEMDegree , BType >::SupportStart;
+
+	if( IsActiveNode( node->children ) ) fprintf( stderr , "[WARNING] getCenterValue assumes leaf node\n" );
+	V value(0);
+	LocalDepth d = _localDepth( node );
 
 	if( isInterior )
 	{
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
 		for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
 		{
 			const TreeOctNode* n = neighbors.neighbors[i][j][k];
-			if( n ) value += solution[ n->nodeData.nodeIndex ] * Real( evaluator.cellStencil.values[i][j][k] );
+			if( IsActiveNode( n ) ) value += solution[ n->nodeData.nodeIndex ] * Real( evaluator.cellStencil( i , j , k ) );
 		}
-		if( d>_minDepth-1 )
+		if( d>0 )
 		{
 			int _corner = int( node - node->parent->children );
-			const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d-1 );
+			const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
 			for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
 			{
 				const TreeOctNode* n = neighbors.neighbors[i][j][k];
-				if( n ) value += metSolution[n->nodeData.nodeIndex] * Real( evaluator.cellStencils[_corner].values[i][j][k] );
+				if( IsActiveNode( n ) ) value += coarseSolution[n->nodeData.nodeIndex] * Real( evaluator.cellStencils[_corner]( i , j , k ) );
 			}
 		}
 	}
 	else
 	{
-		int cIdx[3];
-		_DepthAndOffset( node , d , cIdx );
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d );
+		LocalOffset cIdx;
+		_localDepthAndOffset( node , d , cIdx );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
 
 		for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
 		{
 			const TreeOctNode* n = neighbors.neighbors[i][j][k];
 
-			if( _IsValidNode< FEMDegree >( n ) )
+			if( _isValidFEMNode( n ) )
 			{
-				int _d , fIdx[3];
-				_DepthAndOffset( n , _d , fIdx );
+				LocalDepth _d ; LocalOffset fIdx;
+				_localDepthAndOffset( n , _d , fIdx );
 				value +=
 					solution[ n->nodeData.nodeIndex ] *
 					Real(
@@ -313,18 +534,18 @@ V Octree< Real >::_getCenterValue( const ConstPointSupportKey< FEMDegree >& neig
 					);
 			}
 		}
-		if( d>_minDepth-1 )
+		if( d>0 )
 		{
-			const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d-1 );
+			const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
 			for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
 			{
 				const TreeOctNode* n = neighbors.neighbors[i][j][k];
-				if( _IsValidNode< FEMDegree >( n ) )
+				if( _isValidFEMNode( n ) )
 				{
-					int _d , fIdx[3];
-					_DepthAndOffset( n , _d , fIdx );
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( n , _d , fIdx );
 					value +=
-						metSolution[ n->nodeData.nodeIndex ] *
+						coarseSolution[ n->nodeData.nodeIndex ] *
 						Real(
 							evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , false ) *
 							evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , false ) *
@@ -337,84 +558,180 @@ V Octree< Real >::_getCenterValue( const ConstPointSupportKey< FEMDegree >& neig
 	return value;
 }
 template< class Real >
-template< class V , int FEMDegree >
-V Octree< Real >::_getEdgeValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const
+template< int FEMDegree , BoundaryType BType >
+std::pair< Real , Point3D< Real > > Octree< Real >::_getCenterValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
-	static const int SupportSize = BSplineEvaluationData< FEMDegree >::SupportSize;
-	static const int  LeftPointSupportRadius =  BSplineEvaluationData< FEMDegree >::SupportEnd;
-	static const int RightPointSupportRadius = -BSplineEvaluationData< FEMDegree >::SupportStart;
+	static const int SupportSize = BSplineEvaluationData< FEMDegree , BType >::SupportSize;
+	static const int  LeftPointSupportRadius =   BSplineEvaluationData< FEMDegree , BType >::SupportEnd;
+	static const int RightPointSupportRadius = - BSplineEvaluationData< FEMDegree , BType >::SupportStart;
+
+	if( IsActiveNode( node->children ) ) fprintf( stderr , "[WARNING] getCenterValueAndGradient assumes leaf node\n" );
+	Real value(0);
+	Point3D< Real > gradient;
+	LocalDepth d = _localDepth( node );
+
+	if( isInterior )
+	{
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
+		for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+		{
+			const TreeOctNode* n = neighbors.neighbors[i][j][k];
+			if( IsActiveNode( n ) )
+			{
+				value    +=          Real  ( evaluator. cellStencil( i , j , k ) ) * solution[ n->nodeData.nodeIndex ];
+				gradient += Point3D< Real >( evaluator.dCellStencil( i , j , k ) ) * solution[ n->nodeData.nodeIndex ];
+			}
+		}
+		if( d>0 )
+		{
+			int _corner = int( node - node->parent->children );
+			const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
+			for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+			{
+				const TreeOctNode* n = neighbors.neighbors[i][j][k];
+				if( IsActiveNode( n ) )
+				{
+					value    +=          Real  ( evaluator. cellStencils[_corner]( i , j , k ) ) * coarseSolution[n->nodeData.nodeIndex];
+					gradient += Point3D< Real >( evaluator.dCellStencils[_corner]( i , j , k ) ) * coarseSolution[n->nodeData.nodeIndex];
+				}
+			}
+		}
+	}
+	else
+	{
+		LocalOffset cIdx;
+		_localDepthAndOffset( node , d , cIdx );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
+
+		for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+		{
+			const TreeOctNode* n = neighbors.neighbors[i][j][k];
+
+			if( _isValidFEMNode( n ) )
+			{
+				LocalDepth _d ; LocalOffset fIdx;
+				_localDepthAndOffset( n , _d , fIdx );
+				value +=
+					Real
+					(
+						evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , false ) * evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , false ) * evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , false )
+					) * solution[ n->nodeData.nodeIndex ];
+				gradient += 
+					Point3D< Real >
+					(
+						evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , true  ) * evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , false ) * evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , false ) ,
+						evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , false ) * evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , true  ) * evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , false ) ,
+						evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , false ) * evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , false ) * evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , true  )
+						) * solution[ n->nodeData.nodeIndex ];
+			}
+		}
+		if( d>0 )
+		{
+			const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
+			for( int i=0 ; i<SupportSize ; i++ ) for( int j=0 ; j<SupportSize ; j++ ) for( int k=0 ; k<SupportSize ; k++ )
+			{
+				const TreeOctNode* n = neighbors.neighbors[i][j][k];
+				if( _isValidFEMNode( n ) )
+				{
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( n , _d , fIdx );
+					value +=
+						Real
+						(
+							evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , false ) * evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , false ) * evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , false )
+						) * coarseSolution[ n->nodeData.nodeIndex ];
+					gradient +=
+						Point3D< Real >
+						(
+							evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , true  ) * evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , false ) * evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , false ) ,
+							evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , false ) * evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , true  ) * evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , false ) ,
+							evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , false ) * evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , false ) * evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , true  )
+						) * coarseSolution[ n->nodeData.nodeIndex ];
+				}
+			}
+		}
+	}
+	return std::pair< Real , Point3D< Real > >( value , gradient );
+}
+template< class Real >
+template< class V , int FEMDegree , BoundaryType BType >
+V Octree< Real >::_getEdgeValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
+{
+	static const int SupportSize = BSplineEvaluationData< FEMDegree , BType >::SupportSize;
+	static const int  LeftPointSupportRadius =  BSplineEvaluationData< FEMDegree , BType >::SupportEnd;
+	static const int RightPointSupportRadius = -BSplineEvaluationData< FEMDegree , BType >::SupportStart;
 	V value(0);
-	int d , cIdx[3];
-	_DepthAndOffset( node , d , cIdx );
+	LocalDepth d ; LocalOffset cIdx;
+	_localDepthAndOffset( node , d , cIdx );
 	int startX = 0 , endX = SupportSize , startY = 0 , endY = SupportSize , startZ = 0 , endZ = SupportSize;
 	int orientation , i1 , i2;
 	Cube::FactorEdgeIndex( edge , orientation , i1 , i2 );
 	switch( orientation )
 	{
-		case 0:
-			cIdx[1] += i1 , cIdx[2] += i2;
-			if( i1 ) startY++ ; else endY--;
-			if( i2 ) startZ++ ; else endZ--;
-			break;
-		case 1:
-			cIdx[0] += i1 , cIdx[2] += i2;
-			if( i1 ) startX++ ; else endX--;
-			if( i2 ) startZ++ ; else endZ--;
-			break;
-		case 2:
-			cIdx[0] += i1 , cIdx[1] += i2;
-			if( i1 ) startX++ ; else endX--;
-			if( i2 ) startY++ ; else endY--;
-			break;
+	case 0:
+		cIdx[1] += i1 , cIdx[2] += i2;
+		if( i1 ) startY++ ; else endY--;
+		if( i2 ) startZ++ ; else endZ--;
+		break;
+	case 1:
+		cIdx[0] += i1 , cIdx[2] += i2;
+		if( i1 ) startX++ ; else endX--;
+		if( i2 ) startZ++ ; else endZ--;
+		break;
+	case 2:
+		cIdx[0] += i1 , cIdx[1] += i2;
+		if( i1 ) startX++ ; else endX--;
+		if( i2 ) startY++ ; else endY--;
+		break;
 	}
 
 	{
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d );
 		for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 		{
 			const TreeOctNode* _node = neighbors.neighbors[x][y][z];
-			if( _IsValidNode< FEMDegree >( _node ) )
+			if( _isValidFEMNode( _node ) )
 			{
-				if( isInterior ) value += solution[ _node->nodeData.nodeIndex ] * evaluator.edgeStencil[edge].values[x][y][z];
+				if( isInterior ) value += solution[ _node->nodeData.nodeIndex ] * evaluator.edgeStencil[edge]( x , y , z );
 				else
 				{
-					int _d , fIdx[3];
-					_DepthAndOffset( _node , _d , fIdx );
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( _node , _d , fIdx );
 					switch( orientation )
 					{
-						case 0:
-							value +=
-								solution[ _node->nodeData.nodeIndex ] *
-									Real(
-									evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , false ) *
-									evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , false ) *
-									evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , false )
-								);
-							break;
-						case 1:
-							value +=
-								solution[ _node->nodeData.nodeIndex ] *
-								Real(
-									evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , false ) *
-									evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , false ) *
-									evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , false )
-								);
-							break;
-						case 2:
-							value +=
-								solution[ _node->nodeData.nodeIndex ] *
-								Real(
-									evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , false ) *
-									evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , false ) *
-									evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , false )
-								);
+					case 0:
+						value +=
+							solution[ _node->nodeData.nodeIndex ] *
+							Real(
+								evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , false ) *
+								evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , false ) *
+								evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , false )
+							);
+						break;
+					case 1:
+						value +=
+							solution[ _node->nodeData.nodeIndex ] *
+							Real(
+								evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , false ) *
+								evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , false ) *
+								evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , false )
+							);
+						break;
+					case 2:
+						value +=
+							solution[ _node->nodeData.nodeIndex ] *
+							Real(
+								evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , false ) *
+								evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , false ) *
+								evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , false )
+							);
 						break;
 					}
 				}
 			}
 		}
 	}
-	if( d>_minDepth-1 )
+	if( d>0 )
 	{
 		int _corner = int( node - node->parent->children );
 		int _cx , _cy , _cz;
@@ -436,46 +753,46 @@ V Octree< Real >::_getEdgeValue( const ConstPointSupportKey< FEMDegree >& neighb
 			if( _cy!=i2 ) startY = 0 , endY = SupportSize;
 			break;
 		}
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d-1 );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
 		for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 		{
 			const TreeOctNode* _node = neighbors.neighbors[x][y][z];
-			if( _IsValidNode< FEMDegree >( _node ) )
+			if( _isValidFEMNode( _node ) )
 			{
-				if( isInterior ) value += metSolution[ _node->nodeData.nodeIndex ] * evaluator.edgeStencils[_corner][edge].values[x][y][z];
+				if( isInterior ) value += coarseSolution[ _node->nodeData.nodeIndex ] * evaluator.edgeStencils[_corner][edge]( x , y , z );
 				else
 				{
-					int _d , fIdx[3];
-					_DepthAndOffset( _node , _d , fIdx );
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( _node , _d , fIdx );
 					switch( orientation )
 					{
-						case 0:
-							value +=
-								metSolution[ _node->nodeData.nodeIndex ] *
-								Real(
-									evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , false ) *
-									evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false ) *
-									evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , false )
-								);
-							break;
-						case 1:
-							value +=
-								metSolution[ _node->nodeData.nodeIndex ] *
-								Real(
-									evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false ) *
-									evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , false ) *
-									evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , false )
-								);
-							break;
-						case 2:
-							value +=
-								metSolution[ _node->nodeData.nodeIndex ] *
-								Real(
-									evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false ) *
-									evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false ) *
-									evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , false )
-								);
-							break;
+					case 0:
+						value +=
+							coarseSolution[ _node->nodeData.nodeIndex ] *
+							Real(
+								evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , false ) *
+								evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false ) *
+								evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , false )
+							);
+						break;
+					case 1:
+						value +=
+							coarseSolution[ _node->nodeData.nodeIndex ] *
+							Real(
+								evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false ) *
+								evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , false ) *
+								evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , false )
+							);
+						break;
+					case 2:
+						value +=
+							coarseSolution[ _node->nodeData.nodeIndex ] *
+							Real(
+								evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false ) *
+								evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false ) *
+								evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , false )
+							);
+						break;
 					}
 				}
 			}
@@ -484,82 +801,82 @@ V Octree< Real >::_getEdgeValue( const ConstPointSupportKey< FEMDegree >& neighb
 	return Real( value );
 }
 template< class Real >
-template< int FEMDegree >
-std::pair< Real , Point3D< Real > > Octree< Real >::_getEdgeValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const
+template< int FEMDegree , BoundaryType BType >
+std::pair< Real , Point3D< Real > > Octree< Real >::_getEdgeValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
-	static const int SupportSize = BSplineEvaluationData< FEMDegree >::SupportSize;
-	static const int  LeftPointSupportRadius =  BSplineEvaluationData< FEMDegree >::SupportEnd;
-	static const int RightPointSupportRadius = -BSplineEvaluationData< FEMDegree >::SupportStart;
+	static const int SupportSize = BSplineEvaluationData< FEMDegree , BType >::SupportSize;
+	static const int  LeftPointSupportRadius =  BSplineEvaluationData< FEMDegree , BType >::SupportEnd;
+	static const int RightPointSupportRadius = -BSplineEvaluationData< FEMDegree , BType >::SupportStart;
 	double value = 0;
 	Point3D< double > gradient;
-	int d , cIdx[3];
-	_DepthAndOffset( node , d , cIdx );
+	LocalDepth d ; LocalOffset cIdx;
+	_localDepthAndOffset( node , d , cIdx );
 
 	int startX = 0 , endX = SupportSize , startY = 0 , endY = SupportSize , startZ = 0 , endZ = SupportSize;
 	int orientation , i1 , i2;
 	Cube::FactorEdgeIndex( edge , orientation , i1 , i2 );
 	switch( orientation )
 	{
-		case 0:
-			cIdx[1] += i1 , cIdx[2] += i2;
-			if( i1 ) startY++ ; else endY--;
-			if( i2 ) startZ++ ; else endZ--;
-			break;
-		case 1:
-			cIdx[0] += i1 , cIdx[2] += i2;
-			if( i1 ) startX++ ; else endX--;
-			if( i2 ) startZ++ ; else endZ--;
-			break;
-		case 2:
-			cIdx[0] += i1 , cIdx[1] += i2;
-			if( i1 ) startX++ ; else endX--;
-			if( i2 ) startY++ ; else endY--;
-			break;
+	case 0:
+		cIdx[1] += i1 , cIdx[2] += i2;
+		if( i1 ) startY++ ; else endY--;
+		if( i2 ) startZ++ ; else endZ--;
+		break;
+	case 1:
+		cIdx[0] += i1 , cIdx[2] += i2;
+		if( i1 ) startX++ ; else endX--;
+		if( i2 ) startZ++ ; else endZ--;
+		break;
+	case 2:
+		cIdx[0] += i1 , cIdx[1] += i2;
+		if( i1 ) startX++ ; else endX--;
+		if( i2 ) startY++ ; else endY--;
+		break;
 	}
 	{
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
 		for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 		{
 			const TreeOctNode* _node = neighbors.neighbors[x][y][z];
-			if( _IsValidNode< FEMDegree >( _node ) )
+			if( _isValidFEMNode( _node ) )
 			{
 				if( isInterior )
 				{
-					value    += evaluator. edgeStencil[edge].values[x][y][z] * solution[ _node->nodeData.nodeIndex ];
-					gradient += evaluator.dEdgeStencil[edge].values[x][y][z] * solution[ _node->nodeData.nodeIndex ];
+					value    += evaluator. edgeStencil[edge]( x , y , z ) * solution[ _node->nodeData.nodeIndex ];
+					gradient += evaluator.dEdgeStencil[edge]( x , y , z ) * solution[ _node->nodeData.nodeIndex ];
 				}
 				else
 				{
-					int _d , fIdx[3];
-					_DepthAndOffset( _node , _d , fIdx );
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( _node , _d , fIdx );
 
 					double vv[3] , dv[3];
 					switch( orientation )
 					{
-						case 0:
-							vv[0] = evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , false );
-							vv[1] = evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , false );
-							vv[2] = evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , false );
-							dv[0] = evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , true  );
-							dv[1] = evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , true  );
-							dv[2] = evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , true  );
-							break;
-						case 1:
-							vv[0] = evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , false );
-							vv[1] = evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , false );
-							vv[2] = evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , false );
-							dv[0] = evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , true  );
-							dv[1] = evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , true  );
-							dv[2] = evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , true  );
-							break;
-						case 2:
-							vv[0] = evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , false );
-							vv[1] = evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , false );
-							vv[2] = evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , false );
-							dv[0] = evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , true  );
-							dv[1] = evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , true  );
-							dv[2] = evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , true  );
-							break;
+					case 0:
+						vv[0] = evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , false );
+						vv[1] = evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , false );
+						vv[2] = evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , false );
+						dv[0] = evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , true  );
+						dv[1] = evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , true  );
+						dv[2] = evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , true  );
+						break;
+					case 1:
+						vv[0] = evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , false );
+						vv[1] = evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , false );
+						vv[2] = evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , false );
+						dv[0] = evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , true  );
+						dv[1] = evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , true  );
+						dv[2] = evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , true  );
+						break;
+					case 2:
+						vv[0] = evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , false );
+						vv[1] = evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , false );
+						vv[2] = evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , false );
+						dv[0] = evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , true  );
+						dv[1] = evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , true  );
+						dv[2] = evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , true  );
+						break;
 					}
 					value += solution[ _node->nodeData.nodeIndex ] * vv[0] * vv[1] * vv[2];
 					gradient += Point3D< double >( dv[0]*vv[1]*vv[2] , vv[0]*dv[1]*vv[2] , vv[0]*vv[1]*dv[2] ) * solution[ _node->nodeData.nodeIndex ];
@@ -567,7 +884,7 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getEdgeValueAndGradient( co
 			}
 		}
 	}
-	if( d>_minDepth-1 )
+	if( d>0 )
 	{
 		int _corner = int( node - node->parent->children );
 		int _cx , _cy , _cz;
@@ -589,51 +906,51 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getEdgeValueAndGradient( co
 			if( _cy!=i2 ) startY = 0 , endY = SupportSize;
 			break;
 		}
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d-1 );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
 		for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 		{
 			const TreeOctNode* _node = neighbors.neighbors[x][y][z];
-			if( _IsValidNode< FEMDegree >( _node ) )
+			if( _isValidFEMNode( _node ) )
 			{
 				if( isInterior )
 				{
-					value    += evaluator. edgeStencils[_corner][edge].values[x][y][z] * metSolution[ _node->nodeData.nodeIndex ];
-					gradient += evaluator.dEdgeStencils[_corner][edge].values[x][y][z] * metSolution[ _node->nodeData.nodeIndex ];
+					value    += evaluator. edgeStencils[_corner][edge]( x , y , z ) * coarseSolution[ _node->nodeData.nodeIndex ];
+					gradient += evaluator.dEdgeStencils[_corner][edge]( x , y , z ) * coarseSolution[ _node->nodeData.nodeIndex ];
 				}
 				else
 				{
-					int _d , fIdx[3];
-					_DepthAndOffset( _node , _d , fIdx );
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( _node , _d , fIdx );
 					double vv[3] , dv[3];
 					switch( orientation )
 					{
-						case 0:
-							vv[0] = evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , false );
-							vv[1] = evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false );
-							vv[2] = evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , false );
-							dv[0] = evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , true  );
-							dv[1] = evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , true  );
-							dv[2] = evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , true  );
-							break;
-						case 1:
-							vv[0] = evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false );
-							vv[1] = evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , false );
-							vv[2] = evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , false );
-							dv[0] = evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , true  );
-							dv[1] = evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , true  );
-							dv[2] = evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , true  );
-							break;
-						case 2:
-							vv[0] = evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false );
-							vv[1] = evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false );
-							vv[2] = evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , false );
-							dv[0] = evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , true  );
-							dv[1] = evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , true  );
-							dv[2] = evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , true  );
-							break;
+					case 0:
+						vv[0] = evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , false );
+						vv[1] = evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false );
+						vv[2] = evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , false );
+						dv[0] = evaluator.childEvaluator.centerValue( fIdx[0] , cIdx[0] , true  );
+						dv[1] = evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , true  );
+						dv[2] = evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , true  );
+						break;
+					case 1:
+						vv[0] = evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false );
+						vv[1] = evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , false );
+						vv[2] = evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , false );
+						dv[0] = evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , true  );
+						dv[1] = evaluator.childEvaluator.centerValue( fIdx[1] , cIdx[1] , true  );
+						dv[2] = evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , true  );
+						break;
+					case 2:
+						vv[0] = evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false );
+						vv[1] = evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false );
+						vv[2] = evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , false );
+						dv[0] = evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , true  );
+						dv[1] = evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , true  );
+						dv[2] = evaluator.childEvaluator.centerValue( fIdx[2] , cIdx[2] , true  );
+						break;
 					}
-					value += metSolution[ _node->nodeData.nodeIndex ] * vv[0] * vv[1] * vv[2];
-					gradient += Point3D< double >( dv[0]*vv[1]*vv[2] , vv[0]*dv[1]*vv[2] , vv[0]*vv[1]*dv[2] ) * metSolution[ _node->nodeData.nodeIndex ];
+					value += coarseSolution[ _node->nodeData.nodeIndex ] * vv[0] * vv[1] * vv[2];
+					gradient += Point3D< double >( dv[0]*vv[1]*vv[2] , vv[0]*dv[1]*vv[2] , vv[0]*vv[1]*dv[2] ) * coarseSolution[ _node->nodeData.nodeIndex ];
 				}
 			}
 		}
@@ -642,23 +959,23 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getEdgeValueAndGradient( co
 }
 
 template< class Real >
-template< class V , int FEMDegree >
-V Octree< Real >::_getCornerValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const
+template< class V , int FEMDegree , BoundaryType BType >
+V Octree< Real >::_getCornerValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
-	static const int SupportSize = BSplineEvaluationData< FEMDegree >::SupportSize;
-	static const int  LeftPointSupportRadius =   BSplineEvaluationData< FEMDegree >::SupportEnd;
-	static const int RightPointSupportRadius = - BSplineEvaluationData< FEMDegree >::SupportStart;
+	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
+	static const int  LeftPointSupportRadius =   BSplineSupportSizes< FEMDegree >::SupportEnd;
+	static const int RightPointSupportRadius = - BSplineSupportSizes< FEMDegree >::SupportStart;
 
 	V value(0);
-	int d , cIdx[3];
-	_DepthAndOffset( node , d , cIdx );
+	LocalDepth d ; LocalOffset cIdx;
+	_localDepthAndOffset( node , d , cIdx );
 
 	int cx , cy , cz;
 	int startX = 0 , endX = SupportSize , startY = 0 , endY = SupportSize , startZ = 0 , endZ = SupportSize;
 	Cube::FactorCornerIndex( corner , cx , cy , cz );
 	cIdx[0] += cx , cIdx[1] += cy , cIdx[2] += cz;
 	{
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
 		if( cx==0 ) endX--;
 		else      startX++;
 		if( cy==0 ) endY--;
@@ -669,16 +986,16 @@ V Octree< Real >::_getCornerValue( const ConstPointSupportKey< FEMDegree >& neig
 			for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 			{
 				const TreeOctNode* _node=neighbors.neighbors[x][y][z];
-				if( _node ) value += solution[ _node->nodeData.nodeIndex ] * Real( evaluator.cornerStencil[corner].values[x][y][z] );
+				if( IsActiveNode( _node ) ) value += solution[ _node->nodeData.nodeIndex ] * Real( evaluator.cornerStencil[corner]( x , y , z ) );
 			}
 		else
 			for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 			{
 				const TreeOctNode* _node = neighbors.neighbors[x][y][z];
-				if( _IsValidNode< FEMDegree >( _node ) )
+				if( _isValidFEMNode( _node ) )
 				{
-					int _d , fIdx[3];
-					_DepthAndOffset( _node , _d , fIdx );
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( _node , _d , fIdx );
 					value +=
 						solution[ _node->nodeData.nodeIndex ] *
 						Real(
@@ -689,7 +1006,7 @@ V Octree< Real >::_getCornerValue( const ConstPointSupportKey< FEMDegree >& neig
 				}
 			}
 	}
-	if( d>_minDepth-1 )
+	if( d>0 )
 	{
 		int _corner = int( node - node->parent->children );
 		int _cx , _cy , _cz;
@@ -699,23 +1016,23 @@ V Octree< Real >::_getCornerValue( const ConstPointSupportKey< FEMDegree >& neig
 		if( cx!=_cx ) startX = 0 , endX = SupportSize;
 		if( cy!=_cy ) startY = 0 , endY = SupportSize;
 		if( cz!=_cz ) startZ = 0 , endZ = SupportSize;
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d-1 );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
 		if( isInterior )
 			for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 			{
 				const TreeOctNode* _node=neighbors.neighbors[x][y][z];
-				if( _node ) value += metSolution[ _node->nodeData.nodeIndex ] * Real( evaluator.cornerStencils[_corner][corner].values[x][y][z] );
+				if( IsActiveNode( _node ) ) value += coarseSolution[ _node->nodeData.nodeIndex ] * Real( evaluator.cornerStencils[_corner][corner]( x , y , z ) );
 			}
 		else
 			for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 			{
 				const TreeOctNode* _node = neighbors.neighbors[x][y][z];
-				if( _IsValidNode< FEMDegree >( _node ) )
+				if( _isValidFEMNode( _node ) )
 				{
-					int _d , fIdx[3];
-					_DepthAndOffset( _node , _d , fIdx );
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( _node , _d , fIdx );
 					value +=
-						metSolution[ _node->nodeData.nodeIndex ] *
+						coarseSolution[ _node->nodeData.nodeIndex ] *
 						Real(
 							evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false ) *
 							evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false ) *
@@ -727,17 +1044,17 @@ V Octree< Real >::_getCornerValue( const ConstPointSupportKey< FEMDegree >& neig
 	return Real( value );
 }
 template< class Real >
-template< int FEMDegree >
-std::pair< Real , Point3D< Real > > Octree< Real >::_getCornerValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& metSolution , const _Evaluator< FEMDegree >& evaluator , bool isInterior ) const
+template< int FEMDegree , BoundaryType BType >
+std::pair< Real , Point3D< Real > > Octree< Real >::_getCornerValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
-	static const int SupportSize = BSplineEvaluationData< FEMDegree >::SupportSize;
-	static const int  LeftPointSupportRadius =   BSplineEvaluationData< FEMDegree >::SupportEnd;
-	static const int RightPointSupportRadius = - BSplineEvaluationData< FEMDegree >::SupportStart;
+	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
+	static const int  LeftPointSupportRadius =   BSplineSupportSizes< FEMDegree >::SupportEnd;
+	static const int RightPointSupportRadius = - BSplineSupportSizes< FEMDegree >::SupportStart;
 
 	double value = 0;
 	Point3D< double > gradient;
-	int d , cIdx[3];
-	_DepthAndOffset( node , d , cIdx );
+	LocalDepth d ; LocalOffset cIdx;
+	_localDepthAndOffset( node , d , cIdx );
 
 	int cx , cy , cz;
 	int startX = 0 , endX = SupportSize , startY = 0 , endY = SupportSize , startZ = 0 , endZ = SupportSize;
@@ -750,21 +1067,21 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getCornerValueAndGradient( 
 		else      startY++;
 		if( cz==0 ) endZ--;
 		else      startZ++;
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node );
 		if( isInterior )
 			for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 			{
 				const TreeOctNode* _node=neighbors.neighbors[x][y][z];
-				if( _node ) value += solution[ _node->nodeData.nodeIndex ] * evaluator.cornerStencil[corner].values[x][y][z] , gradient += evaluator.dCornerStencil[corner].values[x][y][z] * solution[ _node->nodeData.nodeIndex ];
+				if( IsActiveNode( _node ) ) value += solution[ _node->nodeData.nodeIndex ] * evaluator.cornerStencil[corner]( x , y , z ) , gradient += evaluator.dCornerStencil[corner]( x , y , z ) * solution[ _node->nodeData.nodeIndex ];
 			}
 		else
 			for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 			{
 				const TreeOctNode* _node = neighbors.neighbors[x][y][z];
-				if( _IsValidNode< FEMDegree >( _node ) )
+				if( _isValidFEMNode( _node ) )
 				{
-					int _d , fIdx[3];
-					_DepthAndOffset( _node , _d , fIdx );
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( _node , _d , fIdx );
 					double v [] = { evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , false ) , evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , false ) , evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , false ) };
 					double dv[] = { evaluator.evaluator.cornerValue( fIdx[0] , cIdx[0] , true  ) , evaluator.evaluator.cornerValue( fIdx[1] , cIdx[1] , true  ) , evaluator.evaluator.cornerValue( fIdx[2] , cIdx[2] , true  ) };
 					value += solution[ _node->nodeData.nodeIndex ] * v[0] * v[1] * v[2];
@@ -772,7 +1089,7 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getCornerValueAndGradient( 
 				}
 			}
 	}
-	if( d>_minDepth-1 )
+	if( d>0 )
 	{
 		int _corner = int( node - node->parent->children );
 		int _cx , _cy , _cz;
@@ -780,27 +1097,55 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getCornerValueAndGradient( 
 		if( cx!=_cx ) startX = 0 , endX = SupportSize;
 		if( cy!=_cy ) startY = 0 , endY = SupportSize;
 		if( cz!=_cz ) startZ = 0 , endZ = SupportSize;
-		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _Neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , d-1 );
+		const typename TreeOctNode::ConstNeighbors< SupportSize >& neighbors = _neighbors< LeftPointSupportRadius , RightPointSupportRadius >( neighborKey , node->parent );
 		if( isInterior )
 			for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 			{
 				const TreeOctNode* _node=neighbors.neighbors[x][y][z];
-				if( _node ) value += metSolution[ _node->nodeData.nodeIndex ] * evaluator.cornerStencils[_corner][corner].values[x][y][z] , gradient += evaluator.dCornerStencils[_corner][corner].values[x][y][z] * metSolution[ _node->nodeData.nodeIndex ];
+				if( IsActiveNode( _node ) ) value += coarseSolution[ _node->nodeData.nodeIndex ] * evaluator.cornerStencils[_corner][corner]( x , y , z ) , gradient += evaluator.dCornerStencils[_corner][corner]( x , y , z ) * coarseSolution[ _node->nodeData.nodeIndex ];
 			}
 		else
 			for( int x=startX ; x<endX ; x++ ) for( int y=startY ; y<endY ; y++ ) for( int z=startZ ; z<endZ ; z++ )
 			{
 				const TreeOctNode* _node = neighbors.neighbors[x][y][z];
-				if( _IsValidNode< FEMDegree >( _node ) )
+				if( _isValidFEMNode( _node ) )
 				{
-					int _d , fIdx[3];
-					_DepthAndOffset( _node , _d , fIdx );
+					LocalDepth _d ; LocalOffset fIdx;
+					_localDepthAndOffset( _node , _d , fIdx );
 					double v [] = { evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , false ) , evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , false ) , evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , false ) };
 					double dv[] = { evaluator.childEvaluator.cornerValue( fIdx[0] , cIdx[0] , true  ) , evaluator.childEvaluator.cornerValue( fIdx[1] , cIdx[1] , true  ) , evaluator.childEvaluator.cornerValue( fIdx[2] , cIdx[2] , true  ) };
-					value += metSolution[ _node->nodeData.nodeIndex ] * v[0] * v[1] * v[2];
-					gradient += Point3D< double >( dv[0]*v[1]*v[2] , v[0]*dv[1]*v[2] , v[0]*v[1]*dv[2] ) * metSolution[ _node->nodeData.nodeIndex ];
+					value += coarseSolution[ _node->nodeData.nodeIndex ] * v[0] * v[1] * v[2];
+					gradient += Point3D< double >( dv[0]*v[1]*v[2] , v[0]*dv[1]*v[2] , v[0]*v[1]*dv[2] ) * coarseSolution[ _node->nodeData.nodeIndex ];
 				}
 			}
 	}
 	return std::pair< Real , Point3D< Real > >( Real( value ) , Point3D< Real >( gradient ) );
+}
+template< class Real >
+template< int Degree , BoundaryType BType >
+Octree< Real >::MultiThreadedEvaluator< Degree , BType >::MultiThreadedEvaluator( const Octree< Real >* tree , const DenseNodeData< Real , Degree >& coefficients , int threads ) : _coefficients( coefficients ) , _tree( tree )
+{
+	_threads = std::max< int >( 1 , threads );
+	_neighborKeys.resize( _threads );
+	_coarseCoefficients = _tree->template coarseCoefficients< Real , Degree , BType >( _coefficients );
+	_evaluator.set( _tree->_maxDepth );
+	for( int t=0 ; t<_threads ; t++ ) _neighborKeys[t].set( tree->_localToGlobal( _tree->_maxDepth ) );
+}
+template< class Real >
+template< int Degree , BoundaryType BType >
+Real Octree< Real >::MultiThreadedEvaluator< Degree , BType >::value( Point3D< Real > p , int thread , const TreeOctNode* node )
+{
+	if( !node ) node = _tree->leaf( p );
+	ConstPointSupportKey< Degree >& nKey = _neighborKeys[thread];
+	nKey.getNeighbors( node );
+	return _tree->template _getValue< Real , Degree >( nKey , node , p , _coefficients , _coarseCoefficients , _evaluator );
+}
+template< class Real >
+template< int Degree , BoundaryType BType >
+std::pair< Real , Point3D< Real > > Octree< Real >::MultiThreadedEvaluator< Degree , BType >::valueAndGradient( Point3D< Real > p , int thread , const TreeOctNode* node )
+{
+	if( !node ) node = _tree->leaf( p );
+	ConstPointSupportKey< Degree >& nKey = _neighborKeys[thread];
+	nKey.getNeighbors( node );
+	return _tree->template _getValueAndGradient< Degree >( nKey , node , p , _coefficients , _coarseCoefficients , _evaluator );
 }

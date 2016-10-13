@@ -130,9 +130,10 @@ cmdLineReadable
 	NonManifold( "nonManifold" ) ,
 	ASCII( "ascii" ) ,
 	Density( "density" ) ,
-	LinearFit( "linearFit" ) ,
+	NonLinearFit( "nonLinearFit" ) ,
 	PrimalVoxel( "primalVoxel" ) ,
 #ifndef FAST_COMPILE
+	FreeBoundary( "freeBoundary" ) ,
 	Double( "double" ) ,
 #endif // !FAST_COMPILE
 	Verbose( "verbose" );
@@ -148,9 +149,6 @@ cmdLineInt
 	Iters( "iters" , 8 ) ,
 	VoxelDepth( "voxelDepth" , -1 ) ,
 	FullDepth( "fullDepth" , DEFAULT_FULL_DEPTH ) ,
-#ifndef FAST_COMPILE
-	BType( "bType" , BOUNDARY_NEUMANN+1 ) ,
-#endif // !FAST_COMPILE
 	MaxSolveDepth( "maxSolveDepth" ) ,
 	Threads( "threads" , omp_get_num_procs() );
 
@@ -158,26 +156,29 @@ cmdLineFloat
 	Color( "color" , 16.f ) ,
 	SamplesPerNode( "samplesPerNode" , 1.5f ) ,
 	Scale( "scale" , 1.1f ) ,
-	CGSolverAccuracy( "cgAccuracy" , float(1e-3) ) ,
-	LowResIterMultiplier( "iterMultiplier" , 1.f ) , 
-	PointWeight( "pointWeight" , 4.f );
+	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
+	LowResIterMultiplier( "iterMultiplier" , 1.5f ) , 
+	ValueWeight   (    "valueWeight" , 4e-0f ) , 
+	GradientWeight( "gradientWeight" , 1e-3f ) ,
+	BiLapWeight   (    "biLapWeight" , 1e-5f );
 
 
 cmdLineReadable* params[] =
 {
 #ifndef FAST_COMPILE
-	&Degree , &Double , &BType ,
+	&Degree , &Double , &FreeBoundary ,
 #endif // !FAST_COMPILE
 	&In , &Depth , &Out , &XForm ,
 	&Scale , &Verbose , &CGSolverAccuracy , &NoComments , &LowResIterMultiplier ,
 	&KernelDepth , &SamplesPerNode , &Confidence , &NormalWeights , &NonManifold , &PolygonMesh , &ASCII , &ShowResidual , &VoxelDepth ,
-	&PointWeight , &VoxelGrid , &Threads , &MaxSolveDepth ,
+	&BiLapWeight ,
+	&ValueWeight , &GradientWeight , &VoxelGrid , &Threads , &MaxSolveDepth ,
 	&AdaptiveExponent ,
 	&Density ,
 	&FullDepth ,
 	&CGDepth , &Iters ,
 	&Color ,
-	&LinearFit ,
+	&NonLinearFit ,
 	&PrimalVoxel ,
 #if defined( _WIN32 ) || defined( _WIN64 )
 	&Performance ,
@@ -185,7 +186,7 @@ cmdLineReadable* params[] =
 };
 
 
-void ShowUsage(char* ex)
+void ShowUsage( char* ex )
 {
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input points>\n" , In.name );
@@ -197,9 +198,10 @@ void ShowUsage(char* ex)
 #ifndef FAST_COMPILE
 	printf( "\t[--%s <b-spline degree>=%d]\n" , Degree.name , Degree.value );
 
-	printf( "\t[--%s <boundary type>=%d]\n" , BType.name , BType.value );
-	for( int i=0 ; i<BOUNDARY_COUNT ; i++ ) printf( "\t\t%d] %s\n" , i+1 , BoundaryNames[i] );
-#endif // FAST_COMPILE
+#ifndef FOR_RELEASE
+	printf( "\t[--%s]\n" , FreeBoundary.name );
+#endif // !FOR_RELEASE
+#endif // !FAST_COMPILE
 
 	printf( "\t[--%s <maximum reconstruction depth>=%d]\n" , Depth.name , Depth.value );
 
@@ -207,7 +209,11 @@ void ShowUsage(char* ex)
 
 	printf( "\t[--%s <minimum number of samples per node>=%f]\n" , SamplesPerNode.name, SamplesPerNode.value );
 
-	printf( "\t[--%s <interpolation weight>=%.3e]\n" , PointWeight.name , PointWeight.value );
+	printf( "\t[--%s <zero-crossing weight>=%.3e]\n" , ValueWeight.name , ValueWeight.value );
+
+	printf( "\t[--%s <gradient weight>=%.3e]\n" , GradientWeight.name , GradientWeight.value );
+
+	printf( "\t[--%s <bi-laplacian weight>=%.3e]\n" , BiLapWeight.name , BiLapWeight.value );
 
 	printf( "\t[--%s]\n" , Confidence.name );
 
@@ -239,7 +245,7 @@ void ShowUsage(char* ex)
 
 	printf( "\t[--%s]\n" , Density.name );
 
-	printf( "\t[--%s]\n" , LinearFit.name );
+	printf( "\t[--%s]\n" , NonLinearFit.name );
 
 	printf( "\t[--%s]\n" , PolygonMesh.name);
 
@@ -257,17 +263,17 @@ void ShowUsage(char* ex)
 #if defined( _WIN32 ) || defined( _WIN64 )
 	printf( "\t[--%s]\n" , Performance.name );
 #endif // _WIN32 || _WIN64
-#endif // !FOR_RELEASE
 
+#endif // !FOR_RELEASE
 #ifndef FOR_RELEASE
 	printf( "\t[--%s]\n" , ASCII.name );
 	
 	printf( "\t[--%s]\n" , NoComments.name );
-
+#endif // !FOR_RELEASE
+	
 #ifndef FAST_COMPILE
 	printf( "\t[--%s]\n" , Double.name );
-#endif // FAST_COMPILE
-#endif // !FOR_RELEASE
+#endif // !FAST_COMPILE
 }
 
 template< class Real >
@@ -302,6 +308,8 @@ const PlyProperty ColorInfo< double >::PlyProperties[] =
 	{ "green" , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "blue"  , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[2] ) ) , 0 , 0 , 0 , 0 }
 };
+
+bool ValidPlyColorProperties( const bool* props ){ return ( props[0] || props[3] ) && ( props[1] || props[4] ) && ( props[2] || props[5] ); }
 
 double Weight( double v , double start , double end )
 {
@@ -390,7 +398,7 @@ XForm4x4< Real > GetPointXForm( OrientedPointStream< Real >& stream , Real scale
 template< class Real , int Degree , BoundaryType BType , class Vertex >
 int _Execute( int argc , char* argv[] )
 {
-	typedef typename Octree< Real >::template InterpolationInfo< false > InterpolationInfo;
+	typedef typename Octree< Real >::template InterpolationInfo< true > InterpolationInfo;
 	typedef OrientedPointStream< Real > PointStream;
 	typedef OrientedPointStreamWithData< Real , Point3D< Real > > PointStreamWithData;
 	typedef TransformedOrientedPointStream< Real > XPointStream;
@@ -423,7 +431,7 @@ int _Execute( int argc , char* argv[] )
 	}
 	else xForm = XForm4x4< Real >::Identity();
 
-	DumpOutput2( comments , "Running Screened Poisson Reconstruction (Version 9.0)\n" );
+	DumpOutput2( comments , "Running SSD Reconstruction (Version 9.0)\n" );
 	char str[1024];
 	for( int i=0 ; i<paramNum ; i++ )
 		if( params[i]->set )
@@ -460,9 +468,10 @@ int _Execute( int argc , char* argv[] )
 	Real pointWeightSum;
 	std::vector< typename Octree< Real >::PointSample >* samples = new std::vector< typename Octree< Real >::PointSample >();
 	std::vector< ProjectiveData< Point3D< Real > , Real > >* sampleData = NULL;
-	SparseNodeData< Real , WEIGHT_DEGREE >* density;
-	SparseNodeData< Point3D< Real > , NORMAL_DEGREE >* normalInfo;
-	Real targetValue = (Real)0.5;
+	SparseNodeData< Real , WEIGHT_DEGREE >* density = NULL;
+	SparseNodeData< Point3D< Real > , NORMAL_DEGREE >* normalInfo = NULL;
+	Real targetValue = (Real)0.;
+
 	// Read in the samples (and color data)
 	{
 		profiler.start();
@@ -502,8 +511,9 @@ int _Execute( int argc , char* argv[] )
 		DumpOutput( "Input Points / Samples: %d / %d\n" , pointCount , samples->size() );
 		profiler.dumpOutput2( comments , "# Read input into tree:" );
 	}
-	DenseNodeData< Real , Degree > solution;
 
+	DenseNodeData< Real , Degree > solution;
+	// Solve
 	{
 		DenseNodeData< Real , Degree > constraints;
 		InterpolationInfo* iInfo = NULL;
@@ -511,7 +521,7 @@ int _Execute( int argc , char* argv[] )
 
 		tree.resetNodeIndices();
 
-		// Get the kernel density estimator [If discarding, compute anew. Otherwise, compute once.]
+		// Get the kernel density estimator
 		{
 			profiler.start();
 			density = new SparseNodeData< Real , WEIGHT_DEGREE >();
@@ -519,7 +529,7 @@ int _Execute( int argc , char* argv[] )
 			profiler.dumpOutput2( comments , "#   Got kernel density:" );
 		}
 
-		// Transform the Hermite samples into a vector field [If discarding, compute anew. Otherwise, compute once.]
+		// Transform the Hermite samples into a vector field
 		{
 			profiler.start();
 			normalInfo = new SparseNodeData< Point3D< Real > , NORMAL_DEGREE >();
@@ -542,22 +552,15 @@ int _Execute( int argc , char* argv[] )
 			profiler.dumpOutput2( comments , "#       Finalized tree:" );
 		}
 
-		// Add the FEM constraints
-		{
-			profiler.start();
-			constraints = tree.template initDenseNodeData< Degree >( );
-			tree.template addFEMConstraints< Degree , BType , NORMAL_DEGREE , BType >( FEMVFConstraintFunctor< NORMAL_DEGREE , BType , Degree , BType >( 1. , 0. ) , *normalInfo , constraints , solveDepth );
-			profiler.dumpOutput2( comments , "#  Set FEM constraints:" );
-		}
-
-		// Free up the normal info [If we don't need it for subseequent iterations.]
-		delete normalInfo , normalInfo = NULL;
+		// Free up the normal info
+		if( normalInfo ) delete normalInfo , normalInfo = NULL;
 
 		// Add the interpolation constraints
-		if( PointWeight.value>0 )
+		if( ValueWeight.value>0 || GradientWeight.value>0 )
 		{
 			profiler.start();
-			iInfo = new InterpolationInfo( tree , *samples , targetValue , AdaptiveExponent.value , (Real)PointWeight.value * pointWeightSum , (Real)0 );
+			iInfo = new InterpolationInfo( tree , *samples , targetValue , AdaptiveExponent.value , (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum );
+			constraints = tree.template initDenseNodeData< Degree >( );
 			tree.template addInterpolationConstraints< Degree , BType >( *iInfo , constraints , solveDepth );
 			profiler.dumpOutput2( comments , "#Set point constraints:" );
 		}
@@ -570,8 +573,9 @@ int _Execute( int argc , char* argv[] )
 			profiler.start();
 			typename Octree< Real >::SolverInfo solverInfo;
 			solverInfo.cgDepth = CGDepth.value , solverInfo.iters = Iters.value , solverInfo.cgAccuracy = CGSolverAccuracy.value , solverInfo.verbose = Verbose.set , solverInfo.showResidual = ShowResidual.set , solverInfo.lowResIterMultiplier = std::max< double >( 1. , LowResIterMultiplier.value );
-			solution = tree.template solveSystem< Degree , BType >( FEMSystemFunctor< Degree , BType >( 0 , 1. , 0 ) , iInfo , constraints , solveDepth , solverInfo );
+			solution = tree.template solveSystem< Degree , BType >( FEMSystemFunctor< Degree , BType >( 0 , 0 , BiLapWeight.value ) , iInfo , constraints , solveDepth , solverInfo );
 			profiler.dumpOutput2( comments , "# Linear system solved:" );
+			DumpOutput( "Memory Usage: %.3f MB\n" , float( MemoryInfo::Usage() )/(1<<20) );
 			if( iInfo ) delete iInfo , iInfo = NULL;
 		}
 	}
@@ -634,7 +638,7 @@ int _Execute( int argc , char* argv[] )
 				if( clr ) (*clr) *= (Real)pow( Color.value , tree.depth( n ) );
 			}
 		}
-		tree.template getMCIsoSurface< Degree , BType , WEIGHT_DEGREE , DATA_DEGREE >( density , colorData , solution , isoValue , mesh , !LinearFit.set , !NonManifold.set , PolygonMesh.set );
+		tree.template getMCIsoSurface< Degree , BType , WEIGHT_DEGREE , DATA_DEGREE >( density , colorData , solution , isoValue , mesh , NonLinearFit.set , !NonManifold.set , PolygonMesh.set );
 		DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
 		if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
 		else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
@@ -671,51 +675,27 @@ inline double to_seconds( const FILETIME& ft )
 template< class Real , class Vertex >
 int Execute( int argc , char* argv[] )
 {
-	switch( BType.value )
-	{
-		case BOUNDARY_FREE+1:
+	if( FreeBoundary.set )
+		switch( Degree.value )
 		{
-			switch( Degree.value )
-			{
-			case 1: return _Execute< Real , 1 , BOUNDARY_FREE , Vertex >( argc , argv );
-			case 2: return _Execute< Real , 2 , BOUNDARY_FREE , Vertex >( argc , argv );
-			case 3: return _Execute< Real , 3 , BOUNDARY_FREE , Vertex >( argc , argv );
-			case 4: return _Execute< Real , 4 , BOUNDARY_FREE , Vertex >( argc , argv );
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) ; return EXIT_FAILURE;
-			}
+		case 2: return _Execute< Real , 2 , BOUNDARY_FREE , Vertex >( argc , argv );
+		case 3: return _Execute< Real , 3 , BOUNDARY_FREE , Vertex >( argc , argv );
+		case 4: return _Execute< Real , 4 , BOUNDARY_FREE , Vertex >( argc , argv );
+		default: fprintf( stderr , "[ERROR] Only B-Splines of degree 2 - 4 are supported" ) ; return EXIT_FAILURE;
 		}
-		case BOUNDARY_NEUMANN+1:
+	else
+		switch( Degree.value )
 		{
-			switch( Degree.value )
-			{
-			case 1: return _Execute< Real , 1 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
-			case 2: return _Execute< Real , 2 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
-			case 3: return _Execute< Real , 3 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
-			case 4: return _Execute< Real , 4 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) ; return EXIT_FAILURE;
-			}
+		case 2: return _Execute< Real , 2 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
+		case 3: return _Execute< Real , 3 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
+		case 4: return _Execute< Real , 4 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
+		default: fprintf( stderr , "[ERROR] Only B-Splines of degree 2 - 4 are supported" ) ; return EXIT_FAILURE;
 		}
-		case BOUNDARY_DIRICHLET+1:
-		{
-			switch( Degree.value )
-			{
-			case 1: return _Execute< Real , 1 , BOUNDARY_DIRICHLET , Vertex >( argc , argv );
-			case 2: return _Execute< Real , 2 , BOUNDARY_DIRICHLET , Vertex >( argc , argv );
-			case 3: return _Execute< Real , 3 , BOUNDARY_DIRICHLET , Vertex >( argc , argv );
-			case 4: return _Execute< Real , 4 , BOUNDARY_DIRICHLET , Vertex >( argc , argv );
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) ; return EXIT_FAILURE;
-			}
-		}
-		default: fprintf( stderr , "[ERROR] Not a valid boundary type: %d\n" , BType.value ) ; return EXIT_FAILURE;
-	}
 }
 #endif // !FAST_COMPILE
 int main( int argc , char* argv[] )
 {
-#ifdef ARRAY_DEBUG
-	fprintf( stderr , "[WARNING] Running in array debugging mode\n" );
-#endif // ARRAY_DEBUG
-#if defined( WIN32 ) && defined( MAX_MEMORY_GB )
+#if defined(WIN32) && defined(MAX_MEMORY_GB)
 	if( MAX_MEMORY_GB>0 )
 	{
 		SIZE_T peakMemory = 1;
@@ -731,37 +711,37 @@ int main( int argc , char* argv[] )
 		if( !SetInformationJobObject( h , JobObjectExtendedLimitInformation , &jeli , sizeof( jeli ) ) )
 			fprintf( stderr , "Failed to set memory limit\n" );
 	}
-#endif // defined( WIN32 ) && defined( MAX_MEMORY_GB )
+#endif // defined(WIN32) && defined(MAX_MEMORY_GB)
 	double t = Time();
 
 	cmdLineParse( argc-1 , &argv[1] , sizeof(params)/sizeof(cmdLineReadable*) , params , 1 );
+	if( GradientWeight.value<=0 ) fprintf( stderr , "[ERROR] Gradient weight must be positive: %g>=0\n" , GradientWeight.value ) , exit( 0 );
+	if( BiLapWeight.value<=0 ) fprintf( stderr , "[ERROR] Bi-Laplacian weight must be positive: %g>=0\n" , BiLapWeight.value ) , exit( 0 );
 #ifdef FAST_COMPILE
 	static const int Degree = 2;
 	static const BoundaryType BType = BOUNDARY_NEUMANN;
 	fprintf( stderr , "[WARNING] Compiling for degree-%d, boundary-%s, single-precision _only_\n" , Degree , BoundaryNames[ BType ] );
 	if( Density.set )
-		if( Color.set && Color.value>0 ) return _Execute< float , Degree , BType , PlyColorAndValueVertex< float > >( argc , argv );
-		else                             return _Execute< float , Degree , BType , PlyValueVertex< float > >( argc , argv );
+		if( Color.set && Color.value>0 ) _Execute< float , Degree , BType , PlyColorAndValueVertex< float > >( argc , argv );
+		else                             _Execute< float , Degree , BType , PlyValueVertex< float > >( argc , argv );
 	else
-		if( Color.set && Color.value>0 ) return _Execute< float , Degree , BType , PlyColorVertex< float > >( argc , argv );
-		else                             return _Execute< float , Degree , BType , PlyVertex< float > >( argc , argv );
+		if( Color.set && Color.value>0 ) _Execute< float , Degree , BType , PlyColorVertex< float > >( argc , argv );
+		else                             _Execute< float , Degree , BType , PlyVertex< float > >( argc , argv );
 #else // !FAST_COMPILE
-	{
-		if( Density.set )
-			if( Color.set && Color.value>0 )
-				if( Double.set ) Execute< double , PlyColorAndValueVertex< float > >( argc , argv );
-				else             Execute< float  , PlyColorAndValueVertex< float > >( argc , argv );
-			else
-				if( Double.set ) Execute< double , PlyValueVertex< float > >( argc , argv );
-				else             Execute< float  , PlyValueVertex< float > >( argc , argv );
+	if( Density.set )
+		if( Color.set && Color.value>0 )
+			if( Double.set ) Execute< double , PlyColorAndValueVertex< float > >( argc , argv );
+			else             Execute< float  , PlyColorAndValueVertex< float > >( argc , argv );
 		else
-			if( Color.set && Color.value>0 )
-				if( Double.set ) Execute< double , PlyColorVertex< float > >( argc , argv );
-				else             Execute< float  , PlyColorVertex< float > >( argc , argv );
-			else
-				if( Double.set ) Execute< double , PlyVertex< float > >( argc , argv );
-				else             Execute< float  , PlyVertex< float > >( argc , argv );
-	}
+			if( Double.set ) Execute< double , PlyValueVertex< float > >( argc , argv );
+			else             Execute< float  , PlyValueVertex< float > >( argc , argv );
+	else
+		if( Color.set && Color.value>0 )
+			if( Double.set ) Execute< double , PlyColorVertex< float > >( argc , argv );
+			else             Execute< float  , PlyColorVertex< float > >( argc , argv );
+		else
+			if( Double.set ) Execute< double , PlyVertex< float > >( argc , argv );
+			else             Execute< float  , PlyVertex< float > >( argc , argv );
 #endif // FAST_COMPILE
 #if defined( _WIN32 ) || defined( _WIN64 )
 	if( Performance.set )
@@ -773,7 +753,7 @@ int main( int argc , char* argv[] )
 		else printf( "Time: %.2f\n" , Time()-t );
 		HANDLE h = GetCurrentProcess();
 		PROCESS_MEMORY_COUNTERS pmc;
-		if( GetProcessMemoryInfo( h , &pmc , sizeof(pmc) ) ) printf( "Peak Memory (MB): %d\n" , (int)( pmc.PeakWorkingSetSize>>20 ) );
+		if( GetProcessMemoryInfo( h , &pmc , sizeof(pmc) ) ) printf( "Peak Memory (MB): %d\n" , (int)(pmc.PeakWorkingSetSize>>20) );
 	}
 #endif // _WIN32 || _WIN64
 	return EXIT_SUCCESS;

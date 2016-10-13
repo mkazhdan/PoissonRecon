@@ -27,10 +27,10 @@
     <ClCompile Include="Src\MarchingCubes.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Src\PoissonRecon.cpp">
+    <ClCompile Include="Src\PlyFile.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Src\PlyFile.cpp">
+    <ClCompile Include="Src\SSDRecon.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

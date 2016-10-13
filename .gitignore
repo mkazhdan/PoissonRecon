@@ -4,5 +4,4 @@
 /Debug/
 /Bin/
 *.opensdf
-
-*.user
+*.bat

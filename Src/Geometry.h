@@ -29,10 +29,11 @@ DAMAGE.
 #ifndef GEOMETRY_INCLUDED
 #define GEOMETRY_INCLUDED
 
+#include <stdio.h>
 #include <math.h>
 #include <vector>
 #include <stdlib.h>
-#include "Hash.h"
+#include <unordered_map>
 
 template<class Real>
 Real Random(void);
@@ -165,6 +166,40 @@ struct XForm4x4
 	}
 };
 
+template< class Real >
+struct OrientedPoint3D
+{
+	Point3D< Real > p , n;
+	OrientedPoint3D( Point3D< Real > pp=Point3D< Real >() , Point3D< Real > nn=Point3D< Real >() ) : p(pp) , n(nn) { ; }
+	template< class _Real > OrientedPoint3D( const OrientedPoint3D< _Real >& p ) : OrientedPoint3D( Point3D< Real >( p.p ) , Point3D< Real >( p.n ) ){ ; }
+
+	template< class _Real > inline OrientedPoint3D& operator += ( OrientedPoint3D< _Real > _p ){ p += _p.p , n += _p.n ; return *this; }
+	template< class _Real > inline OrientedPoint3D  operator +  ( OrientedPoint3D< _Real > _p ) const { return OrientedPoint3D< Real >( p+_p.p , n+_p.n ); }
+	template< class _Real > inline OrientedPoint3D& operator *= ( _Real r ) { p *= r , n *= r ; return *this; }
+	template< class _Real > inline OrientedPoint3D  operator *  ( _Real r ) const { return OrientedPoint3D< Real >( p*r , n*r ); }
+
+	template< class _Real > inline OrientedPoint3D& operator -= ( OrientedPoint3D< _Real > p ){ return ( (*this)+=(-p) ); }
+	template< class _Real > inline OrientedPoint3D  operator -  ( OrientedPoint3D< _Real > p ) const { return (*this)+(-p); }
+	template< class _Real > inline OrientedPoint3D& operator /= ( _Real r ){ return ( (*this)*=Real(1./r) ); }
+	template< class _Real > inline OrientedPoint3D  operator /  ( _Real r ) const { return (*this) * ( Real(1.)/r ); }
+};
+
+template< class Data , class Real >
+struct ProjectiveData
+{
+	Data data;
+	Real weight;
+	ProjectiveData( Data d=Data(0) , Real w=Real(0) ) : data(d) , weight(w) { ; }
+	operator Data (){ return weight!=0 ? data/weight : data*weight; }
+	ProjectiveData& operator += ( const ProjectiveData& p ){ data += p.data , weight += p.weight ; return *this; }
+	ProjectiveData& operator -= ( const ProjectiveData& p ){ data -= p.data , weight -= p.weight ; return *this; }
+	ProjectiveData& operator *= ( Real s ){ data *= s , weight *= s ; return *this; }
+	ProjectiveData& operator /= ( Real s ){ data /= s , weight /= s ; return *this; }
+	ProjectiveData  operator +  ( const ProjectiveData& p ) const { return ProjectiveData( data+p.data , weight+p.weight ); }
+	ProjectiveData  operator -  ( const ProjectiveData& p ) const { return ProjectiveData( data-p.data , weight-p.weight ); }
+	ProjectiveData  operator *  ( Real s ) const { return ProjectiveData( data*s , weight*s ); }
+	ProjectiveData  operator /  ( Real s ) const { return ProjectiveData( data/s , weight/s ); }
+};
 
 template<class Real>
 Point3D<Real> RandomBallPoint(void);
@@ -280,7 +315,7 @@ public:
 	int addTriangle( int p1 , int p2 , int p3 );
 
 protected:
-	hash_map<long long,int> edgeMap;
+	std::unordered_map<long long, int> edgeMap;
 	static long long EdgeIndex( int p1 , int p2 );
 	double area(const Triangle& t);
 };
