@@ -31,7 +31,6 @@ DAMAGE.
 
 #include <vector>
 
-#define ARRAY_DEBUG 0
 #ifdef _WIN64
 #define ASSERT( x ) { if( !( x ) ) __debugbreak(); }
 #else // !_WIN64
@@ -57,7 +56,7 @@ void* aligned_malloc( size_t size , size_t align )
 }
 void aligned_free( void* mem ) { free( ( ( void** )mem )[-1] ); }
 
-#if ARRAY_DEBUG
+#ifdef ARRAY_DEBUG
 #pragma message ( "[WARNING] Array debugging is enabled" )
 #include "Array.inl"
 #define      Pointer( ... )      Array< __VA_ARGS__ >
@@ -79,6 +78,9 @@ template< class C >      Array< C > GetPointer(       C& c ) { return      Array
 template< class C > ConstArray< C > GetPointer( const C& c ) { return ConstArray< C >::FromPointer( &c , 1 ); }
 template< class C >      Array< C > GetPointer(       std::vector< C >& v ){ return      Array< C >::FromPointer( &v[0] , v.size() ); }
 template< class C > ConstArray< C > GetPointer( const std::vector< C >& v ){ return ConstArray< C >::FromPointer( &v[0] , v.size() ); }
+
+template< class C >      Array< C > GetPointer(       C* c , int sz ) { return      Array< C >::FromPointer( c , sz ); }
+template< class C > ConstArray< C > GetPointer( const C* c , int sz ) { return ConstArray< C >::FromPointer( c , sz ); }
 
 #else // !ARRAY_DEBUG
 #define      Pointer( ... )       __VA_ARGS__*
@@ -102,5 +104,9 @@ template< class C >       C* GetPointer(       C& c ){ return &c; }
 template< class C > const C* GetPointer( const C& c ){ return &c; }
 template< class C >       C* GetPointer(       std::vector< C >& v ){ return &v[0]; }
 template< class C > const C* GetPointer( const std::vector< C >& v ){ return &v[0]; }
+
+template< class C >       C* GetPointer(       C* c , int sz ) { return c; }
+template< class C > const C* GetPointer( const C* c , int sz ) { return c; }
+
 #endif // ARRAY_DEBUG
 #endif // ARRAY_INCLUDED

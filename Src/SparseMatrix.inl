@@ -232,12 +232,23 @@ template< class T >
 template< class T2 >
 void SparseMatrix< T >::MultiplyAndAddAverage( ConstPointer( T2 ) in , Pointer( T2 ) out , int threads ) const
 {
+#if 1
+	int count = 0;
+	T2 average = 0;
+#pragma omp parallel for num_threads( threads ) reduction( + : average , count )
+	for( int i=0 ; i<rows ; i++ ) if( rowSizes[i] ) average += in[i] , count++;
+	average /= count;
+	Multiply( in , out , threads );
+#pragma omp parallel for num_threads( threads )
+	for( int i=0 ; i<rows ; i++ ) if( rowSizes[i] )  out[i] += average;
+#else
 	T2 average = 0;
 	for( int i=0 ; i<rows ; i++ ) average += in[i];
 	average /= rows;
 	Multiply( in , out , threads );
 #pragma omp parallel for num_threads( threads )
 	for( int i=0 ; i<rows ; i++ ) out[i] += average;
+#endif
 }
 
 
