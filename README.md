@@ -1,9 +1,10 @@
-<CENTER><H2>Screened Poisson Surface Reconstruction <BR>(and Smoothed Signed Distance Reconstruction)<BR>Version 9.0</H2></CENTER>
+<CENTER><H2>Screened Poisson Surface Reconstruction <BR>(and Smoothed Signed Distance Reconstruction)<BR>Version 9.01</H2></CENTER>
 <CENTER>
 <A HREF="#LINKS">links</A>
 <A HREF="#EXECUTABLES">executables</A>
 <A HREF="#USAGE">usage</A>
 <A HREF="#CHANGES">changes</A>
+<A HREF="#SUPPORT">support</A>
 </CENTER>
 <HR>
 <A NAME="LINKS"><B>LINKS</B></A><br>
@@ -14,10 +15,11 @@
 <A href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</A>
 <br>
 <B>Executables: </B>
-<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/PoissonRecon.x64.zip">Win64</A><BR>
+<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/PoissonRecon.x64.zip">Win64</A><BR>
 <B>Source Code:</B>
-<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/PoissonRecon.zip">ZIP</A> <A HREF="https://github.com/mkazhdan/PoissonRecon">GitHub</A><BR>
+<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/PoissonRecon.zip">ZIP</A> <A HREF="https://github.com/mkazhdan/PoissonRecon">GitHub</A><BR>
 <B>Older Versions:</B>
+<A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">V9.0</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/">V8.0</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/">V7.0</A>,
 <A href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/">V6.13a</A>,
@@ -42,7 +44,7 @@
 <A NAME="EXECUTABLES"><B>EXECUTABLES</B></A><BR>
 <UL>
 <DL>
-<FONT SIZE="+1" ><B><U>PoissonRecon</U></B></FONT>
+<FONT SIZE="+1" ><B><A HREF="" ONCLICK="toggleAll( $('poisson_recon') ) ; return false;" >PoissonRecon</A></B></FONT>
 <DIV ID="poisson_recon">
 <DT><b>--in</b> &#60;<i>input points</i>&#62;
 <DD> This string is the name of the file from which the point set will be read.<br>
@@ -165,7 +167,8 @@ individual components of the surface reconstructor.
 
 <UL>
 <DL>
-<FONT SIZE="+1"><B><U>SSDRecon</U></B></FONT>
+<FONT SIZE="+1"><B><A HREF="" ONCLICK="toggleAll( $('ssd_recon') ) ; return false;">SSDRecon</A></B></FONT>
+<DIV ID="ssd_recon">
 <DT><b>--in</b> &#60;<i>input points</i>&#62;
 <DD> This string is the name of the file from which the point set will be read.<br>
 If the file extension is <i>.ply</i>, the file should be in
@@ -287,7 +290,8 @@ individual components of the surface reconstructor.
 
 <UL>
 <DL>
-<FONT SIZE="+1"><B><U>SurfaceTrimmer</U></B></FONT>
+<FONT SIZE="+1"><B><A HREF="" ONCLICK="toggleAll( $('surface_trimmer') ) ; return false;">SurfaceTrimmer</A></B></FONT>
+<DIV ID="surface_trimmer">
 <DT><b>--in</b> &#60;<i>input triangle mesh</i>&#62;
 <DD> This string is the name of the file from which the triangle mesh will be read. 
 The file is read in <A HREF="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</A> format and it is assumed that the vertices have a <I>value</I> field which stores the signal's value. (When run with <B>--density</B> flag, the reconstructor will output this field with the mesh vertices.)
@@ -492,6 +496,15 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Extended the solver to support more general linear systems. This makes it possible to use the same framework to implement the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance Reconstruction</A> of Calakli and Taubin (2011).
 <LI> Modified the implementation of density estimation and input representation. This tends to define a slightly larger system. On its own, this results in slightly increased running-time/footprint for full-res reconstructions, but provides a substantially faster implementation when the output complexity is smaller than the input.
 </OL>
+
+<A HREF="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/">Version 9.01</A>:
+<OL>
+<LI> Reverted the density estimation to behave as in Version 8.0.
+</OL>
+
+<HR>
+<A NAME="SUPPORT"><B>SUPPORT</B></A><br>
+This work genersouly supported by NSF grants #0746039 and #1422325.
 
 <HR>
 <A HREF="http://www.cs.jhu.edu/~misha">HOME</A>
