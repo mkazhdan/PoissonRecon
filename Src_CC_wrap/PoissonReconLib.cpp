@@ -92,6 +92,7 @@ bool Execute(	PoissonReconLib::Parameters params,
 				CoredVectorMeshData< Vertex >& mesh,
 				XForm4x4< Real >& iXForm)
 {
+	typedef typename Octree< Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator; 
 	typedef typename Octree< Real >::template InterpolationInfo< false > InterpolationInfo;
 	typedef OrientedPointStreamWithData< Real, Point3D< Real > > PointStreamWithData;
 	typedef TransformedOrientedPointStream< Real > XPointStream;
@@ -147,7 +148,7 @@ bool Execute(	PoissonReconLib::Parameters params,
 		}
 
 		DenseNodeData< Real, Degree > solution;
-		SparseNodeData< Real, WEIGHT_DEGREE > density;
+		DensityEstimator* density = NULL;
 		{
 			int solveDepth = params.depth;
 
@@ -158,7 +159,13 @@ bool Execute(	PoissonReconLib::Parameters params,
 
 			// Transform the Hermite samples into a vector field
 			Real pointWeightSum = 0;
-			SparseNodeData< Point3D< Real >, NORMAL_DEGREE > normalInfo = tree.template setNormalField< NORMAL_DEGREE >(samples, density, pointWeightSum, BType == BOUNDARY_NEUMANN);
+			SparseNodeData< Point3D< Real >, NORMAL_DEGREE > normalInfo = tree.template setNormalField< NORMAL_DEGREE >(samples, *density, pointWeightSum, BType == BOUNDARY_NEUMANN);
+
+			if (!params.density)
+			{
+				delete density;
+				density = 0;
+			}
 
 			// Trim the tree and prepare for multigrid
 			{
@@ -168,7 +175,9 @@ bool Execute(	PoissonReconLib::Parameters params,
 
 				normalInfo.remapIndices(indexMap);
 				if (params.density)
-					density.remapIndices(indexMap);
+				{
+					density->remapIndices(indexMap);
+				}
 			}
 
 			// Add the FEM constraints
@@ -235,7 +244,7 @@ bool Execute(	PoissonReconLib::Parameters params,
 		if (withColors)
 		{
 			colorData = new SparseNodeData< ProjectiveData< Point3D< Real >, Real >, DATA_DEGREE >();
-			*colorData = tree.template setDataField< DATA_DEGREE, false >(samples, sampleData, (SparseNodeData< Real, WEIGHT_DEGREE >*)NULL);
+			*colorData = tree.template setDataField< DATA_DEGREE, false >(samples, sampleData, (DensityEstimator*)NULL);
 			for (const OctNode< TreeNodeData >* n = tree.tree().nextNode(); n; n = tree.tree().nextNode(n))
 			{
 				ProjectiveData< Point3D< Real >, Real >* clr = (*colorData)(n);
@@ -246,7 +255,7 @@ bool Execute(	PoissonReconLib::Parameters params,
 		bool linearFit = false;
 		bool polygonMesh = false;
 		tree.template getMCIsoSurface< Degree, BType, WEIGHT_DEGREE, DATA_DEGREE >(
-			&density,
+			density,
 			colorData,
 			solution,
 			isoValue,
@@ -254,6 +263,12 @@ bool Execute(	PoissonReconLib::Parameters params,
 			!linearFit,
 			!params.nonManifold,
 			polygonMesh);
+
+		if (density)
+		{
+			delete density;
+			density = NULL;
+		}
 
 		//DumpOutput("Vertices / Polygons: %d / %d\n", mesh.outOfCorePointCount() + mesh.inCorePoints.size(), mesh.polygonCount());
 		if (colorData)

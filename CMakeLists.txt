@@ -9,8 +9,8 @@ if( UNIX OR MINGW )
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -w")
 endif()
 
-set( SAMPLE_PROJECT_VERSION_MAJOR 8 )
-set( SAMPLE_PROJECT_VERSION_MINOR 0 )
+set( SAMPLE_PROJECT_VERSION_MAJOR 9 )
+set( SAMPLE_PROJECT_VERSION_MINOR 1 )
 
 file( GLOB header_list Src_CC_wrap/*.h )
 list( APPEND header_list Src/Allocator.h Src/Array.h Src/BinaryNode.h Src/BSplineData.h Src/CmdLineParser.h Src/Factor.h Src/FunctionData.h Src/Geometry.h Src/MarchingCubes.h Src/MAT.h Src/MemoryUsage.h Src/MultiGridOctreeData.h Src/MyTime.h Src/Octree.h Src/Ply.h Src/PointStream.h Src/Polynomial.h Src/PPolynomial.h Src/SparseMatrix.h )
