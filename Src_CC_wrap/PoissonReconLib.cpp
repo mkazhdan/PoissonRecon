@@ -48,7 +48,7 @@ PoissonReconLib::Parameters::Parameters()
 	, iters(8) //8
 	, fullDepth(5) //5
 	, maxSolveDepth(0) //?
-	, boundary(NEUMANN)
+	, boundary(DIRICHLET)
 	, threads(1) //ideally omp_get_num_procs()
 	, samplesPerNode(1.5f) //1.5f
 	, scale(1.1f) //1.1f
