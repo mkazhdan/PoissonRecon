@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -45,7 +45,7 @@ struct _ConstraintCalculator_< Real , Degree , false >
 	{
 #if POINT_DATA_RES
 		Real constraint = 0;
-		for( int c=0 ; c<PointData< Real , false >::SAMPLES ; c++ ) if( p[c].weight ) 
+		for( int c=0 ; c<PointData< Real , false >::SAMPLES ; c++ ) if( p[c].weight )
 		{
 			const Point3D< Real > q = p[c].position;
 			constraint += (Real)( px( q[0] ) * py( q[1] ) * pz( q[2] ) * p[c].weight * p[c].value );
@@ -60,7 +60,7 @@ struct _ConstraintCalculator_< Real , Degree , false >
 	{
 #if POINT_DATA_RES
 		Real constraint = 0;
-		for( int c=0 ; c<PointData< Real , false >::SAMPLES ; c++ ) if( p[c].weight ) 
+		for( int c=0 ; c<PointData< Real , false >::SAMPLES ; c++ ) if( p[c].weight )
 		{
 			const Point3D< Real > q = p[c].position;
 			constraint += (Real)( px( q[0] ) * py( q[1] ) * pz( q[2] ) * p[c]._value );
@@ -84,7 +84,7 @@ struct _ConstraintCalculator_< Real , Degree , true >
 	{
 #if POINT_DATA_RES
 		Real constraint = 0;
-		for( int c=0 ; c<PointData< Real , true >::SAMPLES ; c++ ) if( p[c].weight ) 
+		for( int c=0 ; c<PointData< Real , true >::SAMPLES ; c++ ) if( p[c].weight )
 		{
 			const Point3D< Real > q = p[c].position;
 			double _px = px( q[0] ) , _py = py( q[1] ) , _pz = pz( q[2] );
@@ -109,7 +109,7 @@ struct _ConstraintCalculator_< Real , Degree , true >
 	{
 #if POINT_DATA_RES
 		Real constraint = 0;
-		for( int c=0 ; c<PointData< Real , true >::SAMPLES ; c++ ) if( p[c].weight ) 
+		for( int c=0 ; c<PointData< Real , true >::SAMPLES ; c++ ) if( p[c].weight )
 		{
 			const Point3D< Real > q = p[c].position;
 			double _px = px( q[0] ) , _py = py( q[1] ) , _pz = pz( q[2] );
@@ -178,7 +178,7 @@ double FEMSystemFunctor< 1 , BOUNDARY_FREE >::_integrate( const I& integrator , 
 	return
 		(
 			d00[0] * d00[1] * d00[2]
-			) * massWeight 
+			) * massWeight
 		+
 		(
 			d11[0] * d00[1] * d00[2] +
@@ -196,7 +196,7 @@ double FEMSystemFunctor< 1 , BOUNDARY_NEUMANN >::_integrate( const I& integrator
 	return
 		(
 			d00[0] * d00[1] * d00[2]
-			) * massWeight 
+			) * massWeight
 		+
 		(
 			d11[0] * d00[1] * d00[2] +
@@ -214,7 +214,7 @@ double FEMSystemFunctor< 1 , BOUNDARY_DIRICHLET >::_integrate( const I& integrat
 	return
 		(
 			d00[0] * d00[1] * d00[2]
-			) * massWeight 
+			) * massWeight
 		+
 		(
 			d11[0] * d00[1] * d00[2] +
@@ -233,7 +233,7 @@ double FEMSystemFunctor< FEMDegree , BType >::_integrate( const I& integrator , 
 	return
 		(
 		d00[0] * d00[1] * d00[2]
-		) * massWeight 
+		) * massWeight
 		+
 		(
 		d11[0] * d00[1] * d00[2] +
@@ -259,11 +259,11 @@ double FEMSFConstraintFunctor< SFDegree , SFBType , FEMDegree , FEMBType >::_int
 	double d00[] = D_DOT( 0 , 0 ) , d02[] = D_DOT( 0 , 2 ) , d20[] = D_DOT( 2 , 0 ) , d22[] = D_DOT( 2 , 2 ) , d11[] = D_DOT( 1 , 1 );
 	if( SFDegree==0 || FEMDegree==0 )
 		return d00[0] * d00[1] * d00[2] * massWeight;
-	else if( SFDegree<=1 || FEMDegree<=1 ) 
+	else if( SFDegree<=1 || FEMDegree<=1 )
 		return
 		(
 			d00[0] * d00[1] * d00[2]
-			) * massWeight 
+			) * massWeight
 		+
 		(
 			d11[0] * d00[1] * d00[2] +
@@ -274,7 +274,7 @@ double FEMSFConstraintFunctor< SFDegree , SFBType , FEMDegree , FEMBType >::_int
 		return
 		(
 			d00[0] * d00[1] * d00[2]
-			) * massWeight 
+			) * massWeight
 		+
 		(
 			d11[0] * d00[1] * d00[2] +
@@ -322,8 +322,8 @@ Point3D< double > FEMVFConstraintFunctor< VFDegree , VFBType , FEMDegree , FEMBT
 			+
 			Point3D< double >
 			(
-				d12[0] * d00[1] * d00[2] + d10[0] * ( d00[1] * d02[2] + d02[1] * d00[2] ) , 
-				d12[1] * d00[2] * d00[0] + d10[1] * ( d00[2] * d02[0] + d02[2] * d00[0] ) , 
+				d12[0] * d00[1] * d00[2] + d10[0] * ( d00[1] * d02[2] + d02[1] * d00[2] ) ,
+				d12[1] * d00[2] * d00[0] + d10[1] * ( d00[2] * d02[0] + d02[2] * d00[0] ) ,
 				d12[2] * d00[0] * d00[1] + d10[2] * ( d00[0] * d02[1] + d02[0] * d00[1] )
 			) * biLapWeight;
 	}
@@ -539,7 +539,7 @@ void Octree< Real >::_upSample( LocalDepth highDepth , DenseNodeData< C , FEMDeg
 	BSplineEvaluationData< FEMDegree , BType >::SetUpSampleEvaluator( upSampleEvaluator , lowDepth );
 	std::vector< DownSampleKey > neighborKeys( std::max< int >( 1 , threads ) );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
-	
+
 	static const int DownSampleSize = BSplineSupportSizes< FEMDegree >::DownSample0Size > BSplineSupportSizes< FEMDegree >::DownSample1Size ? BSplineSupportSizes< FEMDegree >::DownSample0Size : BSplineSupportSizes< FEMDegree >::DownSample1Size;
 	Stencil< double , DownSampleSize > downSampleStencils[ Cube::CORNERS ];
 	int lowCenter = ( 1<<lowDepth )>>1;
@@ -550,7 +550,7 @@ void Octree< Real >::_upSample( LocalDepth highDepth , DenseNodeData< C , FEMDeg
 		for( int ii=0 ; ii<BSplineSupportSizes< FEMDegree >::DownSampleSize[cx] ; ii++ )
 			for( int jj=0 ; jj<BSplineSupportSizes< FEMDegree >::DownSampleSize[cy] ; jj++ )
 				for( int kk=0 ; kk<BSplineSupportSizes< FEMDegree >::DownSampleSize[cz] ; kk++ )
-					downSampleStencils[c]( ii , jj , kk ) = 
+					downSampleStencils[c]( ii , jj , kk ) =
 					upSampleEvaluator.value( lowCenter + ii + BSplineSupportSizes< FEMDegree >::DownSampleStart[cx] , 2*lowCenter + cx ) *
 					upSampleEvaluator.value( lowCenter + jj + BSplineSupportSizes< FEMDegree >::DownSampleStart[cy] , 2*lowCenter + cy ) *
 					upSampleEvaluator.value( lowCenter + kk + BSplineSupportSizes< FEMDegree >::DownSampleStart[cz] , 2*lowCenter + cz ) ;
@@ -640,7 +640,7 @@ void Octree< Real >::_UpSample( LocalDepth highDepth , ConstPointer( C ) lowCoef
 		for( int ii=0 ; ii<BSplineSupportSizes< FEMDegree >::DownSampleSize[cx] ; ii++ )
 			for( int jj=0 ; jj<BSplineSupportSizes< FEMDegree >::DownSampleSize[cy] ; jj++ )
 				for( int kk=0 ; kk<BSplineSupportSizes< FEMDegree >::DownSampleSize[cz] ; kk++ )
-					downSampleStencils[c]( ii , jj , kk ) = 
+					downSampleStencils[c]( ii , jj , kk ) =
 					upSampleEvaluator.value( lowCenter + ii + BSplineSupportSizes< FEMDegree >::DownSampleStart[cx] , 2*lowCenter + cx ) *
 					upSampleEvaluator.value( lowCenter + jj + BSplineSupportSizes< FEMDegree >::DownSampleStart[cy] , 2*lowCenter + cy ) *
 					upSampleEvaluator.value( lowCenter + kk + BSplineSupportSizes< FEMDegree >::DownSampleStart[cz] , 2*lowCenter + cz ) ;
@@ -855,7 +855,7 @@ Real Octree< Real >::_finerFunctionValue( Point3D< Real > p , const PointSupport
 				{
 					int fIdx[3];
 					functionIndex< FEMDegree , BType >( _node , fIdx );
-					pointValue += 
+					pointValue +=
 						bsData.baseBSplines[ fIdx[0] ][LeftSupportRadius-j]( p[0] ) *
 						bsData.baseBSplines[ fIdx[1] ][LeftSupportRadius-k]( p[1] ) *
 						bsData.baseBSplines[ fIdx[2] ][LeftSupportRadius-l]( p[2] ) *
@@ -918,7 +918,7 @@ void Octree< Real >::_setPointValuesFromCoarser( InterpolationInfo< HasGradients
 					c , *pData ,
 					_coarserFunctionValue( (*pData)[c].position , neighborKey , _sNodes.treeNodes[i] , bsData , upSampledCoefficients ) ,
 					HasGradients ? _coarserFunctionGradient( (*pData)[c].position , neighborKey , _sNodes.treeNodes[i] , bsData , upSampledCoefficients ) : Point3D< Real >() ,
-					interpolationInfo.valueWeight , interpolationInfo.gradientWeight 
+					interpolationInfo.valueWeight , interpolationInfo.gradientWeight
 				);
 #else // !POINT_DATA_RES
 			_ConstraintCalculator_< Real , FEMDegree , HasGradients >::_CalculateCoarser_
@@ -926,7 +926,7 @@ void Octree< Real >::_setPointValuesFromCoarser( InterpolationInfo< HasGradients
 				*pData ,
 				_coarserFunctionValue( pData->position , neighborKey , _sNodes.treeNodes[i] , bsData , upSampledCoefficients ) ,
 				HasGradients ? _coarserFunctionGradient( pData->position , neighborKey , _sNodes.treeNodes[i] , bsData , upSampledCoefficients ) : Point3D< Real >() ,
-				interpolationInfo.valueWeight , interpolationInfo.gradientWeight 
+				interpolationInfo.valueWeight , interpolationInfo.gradientWeight
 			);
 #endif // POINT_DATA_RES
 		}
@@ -1118,7 +1118,7 @@ int Octree< Real >::_setMatrixRow( const FEMSystemFunctor& F , const Interpolati
 	if( interpolationInfo )
 	{
 		memset( pointValues , 0 , sizeof(Real) * OverlapSize * OverlapSize * OverlapSize );
-		// Iterate over all supported neighbors that could have a point constraint	
+		// Iterate over all supported neighbors that could have a point constraint
 		for( int i=-LeftSupportRadius ; i<=RightSupportRadius ; i++ ) if( hasYZPoints[i+LeftSupportRadius] )
 			for( int j=-LeftSupportRadius ; j<=RightSupportRadius ; j++ ) if( hasZPoints[i+LeftSupportRadius][j+LeftSupportRadius] )
 				for( int k=-LeftSupportRadius ; k<=RightSupportRadius ; k++ )
@@ -1805,7 +1805,7 @@ void Octree< Real >::_addFEMConstraints( const FEMConstraintFunctor& F , const C
 	// splatted normals and compute the dot-product of the
 	// divergence of the normal field with all the basis functions.
 	// Within the same depth: set directly as a gather
-	// Coarser depths 
+	// Coarser depths
 	maxDepth = std::min< LocalDepth >( maxDepth , _maxDepth );
 	DenseNodeData< Real , FEMDegree >* __constraints = new DenseNodeData< Real , FEMDegree >( _sNodesEnd(maxDepth-1) );
 	DenseNodeData< Real , FEMDegree >& _constraints = *__constraints;
@@ -1847,14 +1847,17 @@ void Octree< Real >::_addFEMConstraints( const FEMConstraintFunctor& F , const C
 					if( isValidFEMNode< CDegree , CBType >( _node ) )
 					{
 						const D* d = coefficients( _node );
-						if( d ) 
-							if( isInterior ) constraints[i] += _Dot( (D)stencil( x , y , z ) , *d );
+						if( d )
+                        {
+							if( isInterior )
+                                constraints[i] += _Dot( (D)stencil( x , y , z ) , *d );
 							else
 							{
 								LocalDepth _d ; LocalOffset _off;
 								_localDepthAndOffset( _node , _d , _off );
 								constraints[i] += _Dot( *d , (D)F.template integrate< false >( integrator , _off , off ) );
 							}
+                        }
 					}
 				}
 				_SetParentOverlapBounds< CDegree , FEMDegree >( node , startX , endX , startY , endY , startZ , endZ );
@@ -2071,6 +2074,7 @@ double Octree< Real >::_dot( const DotFunctor& F , const InterpolationInfo< HasG
 						const TreeOctNode* _node = neighbors.neighbors[x][y][z];
 						const Real* _data2;
 						if( isValidFEMNode< FEMDegree2 , FEMBType2 >( _node ) && ( _data2=coefficients2( _node ) ) )
+                        {
 							if( isInterior ) dot += (*_data1) * (*_data2 ) * stencil( x , y , z );
 							else
 							{
@@ -2078,6 +2082,7 @@ double Octree< Real >::_dot( const DotFunctor& F , const InterpolationInfo< HasG
 								_localDepthAndOffset( _node , _d , _off );
 								dot += (*_data1) * (*_data2) * F.template integrate< false >( integrator , off , _off );
 							}
+                        }
 					}
 				}
 			}
@@ -2243,7 +2248,7 @@ double Octree< Real >::_dot( const DotFunctor& F , const InterpolationInfo< HasG
 
 				const PointData< Real , HasGradients >& pData = *( (*iInfo)( _sNodes.treeNodes[i] ) );
 #if POINT_DATA_RES
-				for( int c=0 ; c<PointData< Real , false >::SAMPLES ; c++ ) if( pData[c].weight ) 
+				for( int c=0 ; c<PointData< Real , false >::SAMPLES ; c++ ) if( pData[c].weight )
 				{
 					Point3D< Real > p = pData[c].position;
 					Real w = pData[c].weight;
