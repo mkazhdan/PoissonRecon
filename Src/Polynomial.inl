@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -261,51 +261,60 @@ void Polynomial<Degree>::printnl(void) const{
 	}
 	printf("\n");
 }
+
 template<int Degree>
-void Polynomial<Degree>::getSolutions(double c,std::vector<double>& roots,double EPS) const
+void Polynomial<Degree>::getSolutions(double c,
+    std::vector<double>& realRoots, double EPS) const
 {
-	double r[4][2];
-	int rCount=0;
-	roots.clear();
-	switch(Degree){
-	case 1:
-		rCount=Factor(coefficients[1],coefficients[0]-c,r,EPS);
-		break;
-	case 2:
-		rCount=Factor(coefficients[2],coefficients[1],coefficients[0]-c,r,EPS);
-		break;
-	case 3:
-		rCount=Factor(coefficients[3],coefficients[2],coefficients[1],coefficients[0]-c,r,EPS);
-		break;
-//	case 4:
-//		rCount=Factor(coefficients[4],coefficients[3],coefficients[2],coefficients[1],coefficients[0]-c,r,EPS);
-//		break;
-	default:
-		printf("Can't solve polynomial of degree: %d\n",Degree);
-	}
-	for(int i=0;i<rCount;i++){
-		if(fabs(r[i][1])<=EPS){
-			roots.push_back(r[i][0]);
-		}
-	}
+    double roots[3];
+    int numRoots = getSolutions(c, roots, EPS);
+    for (size_t i = 0; i < numRoots; ++i)
+        realRoots.push_back(roots[i]);
 }
-template< int Degree >
-int Polynomial<Degree>::getSolutions( double c , double* roots , double EPS ) const
+
+template<>
+int Polynomial<1>::getSolutions( double c , double* roots , double EPS ) const
 {
-	double _roots[4][2];
-	int _rCount=0;
-	switch( Degree )
-	{
-		case 1: _rCount = Factor(                                                       coefficients[1] , coefficients[0]-c , _roots , EPS ) ; break;
-		case 2:	_rCount = Factor(                                     coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS ) ; break;
-		case 3: _rCount = Factor(                   coefficients[3] , coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS ) ; break;
-//		case 4: _rCount = Factor( coefficients[4] , coefficients[3] , coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS ) ; break;
-		default: printf( "Can't solve polynomial of degree: %d\n" , Degree );
-	}
-	int rCount = 0;
-	for( int i=0 ; i<_rCount ; i++ ) if( fabs(_roots[i][1])<=EPS ) roots[rCount++] = _roots[i][0];
-	return rCount;
+	double _roots[1][2];
+	Factor(coefficients[1] , coefficients[0]-c , _roots , EPS );
+
+    int realRoots = 0;
+    if (fabs(_roots[0][1]) <= EPS)
+        roots[realRoots++] = _roots[0][0];
+    return realRoots;
 }
+
+template<>
+int Polynomial<2>::getSolutions( double c , double* roots , double EPS ) const
+{
+	double _roots[2][2];
+    Factor(coefficients[2] , coefficients[1] , coefficients[0]-c, _roots, EPS);
+
+    int realRoots = 0;
+    if (fabs(_roots[0][1]) <= EPS)
+        roots[realRoots++] = _roots[0][0];
+    if (fabs(_roots[1][1]) <= EPS)
+        roots[realRoots++] = _roots[1][0];
+    return realRoots;
+}
+
+template<>
+int Polynomial<3>::getSolutions(double c, double *roots, double EPS) const
+{
+	double _roots[3][2];
+    Factor(coefficients[3] , coefficients[2] , coefficients[1] ,
+        coefficients[0]-c , _roots , EPS );
+
+    int realRoots = 0;
+    if (fabs(_roots[0][1]) <= EPS)
+        roots[realRoots++] = _roots[0][0];
+    if (fabs(_roots[1][1]) <= EPS)
+        roots[realRoots++] = _roots[1][0];
+    if (fabs(_roots[2][1]) <= EPS)
+        roots[realRoots++] = _roots[2][0];
+    return realRoots;
+}
+
 // The 0-th order B-spline
 template< >
 Polynomial< 0 > Polynomial< 0 >::BSplineComponent( int i )
