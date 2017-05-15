@@ -162,7 +162,8 @@ void MinimalAreaTriangulation<Real>::GetTriangulation(const size_t& i,const size
 template<class Real>
 Real MinimalAreaTriangulation<Real>::GetArea(const size_t& i,const size_t& j,const std::vector<Point3D<Real> >& vertices)
 {
-	Real a=FLT_MAX,temp;
+	Real a(std::numeric_limits<float>::max());
+    Real temp;
 	size_t eCount=vertices.size();
 	size_t idx=i*eCount+j;
 	size_t ii=i;
