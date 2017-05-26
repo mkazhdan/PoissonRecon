@@ -37,18 +37,6 @@ DAMAGE.
 
 #include "SurfaceTrimmer.h"
 
-/**
-#include <stdio.h>
-#include <stdlib.h>
-#include <float.h>
-#ifdef _OPENMP
-#include <omp.h>
-#endif // _OPENMP
-#include <algorithm>
-#include "Geometry.h"
-#include "MAT.h"
-**/
-
 cmdLineString In( "in" ) , Out( "out" );
 cmdLineInt Smooth( "smooth" , 5 );
 cmdLineFloat Trim( "trim" ) , IslandAreaRatio( "aRatio" , 0.001f );

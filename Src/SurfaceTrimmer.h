@@ -28,18 +28,9 @@ DAMAGE.
 
 #undef ARRAY_DEBUG
 
-/**
-#include <stdio.h>
-#include <stdlib.h>
-#include <float.h>
 #ifdef _OPENMP
 #include <omp.h>
 #endif // _OPENMP
-#include <algorithm>
-#include "Geometry.h"
-#include "Ply.h"
-#include "MyTime.h"
-**/
 
 #include "MAT.h"
 
