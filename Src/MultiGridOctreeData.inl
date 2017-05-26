@@ -29,6 +29,9 @@ DAMAGE.
 #include <functional>
 #endif // FAST_SET_UP
 #include <cmath>
+
+#include "MemoryUsage.h"
+#include "MyTime.h"
 #include "PointStream.h"
 
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
@@ -57,8 +60,7 @@ double Octree< Real >::memoryUsage( void )
 	return mem;
 }
 
-template< class Real > Octree< Real >::Octree( void ) : threads(1) , _maxMemoryUsage(0) , _localMemoryUsage(0)
-{
+template< class Real > Octree< Real >::Octree( void ) : threads(1) , _maxMemoryUsage(0) , _localMemoryUsage(0) {
 	_tree = TreeOctNode::NewBrood( _NodeInitializer );
 	_tree->initChildren( _NodeInitializer ) , _spaceRoot = _tree->children;
 	_depthOffset = 1;
@@ -270,6 +272,7 @@ int Octree< Real >::init( OrientedPointStream< Real >& pointStream , LocalDepth 
 	memoryUsage();
 	return pointCount;
 }
+
 template< class Real >
 template< int DensityDegree >
 typename Octree< Real >::template DensityEstimator< DensityDegree >* Octree< Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode )

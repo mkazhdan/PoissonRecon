@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -157,8 +157,8 @@ cmdLineFloat
 	SamplesPerNode( "samplesPerNode" , 1.5f ) ,
 	Scale( "scale" , 1.1f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
-	LowResIterMultiplier( "iterMultiplier" , 1.5f ) , 
-	ValueWeight   (    "valueWeight" , 4e-0f ) , 
+	LowResIterMultiplier( "iterMultiplier" , 1.5f ) ,
+	ValueWeight   (    "valueWeight" , 4e-0f ) ,
 	GradientWeight( "gradientWeight" , 1e-3f ) ,
 	BiLapWeight   (    "biLapWeight" , 1e-5f );
 
@@ -267,10 +267,10 @@ void ShowUsage( char* ex )
 #endif // !FOR_RELEASE
 #ifndef FOR_RELEASE
 	printf( "\t[--%s]\n" , ASCII.name );
-	
+
 	printf( "\t[--%s]\n" , NoComments.name );
 #endif // !FOR_RELEASE
-	
+
 #ifndef FAST_COMPILE
 	printf( "\t[--%s]\n" , Double.name );
 #endif // !FAST_COMPILE
@@ -294,7 +294,7 @@ const PlyProperty ColorInfo< float >::PlyProperties[] =
 	{ "r"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "g"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "b"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-	{ "red"   , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[0] ) ) , 0 , 0 , 0 , 0 } , 
+	{ "red"   , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "green" , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "blue"  , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[2] ) ) , 0 , 0 , 0 , 0 }
 };
@@ -304,7 +304,7 @@ const PlyProperty ColorInfo< double >::PlyProperties[] =
 	{ "r"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "g"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "b"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-	{ "red"   , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[0] ) ) , 0 , 0 , 0 , 0 } , 
+	{ "red"   , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "green" , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "blue"  , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[2] ) ) , 0 , 0 , 0 , 0 }
 };
@@ -454,7 +454,7 @@ int _Execute( int argc , char* argv[] )
 		return 0;
 	}
 	if( !MaxSolveDepth.set ) MaxSolveDepth.value = Depth.value;
-	
+
 	OctNode< TreeNodeData >::SetAllocator( MEMORY_ALLOCATOR_BLOCK_SIZE );
 
 	int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;
@@ -477,21 +477,28 @@ int _Execute( int argc , char* argv[] )
 	{
 		profiler.start();
 		PointStream* pointStream;
-		char* ext = GetFileExtension( In.value );
+		std::string ext = GetFileExtension( In.value );
+        for (auto& c : ext)
+            c = std::tolower(c);
 		if( Color.set && Color.value>0 )
 		{
 			sampleData = new std::vector< ProjectiveData< Point3D< Real > , Real > >();
-			if     ( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryOrientedPointStreamWithData< Real , Point3D< Real > , float , Point3D< unsigned char > >( In.value );
-			else if( !strcasecmp( ext , "ply"   ) ) pointStream = new    PLYOrientedPointStreamWithData< Real , Point3D< Real > >( In.value , ColorInfo< Real >::PlyProperties , 6 , ColorInfo< Real >::ValidPlyProperties );
-			else                                    pointStream = new  ASCIIOrientedPointStreamWithData< Real , Point3D< Real > >( In.value , ColorInfo< Real >::ReadASCII );
+			if ( ext == "bnpts" )
+                pointStream = new BinaryOrientedPointStreamWithData< Real , Point3D< Real > , float , Point3D< unsigned char > >( In.value );
+			else if ( ext == "ply" )
+                pointStream = new    PLYOrientedPointStreamWithData< Real , Point3D< Real > >( In.value , ColorInfo< Real >::PlyProperties , 6 , ColorInfo< Real >::ValidPlyProperties );
+			else
+                pointStream = new  ASCIIOrientedPointStreamWithData< Real , Point3D< Real > >( In.value , ColorInfo< Real >::ReadASCII );
 		}
 		else
 		{
-			if     ( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryOrientedPointStream< Real , float >( In.value );
-			else if( !strcasecmp( ext , "ply"   ) ) pointStream = new    PLYOrientedPointStream< Real >( In.value );
-			else                                    pointStream = new  ASCIIOrientedPointStream< Real >( In.value );
+			if     ( ext == "bnpts" )
+                pointStream = new BinaryOrientedPointStream< Real , float >( In.value );
+			else if (ext == "ply")
+                pointStream = new    PLYOrientedPointStream< Real >( In.value );
+			else
+                pointStream = new  ASCIIOrientedPointStream< Real >( In.value );
 		}
-		delete[] ext;
 		XPointStream _pointStream( xForm , *pointStream );
 		xForm = GetPointXForm( _pointStream , (Real)Scale.value ) * xForm;
 		if( sampleData )
