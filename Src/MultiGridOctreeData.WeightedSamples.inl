@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -133,7 +133,7 @@ void Octree< Real >::_getSampleDepthAndWeight( const DensityEstimator< WeightDeg
 
 template< class Real >
 template< bool CreateNodes , int DataDegree , class V >
-void Octree< Real >::_splatPointData( TreeOctNode* node , Point3D< Real > position , V v , SparseNodeData< V , DataDegree >& dataInfo , PointSupportKey< DataDegree >& dataKey )
+void Octree< Real >::_splatPointData( TreeOctNode* node , Point3D< Real > position , V v , SparseNodeData< V >& dataInfo , PointSupportKey< DataDegree >& dataKey )
 {
 	double dx[ DIMENSION ][ PointSupportKey< DataDegree >::Size ];
 	typename TreeOctNode::Neighbors< PointSupportKey< DataDegree >::Size >& neighbors = dataKey.template getNeighbors< CreateNodes >( node , _NodeInitializer );
@@ -158,7 +158,7 @@ void Octree< Real >::_splatPointData( TreeOctNode* node , Point3D< Real > positi
 }
 template< class Real >
 template< bool CreateNodes , int WeightDegree , int DataDegree , class V >
-Real Octree< Real >::_splatPointData( const DensityEstimator< WeightDegree >& densityWeights , Point3D< Real > position , V v , SparseNodeData< V , DataDegree >& dataInfo , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim )
+Real Octree< Real >::_splatPointData( const DensityEstimator< WeightDegree >& densityWeights , Point3D< Real > position , V v , SparseNodeData< V >& dataInfo , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim )
 {
 	double dx;
 	V _v;
@@ -223,7 +223,7 @@ Real Octree< Real >::_splatPointData( const DensityEstimator< WeightDegree >& de
 }
 template< class Real >
 template< bool CreateNodes , int WeightDegree , int DataDegree , class V >
-Real Octree< Real >::_multiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , TreeOctNode* node , Point3D< Real > position , V v , SparseNodeData< V , DataDegree >& dataInfo , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , int dim )
+Real Octree< Real >::_multiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , TreeOctNode* node , Point3D< Real > position , V v , SparseNodeData< V >& dataInfo , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , int dim )
 {
 	Real _depth , weight;
 	if( densityWeights ) _getSampleDepthAndWeight( *densityWeights , position , weightKey , _depth , weight );
@@ -385,9 +385,9 @@ Pointer( V ) Octree< Real >::voxelEvaluate( const DenseNodeData< V , DataDegree 
 }
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-SparseNodeData< Real , 0 > Octree< Real >::leafValues( const DenseNodeData< Real , FEMDegree >& coefficients ) const
+SparseNodeData< Real > Octree< Real >::leafValues( const DenseNodeData< Real , FEMDegree >& coefficients ) const
 {
-	SparseNodeData< Real , 0 > values;
+	SparseNodeData< Real > values;
 	DenseNodeData< Real , FEMDegree > _coefficients( _sNodesEnd(_maxDepth-1) );
 	memset( &_coefficients[0] , 0 , sizeof(Real)*_sNodesEnd(_maxDepth-1) );
 	for( int i=_sNodes.begin( _localToGlobal( 0 ) ) ; i<_sNodesEnd(_maxDepth-1) ; i++ ) _coefficients[i] = coefficients[i];
@@ -414,9 +414,9 @@ SparseNodeData< Real , 0 > Octree< Real >::leafValues( const DenseNodeData< Real
 }
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-SparseNodeData< Point3D< Real > , 0 > Octree< Real >::leafGradients( const DenseNodeData< Real , FEMDegree >& coefficients ) const
+SparseNodeData< Point3D< Real > > Octree< Real >::leafGradients( const DenseNodeData< Real , FEMDegree >& coefficients ) const
 {
-	SparseNodeData< Point3D< Real > , 0 > gradients;
+	SparseNodeData< Point3D< Real > > gradients;
 	DenseNodeData< Real , FEMDegree > _coefficients( _sNodesEnd(_maxDepth-1 ) );
 	memset( &_coefficients[0] , 0 , sizeof(Real)*_sNodesEnd(_maxDepth-1) );
 	for( int i=_sNodesBegin(0) ; i<_sNodesEnd(_maxDepth-1) ; i++ ) _coefficients[i] = coefficients[i];

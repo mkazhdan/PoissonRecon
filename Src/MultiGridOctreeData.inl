@@ -337,7 +337,7 @@ typename Octree< Real >::template DensityEstimator< DensityDegree >* Octree< Rea
 }
 template< class Real >
 template< int NormalDegree , int DensityDegree >
-SparseNodeData< Point3D< Real > , NormalDegree > Octree< Real >::setNormalField( const std::vector< PointSample >& samples , const DensityEstimator< DensityDegree >& density , Real& pointWeightSum , bool forceNeumann )
+SparseNodeData< Point3D< Real > > Octree< Real >::setNormalField( const std::vector< PointSample >& samples , const DensityEstimator< DensityDegree >& density , Real& pointWeightSum , bool forceNeumann )
 {
 	LocalDepth maxDepth = _localMaxDepth( _tree );
 	PointSupportKey< DensityDegree > densityKey;
@@ -346,7 +346,7 @@ SparseNodeData< Point3D< Real > , NormalDegree > Octree< Real >::setNormalField(
 
 	Real weightSum = 0;
 	pointWeightSum = 0;
-	SparseNodeData< Point3D< Real > , NormalDegree > normalField;
+	SparseNodeData< Point3D< Real > > normalField;
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
 		const ProjectiveData< OrientedPoint3D< Real > , Real >& sample = samples[i].sample;
@@ -365,14 +365,14 @@ SparseNodeData< Point3D< Real > , NormalDegree > Octree< Real >::setNormalField(
 }
 template< class Real >
 template< int DataDegree , bool CreateNodes , int DensityDegree , class Data >
-SparseNodeData< ProjectiveData< Data , Real > , DataDegree > Octree< Real >::setDataField( const std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >& sampleData , const DensityEstimator< DensityDegree >* density )
+SparseNodeData< ProjectiveData< Data , Real > > Octree< Real >::setDataField( const std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >& sampleData , const DensityEstimator< DensityDegree >* density )
 {
 	LocalDepth maxDepth = _localMaxDepth( _tree );
 	PointSupportKey< DensityDegree > densityKey;
 	PointSupportKey< DataDegree > dataKey;
 	densityKey.set( _localToGlobal( maxDepth ) ) , dataKey.set( _localToGlobal( maxDepth ) );
 
-	SparseNodeData< ProjectiveData< Data , Real > , DataDegree > dataField;
+	SparseNodeData< ProjectiveData< Data , Real > > dataField;
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
 		const ProjectiveData< OrientedPoint3D< Real > , Real >& sample = samples[i].sample;
@@ -477,7 +477,7 @@ void Octree< Real >::_clipTree( const HasDataFunctor& f )
 
 template< class Real >
 template< bool HasGradients >
-bool Octree< Real >::_setInterpolationInfoFromChildren( TreeOctNode* node , SparseNodeData< PointData< Real , HasGradients > , 0 >& interpolationInfo ) const
+bool Octree< Real >::_setInterpolationInfoFromChildren( TreeOctNode* node , SparseNodeData< PointData< Real , HasGradients > >& interpolationInfo ) const
 {
 	if( IsActiveNode( node->children ) )
 	{
@@ -514,9 +514,9 @@ bool Octree< Real >::_setInterpolationInfoFromChildren( TreeOctNode* node , Spar
 }
 template< class Real >
 template< bool HasGradients >
-SparseNodeData< PointData< Real , HasGradients > , 0 > Octree< Real >::_densifyInterpolationInfo( const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent ) const
+SparseNodeData< PointData< Real , HasGradients > > Octree< Real >::_densifyInterpolationInfo( const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent ) const
 {
-	SparseNodeData< PointData< Real , HasGradients > , 0 > iInfo;
+	SparseNodeData< PointData< Real , HasGradients > > iInfo;
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
 		const TreeOctNode* node = samples[i].node;

@@ -716,7 +716,7 @@ DenseNodeData< C , FEMDegree > Octree< Real >::coarseCoefficients( const DenseNo
 }
 template< class Real >
 template< class C , int FEMDegree , BoundaryType BType >
-DenseNodeData< C , FEMDegree > Octree< Real >::coarseCoefficients( const SparseNodeData< C , FEMDegree >& coefficients ) const
+DenseNodeData< C , FEMDegree > Octree< Real >::coarseCoefficients( const SparseNodeData< C >& coefficients ) const
 {
 	DenseNodeData< Real , FEMDegree > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
 	memset( &coarseCoefficients[0] , 0 , sizeof(Real)*_sNodesEnd(_maxDepth-1) );
