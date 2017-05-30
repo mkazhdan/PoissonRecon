@@ -398,7 +398,7 @@ XForm4x4< Real > GetPointXForm( OrientedPointStream< Real >& stream , Real scale
 template< class Real , int Degree , BoundaryType BType , class Vertex >
 int _Execute( int argc , char* argv[] )
 {
-	typedef typename Octree< Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
+	typedef typename Octree< Real >::DensityEstimator DensityEstimator;
 	typedef typename Octree< Real >::template InterpolationInfo< true > InterpolationInfo;
 	typedef OrientedPointStream< Real > PointStream;
 	typedef OrientedPointStreamWithData< Real , Point3D< Real > > PointStreamWithData;
@@ -532,7 +532,7 @@ int _Execute( int argc , char* argv[] )
 		// Get the kernel density estimator
 		{
 			profiler.start();
-			density = tree.template setDensityEstimator< WEIGHT_DEGREE >( *samples , kernelDepth , SamplesPerNode.value );
+			density = tree.template setDensityEstimator<WEIGHT_DEGREE>( *samples , kernelDepth , SamplesPerNode.value );
 			profiler.dumpOutput2( comments , "#   Got kernel density:" );
 		}
 
@@ -540,7 +540,7 @@ int _Execute( int argc , char* argv[] )
 		{
 			profiler.start();
 			normalInfo = new SparseNodeData< Point3D< Real > >();
-			*normalInfo = tree.template setNormalField< NORMAL_DEGREE >( *samples , *density , pointWeightSum , BType==BOUNDARY_NEUMANN );
+			*normalInfo = tree.template setNormalField< NORMAL_DEGREE, WEIGHT_DEGREE >( *samples , *density , pointWeightSum , BType==BOUNDARY_NEUMANN );
 			profiler.dumpOutput2( comments , "#     Got normal field:" );
 		}
 
@@ -637,7 +637,7 @@ int _Execute( int argc , char* argv[] )
 		if( sampleData )
 		{
 			colorData = new SparseNodeData< ProjectiveData< Point3D< Real > , Real > >();
-			*colorData = tree.template setDataField< DATA_DEGREE , false >( *samples , *sampleData , (DensityEstimator*)NULL );
+			*colorData = tree.template setDataField< DATA_DEGREE , false, WEIGHT_DEGREE >( *samples , *sampleData , (DensityEstimator*)NULL );
 			delete sampleData , sampleData = NULL;
 			for( const OctNode< TreeNodeData >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
 			{

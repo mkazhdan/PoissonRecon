@@ -275,12 +275,12 @@ int Octree< Real >::init( OrientedPointStream< Real >& pointStream , LocalDepth 
 
 template< class Real >
 template< int DensityDegree >
-typename Octree< Real >::template DensityEstimator< DensityDegree >* Octree< Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode )
+typename Octree< Real >::DensityEstimator* Octree< Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode )
 {
 	LocalDepth maxDepth = _localMaxDepth( _tree );
 	splatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( splatDepth , maxDepth ) );
-	DensityEstimator< DensityDegree >* _density = new DensityEstimator< DensityDegree >( splatDepth );
-	DensityEstimator< DensityDegree >& density = *_density;
+	DensityEstimator* _density = new DensityEstimator( splatDepth );
+	DensityEstimator& density = *_density;
 	PointSupportKey< DensityDegree > densityKey;
 	densityKey.set( _localToGlobal( splatDepth ) );
 
@@ -337,7 +337,7 @@ typename Octree< Real >::template DensityEstimator< DensityDegree >* Octree< Rea
 }
 template< class Real >
 template< int NormalDegree , int DensityDegree >
-SparseNodeData< Point3D< Real > > Octree< Real >::setNormalField( const std::vector< PointSample >& samples , const DensityEstimator< DensityDegree >& density , Real& pointWeightSum , bool forceNeumann )
+SparseNodeData< Point3D< Real > > Octree< Real >::setNormalField( const std::vector< PointSample >& samples , const DensityEstimator& density , Real& pointWeightSum , bool forceNeumann )
 {
 	LocalDepth maxDepth = _localMaxDepth( _tree );
 	PointSupportKey< DensityDegree > densityKey;
@@ -365,7 +365,7 @@ SparseNodeData< Point3D< Real > > Octree< Real >::setNormalField( const std::vec
 }
 template< class Real >
 template< int DataDegree , bool CreateNodes , int DensityDegree , class Data >
-SparseNodeData< ProjectiveData< Data , Real > > Octree< Real >::setDataField( const std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >& sampleData , const DensityEstimator< DensityDegree >* density )
+SparseNodeData< ProjectiveData< Data , Real > > Octree< Real >::setDataField( const std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >& sampleData , const DensityEstimator* density )
 {
 	LocalDepth maxDepth = _localMaxDepth( _tree );
 	PointSupportKey< DensityDegree > densityKey;

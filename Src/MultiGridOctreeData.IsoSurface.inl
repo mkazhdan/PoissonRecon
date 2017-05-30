@@ -135,7 +135,7 @@ void Octree< Real >::_XSliceValues< Vertex >::reset( void )
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType , int WeightDegree , int ColorDegree , class Vertex >
-void Octree< Real >::getMCIsoSurface( const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , const DenseNodeData< Real >& solution , Real isoValue , CoredMeshData< Vertex >& mesh , bool nonLinearFit , bool addBarycenter , bool polygonMesh )
+void Octree< Real >::getMCIsoSurface( const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , const DenseNodeData< Real >& solution , Real isoValue , CoredMeshData< Vertex >& mesh , bool nonLinearFit , bool addBarycenter , bool polygonMesh )
 {
 	if( FEMDegree==1 && nonLinearFit ) fprintf( stderr , "[WARNING] First order B-Splines do not support non-linear interpolation\n" ) , nonLinearFit = false;
 
@@ -285,14 +285,14 @@ void Octree< Real >::_setSliceIsoCorners( const DenseNodeData< Real >& solution 
 
 template< class Real >
 template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-void Octree< Real >::_setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& slabValues , int threads )
+void Octree< Real >::_setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& slabValues , int threads )
 {
 	if( slice>0          ) _setSliceIsoVertices< WeightDegree , ColorDegree >( colorBSData , densityWeights , colorData , isoValue , depth , slice , 1 , vOffset , mesh , slabValues , threads );
 	if( slice<(1<<depth) ) _setSliceIsoVertices< WeightDegree , ColorDegree >( colorBSData , densityWeights , colorData , isoValue , depth , slice , 0 , vOffset , mesh , slabValues , threads );
 }
 template< class Real >
 template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-void Octree< Real >::_setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice , int z , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& slabValues , int threads )
+void Octree< Real >::_setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice , int z , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& slabValues , int threads )
 {
 	typename Octree::template _SliceValues< Vertex >& sValues = slabValues[depth].sliceValues( slice );
 	// [WARNING] In the case Degree=2, these two keys are the same, so we don't have to maintain them separately.
@@ -383,7 +383,7 @@ void Octree< Real >::_setSliceIsoVertices( const BSplineData< ColorDegree , BTyp
 }
 template< class Real >
 template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-void Octree< Real >::_setXSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slab , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& slabValues , int threads )
+void Octree< Real >::_setXSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slab , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& slabValues , int threads )
 {
 	typename Octree::template  _SliceValues< Vertex >& bValues = slabValues[depth].sliceValues ( slab   );
 	typename Octree::template  _SliceValues< Vertex >& fValues = slabValues[depth].sliceValues ( slab+1 );
@@ -882,7 +882,7 @@ template< class Real > void SetIsoVertex( PlyColorAndValueVertex< double >& vert
 
 template< class Real >
 template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-bool Octree< Real >::_getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int edgeIndex , int z , const _SliceValues< Vertex >& sValues , Vertex& vertex )
+bool Octree< Real >::_getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int edgeIndex , int z , const _SliceValues< Vertex >& sValues , Vertex& vertex )
 {
 	Point3D< Real > position;
 	int c0 , c1;
@@ -954,7 +954,7 @@ bool Octree< Real >::_getIsoVertex( const BSplineData< ColorDegree , BType >* co
 	if( densityWeights )
 	{
 		Real weight;
-		_getSampleDepthAndWeight( *densityWeights , node , position , weightKey , depth , weight );
+		_getSampleDepthAndWeight<WeightDegree>( *densityWeights , node , position , weightKey , depth , weight );
 	}
 	if( colorData ) color = Point3D< Real >( _evaluate< ProjectiveData< Point3D< Real > , Real > >( *colorData , position , *colorBSData , colorKey ) );
 	SetIsoVertex( vertex , color , depth );
@@ -962,7 +962,7 @@ bool Octree< Real >::_getIsoVertex( const BSplineData< ColorDegree , BType >* co
 }
 template< class Real >
 template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-bool Octree< Real >::_getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int cornerIndex , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , Vertex& vertex )
+bool Octree< Real >::_getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int cornerIndex , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , Vertex& vertex )
 {
 	Point3D< Real > position;
 
@@ -1026,7 +1026,7 @@ bool Octree< Real >::_getIsoVertex( const BSplineData< ColorDegree , BType >* co
 	if( densityWeights )
 	{
 		Real weight;
-		_getSampleDepthAndWeight( *densityWeights , node , position , weightKey , depth , weight );
+		_getSampleDepthAndWeight<WeightDegree>( *densityWeights , node , position , weightKey , depth , weight );
 	}
 	if( colorData ) color = Point3D< Real >( _evaluate< ProjectiveData< Point3D< Real > , Real > >( *colorData , position , *colorBSData , colorKey ) );
 	SetIsoVertex( vertex , color , depth );

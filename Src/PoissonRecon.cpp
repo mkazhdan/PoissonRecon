@@ -397,8 +397,7 @@ template <typename Real>
 using OctreeSampleVec = std::vector<OctreeSample<Real>>;
 
 template<typename Real>
-using DensityEstimator =
-    typename Octree<Real>::template DensityEstimator<WEIGHT_DEGREE>;
+using DensityEstimator = typename Octree<Real>::DensityEstimator;
 
 template<typename Real>
 using InterpolationInfo =
@@ -596,7 +595,8 @@ void PoissonRecon<Real>::writeSurface(CoredFileMeshData<Vertex>& mesh)
     using ColorData = SparseNodeData<ProjectiveData<Point3D<Real>, Real> >;
 
     m_profiler.start();
-    ColorData colorData = m_tree.template setDataField<DATA_DEGREE, false>(
+    ColorData colorData = m_tree.template setDataField<DATA_DEGREE, false,
+        WEIGHT_DEGREE>(
         *m_samples, *m_sampleData, (DensityEstimator<Real> *)nullptr);
     for (const OctNode<TreeNodeData>* n = m_tree.tree().nextNode(); n;
         n = m_tree.tree().nextNode(n))
@@ -779,8 +779,9 @@ void PoissonRecon<Real>::calcNormalData()
 {
     // Transform the Hermite samples into a vector field.
     m_profiler.start();
-    m_normalInfo = m_tree.template setNormalField< NORMAL_DEGREE >(*m_samples,
-        *m_density , m_pointWeightSum , BType==BOUNDARY_NEUMANN);
+    m_normalInfo = m_tree.template setNormalField< NORMAL_DEGREE,
+        WEIGHT_DEGREE >(*m_samples, *m_density , m_pointWeightSum ,
+        BType==BOUNDARY_NEUMANN);
     m_profiler.dumpOutput2(m_comments , "#     Got normal field:" );
 }
 
