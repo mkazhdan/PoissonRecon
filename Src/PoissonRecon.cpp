@@ -543,7 +543,6 @@ void PoissonRecon<Real>::writeVoxels()
 {
     if (m_opts.m_voxelFilename.empty())
         return;
-std::cerr << "Writing voxels!\n";
     FILE* fp = fopen(m_opts.m_voxelFilename.data(), "wb" );
     if ( !fp )
         std::cerr << "Failed to open voxel file for writing: " <<
@@ -566,13 +565,11 @@ void PoissonRecon<Real>::writePly()
 {
     if (m_opts.m_density && m_opts.m_hasColor)
     {
-std::cerr << "Color value vertex!\n";
         CoredFileMeshData<PlyColorAndValueVertex<float>> mesh;
         writeSurface(mesh);
     }
     else if (m_opts.m_density)
     {
-std::cerr << "value vertex!\n";
         CoredFileMeshData<PlyValueVertex<float>> mesh;
         writeSurface(mesh);
     }
@@ -606,20 +603,12 @@ void PoissonRecon<Real>::writeSurface(CoredFileMeshData<Vertex>& mesh)
             *color *= pow(m_opts.m_color, m_tree.depth(n));
     }
 
-    std::cerr << "color data size = " << colorData.size() << "!\n";
-    std::cerr << "Solution size = " << m_solution.size() << "!\n";
-    std::cerr << "Linear fit/non-manifold/polygon mesh = " <<
-        m_opts.m_linearFit << "/" << m_opts.m_nonManifold << "/" <<
-        m_opts.m_polygonMesh << "!\n";
-    std::cerr << "ISO value = " << m_isoValue << "!\n";
     m_tree.template getMCIsoSurface<Degree, BType, WEIGHT_DEGREE, DATA_DEGREE>
         (m_density, &colorData, m_solution, m_isoValue, mesh,
          !m_opts.m_linearFit, !m_opts.m_nonManifold, m_opts.m_polygonMesh);
     std::cerr << "Vertices / Polygons: " <<
         (mesh.outOfCorePointCount() + mesh.inCorePoints.size()) <<
         " / " << mesh.polygonCount();
-    std::cerr << "Mesh OOC/IC/POLY = " << mesh.outOfCorePointCount() << "/" <<
-        mesh.inCorePoints.size() << "/" << mesh.polygonCount() << "!\n";
     m_profiler.dumpOutput2(m_comments, std::string("#   Got ") +
         (m_opts.m_polygonMesh ? "polygons:" : "triangles:"));
 
@@ -678,11 +667,9 @@ template<typename Real>
 PointStream<Real> *PoissonRecon<Real>::createPointStream()
 {
     const std::string& f = m_opts.m_inputFilename;
-    std::cerr << "Filename = " << f << "!\n";
     std::string ext = GetFileExtension(f);
     for (auto& c : ext)
         c = tolower(c);
-    std::cerr << "Extension = " << ext << "!\n";
 
     PointStream<Real> *pointStream(nullptr);
     if (m_opts.m_hasColor)
@@ -765,12 +752,8 @@ void PoissonRecon<Real>::calcDensity()
     // Get the kernel density estimator [If discarding, compute anew.
     // Otherwise, compute once.]
     m_profiler.start();
-    std::cerr << "Kernel depth/samples per node = " <<
-        m_opts.m_kernelDepth << "/" << m_opts.m_samplesPerNode << "!\n";
     m_density = m_tree.template setDensityEstimator<WEIGHT_DEGREE>(*m_samples,
         m_opts.m_kernelDepth, m_opts.m_samplesPerNode);
-    std::cerr << "Samples size = " << m_samples->size() << "!\n";
-    std::cerr << "Density size = " << m_density->size() << "!\n";
 	m_profiler.dumpOutput2(m_comments , "#   Got kernel density:");
 }
 
@@ -813,9 +796,6 @@ void PoissonRecon<Real>::addFEMConstraints()
     int solveDepth = MaxSolveDepth.value;
     // This just initializes a vector of data to 0.  Blarf.
     m_constraints = m_tree.template initDenseNodeData();
-std::cerr << "Constraints size = " << m_constraints.size() << "!\n";
-std::cerr << "Normal info size = " << m_normalInfo.size() << "!\n";
-std::cerr << "Solve depth = " << m_opts.m_solveDepth << "!\n";
 //ABELL - This is really slow!
     m_tree.template addFEMConstraints<Degree, BType, NORMAL_DEGREE, BType>(
         FEMVFConstraintFunctor<NORMAL_DEGREE, BType, Degree, BType >( 1., 0.),
@@ -850,22 +830,10 @@ void PoissonRecon<Real>::solve()
     solverInfo.lowResIterMultiplier =
         std::max((Real)1.0, m_opts.m_lowResIterMult);
 
-std::cerr << "CG depth = " << m_opts.m_cgDepth << "!\n";
-std::cerr << "iters = " << m_opts.m_iterations << "!\n";
-std::cerr << "cgAccuracy = " << m_opts.m_solverAccuracy << "!\n";
-std::cerr << "verbose = " << m_opts.m_verbose << "!\n";
-std::cerr << "show residual = " << m_opts.m_showResidual << "!\n";
-std::cerr << "LowResIter = " << solverInfo.lowResIterMultiplier << "!\n";
-
     m_solution = m_tree.template solveSystem<Degree, BType>(
         FEMSystemFunctor<Degree, BType>(0, 1, 0), m_interp, m_constraints,
         m_opts.m_solveDepth, solverInfo);
-std::cerr << "Interp size = " << m_interp->iData.size() << "!\n";
-std::cerr << "Interp value/grad = " << m_interp->valueWeight << "/" <<
     m_interp->gradientWeight << "!\n";
-std::cerr << "Solution.size = " << m_solution.size() << "!\n";
-std::cerr << "Contraints.size = " << m_constraints.size() << "!\n";
-std::cerr << "Solve depth = " << m_opts.m_solveDepth << "!\n";
 }
 
 template<typename Real>
@@ -889,10 +857,6 @@ void PoissonRecon<Real>::execute()
     addFEMConstraints();
     addInterpolationConstraints();
 //ABELL
-    std::cerr << "Leaf Nodes / Active Nodes / GhostNodes: " +
-        std::to_string(m_tree.leaves()) + " / " +
-        std::to_string(m_tree.nodes()) + " / " +
-        std::to_string(m_tree.ghostNodes()) + "\n";
 /**
     DumpOutput("Leaf Nodes / Active Nodes / GhostNodes: " +
         std::to_string(m_tree.leaves()) + " / " +
@@ -911,7 +875,6 @@ void PoissonRecon<Real>::evaluate()
     double weightSum = 0;
     typename Octree<Real>::template MultiThreadedEvaluator<Degree, BType>
         evaluator(&m_tree, m_solution, m_opts.m_threads);
-    std::cerr << "Samples size = " << m_samples->size() << "!\n";
     for (auto & s : *m_samples)
     {
         ProjectiveData<OrientedPoint3D<Real>, Real>& sample = s.sample;
@@ -926,7 +889,6 @@ void PoissonRecon<Real>::evaluate()
     m_isoValue = valueSum / weightSum;
 
     m_profiler.dumpOutput("Got average:");
-    std::cerr << "Iso-Value: " << m_isoValue << "!\n";
 }
 
 template<typename Real>
@@ -995,260 +957,3 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-/**
-template< class Real , int Degree , BoundaryType BType , class Vertex >
-int _Execute( int argc , char* argv[] )
-{
-	typedef typename Octree< Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
-	typedef typename Octree< Real >::template InterpolationInfo< false > InterpolationInfo;
-
-	Reset< Real >();
-
-
-		// Transform the Hermite samples into a vector field [If discarding, compute anew. Otherwise, compute once.]
-	    SparseNodeData< Point3D< Real > >* normalInfo = NULL;
-		{
-			profiler.start();
-			normalInfo = new SparseNodeData< Point3D< Real > >();
-			*normalInfo = tree.template setNormalField< NORMAL_DEGREE >( *samples , *density , pointWeightSum , BType==BOUNDARY_NEUMANN );
-			profiler.dumpOutput2( comments , "#     Got normal field:" );
-		}
-
-		if( !Density.set ) delete density , density = NULL;
-
-		// Trim the tree and prepare for multigrid
-		{
-			profiler.start();
-			std::vector< int > indexMap;
-
-			constexpr int MAX_DEGREE = NORMAL_DEGREE > Degree ? NORMAL_DEGREE : Degree;
-			tree.template inalizeForBroodedMultigrid< MAX_DEGREE , Degree , BType >( FullDepth.value , typename Octree< Real >::template HasNormalDataFunctor< NORMAL_DEGREE >( *normalInfo ) , &indexMap );
-
-			if( normalInfo ) normalInfo->remapIndices( indexMap );
-			if( density ) density->remapIndices( indexMap );
-			profiler.dumpOutput2( comments , "#       Finalized tree:" );
-		}
-
-		DenseNodeData< Real > constraints;
-		int solveDepth = MaxSolveDepth.value;
-		// Add the FEM constraints
-		{
-			profiler.start();
-			constraints = tree.template initDenseNodeData( );
-			tree.template addFEMConstraints< Degree , BType , NORMAL_DEGREE , BType >( FEMVFConstraintFunctor< NORMAL_DEGREE , BType , Degree , BType >( 1. , 0. ) , *normalInfo , constraints , solveDepth );
-			profiler.dumpOutput2( comments , "#  Set FEM constraints:" );
-		}
-
-		// Free up the normal info [If we don't need it for subseequent iterations.]
-		delete normalInfo , normalInfo = NULL;
-
-		InterpolationInfo* iInfo = NULL;
-		// Add the interpolation constraints
-		if( PointWeight.value>0 )
-		{
-			profiler.start();
-	        Real targetValue = (Real)0.5;
-			iInfo = new InterpolationInfo( tree , *samples , targetValue , AdaptiveExponent.value , (Real)PointWeight.value * pointWeightSum , (Real)0 );
-			tree.template addInterpolationConstraints< Degree , BType >( *iInfo , constraints , solveDepth );
-			profiler.dumpOutput2( comments , "#Set point constraints:" );
-		}
-
-		DumpOutput( "Leaf Nodes / Active Nodes / Ghost Nodes: %d / %d / %d\n" , (int)tree.leaves() , (int)tree.nodes() , (int)tree.ghostNodes() );
-		DumpOutput( "Memory Usage: %.3f MB\n" , float( MemoryInfo::Usage())/(1<<20) );
-
-		// Solve the linear system
-		{
-			profiler.start();
-			typename Octree< Real >::SolverInfo solverInfo;
-			solverInfo.cgDepth = CGDepth.value , solverInfo.iters = Iters.value , solverInfo.cgAccuracy = CGSolverAccuracy.value , solverInfo.verbose = Verbose.set , solverInfo.showResidual = ShowResidual.set , solverInfo.lowResIterMultiplier = std::max< double >( 1. , LowResIterMultiplier.value );
-			solution = tree.template solveSystem< Degree , BType >( FEMSystemFunctor< Degree , BType >( 0 , 1. , 0 ) , iInfo , constraints , solveDepth , solverInfo );
-			profiler.dumpOutput2( comments , "# Linear system solved:" );
-			if( iInfo ) delete iInfo , iInfo = NULL;
-		}
-	}
-
-	CoredFileMeshData< Vertex > mesh;
-
-	{
-		profiler.start();
-		double valueSum = 0 , weightSum = 0;
-		typename Octree< Real >::template MultiThreadedEvaluator< Degree , BType > evaluator( &tree , solution , Threads.value );
-#pragma omp parallel for num_threads( Threads.value ) reduction( + : valueSum , weightSum )
-		for( int j=0 ; j<samples->size() ; j++ )
-		{
-			ProjectiveData< OrientedPoint3D< Real > , Real >& sample = (*samples)[j].sample;
-			Real w = sample.weight;
-			if( w>0 ) weightSum += w , valueSum += evaluator.value( sample.data.p / sample.weight , omp_get_thread_num() , (*samples)[j].node ) * w;
-		}
-		isoValue = (Real)( valueSum / weightSum );
-		if( !( Color.set && Color.value>0 ) && samples ) delete samples , samples = NULL;
-		profiler.dumpOutput( "Got average:" );
-		DumpOutput( "Iso-Value: %e\n" , isoValue );
-	}
-
-	if( VoxelGrid.set )
-	{
-		profiler.start();
-        writeVoxels<Real, Degree, BType>(tree, solution, VoxelGrid.value,
-            isoValue, VoxelDepth.value, PrimalVoxel.set);
-		profiler.dumpOutput( "Got voxel grid:" );
-    }
-
-	if( Out.set )
-	{
-		profiler.start();
-		SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData = NULL;
-		if( sampleData )
-		{
-			colorData = new SparseNodeData< ProjectiveData< Point3D< Real > , Real > >();
-			*colorData = tree.template setDataField< DATA_DEGREE , false >( *samples , *sampleData , (DensityEstimator*)NULL );
-			delete sampleData , sampleData = NULL;
-			for( const OctNode< TreeNodeData >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
-			{
-				ProjectiveData< Point3D< Real > , Real >* clr = (*colorData)( n );
-				if( clr ) (*clr) *= (Real)pow( Color.value , tree.depth( n ) );
-			}
-		}
-		tree.template getMCIsoSurface< Degree , BType , WEIGHT_DEGREE , DATA_DEGREE >( density , colorData , solution , isoValue , mesh , !LinearFit.set , !NonManifold.set , PolygonMesh.set );
-		DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
-		if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
-		else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
-
-		if( colorData ) delete colorData , colorData = NULL;
-
-        int plyType(ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE);
-        char **commentData(NoComments.set ? NULL : &comments[0]);
-        int numComments(NoComments.set ? 0 : (int)comments.size());
-
-        PlyWritePolygons( Out.value , &mesh , plyType, commentData, numComments, iXForm );
-	}
-	if( density ) delete density , density = NULL;
-	DumpOutput2( comments , "#          Total Solve: %9.1f (s), %9.1f (MB)\n" , Time()-startTime , tree.maxMemoryUsage() );
-
-	return 1;
-}
-
-#if defined( _WIN32 ) || defined( _WIN64 )
-inline double to_seconds( const FILETIME& ft )
-{
-	const double low_to_sec=100e-9; // 100 nanoseconds
-	const double high_to_sec=low_to_sec*4294967296.0;
-	return ft.dwLowDateTime*low_to_sec+ft.dwHighDateTime*high_to_sec;
-}
-#endif // _WIN32 || _WIN64
-**/
-
-/**
-#ifndef FAST_COMPILE
-template< class Real , class Vertex >
-int Execute( int argc , char* argv[] )
-{
-	switch( BType.value )
-	{
-		case BOUNDARY_FREE+1:
-		{
-			switch( Degree.value )
-			{
-			case 1: return _Execute< Real , 1 , BOUNDARY_FREE , Vertex >( argc , argv );
-			case 2: return _Execute< Real , 2 , BOUNDARY_FREE , Vertex >( argc , argv );
-			case 3: return _Execute< Real , 3 , BOUNDARY_FREE , Vertex >( argc , argv );
-			case 4: return _Execute< Real , 4 , BOUNDARY_FREE , Vertex >( argc , argv );
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) ; return EXIT_FAILURE;
-			}
-		}
-		case BOUNDARY_NEUMANN+1:
-		{
-			switch( Degree.value )
-			{
-			case 1: return _Execute< Real , 1 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
-			case 2: return _Execute< Real , 2 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
-			case 3: return _Execute< Real , 3 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
-			case 4: return _Execute< Real , 4 , BOUNDARY_NEUMANN , Vertex >( argc , argv );
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) ; return EXIT_FAILURE;
-			}
-		}
-		case BOUNDARY_DIRICHLET+1:
-		{
-			switch( Degree.value )
-			{
-			case 1: return _Execute< Real , 1 , BOUNDARY_DIRICHLET , Vertex >( argc , argv );
-			case 2: return _Execute< Real , 2 , BOUNDARY_DIRICHLET , Vertex >( argc , argv );
-			case 3: return _Execute< Real , 3 , BOUNDARY_DIRICHLET , Vertex >( argc , argv );
-			case 4: return _Execute< Real , 4 , BOUNDARY_DIRICHLET , Vertex >( argc , argv );
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) ; return EXIT_FAILURE;
-			}
-		}
-		default: fprintf( stderr , "[ERROR] Not a valid boundary type: %d\n" , BType.value ) ; return EXIT_FAILURE;
-	}
-}
-#endif // !FAST_COMPILE
-
-int main( int argc , char* argv[] )
-{
-#ifdef ARRAY_DEBUG
-	fprintf( stderr , "[WARNING] Running in array debugging mode\n" );
-#endif // ARRAY_DEBUG
-#if defined( WIN32 ) && defined( MAX_MEMORY_GB )
-	if( MAX_MEMORY_GB>0 )
-	{
-		SIZE_T peakMemory = 1;
-		peakMemory <<= 30;
-		peakMemory *= MAX_MEMORY_GB;
-		printf( "Limiting memory usage to %.2f GB\n" , float( peakMemory>>30 ) );
-		HANDLE h = CreateJobObject( NULL , NULL );
-		AssignProcessToJobObject( h , GetCurrentProcess() );
-
-		JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = { 0 };
-		jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_JOB_MEMORY;
-		jeli.JobMemoryLimit = peakMemory;
-		if( !SetInformationJobObject( h , JobObjectExtendedLimitInformation , &jeli , sizeof( jeli ) ) )
-			fprintf( stderr , "Failed to set memory limit\n" );
-	}
-#endif // defined( WIN32 ) && defined( MAX_MEMORY_GB )
-	double t = Time();
-
-	cmdLineParse( argc-1 , &argv[1] , sizeof(params)/sizeof(cmdLineReadable*) , params , 1 );
-#ifdef FAST_COMPILE
-	static const int Degree = 2;
-	static const BoundaryType BType = BOUNDARY_NEUMANN;
-	fprintf( stderr , "[WARNING] Compiling for degree-%d, boundary-%s, single-precision _only_\n" , Degree , BoundaryNames[ BType ] );
-	if( Density.set )
-		if( Color.set && Color.value>0 ) return _Execute< float , Degree , BType , PlyColorAndValueVertex< float > >( argc , argv );
-		else                             return _Execute< float , Degree , BType , PlyValueVertex< float > >( argc , argv );
-	else
-		if( Color.set && Color.value>0 ) return _Execute< float , Degree , BType , PlyColorVertex< float > >( argc , argv );
-		else                             return _Execute< float , Degree , BType , PlyVertex< float > >( argc , argv );
-#else // !FAST_COMPILE
-	{
-		if( Density.set )
-			if( Color.set && Color.value>0 )
-				if( Double.set ) Execute< double , PlyColorAndValueVertex< float > >( argc , argv );
-				else             Execute< float  , PlyColorAndValueVertex< float > >( argc , argv );
-			else
-				if( Double.set ) Execute< double , PlyValueVertex< float > >( argc , argv );
-				else             Execute< float  , PlyValueVertex< float > >( argc , argv );
-		else
-			if( Color.set && Color.value>0 )
-				if( Double.set ) Execute< double , PlyColorVertex< float > >( argc , argv );
-				else             Execute< float  , PlyColorVertex< float > >( argc , argv );
-			else
-				if( Double.set ) Execute< double , PlyVertex< float > >( argc , argv );
-				else             Execute< float  , PlyVertex< float > >( argc , argv );
-	}
-#endif // FAST_COMPILE
-#if defined( _WIN32 ) || defined( _WIN64 )
-	if( Performance.set )
-	{
-		HANDLE cur_thread=GetCurrentThread();
-		FILETIME tcreat, texit, tkernel, tuser;
-		if( GetThreadTimes( cur_thread , &tcreat , &texit , &tkernel , &tuser ) )
-			printf( "Time (Wall/User/Kernel): %.2f / %.2f / %.2f\n" , Time()-t , to_seconds( tuser ) , to_seconds( tkernel ) );
-		else printf( "Time: %.2f\n" , Time()-t );
-		HANDLE h = GetCurrentProcess();
-		PROCESS_MEMORY_COUNTERS pmc;
-		if( GetProcessMemoryInfo( h , &pmc , sizeof(pmc) ) ) printf( "Peak Memory (MB): %d\n" , (int)( pmc.PeakWorkingSetSize>>20 ) );
-	}
-#endif // _WIN32 || _WIN64
-	return EXIT_SUCCESS;
-}
-**/
