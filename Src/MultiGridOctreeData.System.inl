@@ -454,7 +454,7 @@ void Octree< Real >::_setMultiColorIndices( int start , int end , std::vector< s
 
 template< class Real >
 template< class C , int FEMDegree , BoundaryType BType >
-void Octree< Real >::_downSample( LocalDepth highDepth , DenseNodeData< C , FEMDegree >& constraints ) const
+void Octree< Real >::_downSample( LocalDepth highDepth , DenseNodeData< C >& constraints ) const
 {
 	typedef typename TreeOctNode::NeighborKey< -BSplineSupportSizes< FEMDegree >::UpSampleStart , BSplineSupportSizes< FEMDegree >::UpSampleEnd > UpSampleKey;
 
@@ -526,7 +526,7 @@ void Octree< Real >::_downSample( LocalDepth highDepth , DenseNodeData< C , FEMD
 }
 template< class Real >
 template< class C , int FEMDegree , BoundaryType BType >
-void Octree< Real >::_upSample( LocalDepth highDepth , DenseNodeData< C , FEMDegree >& coefficients ) const
+void Octree< Real >::_upSample( LocalDepth highDepth , DenseNodeData< C >& coefficients ) const
 {
 	static const int  LeftDownSampleRadius = -( ( BSplineSupportSizes< FEMDegree >::DownSample0Start < BSplineSupportSizes< FEMDegree >::DownSample1Start ) ? BSplineSupportSizes< FEMDegree >::DownSample0Start : BSplineSupportSizes< FEMDegree >::DownSample1Start );
 	static const int RightDownSampleRadius =  ( ( BSplineSupportSizes< FEMDegree >::DownSample0End   > BSplineSupportSizes< FEMDegree >::DownSample1End   ) ? BSplineSupportSizes< FEMDegree >::DownSample0End   : BSplineSupportSizes< FEMDegree >::DownSample1End   );
@@ -705,9 +705,9 @@ void Octree< Real >::_UpSample( LocalDepth highDepth , ConstPointer( C ) lowCoef
 
 template< class Real >
 template< class C , int FEMDegree , BoundaryType BType >
-DenseNodeData< C , FEMDegree > Octree< Real >::coarseCoefficients( const DenseNodeData< C , FEMDegree >& coefficients ) const
+DenseNodeData< C > Octree< Real >::coarseCoefficients( const DenseNodeData< C >& coefficients ) const
 {
-	DenseNodeData< Real , FEMDegree > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
+	DenseNodeData< Real > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
 	memset( &coarseCoefficients[0] , 0 , sizeof(Real)*_sNodesEnd(_maxDepth-1) );
 #pragma omp parallel for num_threads( threads )
 	for( int i=_sNodesBegin(0) ; i<_sNodesEnd(_maxDepth-1) ; i++ ) coarseCoefficients[i] = coefficients[i];
@@ -716,9 +716,9 @@ DenseNodeData< C , FEMDegree > Octree< Real >::coarseCoefficients( const DenseNo
 }
 template< class Real >
 template< class C , int FEMDegree , BoundaryType BType >
-DenseNodeData< C , FEMDegree > Octree< Real >::coarseCoefficients( const SparseNodeData< C , FEMDegree >& coefficients ) const
+DenseNodeData< C > Octree< Real >::coarseCoefficients( const SparseNodeData< C >& coefficients ) const
 {
-	DenseNodeData< Real , FEMDegree > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
+	DenseNodeData< Real > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
 	memset( &coarseCoefficients[0] , 0 , sizeof(Real)*_sNodesEnd(_maxDepth-1) );
 #pragma omp parallel for num_threads( threads )
 	for( int i=_sNodesBegin(0) ; i<_sNodesEnd(_maxDepth-1) ; i++ )
@@ -732,7 +732,7 @@ DenseNodeData< C , FEMDegree > Octree< Real >::coarseCoefficients( const SparseN
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-Real Octree< Real >::_coarserFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* pointNode , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients ) const
+Real Octree< Real >::_coarserFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* pointNode , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& upSampledCoefficients ) const
 {
 	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
 	static const int  LeftSupportRadius = - BSplineSupportSizes< FEMDegree >::SupportStart;
@@ -777,7 +777,7 @@ Real Octree< Real >::_coarserFunctionValue( Point3D< Real > p , const PointSuppo
 }
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-Point3D< Real > Octree< Real >::_coarserFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* pointNode , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients ) const
+Point3D< Real > Octree< Real >::_coarserFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* pointNode , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& upSampledCoefficients ) const
 {
 	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
 	static const int  LeftSupportRadius = - BSplineSupportSizes< FEMDegree >::SupportStart;
@@ -835,7 +835,7 @@ Point3D< Real > Octree< Real >::_coarserFunctionGradient( Point3D< Real > p , co
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-Real Octree< Real >::_finerFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* pointNode , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& finerCoefficients ) const
+Real Octree< Real >::_finerFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* pointNode , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& finerCoefficients ) const
 {
 	typename TreeOctNode::Neighbors< BSplineSupportSizes< FEMDegree >::SupportSize > childNeighbors;
 	static const int  LeftPointSupportRadius =  BSplineSupportSizes< FEMDegree >::SupportEnd;
@@ -866,7 +866,7 @@ Real Octree< Real >::_finerFunctionValue( Point3D< Real > p , const PointSupport
 }
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-Point3D< Real > Octree< Real >::_finerFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* pointNode , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& finerCoefficients ) const
+Point3D< Real > Octree< Real >::_finerFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* pointNode , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& finerCoefficients ) const
 {
 	typename TreeOctNode::Neighbors< BSplineSupportSizes< FEMDegree >::SupportSize > childNeighbors;
 	static const int  LeftPointSupportRadius =  BSplineSupportSizes< FEMDegree >::SupportEnd;
@@ -896,7 +896,7 @@ Point3D< Real > Octree< Real >::_finerFunctionGradient( Point3D< Real > p , cons
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType , bool HasGradients >
-void Octree< Real >::_setPointValuesFromCoarser( InterpolationInfo< HasGradients >& interpolationInfo , LocalDepth highDepth , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients )
+void Octree< Real >::_setPointValuesFromCoarser( InterpolationInfo< HasGradients >& interpolationInfo , LocalDepth highDepth , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& upSampledCoefficients )
 {
 	LocalDepth lowDepth = highDepth-1;
 	if( lowDepth<0 ) return;
@@ -935,7 +935,7 @@ void Octree< Real >::_setPointValuesFromCoarser( InterpolationInfo< HasGradients
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType , bool HasGradients >
-void Octree< Real >::_updateCumulativeInterpolationConstraintsFromFiner( const InterpolationInfo< HasGradients >& interpolationInfo , const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real , FEMDegree >& finerCoefficients , DenseNodeData< Real , FEMDegree >& coarserConstraints ) const
+void Octree< Real >::_updateCumulativeInterpolationConstraintsFromFiner( const InterpolationInfo< HasGradients >& interpolationInfo , const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real >& finerCoefficients , DenseNodeData< Real >& coarserConstraints ) const
 {
 	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
 	static const int  LeftPointSupportRadius =  BSplineSupportSizes< FEMDegree >::SupportEnd;
@@ -1208,7 +1208,7 @@ int Octree< Real >::_setMatrixRow( const FEMSystemFunctor& F , const Interpolati
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-int Octree< Real >::_getMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo<  HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real , FEMDegree >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , const DenseNodeData< Real , FEMDegree >& metSolution , bool coarseToFine )
+int Octree< Real >::_getMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo<  HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , const DenseNodeData< Real >& metSolution , bool coarseToFine )
 {
 	static const int OverlapRadius = - BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapStart;
 	static const int OverlapSize   =   BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize;
@@ -1250,7 +1250,7 @@ int Octree< Real >::_getMatrixAndUpdateConstraints( const FEMSystemFunctor& F , 
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-int Octree< Real >::_getSliceMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real , FEMDegree >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , int slice , const DenseNodeData< Real , FEMDegree >& metSolution , bool coarseToFine )
+int Octree< Real >::_getSliceMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , int slice , const DenseNodeData< Real >& metSolution , bool coarseToFine )
 {
 	static const int OverlapSize   =  BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize;
 	static const int OverlapRadius = -BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapStart;
@@ -1302,7 +1302,7 @@ int Octree< Real >::_getSliceMatrixAndUpdateConstraints( const FEMSystemFunctor&
 #endif // MOD
 template< class Real >
 template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-int Octree< Real >::_solveSystemGS( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real , FEMDegree >& solution , DenseNodeData< Real , FEMDegree >& constraints , DenseNodeData< Real , FEMDegree >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms )
+int Octree< Real >::_solveSystemGS( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real >& solution , DenseNodeData< Real >& constraints , DenseNodeData< Real >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms )
 {
 	const int OverlapRadius = -BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapStart;
 	typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template      Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >      integrator;
@@ -1310,8 +1310,8 @@ int Octree< Real >::_solveSystemGS( const FEMSystemFunctor& F , const BSplineDat
 	BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::SetIntegrator( integrator , depth );
 	if( depth>0 ) BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::SetChildIntegrator( childIntegrator , depth-1 );
 
-	DenseNodeData< Real , FEMDegree >& metSolution    = metSolutionConstraints;	// This stores the up-sampled solution up to depth-2
-	DenseNodeData< Real , FEMDegree >& metConstraints = metSolutionConstraints; // This stores the down-sampled constraints up to depth
+	DenseNodeData< Real >& metSolution    = metSolutionConstraints;	// This stores the up-sampled solution up to depth-2
+	DenseNodeData< Real >& metConstraints = metSolutionConstraints; // This stores the down-sampled constraints up to depth
 
 	int sliceBegin = _BSplineBegin< FEMDegree , BType >( depth ) , sliceEnd = _BSplineEnd< FEMDegree , BType >( depth );
 	double&   systemTime = stats.  systemTime;
@@ -1437,15 +1437,15 @@ int Octree< Real >::_solveSystemGS( const FEMSystemFunctor& F , const BSplineDat
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-int Octree< Real >::_solveSystemCG( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real , FEMDegree >& solution , DenseNodeData< Real , FEMDegree >& constraints , DenseNodeData< Real , FEMDegree >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double accuracy )
+int Octree< Real >::_solveSystemCG( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real >& solution , DenseNodeData< Real >& constraints , DenseNodeData< Real >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double accuracy )
 {
 	typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template      Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >      integrator;
 	typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) > childIntegrator;
 	BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::SetIntegrator( integrator , depth );
 	if( depth>0 ) BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::SetChildIntegrator( childIntegrator , depth-1 );
 
-	DenseNodeData< Real , FEMDegree >& metSolution    = metSolutionConstraints;	// This stores the up-sampled solution up to depth-2
-	DenseNodeData< Real , FEMDegree >& metConstraints = metSolutionConstraints; // This stores the down-sampled constraints up to depth
+	DenseNodeData< Real >& metSolution    = metSolutionConstraints;	// This stores the up-sampled solution up to depth-2
+	DenseNodeData< Real >& metConstraints = metSolutionConstraints; // This stores the down-sampled constraints up to depth
 
 	int iter = 0;
 	Pointer( Real ) X = GetPointer( &   solution[0] + _sNodesBegin(depth) , _sNodesSize(depth) );
@@ -1573,7 +1573,7 @@ void Octree< Real >::_SetParentOverlapBounds( const TreeOctNode* node , int& sta
 // has already happened
 template< class Real >
 template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-void Octree< Real >::_updateConstraintsFromCoarser( const FEMSystemFunctor& F , const InterpolationInfo<  HasGradients >* interpolationInfo , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& neighbors , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& pNeighbors , TreeOctNode* node , DenseNodeData< Real , FEMDegree >& constraints , const DenseNodeData< Real , FEMDegree >& metSolution , const typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const Stencil< double , BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& lapStencil , const BSplineData< FEMDegree , BType >& bsData ) const
+void Octree< Real >::_updateConstraintsFromCoarser( const FEMSystemFunctor& F , const InterpolationInfo<  HasGradients >* interpolationInfo , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& neighbors , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& pNeighbors , TreeOctNode* node , DenseNodeData< Real >& constraints , const DenseNodeData< Real >& metSolution , const typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const Stencil< double , BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& lapStencil , const BSplineData< FEMDegree , BType >& bsData ) const
 {
 	static const int LeftSupportRadius  = -BSplineSupportSizes< FEMDegree >::SupportStart;
 	static const int RightSupportRadius =  BSplineSupportSizes< FEMDegree >::SupportEnd;
@@ -1636,7 +1636,7 @@ void Octree< Real >::_updateConstraintsFromCoarser( const FEMSystemFunctor& F , 
 // Given the solution @( depth ) add to the met constraints @( depth-1 )
 template< class Real >
 template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor >
-void Octree< Real >::_updateCumulativeIntegralConstraintsFromFiner( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real , FEMDegree >& fineSolution , DenseNodeData< Real , FEMDegree >& coarseConstraints ) const
+void Octree< Real >::_updateCumulativeIntegralConstraintsFromFiner( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real >& fineSolution , DenseNodeData< Real >& coarseConstraints ) const
 {
 	typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) > childIntegrator;
 	BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::SetChildIntegrator( childIntegrator , highDepth-1 );
@@ -1732,7 +1732,7 @@ void Octree< Real >::setSystemMatrix( const FEMSystemFunctor& F , const Interpol
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-DenseNodeData< Real , FEMDegree > Octree< Real >::solveSystem( const FEMSystemFunctor& F , InterpolationInfo< HasGradients >* interpolationInfo , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxSolveDepth , const typename Octree< Real >::SolverInfo& solverInfo )
+DenseNodeData< Real > Octree< Real >::solveSystem( const FEMSystemFunctor& F , InterpolationInfo< HasGradients >* interpolationInfo , DenseNodeData< Real >& constraints , LocalDepth maxSolveDepth , const typename Octree< Real >::SolverInfo& solverInfo )
 {
 	BSplineData< FEMDegree , BType > bsData( maxSolveDepth );
 
@@ -1740,10 +1740,10 @@ DenseNodeData< Real , FEMDegree > Octree< Real >::solveSystem( const FEMSystemFu
 	int iter = 0;
 	const int _iters = std::max< int >( 0 , solverInfo.iters );
 
-	DenseNodeData< Real , FEMDegree > solution( _sNodesEnd( _maxDepth ) );
+	DenseNodeData< Real > solution( _sNodesEnd( _maxDepth ) );
 	memset( &solution[0] , 0 , sizeof(Real) * _sNodesEnd( _maxDepth ) );
 
-	DenseNodeData< Real , FEMDegree > metSolution( _sNodesEnd( _maxDepth-1 ) );
+	DenseNodeData< Real > metSolution( _sNodesEnd( _maxDepth-1 ) );
 	memset( &metSolution[0] , 0 , sizeof(Real)*_sNodesEnd( _maxDepth-1 ) );
 	for( LocalDepth d=0 ; d<=maxSolveDepth ; d++ )
 	{
@@ -1775,10 +1775,9 @@ DenseNodeData< Real , FEMDegree > Octree< Real >::solveSystem( const FEMSystemFu
 }
 
 template< class Real >
-template< int FEMDegree >
-DenseNodeData< Real , FEMDegree > Octree< Real >::initDenseNodeData( void )
+DenseNodeData< Real > Octree< Real >::initDenseNodeData( void )
 {
-	DenseNodeData< Real , FEMDegree > constraints( _sNodes.size() );
+	DenseNodeData< Real > constraints( _sNodes.size() );
 	memset( &constraints[0] , 0 , sizeof(Real)*_sNodes.size() );
 	return constraints;
 }
@@ -1792,7 +1791,7 @@ template< > template< > bool Octree< float  >::_IsZero( const Point3D< float  >&
 template< > template< > bool Octree< double >::_IsZero( const Point3D< double >& p ){ return p[0]==0 && p[1]==0 && p[2]==0; }
 template< class Real >
 template< int FEMDegree , BoundaryType FEMBType , int CDegree , BoundaryType CBType , class FEMConstraintFunctor , class Coefficients , class D , class _D >
-void Octree< Real >::_addFEMConstraints( const FEMConstraintFunctor& F , const Coefficients& coefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
+void Octree< Real >::_addFEMConstraints( const FEMConstraintFunctor& F , const Coefficients& coefficients , DenseNodeData< Real >& constraints , LocalDepth maxDepth )
 {
 	typedef typename TreeOctNode::NeighborKey< -BSplineSupportSizes< FEMDegree >::SupportStart , BSplineSupportSizes< FEMDegree >::SupportEnd > SupportKey;
 	const int      CFEMOverlapSize   =  BSplineOverlapSizes< CDegree , FEMDegree >::OverlapSize;
@@ -1807,8 +1806,8 @@ void Octree< Real >::_addFEMConstraints( const FEMConstraintFunctor& F , const C
 	// Within the same depth: set directly as a gather
 	// Coarser depths
 	maxDepth = std::min< LocalDepth >( maxDepth , _maxDepth );
-	DenseNodeData< Real , FEMDegree >* __constraints = new DenseNodeData< Real , FEMDegree >( _sNodesEnd(maxDepth-1) );
-	DenseNodeData< Real , FEMDegree >& _constraints = *__constraints;
+	DenseNodeData< Real >* __constraints = new DenseNodeData< Real >( _sNodesEnd(maxDepth-1) );
+	DenseNodeData< Real >& _constraints = *__constraints;
 	memset( &_constraints[0] , 0 , sizeof(Real)*( _sNodesEnd(maxDepth-1) ) );
 	memoryUsage();
 
@@ -1909,7 +1908,7 @@ void Octree< Real >::_addFEMConstraints( const FEMConstraintFunctor& F , const C
 
 	delete __constraints;
 
-	DenseNodeData< D , CDegree > _coefficients( _sNodesEnd(maxDepth-1) );
+	DenseNodeData< D > _coefficients( _sNodesEnd(maxDepth-1) );
 	memset( &_coefficients[0] , 0 , sizeof(D) * _sNodesEnd(maxDepth-1) );
 	for( LocalDepth d=maxDepth-1 ; d>=0 ; d-- )
 	{
@@ -1979,7 +1978,7 @@ void Octree< Real >::_addFEMConstraints( const FEMConstraintFunctor& F , const C
 
 template< class Real >
 template< int FEMDegree , BoundaryType BType , bool HasGradients >
-void Octree< Real >::addInterpolationConstraints( const InterpolationInfo< HasGradients >& interpolationInfo , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
+void Octree< Real >::addInterpolationConstraints( const InterpolationInfo< HasGradients >& interpolationInfo , DenseNodeData< Real >& constraints , LocalDepth maxDepth )
 {
 	typedef typename TreeOctNode::NeighborKey< -BSplineSupportSizes< FEMDegree >::SupportStart , BSplineSupportSizes< FEMDegree >::SupportEnd > SupportKey;
 	maxDepth = std::min< LocalDepth >( maxDepth , _maxDepth );
@@ -2095,7 +2094,7 @@ double Octree< Real >::_dot( const DotFunctor& F , const InterpolationInfo< HasG
 		const int  LeftOverlapRadius = -BSplineOverlapSizes< FEMDegree2 , FEMDegree1 >::OverlapStart;
 		const int RightOverlapRadius =  BSplineOverlapSizes< FEMDegree2 , FEMDegree1 >::OverlapEnd;
 
-		DenseNodeData< Real , FEMDegree1 > cumulative1( _sNodesEnd( _maxDepth-1 ) );
+		DenseNodeData< Real > cumulative1( _sNodesEnd( _maxDepth-1 ) );
 		if( _maxDepth>0 ) memset( &cumulative1[0] , 0 , sizeof(Real) * _sNodesEnd( _maxDepth-1 ) );
 
 		for( LocalDepth d=1 ; d<=_maxDepth ; d++ )
@@ -2166,7 +2165,7 @@ double Octree< Real >::_dot( const DotFunctor& F , const InterpolationInfo< HasG
 		const int  LeftOverlapRadius = -BSplineOverlapSizes< FEMDegree1 , FEMDegree2 >::OverlapStart;
 		const int RightOverlapRadius =  BSplineOverlapSizes< FEMDegree1 , FEMDegree2 >::OverlapEnd;
 
-		DenseNodeData< Real , FEMDegree2 > cumulative2( _sNodesEnd( _maxDepth-1 ) );
+		DenseNodeData< Real > cumulative2( _sNodesEnd( _maxDepth-1 ) );
 		if( _maxDepth>0 ) memset( &cumulative2[0] , 0 , sizeof(Real) * _sNodesEnd( _maxDepth-1 ) );
 
 		for( LocalDepth d=_maxDepth ; d>0 ; d-- )

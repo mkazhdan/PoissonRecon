@@ -515,10 +515,10 @@ private:
     Real m_isoValue;
     double m_startTime;
     DensityEstimator<Real> *m_density;
-    SparseNodeData<Point3D<Real> , NORMAL_DEGREE> m_normalInfo;
+    SparseNodeData<Point3D<Real> > m_normalInfo;
     Real m_pointWeightSum;
-    DenseNodeData<Real, Degree> m_constraints;
-    DenseNodeData<Real, Degree> m_solution;
+    DenseNodeData<Real> m_constraints;
+    DenseNodeData<Real> m_solution;
     InterpolationInfo<Real> *m_interp;
     std::vector<std::string> m_comments;
 };
@@ -593,8 +593,7 @@ template<typename Real>
 template<typename Vertex>
 void PoissonRecon<Real>::writeSurface(CoredFileMeshData<Vertex>& mesh)
 {
-    using ColorData = SparseNodeData<ProjectiveData<Point3D<Real>, Real>,
-        DATA_DEGREE>;
+    using ColorData = SparseNodeData<ProjectiveData<Point3D<Real>, Real> >;
 
     m_profiler.start();
     ColorData colorData = m_tree.template setDataField<DATA_DEGREE, false>(
@@ -812,7 +811,7 @@ void PoissonRecon<Real>::addFEMConstraints()
     // Degree doesn't seem to be used here.
     int solveDepth = MaxSolveDepth.value;
     // This just initializes a vector of data to 0.  Blarf.
-    m_constraints = m_tree.template initDenseNodeData<Degree>();
+    m_constraints = m_tree.template initDenseNodeData();
 std::cerr << "Constraints size = " << m_constraints.size() << "!\n";
 std::cerr << "Normal info size = " << m_normalInfo.size() << "!\n";
 std::cerr << "Solve depth = " << m_opts.m_solveDepth << "!\n";
@@ -1006,10 +1005,10 @@ int _Execute( int argc , char* argv[] )
 
 
 		// Transform the Hermite samples into a vector field [If discarding, compute anew. Otherwise, compute once.]
-	    SparseNodeData< Point3D< Real > , NORMAL_DEGREE >* normalInfo = NULL;
+	    SparseNodeData< Point3D< Real > >* normalInfo = NULL;
 		{
 			profiler.start();
-			normalInfo = new SparseNodeData< Point3D< Real > , NORMAL_DEGREE >();
+			normalInfo = new SparseNodeData< Point3D< Real > >();
 			*normalInfo = tree.template setNormalField< NORMAL_DEGREE >( *samples , *density , pointWeightSum , BType==BOUNDARY_NEUMANN );
 			profiler.dumpOutput2( comments , "#     Got normal field:" );
 		}
@@ -1029,12 +1028,12 @@ int _Execute( int argc , char* argv[] )
 			profiler.dumpOutput2( comments , "#       Finalized tree:" );
 		}
 
-		DenseNodeData< Real , Degree > constraints;
+		DenseNodeData< Real > constraints;
 		int solveDepth = MaxSolveDepth.value;
 		// Add the FEM constraints
 		{
 			profiler.start();
-			constraints = tree.template initDenseNodeData< Degree >( );
+			constraints = tree.template initDenseNodeData( );
 			tree.template addFEMConstraints< Degree , BType , NORMAL_DEGREE , BType >( FEMVFConstraintFunctor< NORMAL_DEGREE , BType , Degree , BType >( 1. , 0. ) , *normalInfo , constraints , solveDepth );
 			profiler.dumpOutput2( comments , "#  Set FEM constraints:" );
 		}
@@ -1097,10 +1096,10 @@ int _Execute( int argc , char* argv[] )
 	if( Out.set )
 	{
 		profiler.start();
-		SparseNodeData< ProjectiveData< Point3D< Real > , Real > , DATA_DEGREE >* colorData = NULL;
+		SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData = NULL;
 		if( sampleData )
 		{
-			colorData = new SparseNodeData< ProjectiveData< Point3D< Real > , Real > , DATA_DEGREE >();
+			colorData = new SparseNodeData< ProjectiveData< Point3D< Real > , Real > >();
 			*colorData = tree.template setDataField< DATA_DEGREE , false >( *samples , *sampleData , (DensityEstimator*)NULL );
 			delete sampleData , sampleData = NULL;
 			for( const OctNode< TreeNodeData >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )

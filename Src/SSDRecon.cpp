@@ -470,7 +470,7 @@ int _Execute( int argc , char* argv[] )
 	std::vector< typename Octree< Real >::PointSample >* samples = new std::vector< typename Octree< Real >::PointSample >();
 	std::vector< ProjectiveData< Point3D< Real > , Real > >* sampleData = NULL;
 	DensityEstimator* density = NULL;
-	SparseNodeData< Point3D< Real > , NORMAL_DEGREE >* normalInfo = NULL;
+	SparseNodeData< Point3D< Real > >* normalInfo = NULL;
 	Real targetValue = (Real)0.;
 
 	// Read in the samples (and color data)
@@ -520,10 +520,10 @@ int _Execute( int argc , char* argv[] )
 		profiler.dumpOutput2( comments , "# Read input into tree:" );
 	}
 
-	DenseNodeData< Real , Degree > solution;
+	DenseNodeData< Real > solution;
 	// Solve
 	{
-		DenseNodeData< Real , Degree > constraints;
+		DenseNodeData< Real > constraints;
 		InterpolationInfo* iInfo = NULL;
 		int solveDepth = MaxSolveDepth.value;
 
@@ -539,7 +539,7 @@ int _Execute( int argc , char* argv[] )
 		// Transform the Hermite samples into a vector field
 		{
 			profiler.start();
-			normalInfo = new SparseNodeData< Point3D< Real > , NORMAL_DEGREE >();
+			normalInfo = new SparseNodeData< Point3D< Real > >();
 			*normalInfo = tree.template setNormalField< NORMAL_DEGREE >( *samples , *density , pointWeightSum , BType==BOUNDARY_NEUMANN );
 			profiler.dumpOutput2( comments , "#     Got normal field:" );
 		}
@@ -567,7 +567,7 @@ int _Execute( int argc , char* argv[] )
 		{
 			profiler.start();
 			iInfo = new InterpolationInfo( tree , *samples , targetValue , AdaptiveExponent.value , (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum );
-			constraints = tree.template initDenseNodeData< Degree >( );
+			constraints = tree.template initDenseNodeData( );
 			tree.template addInterpolationConstraints< Degree , BType >( *iInfo , constraints , solveDepth );
 			profiler.dumpOutput2( comments , "#Set point constraints:" );
 		}
@@ -633,10 +633,10 @@ int _Execute( int argc , char* argv[] )
 	if( Out.set )
 	{
 		profiler.start();
-		SparseNodeData< ProjectiveData< Point3D< Real > , Real > , DATA_DEGREE >* colorData = NULL;
+		SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData = NULL;
 		if( sampleData )
 		{
-			colorData = new SparseNodeData< ProjectiveData< Point3D< Real > , Real > , DATA_DEGREE >();
+			colorData = new SparseNodeData< ProjectiveData< Point3D< Real > , Real > >();
 			*colorData = tree.template setDataField< DATA_DEGREE , false >( *samples , *sampleData , (DensityEstimator*)NULL );
 			delete sampleData , sampleData = NULL;
 			for( const OctNode< TreeNodeData >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
