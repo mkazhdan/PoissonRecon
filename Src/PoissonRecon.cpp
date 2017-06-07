@@ -258,6 +258,35 @@ struct OctreeProfiler
 };
 
 
+PointSourcePtr createPointSource(const std::string& filename, bool color)
+{
+    std::string ext = GetFileExtension(filename);
+    for (auto& c : ext)
+        c = tolower(c);
+
+    PointSource *pointSource;
+    if (color)
+    {
+        if (ext == "bnpts")
+            pointSource = new ColorBinaryPointSource(filename);
+        else if (ext == "ply")
+            pointSource = new ColorPLYPointSource(filename);
+        else
+            pointSource = new ColorASCIIPointSource(filename);
+    }
+    else
+    {
+        if (ext == "bnpts")
+            pointSource = new BinaryPointSource(filename);
+        else if (ext == "ply")
+            pointSource = new PLYPointSource(filename);
+        else
+            pointSource = new ASCIIPointSource(filename);
+    }
+    return PointSourcePtr(pointSource);
+}
+
+
 int main(int argc, char *argv[])
 {
     using Real = float;
@@ -307,8 +336,10 @@ int main(int argc, char *argv[])
 		opts.m_kernelDepth = opts.m_depth;
 	}
 
+    PointSourcePtr pointSource(createPointSource(In.value, opts.m_hasColor));
+
     std::cerr << "Opts filename = " << opts.m_inputFilename << "!\n";
-    PoissonRecon<Real> recon(opts);
+    PoissonRecon<Real> recon(opts, *pointSource);
 
     recon.execute();
     recon.evaluate();

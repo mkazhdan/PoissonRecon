@@ -58,7 +58,7 @@ DAMAGE.
 #include <omp.h>
 #endif
 #include "BSplineData.h"
-#include "PointStream.h"
+#include "PointSource.h"
 #include "Geometry.h"
 #include "Octree.h"
 #include "SparseMatrix.h"
@@ -889,7 +889,7 @@ public:
 
 	void init( LocalDepth maxDepth , bool (*Refine)( LocalDepth d , LocalOffset off ) );
 	template< class Data >
-	int init( OrientedPointStream< Real >& pointStream , LocalDepth maxDepth , bool useConfidence , std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >* sampleData );
+	int init(PointSource& pointSource , LocalDepth maxDepth , bool useConfidence , std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >* sampleData );
 	template< int DensityDegree >
 	typename Octree::DensityEstimator* setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode );
 	template< int NormalDegree , int DensityDegree >

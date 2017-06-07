@@ -208,22 +208,49 @@ void Octree< Real >::_init( TreeOctNode* node , LocalDepth maxDepth , bool (*Ref
 		}
 	}
 }
-template< class Real > void Octree< Real >::init( LocalDepth maxDepth , bool (*Refine)( LocalDepth , LocalOffset ) ){ _init( _spaceRoot , maxDepth , Refine ); }
+template< class Real >
+void Octree< Real >::init( LocalDepth maxDepth ,
+    bool (*Refine)( LocalDepth , LocalOffset ) )
+{
+    _init( _spaceRoot , maxDepth , Refine );
+}
+
 template< class Real >
 template< class Data >
-int Octree< Real >::init( OrientedPointStream< Real >& pointStream , LocalDepth maxDepth , bool useConfidence , std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >* sampleData )
+int Octree< Real >::init(PointSource& source , LocalDepth maxDepth ,
+    bool useConfidence , std::vector< PointSample >& samples ,
+    std::vector< ProjectiveData< Data , Real > >* sampleData )
 {
-	OrientedPointStreamWithData< Real , Data >& pointStreamWithData = ( OrientedPointStreamWithData< Real , Data >& )pointStream;
-
 	// Add the point data
-	int outOfBoundPoints = 0 , zeroLengthNormals = 0 , undefinedNormals = 0 , pointCount = 0;
+	int outOfBoundPoints = 0;
+    int zeroLengthNormals = 0;
+    int undefinedNormals = 0;
+    int pointCount = 0;
 	{
 		std::vector< int > nodeToIndexMap;
 		Point3D< Real > p , n;
-		OrientedPoint3D< Real > _p;
-		Data _d;
-		while( ( sampleData ? pointStreamWithData.nextPoint( _p , _d ) : pointStream.nextPoint( _p ) ) )
-		{
+		OrientedPoint3D<double> _p;
+        Point3D<double> _d;
+//		Data _d;
+
+
+        while (true)
+        {
+            //ABELL - Doing this every loop is stupid, but it's proof of
+            // concept at this point.
+            try
+            {
+                ColorPointSource& colorSource =
+                    dynamic_cast<ColorPointSource &>(source);
+                if (!colorSource.nextPoint(_p, _d))
+                    break;
+            }
+            catch (std::bad_cast)
+            {
+                if (!source.nextPoint(_p))
+                    break;
+            }
+
 			p = Point3D< Real >(_p.p) , n = Point3D< Real >(_p.n);
 			Real len = (Real)Length( n );
 			if( !_InBounds(p) ){ outOfBoundPoints++ ; continue; }
@@ -263,7 +290,7 @@ int Octree< Real >::init( OrientedPointStream< Real >& pointStream , LocalDepth 
 			if( sampleData ) (*sampleData)[ idx ] += ProjectiveData< Data , Real >( _d * weight , weight );
 			pointCount++;
 		}
-		pointStream.reset();
+		source.reset();
 	}
 	if( outOfBoundPoints  ) fprintf( stderr , "[WARNING] Found out-of-bound points: %d\n" , outOfBoundPoints );
 	if( zeroLengthNormals ) fprintf( stderr , "[WARNING] Found zero-length normals: %d\n" , zeroLengthNormals );

@@ -47,7 +47,7 @@ DAMAGE.
 #endif // _OPENMP
 
 #include "MultiGridOctreeData.h"
-#include "PointStream.h"
+#include "PointSource.h"
 
 constexpr BoundaryType BType = BOUNDARY_NEUMANN;
 constexpr int Degree = 2;
@@ -79,39 +79,26 @@ struct ColorInfo
     const static PlyProperty PlyProperties[];
 };
 
-template<>
-const PlyProperty ColorInfo< float >::PlyProperties[] =
-{
-    { "r"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-    { "g"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-    { "b"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-    { "red"   , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-    { "green" , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-    { "blue"  , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[2] ) ) , 0 , 0 , 0 , 0 }
-};
 
-template<>
-const PlyProperty ColorInfo< double >::PlyProperties[] =
+template<typename Real>
+XForm4x4<Real> GetPointXForm(PointSource& source, Real scaleFactor)
 {
-    { "r"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-    { "g"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-    { "b"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-    { "red"   , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-    { "green" , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-    { "blue"  , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[2] ) ) , 0 , 0 , 0 , 0 }
-};
-
-template< class Real >
-XForm4x4< Real > GetPointXForm( OrientedPointStream< Real >& stream , Real scaleFactor )
-{
-	Point3D< Real > min , max;
-	stream.boundingBox( min , max );
-	Point3D< Real > center = ( max + min ) / 2;
-	Real scale = std::max< Real >( max[0]-min[0] , std::max< Real >( max[1]-min[1] , max[2]-min[2] ) );
+	Point3D<double> min , max;
+	source.boundingBox(min, max);
+	Point3D<double> center = ( max + min ) / 2;
+	Real scale = std::max( max[0]-min[0],
+        std::max(max[1]-min[1], max[2]-min[2]));
 	scale *= scaleFactor;
-	for( int i=0 ; i<3 ; i++ ) center[i] -= scale/2;
-	XForm4x4< Real > tXForm = XForm4x4< Real >::Identity() , sXForm = XForm4x4< Real >::Identity();
-	for( int i=0 ; i<3 ; i++ ) sXForm(i,i) = (Real)(1./scale ) , tXForm(3,i) = -center[i];
+	for( int i=0 ; i<3 ; i++ )
+        center[i] -= scale/2;
+
+	XForm4x4<Real> tXForm = XForm4x4<Real>::Identity();
+    XForm4x4<Real> sXForm = XForm4x4<Real>::Identity();
+	for( int i=0 ; i<3 ; i++ )
+    {
+        sXForm(i,i) = (Real)(1./scale );
+        tXForm(3,i) = -center[i];
+    }
 	return sXForm * tXForm;
 }
 
@@ -136,21 +123,6 @@ using DensityEstimator = typename Octree<Real>::DensityEstimator;
 template<typename Real>
 using InterpolationInfo =
     typename Octree<Real>::template InterpolationInfo<false>;
-
-
-template <typename Real>
-using PointStream = OrientedPointStream<Real>;
-
-template <typename Real>
-using PointStreamWithData = OrientedPointStreamWithData<Real , Point3D<Real>>;
-
-template <typename Real>
-using XPointStream = TransformedOrientedPointStream<Real>;
-
-template <typename Real>
-using XPointStreamWithData = TransformedOrientedPointStreamWithData< Real,
-    Point3D<Real>>;
-
 
 template<typename Real>
 struct PoissonOpts
@@ -216,7 +188,8 @@ template<class Real>
 class PoissonRecon
 {
 public:
-    PoissonRecon(PoissonOpts<Real> opts) : m_opts(opts),
+    PoissonRecon(PoissonOpts<Real> opts, PointSource& pointSource) :
+        m_opts(opts), m_pointSource(pointSource),
         m_xForm(XForm4x4<Real>::Identity()),
         m_samples(new OctreeSampleVec<Real>), m_isoValue(0)
     {}
@@ -235,13 +208,13 @@ private:
     void solve();
     void writeVoxels();
     void writePly();
-    PointStream<Real> *createPointStream();
 
     template<typename Vertex>
     void writeSurface(CoredFileMeshData<Vertex>& mesh);
 
 private:
     PoissonOpts<Real> m_opts;
+    PointSource& m_pointSource;
     XForm4x4<Real> m_xForm;
     XForm4x4<Real> m_iXForm; // Inverse transform.
     Octree<Real> m_tree;
@@ -385,78 +358,41 @@ void PoissonRecon<Real>::readXForm(const std::string& filename)
 }
 
 template<typename Real>
-PointStream<Real> *PoissonRecon<Real>::createPointStream()
+int loadOctTree(Octree<Real>& tree, XForm4x4<Real>& xForm, PointSource& source,
+    int depth, bool confidence, OctreeSampleVec<Real> *samples,
+    DataSampleVec<Real> *sampleData)
 {
-    const std::string& f = m_opts.m_inputFilename;
-    std::string ext = GetFileExtension(f);
-    for (auto& c : ext)
-        c = tolower(c);
-
-    PointStream<Real> *pointStream(nullptr);
-    if (m_opts.m_hasColor)
+    try
     {
-        m_sampleData = new DataSampleVec<Real>();
-        if (ext == "bnpts")
-            pointStream = new BinaryOrientedPointStreamWithData<Real,
-                Point3D< Real > , float , Point3D< unsigned char > >(f.data());
-        else if (ext == "ply")
-            pointStream = new PLYOrientedPointStreamWithData<Real ,
-                Point3D< Real > >(f.data(), ColorInfo< Real >::PlyProperties,
-                6 , ColorInfo< Real >::ValidPlyProperties);
-        else
-            pointStream = new  ASCIIOrientedPointStreamWithData<Real ,
-                Point3D< Real > >(f.data(), ColorInfo< Real >::ReadASCII );
-    }
-    else
-    {
-        if (ext == "bnpts")
-            pointStream = new BinaryOrientedPointStream< Real, float>(f.data());
-        else if (ext == "ply")
-            pointStream = new PLYOrientedPointStream<Real>(f.data());
-        else
-            pointStream = new  ASCIIOrientedPointStream<Real>(f.data());
-    }
-    return pointStream;
-}
+        ColorPointSource& colorSource =
+            dynamic_cast<ColorPointSource &>(source);
 
-template<typename Real>
-int loadOctTree(Octree<Real>& tree, XForm4x4<Real>& xForm,
-    PointStream<Real> *pointStream, int depth, bool confidence,
-    OctreeSampleVec<Real> *samples, DataSampleVec<Real> *sampleData)
-{
-    int pointCount;
-
-    if( sampleData )
-    {
-        XPointStreamWithData<Real> _pointStream(xForm,
-            (PointStreamWithData<Real>&)*pointStream );
-        pointCount = tree.template init< Point3D< Real >>(_pointStream, depth,
+        ColorTransformedPointSource xsource(xForm, colorSource);
+        return tree.template init< Point3D< Real >>(xsource, depth,
             confidence, *samples, sampleData);
     }
-    else
-    {
-        XPointStream<Real> _pointStream(xForm , *pointStream);
-        pointCount = tree.template init<Point3D<Real>>( _pointStream, depth,
-            confidence, *samples, sampleData);
-    }
-    return pointCount;
+    catch (std::bad_cast)
+    {}
+
+    TransformedPointSource xsource(xForm, source);
+    return tree.template init<Point3D<Real>>(xsource, depth,
+        confidence, *samples, sampleData);
 }
 
 template<typename Real>
 void PoissonRecon<Real>::readData()
 {
     m_profiler.start();
-    PointStream<Real> *pointStream = createPointStream();
-    XPointStream<Real> _pointStream(m_xForm , *pointStream);
-    m_xForm = GetPointXForm( _pointStream , m_opts.m_scale) * m_xForm;
+
+    m_sampleData = new DataSampleVec<Real>();
+    TransformedPointSource xPointSource(m_xForm, m_pointSource);
+    m_xForm = GetPointXForm(xPointSource, m_opts.m_scale) * m_xForm;
     m_iXForm = m_xForm.inverse();
-    int pointCount = loadOctTree(m_tree, m_xForm, pointStream, m_opts.m_depth,
+    int pointCount = loadOctTree(m_tree, m_xForm, m_pointSource, m_opts.m_depth,
         m_opts.m_confidence, m_samples, m_sampleData);
 #pragma omp parallel for num_threads( m_opts.m_threads)
     for( int i=0 ; i<(int)m_samples->size() ; i++ )
         (*m_samples)[i].sample.data.n *= (Real)-1;
-    //Ugh
-    delete pointStream;
 
 //ABELL
 /**
@@ -558,7 +494,6 @@ template<typename Real>
 void PoissonRecon<Real>::execute()
 {
 //ABELL
-//    Reset();
     readXForm(m_opts.m_xformFilename);
     m_comments.push_back("Running Screened Poisson Reconstruction "
         "(Version 9.01)");
