@@ -835,8 +835,7 @@ int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_
 		ply_face.nr_vertices = int( polygon.size() );
 		ply_face.vertices = new int[ polygon.size() ];
 		for( int i=0 ; i<int(polygon.size()) ; i++ )
-			if( polygon[i].inCore ) ply_face.vertices[i] = polygon[i].idx;
-			else                    ply_face.vertices[i] = polygon[i].idx;
+			ply_face.vertices[i] = polygon[i].idx;
 		ply_put_element( ply, (void *) &ply_face );
 		delete[] ply_face.vertices;
 	}  // for, write faces
@@ -894,8 +893,7 @@ int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_
 		ply_face.nr_vertices = int( polygon.size() );
 		ply_face.vertices = new int[ polygon.size() ];
 		for( int i=0 ; i<int(polygon.size()) ; i++ )
-			if( polygon[i].inCore ) ply_face.vertices[i] = polygon[i].idx;
-			else                    ply_face.vertices[i] = polygon[i].idx;
+			ply_face.vertices[i] = polygon[i].idx;
 		ply_put_element( ply, (void *) &ply_face );
 		delete[] ply_face.vertices;
 	}  // for, write faces
