@@ -316,8 +316,7 @@ void PoissonRecon<Real>::writeSurface(CoredFileMeshData<Vertex>& mesh)
     m_tree.template getMCIsoSurface<Degree, BType, WEIGHT_DEGREE, DATA_DEGREE>
         (m_density, &colorData, m_solution, m_isoValue, mesh,
          !m_opts.m_linearFit, !m_opts.m_nonManifold, m_opts.m_polygonMesh);
-    std::cerr << "Vertices / Polygons: " <<
-        (mesh.outOfCorePointCount() + mesh.inCorePoints.size()) <<
+    std::cerr << "Vertices / Polygons: " << mesh.outOfCorePointCount() <<
         " / " << mesh.polygonCount();
     m_profiler.dumpOutput2(m_comments, std::string("#   Got ") +
         (m_opts.m_polygonMesh ? "polygons:" : "triangles:"));

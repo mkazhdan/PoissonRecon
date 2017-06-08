@@ -342,7 +342,6 @@ template< class Vertex >
 class CoredMeshData
 {
 public:
-	std::vector< Vertex > inCorePoints;
 	virtual void resetIterator( void ) = 0;
 
 	virtual int addOutOfCorePoint( const Vertex& p ) = 0;

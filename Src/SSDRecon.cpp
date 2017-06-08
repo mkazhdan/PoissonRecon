@@ -382,10 +382,10 @@ struct OctreeProfiler
 };
 
 template< class Real >
-XForm4x4< Real > GetPointXForm( OrientedPointStream< Real >& stream , Real scaleFactor )
+XForm4x4< Real > GetPointXForm(PointSource& source , Real scaleFactor )
 {
-	Point3D< Real > min , max;
-	stream.boundingBox( min , max );
+	Point3D<double> min , max;
+	source.boundingBox( min , max );
 	Point3D< Real > center = ( max + min ) / 2;
 	Real scale = std::max< Real >( max[0]-min[0] , std::max< Real >( max[1]-min[1] , max[2]-min[2] ) );
 	scale *= scaleFactor;
@@ -395,15 +395,39 @@ XForm4x4< Real > GetPointXForm( OrientedPointStream< Real >& stream , Real scale
 	return sXForm * tXForm;
 }
 
+PointSourcePtr createPointSource(const char *filename, bool color)
+{
+    std::string ext = GetFileExtension(filename);
+    for (auto& c : ext)
+        c = std::tolower(c);
+
+    PointSource *pointSource;
+    if (color)
+    {
+        if (ext == "bnpts")
+            pointSource = new ColorBinaryPointSource(filename);
+        else if (ext == "ply")
+            pointSource = new ColorPLYPointSource(filename);
+        else
+            pointSource = new ColorASCIIPointSource(filename);
+    }
+    else
+    {
+        if (ext == "bnpts")
+            pointSource = new BinaryPointSource(filename);
+        else if (ext == "ply")
+            pointSource = new PLYPointSource(filename);
+        else
+            pointSource = new ASCIIPointSource(filename);
+    }
+    return PointSourcePtr(pointSource);
+}
+
 template< class Real , int Degree , BoundaryType BType , class Vertex >
 int _Execute( int argc , char* argv[] )
 {
 	typedef typename Octree< Real >::DensityEstimator DensityEstimator;
 	typedef typename Octree< Real >::template InterpolationInfo< true > InterpolationInfo;
-	typedef OrientedPointStream< Real > PointStream;
-	typedef OrientedPointStreamWithData< Real , Point3D< Real > > PointStreamWithData;
-	typedef TransformedOrientedPointStream< Real > XPointStream;
-	typedef TransformedOrientedPointStreamWithData< Real , Point3D< Real > > XPointStreamWithData;
 	Reset< Real >();
 	int paramNum = sizeof(params)/sizeof(cmdLineReadable*);
 	std::vector< char* > comments;
@@ -476,45 +500,30 @@ int _Execute( int argc , char* argv[] )
 	// Read in the samples (and color data)
 	{
 		profiler.start();
-		PointStream* pointStream;
-		std::string ext = GetFileExtension( In.value );
-        for (auto& c : ext)
-            c = std::tolower(c);
-		if( Color.set && Color.value>0 )
-		{
-			sampleData = new std::vector< ProjectiveData< Point3D< Real > , Real > >();
-			if ( ext == "bnpts" )
-                pointStream = new BinaryOrientedPointStreamWithData< Real , Point3D< Real > , float , Point3D< unsigned char > >( In.value );
-			else if ( ext == "ply" )
-                pointStream = new    PLYOrientedPointStreamWithData< Real , Point3D< Real > >( In.value , ColorInfo< Real >::PlyProperties , 6 , ColorInfo< Real >::ValidPlyProperties );
-			else
-                pointStream = new  ASCIIOrientedPointStreamWithData< Real , Point3D< Real > >( In.value , ColorInfo< Real >::ReadASCII );
+        PointSourcePtr source(createPointSource(In.value,
+            Color.set && Color.value > 0));
+		TransformedPointSource _pointSource(xForm , *source);
+		xForm = GetPointXForm(_pointSource, (Real)Scale.value) * xForm;
+
+        ColorPointSource *colorSource =
+            dynamic_cast<ColorPointSource *>(source.get());
+        if (colorSource)
+        {
+            sampleData = new std::vector<ProjectiveData<Point3D<Real>, Real>>();
+            ColorTransformedPointSource xsource(xForm, *colorSource);
+			pointCount = tree.template init< Point3D< Real > >(xsource,
+                Depth.value, Confidence.set, *samples, sampleData);
 		}
 		else
 		{
-			if     ( ext == "bnpts" )
-                pointStream = new BinaryOrientedPointStream< Real , float >( In.value );
-			else if (ext == "ply")
-                pointStream = new    PLYOrientedPointStream< Real >( In.value );
-			else
-                pointStream = new  ASCIIOrientedPointStream< Real >( In.value );
-		}
-		XPointStream _pointStream( xForm , *pointStream );
-		xForm = GetPointXForm( _pointStream , (Real)Scale.value ) * xForm;
-		if( sampleData )
-		{
-			XPointStreamWithData _pointStream( xForm , ( PointStreamWithData& )*pointStream );
-			pointCount = tree.template init< Point3D< Real > >( _pointStream , Depth.value , Confidence.set , *samples , sampleData );
-		}
-		else
-		{
-			XPointStream _pointStream( xForm , *pointStream );
-			pointCount = tree.template init< Point3D< Real > >( _pointStream , Depth.value , Confidence.set , *samples , sampleData );
+			TransformedPointSource xsource(xForm , *source);
+			pointCount = tree.template init<Point3D<Real>>(xsource,
+                Depth.value, Confidence.set, *samples, sampleData );
 		}
 		iXForm = xForm.inverse();
-		delete pointStream;
 #pragma omp parallel for num_threads( Threads.value )
-		for( int i=0 ; i<(int)samples->size() ; i++ ) (*samples)[i].sample.data.n *= (Real)-1;
+		for( int i=0 ; i<(int)samples->size() ; i++ )
+            (*samples)[i].sample.data.n *= (Real)-1;
 
 		DumpOutput( "Input Points / Samples: %d / %d\n" , pointCount , samples->size() );
 		profiler.dumpOutput2( comments , "# Read input into tree:" );
@@ -646,7 +655,7 @@ int _Execute( int argc , char* argv[] )
 			}
 		}
 		tree.template getMCIsoSurface< Degree , BType , WEIGHT_DEGREE , DATA_DEGREE >( density , colorData , solution , isoValue , mesh , NonLinearFit.set , !NonManifold.set , PolygonMesh.set );
-		DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
+		DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount(), mesh.polygonCount() );
 		if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
 		else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
 
