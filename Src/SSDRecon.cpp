@@ -39,6 +39,7 @@ DAMAGE.
 #include <Windows.h>
 #include <Psapi.h>
 #endif // _WIN32 || _WIN64
+#include "MemMesh.h"
 #include "MyTime.h"
 #include "MarchingCubes.h"
 #include "Octree.h"
@@ -61,6 +62,8 @@ void DumpOutput2( std::vector< char* >& comments , const char* format , ... );
 #if DEFAULT_FULL_DEPTH
 #pragma message ( "[WARNING] Setting default full depth to " XSTR(DEFAULT_FULL_DEPTH) )
 #endif // DEFAULT_FULL_DEPTH
+
+using MeshPtr = std::unique_ptr<Kazhdan::Mesh>;
 
 #include <stdarg.h>
 char* outputFile=NULL;
@@ -423,6 +426,33 @@ PointSourcePtr createPointSource(const char *filename, bool color)
     return PointSourcePtr(pointSource);
 }
 
+template<typename T>
+MeshPtr createMesh();
+
+template<>
+MeshPtr createMesh<PlyVertex<float>>()
+{
+    return MeshPtr(new Kazhdan::MemMesh);
+}
+
+template<>
+MeshPtr createMesh<PlyColorVertex<float>>()
+{
+    return MeshPtr(new Kazhdan::ColorMemMesh);
+}
+
+template<>
+MeshPtr createMesh<PlyValueVertex<float>>()
+{
+    return MeshPtr(new Kazhdan::DensityMemMesh);
+}
+
+template<>
+MeshPtr createMesh<PlyColorAndValueVertex<float>>()
+{
+    return MeshPtr(new Kazhdan::CompleteMemMesh);
+}
+
 template< class Real , int Degree , BoundaryType BType , class Vertex >
 int _Execute( int argc , char* argv[] )
 {
@@ -596,7 +626,7 @@ int _Execute( int argc , char* argv[] )
 		}
 	}
 
-	CoredFileMeshData< Vertex > mesh;
+    MeshPtr mesh(createMesh<Vertex>());
 
 	{
 		profiler.start();
@@ -654,8 +684,8 @@ int _Execute( int argc , char* argv[] )
 				if( clr ) (*clr) *= (Real)pow( Color.value , tree.depth( n ) );
 			}
 		}
-		tree.template getMCIsoSurface< Degree , BType , WEIGHT_DEGREE , DATA_DEGREE >( density , colorData , solution , isoValue , mesh , NonLinearFit.set , !NonManifold.set , PolygonMesh.set );
-		DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount(), mesh.polygonCount() );
+		tree.template getMCIsoSurface< Degree , BType , WEIGHT_DEGREE , DATA_DEGREE, Vertex >( density , colorData , solution , isoValue , *mesh , NonLinearFit.set , !NonManifold.set , PolygonMesh.set );
+		DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh->pointCount(), mesh->polygonCount() );
 		if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
 		else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
 
@@ -663,13 +693,13 @@ int _Execute( int argc , char* argv[] )
 
 		if( NoComments.set )
 		{
-			if( ASCII.set ) PlyWritePolygons( Out.value , &mesh , PLY_ASCII         , NULL , 0 , iXForm );
-			else            PlyWritePolygons( Out.value , &mesh , PLY_BINARY_NATIVE , NULL , 0 , iXForm );
+			if( ASCII.set ) PlyWritePolygons<Vertex>( Out.value , *mesh , PLY_ASCII         , NULL , 0 , iXForm );
+			else            PlyWritePolygons<Vertex>( Out.value , *mesh , PLY_BINARY_NATIVE , NULL , 0 , iXForm );
 		}
 		else
 		{
-			if( ASCII.set ) PlyWritePolygons( Out.value , &mesh , PLY_ASCII         , &comments[0] , (int)comments.size() , iXForm );
-			else            PlyWritePolygons( Out.value , &mesh , PLY_BINARY_NATIVE , &comments[0] , (int)comments.size() , iXForm );
+			if( ASCII.set ) PlyWritePolygons<Vertex>( Out.value , *mesh , PLY_ASCII         , &comments[0] , (int)comments.size() , iXForm );
+			else            PlyWritePolygons<Vertex>( Out.value , *mesh , PLY_BINARY_NATIVE , &comments[0] , (int)comments.size() , iXForm );
 		}
 	}
 	if( density ) delete density , density = NULL;

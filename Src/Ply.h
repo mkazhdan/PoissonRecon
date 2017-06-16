@@ -220,6 +220,7 @@ extern int equal_strings(const char *, const char *);
 }
 #endif
 #include "Geometry.h"
+#include "Mesh.h"
 #include <vector>
 
 template< class Real > int PLYType( void );
@@ -261,6 +262,12 @@ public:
 
 	PlyVertex( void ) { ; }
 	PlyVertex( Point3D< Real > p ) { point=p; }
+	PlyVertex( Kazhdan::Point& p )
+    {
+        point.coords[0] = (Real)p.m_position[0];
+        point.coords[1] = (Real)p.m_position[1];
+        point.coords[2] = (Real)p.m_position[2];
+    }
 	PlyVertex operator + ( PlyVertex p ) const { return PlyVertex( point+p.point ); }
 	PlyVertex operator - ( PlyVertex p ) const { return PlyVertex( point-p.point ); }
 	template< class _Real > PlyVertex operator * ( _Real s ) const { return PlyVertex( point*s ); }
@@ -299,6 +306,13 @@ public:
 
 	PlyValueVertex( void ) : value( Real(0) ) { ; }
 	PlyValueVertex( Point3D< Real > p , Real v ) : point(p) , value(v) { ; }
+	PlyValueVertex( Kazhdan::Point& p )
+    {
+        point.coords[0] = (Real)p.m_position[0];
+        point.coords[1] = (Real)p.m_position[1];
+        point.coords[2] = (Real)p.m_position[2];
+        value = (Real)p.m_density;
+    }
 	PlyValueVertex operator + ( PlyValueVertex p ) const { return PlyValueVertex( point+p.point , value+p.value ); }
 	PlyValueVertex operator - ( PlyValueVertex p ) const { return PlyValueVertex( point-p.value , value-p.value ); }
 	template< class _Real > PlyValueVertex operator * ( _Real s ) const { return PlyValueVertex( point*s , Real(value*s) ); }
@@ -409,7 +423,17 @@ public:
 	PlyColorVertex( void ) { point.coords[0] = point.coords[1] = point.coords[2] = 0 , color[0] = color[1] = color[2] = 0; }
 	PlyColorVertex( const Point3D<Real>& p ) { point=p; }
 	PlyColorVertex( const Point3D< Real >& p , const unsigned char c[3] ) { point = p , color[0] = c[0] , color[1] = c[1] , color[2] = c[2]; }
+	PlyColorVertex( Kazhdan::Point& p )
+    {
+        point.coords[0] = (Real)p.m_position[0];
+        point.coords[1] = (Real)p.m_position[1];
+        point.coords[2] = (Real)p.m_position[2];
+        color[0] = p.m_color[0];
+        color[1] = p.m_color[1];
+        color[2] = p.m_color[2];
+    }
 };
+
 template< class Real , class _Real > PlyColorVertex< Real > operator * ( XForm4x4< _Real > xForm , PlyColorVertex< Real > v ) { return PlyColorVertex< Real >( xForm * v.point , v.color ); }
 
 template< class Real > PlyProperty PlyColorVertex< Real >::ReadProperties[]=
@@ -479,7 +503,18 @@ public:
 	PlyColorAndValueVertex( void ) { point.coords[0] = point.coords[1] = point.coords[2] = (Real)0 , color[0] = color[1] = color[2] = 0 , value = (Real)0; }
 	PlyColorAndValueVertex( const Point3D< Real >& p ) { point=p; }
 	PlyColorAndValueVertex( const Point3D< Real >& p , const unsigned char c[3] , Real v) { point = p , color[0] = c[0] , color[1] = c[1] , color[2] = c[2] , value = v; }
+	PlyColorAndValueVertex( Kazhdan::Point& p )
+    {
+        point.coords[0] = (Real)p.m_position[0];
+        point.coords[1] = (Real)p.m_position[1];
+        point.coords[2] = (Real)p.m_position[2];
+        color[0] = p.m_color[0];
+        color[1] = p.m_color[1];
+        color[2] = p.m_color[2];
+        value = (Real)p.m_density;
+    }
 };
+
 template< class Real , class _Real > PlyColorAndValueVertex< Real > operator * ( XForm4x4< _Real > xForm , PlyColorAndValueVertex< Real > v ) { return PlyColorAndValueVertex< Real >( xForm * v.point , v.color , v.value ); }
 template< class Real > PlyProperty PlyColorAndValueVertex< Real >::ReadProperties[]=
 {
@@ -506,10 +541,10 @@ template< class Real > PlyProperty PlyColorAndValueVertex< Real >::WriteProperti
 };
 
 template< class Vertex , class Real >
-int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >*  mesh , int file_type , const Point3D< float >& translate , float scale , char** comments=NULL , int commentNum=0 , XForm4x4< Real > xForm=XForm4x4< Real >::Identity() );
+int PlyWritePolygons( char* fileName , Kazhdan::Mesh& mesh , int file_type , const Point3D< float >& translate , float scale , char** comments=NULL , int commentNum=0 , XForm4x4< Real > xForm=XForm4x4< Real >::Identity() );
 
 template< class Vertex , class Real >
-int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >*  mesh , int file_type , char** comments=NULL , int commentNum=0 , XForm4x4< Real > xForm=XForm4x4< Real >::Identity() );
+int PlyWritePolygons( char* fileName , Kazhdan::Mesh& mesh, int file_type , char** comments=NULL , int commentNum=0 , XForm4x4< Real > xForm=XForm4x4< Real >::Identity() );
 
 inline bool PlyReadHeader( char* fileName , PlyProperty* properties , int propertyNum , bool* readFlags , int& file_type )
 {
@@ -786,17 +821,17 @@ int PlyReadPolygons(char* fileName,
 }
 
 template< class Vertex , class Real >
-int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_type , const Point3D<float>& translate , float scale , char** comments , int commentNum , XForm4x4< Real > xForm )
+int PlyWritePolygons( char* fileName , Kazhdan::Mesh& mesh, int file_type , const Point3D<float>& translate , float scale , char** comments , int commentNum , XForm4x4< Real > xForm )
 {
 	int i;
-	int nr_vertices=int(mesh->outOfCorePointCount());
-	int nr_faces=mesh->polygonCount();
+	int nr_vertices=mesh.pointCount();
+	int nr_faces=mesh.polygonCount();
 	float version;
 	const char *elem_names[] = { "vertex" , "face" };
 	PlyFile *ply = ply_open_for_writing( fileName , 2 , elem_names , file_type , &version );
 	if( !ply ) return 0;
 
-	mesh->resetIterator();
+	mesh.resetIterator();
 
 	//
 	// describe vertex and face properties
@@ -814,16 +849,17 @@ int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_
 
 	// write vertices
 	ply_put_element_setup( ply , "vertex" );
-	for( i=0; i<mesh->outOfCorePointCount() ; i++ )
+	for( i=0; i<mesh.pointCount(); i++ )
 	{
-		Vertex vertex;
-		mesh->nextOutOfCorePoint( vertex );
+        Kazhdan::Point p;
+		mesh.nextPoint(p);
+		Vertex vertex(p);
 		vertex = xForm * ( vertex * scale +translate );
 		ply_put_element(ply, (void *) &vertex);
 	}  // for, write vertices
 
 	// write faces
-	std::vector< CoredVertexIndex > polygon;
+	Kazhdan::Polygon polygon;
 	ply_put_element_setup( ply , "face" );
 	for( i=0 ; i<nr_faces ; i++ )
 	{
@@ -831,11 +867,11 @@ int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_
 		// create and fill a struct that the ply code can handle
 		//
 		PlyFace ply_face;
-		mesh->nextPolygon( polygon );
+		mesh.nextPolygon( polygon );
 		ply_face.nr_vertices = int( polygon.size() );
 		ply_face.vertices = new int[ polygon.size() ];
 		for( int i=0 ; i<int(polygon.size()) ; i++ )
-			ply_face.vertices[i] = polygon[i].idx;
+			ply_face.vertices[i] = polygon[i];
 		ply_put_element( ply, (void *) &ply_face );
 		delete[] ply_face.vertices;
 	}  // for, write faces
@@ -844,17 +880,17 @@ int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_
 	return 1;
 }
 template< class Vertex , class Real >
-int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_type , char** comments , int commentNum , XForm4x4< Real > xForm )
+int PlyWritePolygons( char* fileName , Kazhdan::Mesh& mesh, int file_type , char** comments , int commentNum , XForm4x4< Real > xForm )
 {
 	int i;
-	int nr_vertices=int(mesh->outOfCorePointCount());
-	int nr_faces=mesh->polygonCount();
+	int nr_vertices=int(mesh.pointCount());
+	int nr_faces=mesh.polygonCount();
 	float version;
 	const char *elem_names[] = { "vertex" , "face" };
 	PlyFile *ply = ply_open_for_writing( fileName , 2 , elem_names , file_type , &version );
 	if( !ply ) return 0;
 
-	mesh->resetIterator();
+	mesh.resetIterator();
 
 	//
 	// describe vertex and face properties
@@ -872,16 +908,17 @@ int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_
 
 	// write vertices
 	ply_put_element_setup( ply , "vertex" );
-	for( i=0; i<mesh->outOfCorePointCount() ; i++ )
+	for( i=0; i<mesh.pointCount() ; i++ )
 	{
-		Vertex vertex;
-		mesh->nextOutOfCorePoint( vertex );
+        Kazhdan::Point p;
+		mesh.nextPoint(p);
+        Vertex vertex(p);
 		vertex = xForm * ( vertex );
 		ply_put_element(ply, (void *) &vertex);
 	}  // for, write vertices
 
 	// write faces
-	std::vector< CoredVertexIndex > polygon;
+	Kazhdan::Polygon polygon;
 	ply_put_element_setup( ply , "face" );
 	for( i=0 ; i<nr_faces ; i++ )
 	{
@@ -889,11 +926,11 @@ int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_
 		// create and fill a struct that the ply code can handle
 		//
 		PlyFace ply_face;
-		mesh->nextPolygon( polygon );
+		mesh.nextPolygon(polygon);
 		ply_face.nr_vertices = int( polygon.size() );
 		ply_face.vertices = new int[ polygon.size() ];
 		for( int i=0 ; i<int(polygon.size()) ; i++ )
-			ply_face.vertices[i] = polygon[i].idx;
+			ply_face.vertices[i] = polygon[i];
 		ply_put_element( ply, (void *) &ply_face );
 		delete[] ply_face.vertices;
 	}  // for, write faces

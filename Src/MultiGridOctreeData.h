@@ -58,6 +58,7 @@ DAMAGE.
 #include <omp.h>
 #endif
 #include "BSplineData.h"
+#include "Mesh.h"
 #include "PointSource.h"
 #include "Geometry.h"
 #include "Octree.h"
@@ -846,11 +847,11 @@ protected:
 	template< class Vertex , int FEMDegree , BoundaryType BType >
 	void _setSliceIsoCorners( const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , Real isoValue , LocalDepth depth , int slice , int z , std::vector< _SlabValues< Vertex > >& sValues , const _Evaluator< FEMDegree , BType >& evaluator , int threads );
 	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice ,         int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
+	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice ,         int& vOffset , Kazhdan::Mesh& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice , int z , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
+	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice , int z , int& vOffset , Kazhdan::Mesh& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-	void _setXSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slab , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
+	void _setXSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slab , int& vOffset , Kazhdan::Mesh& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 	template< class Vertex >
 	void _setSliceIsoEdges( LocalDepth depth , int slice ,         std::vector< _SlabValues< Vertex > >& slabValues , int threads );
 	template< class Vertex >
@@ -865,10 +866,10 @@ protected:
 	void _copyFinerXSliceIsoEdgeKeys( LocalDepth depth , int slab , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 
 	template< class Vertex >
-	void _setIsoSurface( LocalDepth depth , int offset , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , const _XSliceValues< Vertex >& xValues , CoredMeshData< Vertex >& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , int threads );
+	void _setIsoSurface( LocalDepth depth , int offset , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , const _XSliceValues< Vertex >& xValues , Kazhdan::Mesh& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , int threads );
 
 	template< class Vertex >
-	static int _addIsoPolygons( CoredMeshData< Vertex >& mesh , std::vector< std::pair< int , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , int& vOffset );
+	static int _addIsoPolygons( Kazhdan::Mesh& mesh , std::vector< std::pair< int , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , int& vOffset );
 
 	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
 	bool _getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int edgeIndex , int z , const _SliceValues< Vertex >& sValues , Vertex& vertex );
@@ -953,7 +954,7 @@ public:
 	DenseNodeData< Real > solveSystem( const FEMSystemFunctor& F , InterpolationInfo< HasGradients >* iData , DenseNodeData< Real >& constraints , LocalDepth maxSolveDepth , const SolverInfo& solverInfo );
 
 	template< int FEMDegree , BoundaryType BType , int WeightDegree , int ColorDegree , class Vertex >
-	void getMCIsoSurface( const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , const DenseNodeData< Real >& solution , Real isoValue , CoredMeshData< Vertex >& mesh , bool nonLinearFit=true , bool addBarycenter=false , bool polygonMesh=false );
+	void getMCIsoSurface( const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , const DenseNodeData< Real >& solution , Real isoValue , Kazhdan::Mesh& mesh , bool nonLinearFit=true , bool addBarycenter=false , bool polygonMesh=false );
 
 
 	const TreeOctNode& tree( void ) const{ return *_tree; }

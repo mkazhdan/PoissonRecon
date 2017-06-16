@@ -48,6 +48,7 @@ DAMAGE.
 
 #include "MultiGridOctreeData.h"
 #include "PointSource.h"
+#include "Mesh.h"
 
 constexpr BoundaryType BType = BOUNDARY_NEUMANN;
 constexpr int Degree = 2;
@@ -138,8 +139,8 @@ struct PoissonOpts
     Real m_color;
     std::string m_voxelFilename;
     std::string m_xformFilename;
-    std::string m_inputFilename; // Input.value
-    std::string m_outputFilename; // Output.value
+//    std::string m_inputFilename; // Input.value
+//    std::string m_outputFilename; // Output.value
     Real m_samplesPerNode;
     int m_depth;
     int m_cgDepth;
@@ -155,7 +156,6 @@ struct PoissonOpts
     bool m_linearFit;
     bool m_nonManifold;
     bool m_polygonMesh;
-    bool m_ascii;
     int m_fullDepth;
     Real m_scale;
 
@@ -165,8 +165,8 @@ struct PoissonOpts
         m_showResidual(false), m_lowResIterMult(1), m_kernelDepth(0),
         m_solveDepth(0), m_solverAccuracy(1e-3), m_pointWeight(4),
         m_adaptExponent(1), m_density(false), m_linearFit(false),
-        m_nonManifold(false), m_polygonMesh(false), m_ascii(false),
-        m_fullDepth(5), m_scale(1.1)
+        m_nonManifold(false), m_polygonMesh(false), m_fullDepth(5),
+        m_scale(1.1)
     {}
 };
 
@@ -195,7 +195,11 @@ public:
     {}
     void execute();
     void evaluate();
-    void writeOutput();
+    void extractMesh(Kazhdan::Mesh& mesh);
+    std::vector<std::string> comments() const
+        { return m_comments; }
+    XForm4x4<Real> inverseTransform() const
+        { return m_iXForm; }
 
 private:
     void readData();
@@ -207,10 +211,9 @@ private:
     void addInterpolationConstraints();
     void solve();
     void writeVoxels();
-    void writePly();
 
     template<typename Vertex>
-    void writeSurface(CoredFileMeshData<Vertex>& mesh);
+    void writeSurface(Kazhdan::Mesh& mesh);
 
 private:
     PoissonOpts<Real> m_opts;
@@ -270,6 +273,7 @@ void PoissonRecon<Real>::writeVoxels()
     }
 }
 
+/**
 template<typename Real>
 void PoissonRecon<Real>::writePly()
 {
@@ -294,10 +298,32 @@ void PoissonRecon<Real>::writePly()
         writeSurface(mesh);
     }
 }
+**/
 
-template<typename Real>
+template <typename Real>
+void PoissonRecon<Real>::extractMesh(Kazhdan::Mesh& mesh)
+{
+    if (m_opts.m_density && m_opts.m_hasColor)
+    {
+        writeSurface<PlyColorAndValueVertex<float>>(mesh);
+    }
+    else if (m_opts.m_density)
+    {
+        writeSurface<PlyValueVertex<float>>(mesh);
+    }
+    else if (m_opts.m_hasColor)
+    {
+        writeSurface<PlyColorVertex<float>>(mesh);
+    }
+    else
+    {
+        writeSurface<PlyVertex<float>>(mesh);
+    }
+}
+
+template <typename Real>
 template<typename Vertex>
-void PoissonRecon<Real>::writeSurface(CoredFileMeshData<Vertex>& mesh)
+void PoissonRecon<Real>::writeSurface(Kazhdan::Mesh& mesh)
 {
     using ColorData = SparseNodeData<ProjectiveData<Point3D<Real>, Real> >;
 
@@ -313,10 +339,12 @@ void PoissonRecon<Real>::writeSurface(CoredFileMeshData<Vertex>& mesh)
             *color *= pow(m_opts.m_color, m_tree.depth(n));
     }
 
-    m_tree.template getMCIsoSurface<Degree, BType, WEIGHT_DEGREE, DATA_DEGREE>
+    m_tree.template getMCIsoSurface<Degree, BType, WEIGHT_DEGREE, DATA_DEGREE, Vertex>
         (m_density, &colorData, m_solution, m_isoValue, mesh,
          !m_opts.m_linearFit, !m_opts.m_nonManifold, m_opts.m_polygonMesh);
-    std::cerr << "Vertices / Polygons: " << mesh.outOfCorePointCount() <<
+
+    /**
+    std::cerr << "Vertices / Polygons: " << mesh.pointCount() <<
         " / " << mesh.polygonCount();
     m_profiler.dumpOutput2(m_comments, std::string("#   Got ") +
         (m_opts.m_polygonMesh ? "polygons:" : "triangles:"));
@@ -327,6 +355,7 @@ void PoissonRecon<Real>::writeSurface(CoredFileMeshData<Vertex>& mesh)
     PlyWritePolygons((char *)m_opts.m_outputFilename.data(), &mesh,
         (m_opts.m_ascii ? PLY_ASCII : PLY_BINARY_NATIVE), buf.get(),
         m_comments.size(), m_iXForm);
+    **/
 }
 
 template<typename Real>
@@ -541,12 +570,5 @@ void PoissonRecon<Real>::evaluate()
     m_isoValue = valueSum / weightSum;
 
     m_profiler.dumpOutput("Got average:");
-}
-
-template<typename Real>
-void PoissonRecon<Real>::writeOutput()
-{
-    writeVoxels();
-    writePly();
 }
 

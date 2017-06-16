@@ -41,6 +41,7 @@ DAMAGE.
 
 #include "CmdLineParser.h"
 #include "PoissonRecon.h"
+#include "MemMesh.h"
 
 cmdLineString
 	In( "in" ) ,
@@ -257,6 +258,52 @@ struct OctreeProfiler
 	}
 };
 
+using MeshPtr = std::unique_ptr<Kazhdan::Mesh>;
+
+template <typename Vertex, typename Real>
+void writeOutput(PoissonRecon<Real>& recon, Kazhdan::Mesh& mesh)
+{
+    std::cerr << "Vertices / Polygons: " << mesh.pointCount() << " / " <<
+        mesh.polygonCount() << std::endl;
+
+    std::vector<std::string> comments(recon.comments());
+    std::unique_ptr<char *> buf(new char *[comments.size()]);
+    for (size_t i = 0; i < comments.size(); ++i)
+        *(buf.get() + i) = (char *)comments[i].data();
+    PlyWritePolygons<Vertex, Real>(Out.value, mesh,
+        (ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE), buf.get(), comments.size(),
+        recon.inverseTransform());
+}
+
+template <typename Real>
+void extractMesh(PoissonRecon<Real>& recon, bool color, bool density)
+{
+    MeshPtr mesh;
+    if (color && density)
+    {
+        mesh.reset(new Kazhdan::CompleteMemMesh);
+        recon.extractMesh(*mesh);
+        writeOutput<PlyColorAndValueVertex<float>, Real>(recon, *mesh);
+    }
+    else if (color)
+    {
+        mesh.reset(new Kazhdan::ColorMemMesh);
+        recon.extractMesh(*mesh);
+        writeOutput<PlyColorVertex<float>, Real>(recon, *mesh);
+    }
+    else if (density)
+    {
+        mesh.reset(new Kazhdan::DensityMemMesh);
+        recon.extractMesh(*mesh);
+        writeOutput<PlyValueVertex<float>, Real>(recon, *mesh);
+    }
+    else
+    {
+        mesh.reset(new Kazhdan::MemMesh);
+        recon.extractMesh(*mesh);
+        writeOutput<PlyVertex<float>, Real>(recon, *mesh);
+    }
+}
 
 PointSourcePtr createPointSource(const std::string& filename, bool color)
 {
@@ -308,8 +355,10 @@ int main(int argc, char *argv[])
         std::cerr << "Must supply output file!\n";
         return 0;
     }
+    /**
     opts.m_inputFilename = In.value;
     opts.m_outputFilename = Out.value;
+    **/
     if (Depth.set)
         opts.m_depth = Depth.value;
     if (Color.set)
@@ -338,12 +387,13 @@ int main(int argc, char *argv[])
 
     PointSourcePtr pointSource(createPointSource(In.value, opts.m_hasColor));
 
-    std::cerr << "Opts filename = " << opts.m_inputFilename << "!\n";
+    std::cerr << "Opts filename = " << In.value << "!\n";
     PoissonRecon<Real> recon(opts, *pointSource);
 
     recon.execute();
     recon.evaluate();
-    recon.writeOutput();
+
+    extractMesh(recon, opts.m_hasColor, opts.m_density);
 
     return 0;
 }

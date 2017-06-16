@@ -231,8 +231,6 @@ int Octree< Real >::init(PointSource& source , LocalDepth maxDepth ,
 		Point3D< Real > p , n;
 		OrientedPoint3D<double> _p;
         Point3D<double> _d;
-//		Data _d;
-
 
         while (true)
         {
@@ -251,13 +249,33 @@ int Octree< Real >::init(PointSource& source , LocalDepth maxDepth ,
                     break;
             }
 
-			p = Point3D< Real >(_p.p) , n = Point3D< Real >(_p.n);
+			p = Point3D< Real >(_p.p);
+            n = Point3D< Real >(_p.n);
 			Real len = (Real)Length( n );
-			if( !_InBounds(p) ){ outOfBoundPoints++ ; continue; }
-			if( !len ){ zeroLengthNormals++ ; continue; }
-			if( len!=len ){ undefinedNormals++ ; continue; }
+
+            //ABELL - Not sure how this would happen.  Points should
+            // be normalized when read.
+			if (!_InBounds(p))
+            {
+                outOfBoundPoints++;
+                continue;
+            }
+			if( !len )
+            {
+                zeroLengthNormals++;
+                continue;
+            }
+			if( std::isnan(len))
+            {
+                undefinedNormals++;
+                continue;
+            }
+
+            // Make a unit normal vector.
 			n /= len;
-			Point3D< Real > center = Point3D< Real >( Real(0.5) , Real(0.5) , Real(0.5) );
+
+			Point3D<Real> center =
+                Point3D<Real>(Real(0.5) , Real(0.5) , Real(0.5));
 			Real width = Real(1.0);
 			TreeOctNode* temp = _spaceRoot;
 			LocalDepth depth = _localDepth( temp );
