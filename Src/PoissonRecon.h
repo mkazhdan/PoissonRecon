@@ -67,6 +67,7 @@ void DumpOutput2( std::vector< char* >& comments , const char* format , ... );
 
 #include <stdarg.h>
 
+/**
 template< class Real >
 struct ColorInfo
 {
@@ -79,7 +80,7 @@ struct ColorInfo
     static bool ValidPlyProperties( const bool* props ){ return ( props[0] || props[3] ) && ( props[1] || props[4] ) && ( props[2] || props[5] ); }
     const static PlyProperty PlyProperties[];
 };
-
+**/
 
 template<typename Real>
 XForm4x4<Real> GetPointXForm(PointSource& source, Real scaleFactor)
@@ -133,14 +134,10 @@ struct PoissonOpts
     bool m_primalVoxel;
     bool m_verbose;
     bool m_confidence;
-	//if( Verbose.set ) echoStdout=1;
-    //bool hasColor(Color.set && Color.value > 0);
     bool m_hasColor;
     Real m_color;
     std::string m_voxelFilename;
     std::string m_xformFilename;
-//    std::string m_inputFilename; // Input.value
-//    std::string m_outputFilename; // Output.value
     Real m_samplesPerNode;
     int m_depth;
     int m_cgDepth;

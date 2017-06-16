@@ -355,10 +355,6 @@ int main(int argc, char *argv[])
         std::cerr << "Must supply output file!\n";
         return 0;
     }
-    /**
-    opts.m_inputFilename = In.value;
-    opts.m_outputFilename = Out.value;
-    **/
     if (Depth.set)
         opts.m_depth = Depth.value;
     if (Color.set)
@@ -366,10 +362,16 @@ int main(int argc, char *argv[])
         opts.m_color = Color.value;
         opts.m_hasColor = (Color.value > 0);
     }
-    if (Density.set)
-        opts.m_density = true;
+    opts.m_density = Density.set;
     if (PointWeight.set)
         opts.m_pointWeight = PointWeight.value;
+    opts.m_primalVoxel = PrimalVoxel.set;
+    opts.m_verbose = Verbose.set;
+    opts.m_confidence = Confidence.set;
+    opts.m_showResidual = ShowResidual.set;
+    opts.m_linearFit = LinearFit.set;
+    opts.m_nonManifold = NonManifold.set;
+    opts.m_polygonMesh = PolygonMesh.set;
 
 //ABELL
 //    m_startTime = Time());
