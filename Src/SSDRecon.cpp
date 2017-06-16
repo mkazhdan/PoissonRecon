@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -39,6 +39,7 @@ DAMAGE.
 #include <Windows.h>
 #include <Psapi.h>
 #endif // _WIN32 || _WIN64
+#include "MemMesh.h"
 #include "MyTime.h"
 #include "MarchingCubes.h"
 #include "Octree.h"
@@ -61,6 +62,8 @@ void DumpOutput2( std::vector< char* >& comments , const char* format , ... );
 #if DEFAULT_FULL_DEPTH
 #pragma message ( "[WARNING] Setting default full depth to " XSTR(DEFAULT_FULL_DEPTH) )
 #endif // DEFAULT_FULL_DEPTH
+
+using MeshPtr = std::unique_ptr<Kazhdan::Mesh>;
 
 #include <stdarg.h>
 char* outputFile=NULL;
@@ -157,8 +160,8 @@ cmdLineFloat
 	SamplesPerNode( "samplesPerNode" , 1.5f ) ,
 	Scale( "scale" , 1.1f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
-	LowResIterMultiplier( "iterMultiplier" , 1.5f ) , 
-	ValueWeight   (    "valueWeight" , 4e-0f ) , 
+	LowResIterMultiplier( "iterMultiplier" , 1.5f ) ,
+	ValueWeight   (    "valueWeight" , 4e-0f ) ,
 	GradientWeight( "gradientWeight" , 1e-3f ) ,
 	BiLapWeight   (    "biLapWeight" , 1e-5f );
 
@@ -267,10 +270,10 @@ void ShowUsage( char* ex )
 #endif // !FOR_RELEASE
 #ifndef FOR_RELEASE
 	printf( "\t[--%s]\n" , ASCII.name );
-	
+
 	printf( "\t[--%s]\n" , NoComments.name );
 #endif // !FOR_RELEASE
-	
+
 #ifndef FAST_COMPILE
 	printf( "\t[--%s]\n" , Double.name );
 #endif // !FAST_COMPILE
@@ -294,7 +297,7 @@ const PlyProperty ColorInfo< float >::PlyProperties[] =
 	{ "r"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "g"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "b"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-	{ "red"   , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[0] ) ) , 0 , 0 , 0 , 0 } , 
+	{ "red"   , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "green" , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "blue"  , PLY_UCHAR , PLY_FLOAT , int( offsetof( Point3D< float > , coords[2] ) ) , 0 , 0 , 0 , 0 }
 };
@@ -304,7 +307,7 @@ const PlyProperty ColorInfo< double >::PlyProperties[] =
 	{ "r"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "g"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "b"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-	{ "red"   , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[0] ) ) , 0 , 0 , 0 , 0 } , 
+	{ "red"   , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "green" , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "blue"  , PLY_UCHAR , PLY_DOUBLE , int( offsetof( Point3D< double > , coords[2] ) ) , 0 , 0 , 0 , 0 }
 };
@@ -382,10 +385,10 @@ struct OctreeProfiler
 };
 
 template< class Real >
-XForm4x4< Real > GetPointXForm( OrientedPointStream< Real >& stream , Real scaleFactor )
+XForm4x4< Real > GetPointXForm(PointSource& source , Real scaleFactor )
 {
-	Point3D< Real > min , max;
-	stream.boundingBox( min , max );
+	Point3D<double> min , max;
+	source.boundingBox( min , max );
 	Point3D< Real > center = ( max + min ) / 2;
 	Real scale = std::max< Real >( max[0]-min[0] , std::max< Real >( max[1]-min[1] , max[2]-min[2] ) );
 	scale *= scaleFactor;
@@ -395,15 +398,66 @@ XForm4x4< Real > GetPointXForm( OrientedPointStream< Real >& stream , Real scale
 	return sXForm * tXForm;
 }
 
+PointSourcePtr createPointSource(const char *filename, bool color)
+{
+    std::string ext = GetFileExtension(filename);
+    for (auto& c : ext)
+        c = std::tolower(c);
+
+    PointSource *pointSource;
+    if (color)
+    {
+        if (ext == "bnpts")
+            pointSource = new ColorBinaryPointSource(filename);
+        else if (ext == "ply")
+            pointSource = new ColorPLYPointSource(filename);
+        else
+            pointSource = new ColorASCIIPointSource(filename);
+    }
+    else
+    {
+        if (ext == "bnpts")
+            pointSource = new BinaryPointSource(filename);
+        else if (ext == "ply")
+            pointSource = new PLYPointSource(filename);
+        else
+            pointSource = new ASCIIPointSource(filename);
+    }
+    return PointSourcePtr(pointSource);
+}
+
+template<typename T>
+MeshPtr createMesh();
+
+template<>
+MeshPtr createMesh<PlyVertex<float>>()
+{
+    return MeshPtr(new Kazhdan::MemMesh);
+}
+
+template<>
+MeshPtr createMesh<PlyColorVertex<float>>()
+{
+    return MeshPtr(new Kazhdan::ColorMemMesh);
+}
+
+template<>
+MeshPtr createMesh<PlyValueVertex<float>>()
+{
+    return MeshPtr(new Kazhdan::DensityMemMesh);
+}
+
+template<>
+MeshPtr createMesh<PlyColorAndValueVertex<float>>()
+{
+    return MeshPtr(new Kazhdan::CompleteMemMesh);
+}
+
 template< class Real , int Degree , BoundaryType BType , class Vertex >
 int _Execute( int argc , char* argv[] )
 {
-	typedef typename Octree< Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
+	typedef typename Octree< Real >::DensityEstimator DensityEstimator;
 	typedef typename Octree< Real >::template InterpolationInfo< true > InterpolationInfo;
-	typedef OrientedPointStream< Real > PointStream;
-	typedef OrientedPointStreamWithData< Real , Point3D< Real > > PointStreamWithData;
-	typedef TransformedOrientedPointStream< Real > XPointStream;
-	typedef TransformedOrientedPointStreamWithData< Real , Point3D< Real > > XPointStreamWithData;
 	Reset< Real >();
 	int paramNum = sizeof(params)/sizeof(cmdLineReadable*);
 	std::vector< char* > comments;
@@ -454,7 +508,7 @@ int _Execute( int argc , char* argv[] )
 		return 0;
 	}
 	if( !MaxSolveDepth.set ) MaxSolveDepth.value = Depth.value;
-	
+
 	OctNode< TreeNodeData >::SetAllocator( MEMORY_ALLOCATOR_BLOCK_SIZE );
 
 	int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;
@@ -470,53 +524,45 @@ int _Execute( int argc , char* argv[] )
 	std::vector< typename Octree< Real >::PointSample >* samples = new std::vector< typename Octree< Real >::PointSample >();
 	std::vector< ProjectiveData< Point3D< Real > , Real > >* sampleData = NULL;
 	DensityEstimator* density = NULL;
-	SparseNodeData< Point3D< Real > , NORMAL_DEGREE >* normalInfo = NULL;
+	SparseNodeData< Point3D< Real > >* normalInfo = NULL;
 	Real targetValue = (Real)0.;
 
 	// Read in the samples (and color data)
 	{
 		profiler.start();
-		PointStream* pointStream;
-		char* ext = GetFileExtension( In.value );
-		if( Color.set && Color.value>0 )
-		{
-			sampleData = new std::vector< ProjectiveData< Point3D< Real > , Real > >();
-			if     ( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryOrientedPointStreamWithData< Real , Point3D< Real > , float , Point3D< unsigned char > >( In.value );
-			else if( !strcasecmp( ext , "ply"   ) ) pointStream = new    PLYOrientedPointStreamWithData< Real , Point3D< Real > >( In.value , ColorInfo< Real >::PlyProperties , 6 , ColorInfo< Real >::ValidPlyProperties );
-			else                                    pointStream = new  ASCIIOrientedPointStreamWithData< Real , Point3D< Real > >( In.value , ColorInfo< Real >::ReadASCII );
+        PointSourcePtr source(createPointSource(In.value,
+            Color.set && Color.value > 0));
+		TransformedPointSource _pointSource(xForm , *source);
+		xForm = GetPointXForm(_pointSource, (Real)Scale.value) * xForm;
+
+        ColorPointSource *colorSource =
+            dynamic_cast<ColorPointSource *>(source.get());
+        if (colorSource)
+        {
+            sampleData = new std::vector<ProjectiveData<Point3D<Real>, Real>>();
+            ColorTransformedPointSource xsource(xForm, *colorSource);
+			pointCount = tree.template init< Point3D< Real > >(xsource,
+                Depth.value, Confidence.set, *samples, sampleData);
 		}
 		else
 		{
-			if     ( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryOrientedPointStream< Real , float >( In.value );
-			else if( !strcasecmp( ext , "ply"   ) ) pointStream = new    PLYOrientedPointStream< Real >( In.value );
-			else                                    pointStream = new  ASCIIOrientedPointStream< Real >( In.value );
-		}
-		delete[] ext;
-		XPointStream _pointStream( xForm , *pointStream );
-		xForm = GetPointXForm( _pointStream , (Real)Scale.value ) * xForm;
-		if( sampleData )
-		{
-			XPointStreamWithData _pointStream( xForm , ( PointStreamWithData& )*pointStream );
-			pointCount = tree.template init< Point3D< Real > >( _pointStream , Depth.value , Confidence.set , *samples , sampleData );
-		}
-		else
-		{
-			XPointStream _pointStream( xForm , *pointStream );
-			pointCount = tree.template init< Point3D< Real > >( _pointStream , Depth.value , Confidence.set , *samples , sampleData );
+			TransformedPointSource xsource(xForm , *source);
+			pointCount = tree.template init<Point3D<Real>>(xsource,
+                Depth.value, Confidence.set, *samples, sampleData );
 		}
 		iXForm = xForm.inverse();
-		delete pointStream;
 #pragma omp parallel for num_threads( Threads.value )
-		for( int i=0 ; i<(int)samples->size() ; i++ ) (*samples)[i].sample.data.n *= (Real)-1;
+		for( int i=0 ; i<(int)samples->size() ; i++ )
+            (*samples)[i].sample.data.n *= (Real)-1;
 
 		DumpOutput( "Input Points / Samples: %d / %d\n" , pointCount , samples->size() );
 		profiler.dumpOutput2( comments , "# Read input into tree:" );
 	}
 
-	DenseNodeData< Real , Degree > solution;
+	DenseNodeData< Real > solution;
 	// Solve
 	{
-		DenseNodeData< Real , Degree > constraints;
+		DenseNodeData< Real > constraints;
 		InterpolationInfo* iInfo = NULL;
 		int solveDepth = MaxSolveDepth.value;
 
@@ -525,15 +571,15 @@ int _Execute( int argc , char* argv[] )
 		// Get the kernel density estimator
 		{
 			profiler.start();
-			density = tree.template setDensityEstimator< WEIGHT_DEGREE >( *samples , kernelDepth , SamplesPerNode.value );
+			density = tree.template setDensityEstimator<WEIGHT_DEGREE>( *samples , kernelDepth , SamplesPerNode.value );
 			profiler.dumpOutput2( comments , "#   Got kernel density:" );
 		}
 
 		// Transform the Hermite samples into a vector field
 		{
 			profiler.start();
-			normalInfo = new SparseNodeData< Point3D< Real > , NORMAL_DEGREE >();
-			*normalInfo = tree.template setNormalField< NORMAL_DEGREE >( *samples , *density , pointWeightSum , BType==BOUNDARY_NEUMANN );
+			normalInfo = new SparseNodeData< Point3D< Real > >();
+			*normalInfo = tree.template setNormalField< NORMAL_DEGREE, WEIGHT_DEGREE >( *samples , *density , pointWeightSum , BType==BOUNDARY_NEUMANN );
 			profiler.dumpOutput2( comments , "#     Got normal field:" );
 		}
 
@@ -560,7 +606,7 @@ int _Execute( int argc , char* argv[] )
 		{
 			profiler.start();
 			iInfo = new InterpolationInfo( tree , *samples , targetValue , AdaptiveExponent.value , (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum );
-			constraints = tree.template initDenseNodeData< Degree >( );
+			constraints = tree.template initDenseNodeData( );
 			tree.template addInterpolationConstraints< Degree , BType >( *iInfo , constraints , solveDepth );
 			profiler.dumpOutput2( comments , "#Set point constraints:" );
 		}
@@ -580,7 +626,7 @@ int _Execute( int argc , char* argv[] )
 		}
 	}
 
-	CoredFileMeshData< Vertex > mesh;
+    MeshPtr mesh(createMesh<Vertex>());
 
 	{
 		profiler.start();
@@ -626,11 +672,11 @@ int _Execute( int argc , char* argv[] )
 	if( Out.set )
 	{
 		profiler.start();
-		SparseNodeData< ProjectiveData< Point3D< Real > , Real > , DATA_DEGREE >* colorData = NULL;
+		SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData = NULL;
 		if( sampleData )
 		{
-			colorData = new SparseNodeData< ProjectiveData< Point3D< Real > , Real > , DATA_DEGREE >();
-			*colorData = tree.template setDataField< DATA_DEGREE , false >( *samples , *sampleData , (DensityEstimator*)NULL );
+			colorData = new SparseNodeData< ProjectiveData< Point3D< Real > , Real > >();
+			*colorData = tree.template setDataField< DATA_DEGREE , false, WEIGHT_DEGREE >( *samples , *sampleData , (DensityEstimator*)NULL );
 			delete sampleData , sampleData = NULL;
 			for( const OctNode< TreeNodeData >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
 			{
@@ -638,8 +684,8 @@ int _Execute( int argc , char* argv[] )
 				if( clr ) (*clr) *= (Real)pow( Color.value , tree.depth( n ) );
 			}
 		}
-		tree.template getMCIsoSurface< Degree , BType , WEIGHT_DEGREE , DATA_DEGREE >( density , colorData , solution , isoValue , mesh , NonLinearFit.set , !NonManifold.set , PolygonMesh.set );
-		DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
+		tree.template getMCIsoSurface< Degree , BType , WEIGHT_DEGREE , DATA_DEGREE, Vertex >( density , colorData , solution , isoValue , *mesh , NonLinearFit.set , !NonManifold.set , PolygonMesh.set );
+		DumpOutput( "Vertices / Polygons: %d / %d\n" , mesh->pointCount(), mesh->polygonCount() );
 		if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
 		else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
 
@@ -647,13 +693,13 @@ int _Execute( int argc , char* argv[] )
 
 		if( NoComments.set )
 		{
-			if( ASCII.set ) PlyWritePolygons( Out.value , &mesh , PLY_ASCII         , NULL , 0 , iXForm );
-			else            PlyWritePolygons( Out.value , &mesh , PLY_BINARY_NATIVE , NULL , 0 , iXForm );
+			if( ASCII.set ) PlyWritePolygons<Vertex>( Out.value , *mesh , PLY_ASCII         , NULL , 0 , iXForm );
+			else            PlyWritePolygons<Vertex>( Out.value , *mesh , PLY_BINARY_NATIVE , NULL , 0 , iXForm );
 		}
 		else
 		{
-			if( ASCII.set ) PlyWritePolygons( Out.value , &mesh , PLY_ASCII         , &comments[0] , (int)comments.size() , iXForm );
-			else            PlyWritePolygons( Out.value , &mesh , PLY_BINARY_NATIVE , &comments[0] , (int)comments.size() , iXForm );
+			if( ASCII.set ) PlyWritePolygons<Vertex>( Out.value , *mesh , PLY_ASCII         , &comments[0] , (int)comments.size() , iXForm );
+			else            PlyWritePolygons<Vertex>( Out.value , *mesh , PLY_BINARY_NATIVE , &comments[0] , (int)comments.size() , iXForm );
 		}
 	}
 	if( density ) delete density , density = NULL;

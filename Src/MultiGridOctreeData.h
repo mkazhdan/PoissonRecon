@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -37,7 +37,7 @@ DAMAGE.
 
 // [TODO]
 // -- Currently, the implementation assumes that the boundary constraints are the same for vector fields and scalar fields
-// -- Modify the setting of the flags so that only the subset of the broods that are needed 
+// -- Modify the setting of the flags so that only the subset of the broods that are needed
 
 #ifndef MULTI_GRID_OCTREE_DATA_INCLUDED
 #define MULTI_GRID_OCTREE_DATA_INCLUDED
@@ -54,9 +54,12 @@ DAMAGE.
 #define MAX_MEMORY_GB 0
 
 #include <unordered_map>
+#ifdef _OPENMP // Assume that we have the header file if we're compiling with the openmp option.
 #include <omp.h>
+#endif
 #include "BSplineData.h"
-#include "PointStream.h"
+#include "Mesh.h"
+#include "PointSource.h"
 #include "Geometry.h"
 #include "Octree.h"
 #include "SparseMatrix.h"
@@ -284,7 +287,7 @@ struct PointData
 template< class Real , bool HasGradients > using PointData = SinglePointData< Real , HasGradients >;
 #endif // POINT_DATA_RES
 
-template< class Data , int Degree >
+template< class Data>
 struct SparseNodeData
 {
 	size_t size( void ) const { return _data.size(); }
@@ -311,15 +314,15 @@ struct SparseNodeData
 			if( map[i]<(int)temp.size() ) _indices[i] = temp[ map[i] ];
 			else                          _indices[i] = -1;
 	}
-	template< class _Data , int _Degree > friend struct SparseNodeData;
-	template< class _Data , int _Degree >
-	void init( const SparseNodeData< _Data , _Degree >& snd ){ _indices = snd._indices , _data.resize( snd._data.size() ); }
+	template< class _Data> friend struct SparseNodeData;
+	template< class _Data>
+	void init( const SparseNodeData< _Data>& snd ){ _indices = snd._indices , _data.resize( snd._data.size() ); }
 	void remove( const OctNode< TreeNodeData >* node ){ if( node->nodeData.nodeIndex<(int)_indices.size() && node->nodeData.nodeIndex>=0 ) _indices[ node->nodeData.nodeIndex ] = -1; }
 protected:
 	std::vector< int > _indices;
 	std::vector< Data > _data;
 };
-template< class Data , int Degree >
+template< class Data >
 struct DenseNodeData
 {
 	DenseNodeData( void ){ _data = NullPointer( Data ) ; _sz = 0; }
@@ -336,7 +339,7 @@ struct DenseNodeData
 	Data& operator[]( const OctNode< TreeNodeData >* node ) { return _data[ node->nodeData.nodeIndex ]; }
 	Data* operator()( const OctNode< TreeNodeData >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
 	const Data* operator()( const OctNode< TreeNodeData >* node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
-	int index( const OctNode< TreeNodeData >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_data.size() ) ? -1 : node->nodeData.nodeIndex; }
+	int index( const OctNode< TreeNodeData >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=_sz ) ? -1 : node->nodeData.nodeIndex; }
 protected:
 	size_t _sz;
 	void _resize( size_t sz ){ DeletePointer( _data ) ; if( sz ) _data = NewPointer< Data >( sz ) ; else _data = NullPointer( Data ) ; _sz = sz; }
@@ -461,7 +464,7 @@ public:
 	template< bool HasGradients >
 	struct InterpolationInfo
 	{
-		SparseNodeData< PointData< Real , HasGradients > , 0 > iData;
+		SparseNodeData< PointData< Real , HasGradients > > iData;
 		Real valueWeight , gradientWeight;
 		InterpolationInfo( const class Octree< Real >& tree , const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent , Real v , Real g ) : valueWeight(v) , gradientWeight(g)
 		{ iData = tree._densifyInterpolationInfo< HasGradients >( samples , pointValue , adaptiveExponent ); }
@@ -469,7 +472,7 @@ public:
 		const PointData< Real , HasGradients >* operator()( const OctNode< TreeNodeData >* node ) const { return iData(node); }
 	};
 
-	template< int DensityDegree > struct DensityEstimator : public SparseNodeData< Real , DensityDegree >
+	struct DensityEstimator : public SparseNodeData< Real>
 	{
 		DensityEstimator( int kernelDepth ) : _kernelDepth( kernelDepth ){ ; }
 		int kernelDepth( void ) const { return _kernelDepth; }
@@ -608,9 +611,9 @@ protected:
 		double bNorm2 , inRNorm2 , outRNorm2;
 	};
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-	int _solveSystemGS( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real , FEMDegree >& solution , DenseNodeData< Real , FEMDegree >& constraints , DenseNodeData< Real , FEMDegree >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms );
+	int _solveSystemGS( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real >& solution , DenseNodeData< Real >& constraints , DenseNodeData< Real >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms );
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-	int _solveSystemCG( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real , FEMDegree >& solution , DenseNodeData< Real , FEMDegree >& constraints , DenseNodeData< Real , FEMDegree >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double accuracy );
+	int _solveSystemCG( const FEMSystemFunctor& F , const BSplineData< FEMDegree , BType >& bsData , InterpolationInfo< HasGradients >* interpolationInfo , LocalDepth depth , DenseNodeData< Real >& solution , DenseNodeData< Real >& constraints , DenseNodeData< Real >& metSolutionConstraints , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double accuracy );
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
 	int _setMatrixRow( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& neighbors , Pointer( MatrixEntry< Real > ) row , int offset , const typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , const Stencil< double , BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& stencil , const BSplineData< FEMDegree , BType >& bsData ) const;
 	template< int FEMDegree , BoundaryType BType >
@@ -620,42 +623,42 @@ protected:
 	// Updates the constraints @(depth) based on the solution coefficients @(depth-1)
 
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-	void _updateConstraintsFromCoarser( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& neighbors , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& pNeighbors , TreeOctNode* node , DenseNodeData< Real , FEMDegree >& constraints , const DenseNodeData< Real , FEMDegree >& metSolution , const typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const Stencil< double , BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& stencil , const BSplineData< FEMDegree , BType >& bsData ) const;
+	void _updateConstraintsFromCoarser( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& neighbors , const typename TreeOctNode::Neighbors< BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& pNeighbors , TreeOctNode* node , DenseNodeData< Real >& constraints , const DenseNodeData< Real >& metSolution , const typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const Stencil< double , BSplineOverlapSizes< FEMDegree , FEMDegree >::OverlapSize >& stencil , const BSplineData< FEMDegree , BType >& bsData ) const;
 
 	// evaluate the points @(depth) using coefficients @(depth-1)
 	template< int FEMDegree , BoundaryType BType , bool HasGradients >
-	void _setPointValuesFromCoarser( InterpolationInfo< HasGradients >& interpolationInfo , LocalDepth highDepth , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients );
+	void _setPointValuesFromCoarser( InterpolationInfo< HasGradients >& interpolationInfo , LocalDepth highDepth , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& upSampledCoefficients );
 
 	// Updates the cumulative integral constraints @(depth-1) based on the change in solution coefficients @(depth)
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor >
-	void _updateCumulativeIntegralConstraintsFromFiner( const FEMSystemFunctor& F , 
-		const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real , FEMDegree >& fineSolution , DenseNodeData< Real , FEMDegree >& cumulativeConstraints ) const;
+	void _updateCumulativeIntegralConstraintsFromFiner( const FEMSystemFunctor& F ,
+		const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real >& fineSolution , DenseNodeData< Real >& cumulativeConstraints ) const;
 	// Updates the cumulative interpolation constraints @(depth-1) based on the change in solution coefficient @(depth)
 	template< int FEMDegree , BoundaryType BType , bool HasGradients >
 	void _updateCumulativeInterpolationConstraintsFromFiner( const InterpolationInfo< HasGradients >& interpolationInfo ,
-		const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real , FEMDegree >& fineSolution , DenseNodeData< Real , FEMDegree >& cumulativeConstraints ) const;
+		const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real >& fineSolution , DenseNodeData< Real >& cumulativeConstraints ) const;
 
 	template< int FEMDegree , BoundaryType BType >
-	Real _coarserFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients ) const;
+	Real _coarserFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& upSampledCoefficients ) const;
 	template< int FEMDegree , BoundaryType BType >
-	Point3D< Real > _coarserFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& upSampledCoefficients ) const;
+	Point3D< Real > _coarserFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& upSampledCoefficients ) const;
 	template< int FEMDegree , BoundaryType BType >
-	Real   _finerFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& coefficients ) const;
+	Real   _finerFunctionValue( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& coefficients ) const;
 	template< int FEMDegree , BoundaryType BType >
-	Point3D< Real >   _finerFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real , FEMDegree >& coefficients ) const;
+	Point3D< Real >   _finerFunctionGradient( Point3D< Real > p , const PointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const BSplineData< FEMDegree , BType >& bsData , const DenseNodeData< Real >& coefficients ) const;
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-	int _getSliceMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real , FEMDegree >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , int slice , const DenseNodeData< Real , FEMDegree >& metSolution , bool coarseToFine );
+	int _getSliceMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , int slice , const DenseNodeData< Real >& metSolution , bool coarseToFine );
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-	int _getMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real , FEMDegree >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , const DenseNodeData< Real , FEMDegree >& metSolution , bool coarseToFine );
+	int _getMatrixAndUpdateConstraints( const FEMSystemFunctor& F , const InterpolationInfo< HasGradients >* interpolationInfo , SparseMatrix< Real >& matrix , DenseNodeData< Real >& constraints , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template Integrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& integrator , typename BSplineIntegrationData< FEMDegree , BType , FEMDegree , BType >::FunctionIntegrator::template ChildIntegrator< DERIVATIVES( FEMDegree ) , DERIVATIVES( FEMDegree ) >& childIntegrator , const BSplineData< FEMDegree , BType >& bsData , LocalDepth depth , const DenseNodeData< Real >& metSolution , bool coarseToFine );
 
 	// Down samples constraints @(depth) to constraints @(depth-1)
-	template< class C , int FEMDegree , BoundaryType BType > void _downSample( LocalDepth highDepth , DenseNodeData< C , FEMDegree >& constraints ) const;
+	template< class C , int FEMDegree , BoundaryType BType > void _downSample( LocalDepth highDepth , DenseNodeData< C >& constraints ) const;
 	// Up samples coefficients @(depth-1) to coefficients @(depth)
-	template< class C , int FEMDegree , BoundaryType BType > void _upSample( LocalDepth highDepth , DenseNodeData< C , FEMDegree >& coefficients ) const;
+	template< class C , int FEMDegree , BoundaryType BType > void _upSample( LocalDepth highDepth , DenseNodeData< C >& coefficients ) const;
 	template< class C , int FEMDegree , BoundaryType BType > static void _UpSample( LocalDepth highDepth , ConstPointer( C ) lowCoefficients , Pointer( C ) highCoefficients , int threads );
 public:
-	template< class C , int FEMDegree , BoundaryType BType > DenseNodeData< C , FEMDegree > coarseCoefficients( const  DenseNodeData< C , FEMDegree >& coefficients ) const;
-	template< class C , int FEMDegree , BoundaryType BType > DenseNodeData< C , FEMDegree > coarseCoefficients( const SparseNodeData< C , FEMDegree >& coefficients ) const;
+	template< class C , int FEMDegree , BoundaryType BType > DenseNodeData< C > coarseCoefficients( const  DenseNodeData< C >& coefficients ) const;
+	template< class C , int FEMDegree , BoundaryType BType > DenseNodeData< C > coarseCoefficients( const SparseNodeData< C >& coefficients ) const;
 protected:
 
 	/////////////////////////////////////////////
@@ -663,25 +666,25 @@ protected:
 	// MultiGridOctreeData.WeightedSamples.inl //
 	/////////////////////////////////////////////
 	template< int WeightDegree >
-	void _addWeightContribution( DensityEstimator< WeightDegree >& densityWeights , TreeOctNode* node , Point3D< Real > position , PointSupportKey< WeightDegree >& weightKey , Real weight=Real(1.0) );
+	void _addWeightContribution( DensityEstimator& densityWeights , TreeOctNode* node , Point3D< Real > position , PointSupportKey< WeightDegree >& weightKey , Real weight=Real(1.0) );
 	template< int WeightDegree , class PointSupportKey >
-	Real _getSamplesPerNode( const DensityEstimator< WeightDegree >& densityWeights , const TreeOctNode* node , Point3D< Real > position , PointSupportKey& weightKey ) const;
-	template< int WeightDegree , class PointSupportKey >
-	void _getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , const TreeOctNode* node , Point3D< Real > position , PointSupportKey& weightKey , Real& depth , Real& weight ) const;
-	template< int WeightDegree , class PointSupportKey >
-	void _getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , Point3D< Real > position , PointSupportKey& weightKey , Real& depth , Real& weight ) const;
-	template< bool CreateNodes ,                    int DataDegree , class V > void      _splatPointData( TreeOctNode* node ,                                           Point3D< Real > point , V v , SparseNodeData< V , DataDegree >& data ,                                              PointSupportKey< DataDegree >& dataKey                                                   );
-	template< bool CreateNodes , int WeightDegree , int DataDegree , class V > Real      _splatPointData( const DensityEstimator< WeightDegree >& densityWeights , Point3D< Real > point , V v , SparseNodeData< V , DataDegree >& data , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim=DIMENSION );
-	template< bool CreateNodes , int WeightDegree , int DataDegree , class V > Real _multiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , TreeOctNode* node , Point3D< Real > point , V v , SparseNodeData< V , DataDegree >& data , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , int dim=DIMENSION );
+	Real _getSamplesPerNode( const DensityEstimator& densityWeights , const TreeOctNode* node , Point3D< Real > position , PointSupportKey& weightKey ) const;
+	template< int WeightDegree, class PointSupportKey >
+	void _getSampleDepthAndWeight( const DensityEstimator& densityWeights , const TreeOctNode* node , Point3D< Real > position , PointSupportKey& weightKey , Real& depth , Real& weight ) const;
+	template< int WeightDegree, class PointSupportKey >
+	void _getSampleDepthAndWeight( const DensityEstimator& densityWeights , Point3D< Real > position , PointSupportKey& weightKey , Real& depth , Real& weight ) const;
+	template< bool CreateNodes ,                    int DataDegree , class V > void      _splatPointData( TreeOctNode* node ,                                           Point3D< Real > point , V v , SparseNodeData< V >& data ,                                              PointSupportKey< DataDegree >& dataKey                                                   );
+	template< bool CreateNodes , int WeightDegree , int DataDegree , class V > Real      _splatPointData( const DensityEstimator& densityWeights , Point3D< Real > point , V v , SparseNodeData< V >& data , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim=DIMENSION );
+	template< bool CreateNodes , int WeightDegree , int DataDegree , class V > Real _multiSplatPointData( const DensityEstimator* densityWeights , TreeOctNode* node , Point3D< Real > point , V v , SparseNodeData< V >& data , PointSupportKey< WeightDegree >& weightKey , PointSupportKey< DataDegree >& dataKey , int dim=DIMENSION );
 	template< class V , int DataDegree , BoundaryType BType , class Coefficients > V _evaluate( const Coefficients& coefficients , Point3D< Real > p , const BSplineData< DataDegree , BType >& bsData , const ConstPointSupportKey< DataDegree >& dataKey ) const;
 public:
-	template< class V , int DataDegree , BoundaryType BType > Pointer( V ) voxelEvaluate( const DenseNodeData< V , DataDegree >& coefficients , int& res , Real isoValue=0.f , LocalDepth depth=-1 , bool primal=false );
+	template< class V , int DataDegree , BoundaryType BType > Pointer( V ) voxelEvaluate( const DenseNodeData< V >& coefficients , int& res , Real isoValue=0.f , LocalDepth depth=-1 , bool primal=false );
 
 	template< int NormalDegree >
 	struct HasNormalDataFunctor
 	{
-		const SparseNodeData< Point3D< Real > , NormalDegree >& normalInfo;
-		HasNormalDataFunctor( const SparseNodeData< Point3D< Real > , NormalDegree >& ni ) : normalInfo( ni ){ ; }
+		const SparseNodeData< Point3D< Real > >& normalInfo;
+		HasNormalDataFunctor( const SparseNodeData< Point3D< Real > >& ni ) : normalInfo( ni ){ ; }
 		bool operator() ( const TreeOctNode* node ) const
 		{
 			const Point3D< Real >* n = normalInfo( node );
@@ -697,14 +700,14 @@ public:
 	struct TrivialHasDataFunctor{ bool operator() ( const TreeOctNode* node ) const{ return true; } };
 
 	// [NOTE] The input/output for this method is pre-scaled by weight
-	template< bool HasGradients > bool _setInterpolationInfoFromChildren( TreeOctNode* node , SparseNodeData< PointData< Real , HasGradients > , 0 >& iInfo ) const;
-	template< bool HasGradients > SparseNodeData< PointData< Real , HasGradients > , 0 > _densifyInterpolationInfo( const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent ) const;
+	template< bool HasGradients > bool _setInterpolationInfoFromChildren( TreeOctNode* node , SparseNodeData< PointData< Real, HasGradients > >& iInfo ) const;
+	template< bool HasGradients > SparseNodeData< PointData< Real, HasGradients > > _densifyInterpolationInfo( const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent ) const;
 
 	template< int FEMDegree , BoundaryType BType > void _setValidityFlags( void );
 	template< class HasDataFunctor > void _clipTree( const HasDataFunctor& f );
 
-	template< int FEMDegree , BoundaryType BType > SparseNodeData<          Real   , 0 > leafValues   ( const DenseNodeData< Real , FEMDegree >& coefficients ) const;
-	template< int FEMDegree , BoundaryType BType > SparseNodeData< Point3D< Real > , 0 > leafGradients( const DenseNodeData< Real , FEMDegree >& coefficients ) const;
+	template< int FEMDegree , BoundaryType BType > SparseNodeData< Real > leafValues   ( const DenseNodeData< Real >& coefficients ) const;
+	template< int FEMDegree , BoundaryType BType > SparseNodeData< Point3D< Real > > leafGradients( const DenseNodeData< Real >& coefficients ) const;
 
 	////////////////////////////////////
 	// Evaluation Methods             //
@@ -742,22 +745,22 @@ public:
 		friend Octree;
 	};
 	template< class V , int FEMDegree , BoundaryType BType >
-	V _getCenterValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node ,                     const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	V _getCenterValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node ,                     const DenseNodeData< V >& solution , const DenseNodeData< V >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
 	template< class V , int FEMDegree , BoundaryType BType >
-	V _getCornerValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner        , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	V _getCornerValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner        , const DenseNodeData< V >& solution , const DenseNodeData< V >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
 	template< class V , int FEMDegree , BoundaryType BType >
-	V _getEdgeValue  ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge          , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	V _getEdgeValue  ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge          , const DenseNodeData< V >& solution , const DenseNodeData< V >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
 	template< class V , int FEMDegree , BoundaryType BType >
-	V _getValue      ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const;
+	V _getValue      ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< V >& solution , const DenseNodeData< V >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const;
 
 	template< int FEMDegree , BoundaryType BType >
-	std::pair< Real , Point3D< Real > > _getCenterValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node ,                     const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	std::pair< Real , Point3D< Real > > _getCenterValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node ,                     const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
 	template< int FEMDegree , BoundaryType BType >
-	std::pair< Real , Point3D< Real > > _getCornerValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner        , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	std::pair< Real , Point3D< Real > > _getCornerValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner        , const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
 	template< int FEMDegree , BoundaryType BType >
-	std::pair< Real , Point3D< Real > > _getEdgeValueAndGradient  ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge          , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
+	std::pair< Real , Point3D< Real > > _getEdgeValueAndGradient  ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge          , const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const;
 	template< int FEMDegree , BoundaryType BType >
-	std::pair< Real , Point3D< Real > > _getValueAndGradient      ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const;
+	std::pair< Real , Point3D< Real > > _getValueAndGradient      ( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const;
 
 public:
 	template< int Degree , BoundaryType BType >
@@ -767,10 +770,10 @@ public:
 		int _threads;
 		std::vector< ConstPointSupportKey< Degree > > _neighborKeys;
 		_Evaluator< Degree , BType > _evaluator;
-		const DenseNodeData< Real , Degree >& _coefficients;
-		DenseNodeData< Real , Degree > _coarseCoefficients;
+		const DenseNodeData< Real >& _coefficients;
+		DenseNodeData< Real > _coarseCoefficients;
 	public:
-		MultiThreadedEvaluator( const Octree* tree , const DenseNodeData< Real , Degree >& coefficients , int threads=1 );
+		MultiThreadedEvaluator( const Octree* tree , const DenseNodeData< Real >& coefficients , int threads=1 );
 		Real value( Point3D< Real > p , int thread=0 , const TreeOctNode* node=NULL );
 		std::pair< Real , Point3D< Real > > valueAndGradient( Point3D< Real > , int thread=0 , const TreeOctNode* node=NULL );
 	};
@@ -840,15 +843,15 @@ protected:
 		const _XSliceValues< Vertex >& xSliceValues( int idx ) const { return _xSliceValues[idx&1]; }
 	};
 	template< class Vertex , int FEMDegree , BoundaryType BType >
-	void _setSliceIsoCorners( const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , Real isoValue , LocalDepth depth , int slice ,         std::vector< _SlabValues< Vertex > >& sValues , const _Evaluator< FEMDegree , BType >& evaluator , int threads );
+	void _setSliceIsoCorners( const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , Real isoValue , LocalDepth depth , int slice ,         std::vector< _SlabValues< Vertex > >& sValues , const _Evaluator< FEMDegree , BType >& evaluator , int threads );
 	template< class Vertex , int FEMDegree , BoundaryType BType >
-	void _setSliceIsoCorners( const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , Real isoValue , LocalDepth depth , int slice , int z , std::vector< _SlabValues< Vertex > >& sValues , const _Evaluator< FEMDegree , BType >& evaluator , int threads );
+	void _setSliceIsoCorners( const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , Real isoValue , LocalDepth depth , int slice , int z , std::vector< _SlabValues< Vertex > >& sValues , const _Evaluator< FEMDegree , BType >& evaluator , int threads );
 	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , LocalDepth depth , int slice ,         int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
+	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice ,         int& vOffset , Kazhdan::Mesh& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , LocalDepth depth , int slice , int z , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
+	void _setSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slice , int z , int& vOffset , Kazhdan::Mesh& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-	void _setXSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , LocalDepth depth , int slab , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
+	void _setXSliceIsoVertices( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , LocalDepth depth , int slab , int& vOffset , Kazhdan::Mesh& mesh , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 	template< class Vertex >
 	void _setSliceIsoEdges( LocalDepth depth , int slice ,         std::vector< _SlabValues< Vertex > >& slabValues , int threads );
 	template< class Vertex >
@@ -863,15 +866,15 @@ protected:
 	void _copyFinerXSliceIsoEdgeKeys( LocalDepth depth , int slab , std::vector< _SlabValues< Vertex > >& sValues , int threads );
 
 	template< class Vertex >
-	void _setIsoSurface( LocalDepth depth , int offset , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , const _XSliceValues< Vertex >& xValues , CoredMeshData< Vertex >& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , int threads );
+	void _setIsoSurface( LocalDepth depth , int offset , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , const _XSliceValues< Vertex >& xValues , Kazhdan::Mesh& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , int threads );
 
 	template< class Vertex >
-	static int _addIsoPolygons( CoredMeshData< Vertex >& mesh , std::vector< std::pair< int , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , int& vOffset );
+	static int _addIsoPolygons( Kazhdan::Mesh& mesh , std::vector< std::pair< int , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , int& vOffset );
 
 	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-	bool _getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int edgeIndex , int z , const _SliceValues< Vertex >& sValues , Vertex& vertex );
+	bool _getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int edgeIndex , int z , const _SliceValues< Vertex >& sValues , Vertex& vertex );
 	template< int WeightDegree , int ColorDegree , BoundaryType BType , class Vertex >
-	bool _getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int cornerIndex , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , Vertex& vertex );
+	bool _getIsoVertex( const BSplineData< ColorDegree , BType >* colorBSData , const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , Real isoValue , ConstPointSupportKey< WeightDegree >& weightKey , ConstPointSupportKey< ColorDegree >& colorKey , const TreeOctNode* node , int cornerIndex , const _SliceValues< Vertex >& bValues , const _SliceValues< Vertex >& fValues , Vertex& vertex );
 
 	void _init( TreeOctNode* node , LocalDepth maxDepth , bool (*Refine)( LocalDepth d , LocalOffset off ) );
 
@@ -887,49 +890,49 @@ public:
 
 	void init( LocalDepth maxDepth , bool (*Refine)( LocalDepth d , LocalOffset off ) );
 	template< class Data >
-	int init( OrientedPointStream< Real >& pointStream , LocalDepth maxDepth , bool useConfidence , std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >* sampleData );
+	int init(PointSource& pointSource , LocalDepth maxDepth , bool useConfidence , std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >* sampleData );
 	template< int DensityDegree >
-	typename Octree::template DensityEstimator< DensityDegree >* setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode );
+	typename Octree::DensityEstimator* setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode );
 	template< int NormalDegree , int DensityDegree >
-	SparseNodeData< Point3D< Real > , NormalDegree > setNormalField( const std::vector< PointSample >& samples , const DensityEstimator< DensityDegree >& density , Real& pointWeightSum , bool forceNeumann );
+	SparseNodeData< Point3D< Real > > setNormalField( const std::vector< PointSample >& samples , const DensityEstimator& density , Real& pointWeightSum , bool forceNeumann );
 	template< int DataDegree , bool CreateNodes , int DensityDegree , class Data >
-	SparseNodeData< ProjectiveData< Data , Real > , DataDegree > setDataField( const std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >& sampleData , const DensityEstimator< DensityDegree >* density );
+	SparseNodeData< ProjectiveData< Data , Real > > setDataField( const std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >& sampleData , const DensityEstimator* density );
 	template< int MaxDegree , int FEMDegree , BoundaryType FEMBType , class HasDataFunctor > void inalizeForBroodedMultigrid( LocalDepth fullDepth , const HasDataFunctor& F , std::vector< int >* map=NULL );
 
 	// Generate an empty set of constraints
-	template< int FEMDegree > DenseNodeData< Real , FEMDegree > initDenseNodeData( void );
+	DenseNodeData< Real > initDenseNodeData( void );
 
 	// Add finite-elements constraints (derived from a sparse scalar field)
-	template< int FEMDegree , BoundaryType FEMBType , int SFDegree , BoundaryType SFBType , class FEMSFConstraintFunctor > void addFEMConstraints( const FEMSFConstraintFunctor& F , const SparseNodeData< Real , SFDegree >& sfCoefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
-	{ return _addFEMConstraints< FEMDegree , FEMBType , SFDegree , SFBType , FEMSFConstraintFunctor , const SparseNodeData< Real   , SFDegree > , Real , double >( F , sfCoefficients , constraints , maxDepth ); }
+	template< int FEMDegree , BoundaryType FEMBType , int SFDegree , BoundaryType SFBType , class FEMSFConstraintFunctor > void addFEMConstraints( const FEMSFConstraintFunctor& F , const SparseNodeData< Real >& sfCoefficients , DenseNodeData< Real >& constraints , LocalDepth maxDepth )
+	{ return _addFEMConstraints< FEMDegree , FEMBType , SFDegree , SFBType , FEMSFConstraintFunctor , const SparseNodeData< Real > , Real , double >( F , sfCoefficients , constraints , maxDepth ); }
 	// Add finite-elements constraints (derived from a dense scalar field)
-	template< int FEMDegree , BoundaryType FEMBType , int SFDegree , BoundaryType SFBType , class FEMSFConstraintFunctor > void addFEMConstraints( const FEMSFConstraintFunctor& F , const  DenseNodeData< Real , SFDegree >& sfCoefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
-	{ return _addFEMConstraints< FEMDegree , FEMBType , SFDegree , SFBType , FEMSFConstraintFunctor , const  DenseNodeData< Real   , SFDegree > , Real , double >( F , sfCoefficients , constraints , maxDepth ); }
+	template< int FEMDegree , BoundaryType FEMBType , int SFDegree , BoundaryType SFBType , class FEMSFConstraintFunctor > void addFEMConstraints( const FEMSFConstraintFunctor& F , const  DenseNodeData< Real >& sfCoefficients , DenseNodeData< Real >& constraints , LocalDepth maxDepth )
+	{ return _addFEMConstraints< FEMDegree , FEMBType , SFDegree , SFBType , FEMSFConstraintFunctor , const  DenseNodeData< Real > , Real , double >( F , sfCoefficients , constraints , maxDepth ); }
 	// Add finite-elements constraints (derived from a sparse vector field)
-	template< int FEMDegree , BoundaryType FEMBType , int VFDegree , BoundaryType VFBType , class FEMVFConstraintFunctor > void addFEMConstraints( const FEMVFConstraintFunctor& F , const SparseNodeData< Point3D< Real > , VFDegree >& vfCoefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
-	{ return _addFEMConstraints< FEMDegree , FEMBType , VFDegree , VFBType , FEMVFConstraintFunctor , const SparseNodeData< Point3D< Real > , VFDegree > , Point3D< Real > , Point3D< double > >( F , vfCoefficients , constraints , maxDepth ); }
+	template< int FEMDegree , BoundaryType FEMBType , int VFDegree , BoundaryType VFBType , class FEMVFConstraintFunctor > void addFEMConstraints( const FEMVFConstraintFunctor& F , const SparseNodeData< Point3D< Real > >& vfCoefficients , DenseNodeData< Real >& constraints , LocalDepth maxDepth )
+	{ return _addFEMConstraints< FEMDegree , FEMBType , VFDegree , VFBType , FEMVFConstraintFunctor , const SparseNodeData< Point3D< Real > > , Point3D< Real > , Point3D< double > >( F , vfCoefficients , constraints , maxDepth ); }
 	// Add finite-elements constraints (derived from a dense vector field)
-	template< int FEMDegree , BoundaryType FEMBType , int VFDegree , BoundaryType VFBType , class FEMVFConstraintFunctor > void addFEMConstraints( const FEMVFConstraintFunctor& F , const  DenseNodeData< Point3D< Real > , VFDegree >& vfCoefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth )
-	{ return _addFEMConstraints< FEMDegree , FEMBType , VFDegree , VFBType , FEMVFConstraintFunctor , const  DenseNodeData< Point3D< Real > , VFDegree > , Point3D< Real > , Point3D< double > >( F , vfCoefficients , constraints , maxDepth ); }
+	template< int FEMDegree , BoundaryType FEMBType , int VFDegree , BoundaryType VFBType , class FEMVFConstraintFunctor > void addFEMConstraints( const FEMVFConstraintFunctor& F , const  DenseNodeData< Point3D< Real > >& vfCoefficients , DenseNodeData< Real >& constraints , LocalDepth maxDepth )
+	{ return _addFEMConstraints< FEMDegree , FEMBType , VFDegree , VFBType , FEMVFConstraintFunctor , const  DenseNodeData< Point3D< Real > > , Point3D< Real > , Point3D< double > >( F , vfCoefficients , constraints , maxDepth ); }
 	// Add interpolation constraints
-	template< int FEMDegree , BoundaryType FEMBType , bool HasGradients > void addInterpolationConstraints( const InterpolationInfo< HasGradients >& interpolationInfo , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth );
+	template< int FEMDegree , BoundaryType FEMBType , bool HasGradients > void addInterpolationConstraints( const InterpolationInfo< HasGradients >& interpolationInfo , DenseNodeData< Real >& constraints , LocalDepth maxDepth );
 
-	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const SparseNodeData< Real , Degree1 >& coefficients1 , const SparseNodeData< Real , Degree2 >& coefficients2 ) const
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const SparseNodeData< Real >& coefficients1 , const SparseNodeData< Real >& coefficients2 ) const
 	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , false >( F , (const InterpolationInfo< false >*)NULL , coefficients1 , coefficients2 ); }
-	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const SparseNodeData< Real , Degree1 >& coefficients1 , const DenseNodeData< Real , Degree2 >& coefficients2 ) const
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const SparseNodeData< Real >& coefficients1 , const DenseNodeData< Real >& coefficients2 ) const
 	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , false >( F , (const InterpolationInfo< false >*)NULL , coefficients1 , coefficients2 ); }
-	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const DenseNodeData< Real , Degree1 >& coefficients1 , const SparseNodeData< Real , Degree2 >& coefficients2 ) const
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const DenseNodeData< Real >& coefficients1 , const SparseNodeData< Real >& coefficients2 ) const
 	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , false >( F , (const InterpolationInfo< false >*)NULL , coefficients1 , coefficients2 ); }
-	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const DenseNodeData< Real , Degree1 >& coefficients1 , const DenseNodeData< Real , Degree2 >& coefficients2 ) const
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor > double dot( const DotFunctor& F , const DenseNodeData< Real >& coefficients1 , const DenseNodeData< Real >& coefficients2 ) const
 	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , false >( F , (const InterpolationInfo< false >*)NULL , coefficients1 , coefficients2 ); }
 
-	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const SparseNodeData< Real , Degree1 >& coefficients1 , const SparseNodeData< Real , Degree2 >& coefficients2 ) const
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const SparseNodeData< Real >& coefficients1 , const SparseNodeData< Real >& coefficients2 ) const
 	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , HasGradients >( F , iInfo , coefficients1 , coefficients2 ); }
-	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const SparseNodeData< Real , Degree1 >& coefficients1 , const DenseNodeData< Real , Degree2 >& coefficients2 ) const
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const SparseNodeData< Real >& coefficients1 , const DenseNodeData< Real >& coefficients2 ) const
 	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , HasGradients >( F , iInfo , coefficients1 , coefficients2 ); }
-	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const DenseNodeData< Real , Degree1 >& coefficients1 , const SparseNodeData< Real , Degree2 >& coefficients2 ) const
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const DenseNodeData< Real >& coefficients1 , const SparseNodeData< Real >& coefficients2 ) const
 	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , HasGradients >( F , iInfo , coefficients1 , coefficients2 ); }
-	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const DenseNodeData< Real , Degree1 >& coefficients1 , const DenseNodeData< Real , Degree2 >& coefficients2 ) const
+	template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 , class DotFunctor , bool HasGradients > double dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const DenseNodeData< Real >& coefficients1 , const DenseNodeData< Real >& coefficients2 ) const
 	{ return _dot< Degree1 , BType1 , Degree2 , BType2 , DotFunctor , HasGradients >( F , iInfo , coefficients1 , coefficients2 ); }
 
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
@@ -948,10 +951,10 @@ public:
 		SolverInfo( void ) : cgDepth(0) , iters(1), cgAccuracy(0) , lowResIterMultiplier(0) , verbose(false) , showResidual(false) { ; }
 	};
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor , bool HasGradients >
-	DenseNodeData< Real , FEMDegree > solveSystem( const FEMSystemFunctor& F , InterpolationInfo< HasGradients >* iData , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxSolveDepth , const SolverInfo& solverInfo );
+	DenseNodeData< Real > solveSystem( const FEMSystemFunctor& F , InterpolationInfo< HasGradients >* iData , DenseNodeData< Real >& constraints , LocalDepth maxSolveDepth , const SolverInfo& solverInfo );
 
 	template< int FEMDegree , BoundaryType BType , int WeightDegree , int ColorDegree , class Vertex >
-	void getMCIsoSurface( const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > , ColorDegree >* colorData , const DenseNodeData< Real , FEMDegree >& solution , Real isoValue , CoredMeshData< Vertex >& mesh , bool nonLinearFit=true , bool addBarycenter=false , bool polygonMesh=false );
+	void getMCIsoSurface( const DensityEstimator* densityWeights , const SparseNodeData< ProjectiveData< Point3D< Real > , Real > >* colorData , const DenseNodeData< Real >& solution , Real isoValue , Kazhdan::Mesh& mesh , bool nonLinearFit=true , bool addBarycenter=false , bool polygonMesh=false );
 
 
 	const TreeOctNode& tree( void ) const{ return *_tree; }
@@ -969,7 +972,7 @@ protected:
 	template< class D > static bool _IsZero( const D& d );
 	template< class D > static Real _Dot( const D& d1 , const D& d2 );
 	template< int FEMDegree , BoundaryType FEMBType , int CDegree , BoundaryType CBType , class FEMConstraintFunctor , class Coefficients , class D , class _D >
-	void _addFEMConstraints( const FEMConstraintFunctor& F , const Coefficients& coefficients , DenseNodeData< Real , FEMDegree >& constraints , LocalDepth maxDepth );
+	void _addFEMConstraints( const FEMConstraintFunctor& F , const Coefficients& coefficients , DenseNodeData< Real >& constraints , LocalDepth maxDepth );
 	template< int FEMDegree1 , BoundaryType FEMBType1 , int FEMDegree2 , BoundaryType FEMBType2 , class DotFunctor , bool HasGradients , class Coefficients1 , class Coefficients2 >
 	double _dot( const DotFunctor& F , const InterpolationInfo< HasGradients >* iInfo , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 ) const;
 };

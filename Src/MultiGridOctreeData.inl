@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -29,6 +29,9 @@ DAMAGE.
 #include <functional>
 #endif // FAST_SET_UP
 #include <cmath>
+
+#include "MemoryUsage.h"
+#include "MyTime.h"
 #include "PointStream.h"
 
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
@@ -57,8 +60,7 @@ double Octree< Real >::memoryUsage( void )
 	return mem;
 }
 
-template< class Real > Octree< Real >::Octree( void ) : threads(1) , _maxMemoryUsage(0) , _localMemoryUsage(0)
-{
+template< class Real > Octree< Real >::Octree( void ) : threads(1) , _maxMemoryUsage(0) , _localMemoryUsage(0) {
 	_tree = TreeOctNode::NewBrood( _NodeInitializer );
 	_tree->initChildren( _NodeInitializer ) , _spaceRoot = _tree->children;
 	_depthOffset = 1;
@@ -144,9 +146,12 @@ void Octree< Real >::_setFullDepth( TreeOctNode* node , LocalDepth depth ) const
 	LocalDepth d ; LocalOffset off;
 	_localDepthAndOffset( node , d , off );
 	if( d<depth )
-		if( d<0 ) refine = true;
+    {
+		if( d<0 )
+            refine = true;
 		else if( BType==BOUNDARY_FREE && !_outOfBounds< Degree , BType >( node ) ) refine = true;
 		else if( !BSplineSupportSizes< Degree >::OutOfBounds( d , off[0] ) && !BSplineSupportSizes< Degree >::OutOfBounds( d , off[1] ) && !BSplineSupportSizes< Degree >::OutOfBounds( d , off[2] ) ) refine = true;
+    }
 	if( refine )
 	{
 		if( !node->children ) node->initChildren( _NodeInitializer );
@@ -203,29 +208,74 @@ void Octree< Real >::_init( TreeOctNode* node , LocalDepth maxDepth , bool (*Ref
 		}
 	}
 }
-template< class Real > void Octree< Real >::init( LocalDepth maxDepth , bool (*Refine)( LocalDepth , LocalOffset ) ){ _init( _spaceRoot , maxDepth , Refine ); }
+template< class Real >
+void Octree< Real >::init( LocalDepth maxDepth ,
+    bool (*Refine)( LocalDepth , LocalOffset ) )
+{
+    _init( _spaceRoot , maxDepth , Refine );
+}
+
 template< class Real >
 template< class Data >
-int Octree< Real >::init( OrientedPointStream< Real >& pointStream , LocalDepth maxDepth , bool useConfidence , std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >* sampleData )
+int Octree< Real >::init(PointSource& source , LocalDepth maxDepth ,
+    bool useConfidence , std::vector< PointSample >& samples ,
+    std::vector< ProjectiveData< Data , Real > >* sampleData )
 {
-	OrientedPointStreamWithData< Real , Data >& pointStreamWithData = ( OrientedPointStreamWithData< Real , Data >& )pointStream;
-
 	// Add the point data
-	int outOfBoundPoints = 0 , zeroLengthNormals = 0 , undefinedNormals = 0 , pointCount = 0;
+	int outOfBoundPoints = 0;
+    int zeroLengthNormals = 0;
+    int undefinedNormals = 0;
+    int pointCount = 0;
 	{
 		std::vector< int > nodeToIndexMap;
 		Point3D< Real > p , n;
-		OrientedPoint3D< Real > _p;
-		Data _d;
-		while( ( sampleData ? pointStreamWithData.nextPoint( _p , _d ) : pointStream.nextPoint( _p ) ) )
-		{
-			p = Point3D< Real >(_p.p) , n = Point3D< Real >(_p.n);
+		OrientedPoint3D<double> _p;
+        Point3D<double> _d;
+
+        while (true)
+        {
+            //ABELL - Doing this every loop is stupid, but it's proof of
+            // concept at this point.
+            try
+            {
+                ColorPointSource& colorSource =
+                    dynamic_cast<ColorPointSource &>(source);
+                if (!colorSource.nextPoint(_p, _d))
+                    break;
+            }
+            catch (std::bad_cast)
+            {
+                if (!source.nextPoint(_p))
+                    break;
+            }
+
+			p = Point3D< Real >(_p.p);
+            n = Point3D< Real >(_p.n);
 			Real len = (Real)Length( n );
-			if( !_InBounds(p) ){ outOfBoundPoints++ ; continue; }
-			if( !len ){ zeroLengthNormals++ ; continue; }
-			if( len!=len ){ undefinedNormals++ ; continue; }
+
+            //ABELL - Not sure how this would happen.  Points should
+            // be normalized when read.
+			if (!_InBounds(p))
+            {
+                outOfBoundPoints++;
+                continue;
+            }
+			if( !len )
+            {
+                zeroLengthNormals++;
+                continue;
+            }
+			if( std::isnan(len))
+            {
+                undefinedNormals++;
+                continue;
+            }
+
+            // Make a unit normal vector.
 			n /= len;
-			Point3D< Real > center = Point3D< Real >( Real(0.5) , Real(0.5) , Real(0.5) );
+
+			Point3D<Real> center =
+                Point3D<Real>(Real(0.5) , Real(0.5) , Real(0.5));
 			Real width = Real(1.0);
 			TreeOctNode* temp = _spaceRoot;
 			LocalDepth depth = _localDepth( temp );
@@ -258,7 +308,7 @@ int Octree< Real >::init( OrientedPointStream< Real >& pointStream , LocalDepth 
 			if( sampleData ) (*sampleData)[ idx ] += ProjectiveData< Data , Real >( _d * weight , weight );
 			pointCount++;
 		}
-		pointStream.reset();
+		source.reset();
 	}
 	if( outOfBoundPoints  ) fprintf( stderr , "[WARNING] Found out-of-bound points: %d\n" , outOfBoundPoints );
 	if( zeroLengthNormals ) fprintf( stderr , "[WARNING] Found zero-length normals: %d\n" , zeroLengthNormals );
@@ -267,14 +317,15 @@ int Octree< Real >::init( OrientedPointStream< Real >& pointStream , LocalDepth 
 	memoryUsage();
 	return pointCount;
 }
+
 template< class Real >
 template< int DensityDegree >
-typename Octree< Real >::template DensityEstimator< DensityDegree >* Octree< Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode )
+typename Octree< Real >::DensityEstimator* Octree< Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode )
 {
 	LocalDepth maxDepth = _localMaxDepth( _tree );
 	splatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( splatDepth , maxDepth ) );
-	DensityEstimator< DensityDegree >* _density = new DensityEstimator< DensityDegree >( splatDepth );
-	DensityEstimator< DensityDegree >& density = *_density;
+	DensityEstimator* _density = new DensityEstimator( splatDepth );
+	DensityEstimator& density = *_density;
 	PointSupportKey< DensityDegree > densityKey;
 	densityKey.set( _localToGlobal( splatDepth ) );
 
@@ -331,7 +382,7 @@ typename Octree< Real >::template DensityEstimator< DensityDegree >* Octree< Rea
 }
 template< class Real >
 template< int NormalDegree , int DensityDegree >
-SparseNodeData< Point3D< Real > , NormalDegree > Octree< Real >::setNormalField( const std::vector< PointSample >& samples , const DensityEstimator< DensityDegree >& density , Real& pointWeightSum , bool forceNeumann )
+SparseNodeData< Point3D< Real > > Octree< Real >::setNormalField( const std::vector< PointSample >& samples , const DensityEstimator& density , Real& pointWeightSum , bool forceNeumann )
 {
 	LocalDepth maxDepth = _localMaxDepth( _tree );
 	PointSupportKey< DensityDegree > densityKey;
@@ -340,7 +391,7 @@ SparseNodeData< Point3D< Real > , NormalDegree > Octree< Real >::setNormalField(
 
 	Real weightSum = 0;
 	pointWeightSum = 0;
-	SparseNodeData< Point3D< Real > , NormalDegree > normalField;
+	SparseNodeData< Point3D< Real > > normalField;
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
 		const ProjectiveData< OrientedPoint3D< Real > , Real >& sample = samples[i].sample;
@@ -359,14 +410,14 @@ SparseNodeData< Point3D< Real > , NormalDegree > Octree< Real >::setNormalField(
 }
 template< class Real >
 template< int DataDegree , bool CreateNodes , int DensityDegree , class Data >
-SparseNodeData< ProjectiveData< Data , Real > , DataDegree > Octree< Real >::setDataField( const std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >& sampleData , const DensityEstimator< DensityDegree >* density )
+SparseNodeData< ProjectiveData< Data , Real > > Octree< Real >::setDataField( const std::vector< PointSample >& samples , std::vector< ProjectiveData< Data , Real > >& sampleData , const DensityEstimator* density )
 {
 	LocalDepth maxDepth = _localMaxDepth( _tree );
 	PointSupportKey< DensityDegree > densityKey;
 	PointSupportKey< DataDegree > dataKey;
 	densityKey.set( _localToGlobal( maxDepth ) ) , dataKey.set( _localToGlobal( maxDepth ) );
 
-	SparseNodeData< ProjectiveData< Data , Real > , DataDegree > dataField;
+	SparseNodeData< ProjectiveData< Data , Real > > dataField;
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
 		const ProjectiveData< OrientedPoint3D< Real > , Real >& sample = samples[i].sample;
@@ -471,7 +522,7 @@ void Octree< Real >::_clipTree( const HasDataFunctor& f )
 
 template< class Real >
 template< bool HasGradients >
-bool Octree< Real >::_setInterpolationInfoFromChildren( TreeOctNode* node , SparseNodeData< PointData< Real , HasGradients > , 0 >& interpolationInfo ) const
+bool Octree< Real >::_setInterpolationInfoFromChildren( TreeOctNode* node , SparseNodeData< PointData< Real , HasGradients > >& interpolationInfo ) const
 {
 	if( IsActiveNode( node->children ) )
 	{
@@ -508,9 +559,9 @@ bool Octree< Real >::_setInterpolationInfoFromChildren( TreeOctNode* node , Spar
 }
 template< class Real >
 template< bool HasGradients >
-SparseNodeData< PointData< Real , HasGradients > , 0 > Octree< Real >::_densifyInterpolationInfo( const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent ) const
+SparseNodeData< PointData< Real , HasGradients > > Octree< Real >::_densifyInterpolationInfo( const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent ) const
 {
-	SparseNodeData< PointData< Real , HasGradients > , 0 > iInfo;
+	SparseNodeData< PointData< Real , HasGradients > > iInfo;
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
 		const TreeOctNode* node = samples[i].node;

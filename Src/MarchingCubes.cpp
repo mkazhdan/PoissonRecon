@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -145,9 +145,9 @@ bool Cube::IsEdgeCorner( int cIndex , int e )
 	FactorEdgeIndex( e , o , i , j );
 	switch( o )
 	{
-	case 0: return (cIndex && 2)==(i<<1) && (cIndex && 4)==(j<<2);
-	case 1: return (cIndex && 1)==(i<<0) && (cIndex && 4)==(j<<2);
-	case 2: return (cIndex && 4)==(i<<2) && (cIndex && 2)==(j<<1);
+	case 0: return (cIndex & 2)==(i<<1) && (cIndex & 4)==(j<<2);
+	case 1: return (cIndex & 1)==(i<<0) && (cIndex & 4)==(j<<2);
+	case 2: return (cIndex & 4)==(i<<2) && (cIndex & 2)==(j<<1);
 	default: return false;
 	}
 }
@@ -309,7 +309,7 @@ bool MarchingSquares::HasEdgeRoots( unsigned char mcIndex , int edgeIndex )
 {
 	int c1 , c2;
 	Square::EdgeCorners( edgeIndex , c1 , c2 );
-	return !( 
+	return !(
 		( ( mcIndex&(1<<MarchingSquares::cornerMap[c1]) ) &&  ( mcIndex&(1<<MarchingSquares::cornerMap[c2])) )
 		||
 		(!( mcIndex&(1<<MarchingSquares::cornerMap[c1]) ) && !( mcIndex&(1<<MarchingSquares::cornerMap[c2])) )
@@ -325,7 +325,7 @@ bool MarchingSquares::HasEdgeRoots( unsigned char mcIndex , int edgeIndex )
 const int MarchingSquares::edgeMask[1<<Square::CORNERS]=
 {
 	    0, //  0 ->         ->                         ->
-	    9, //  1 -> 0       -> (0,0)                   -> 0,3     ->  9 
+	    9, //  1 -> 0       -> (0,0)                   -> 0,3     ->  9
 	    3, //  2 -> 1       -> (1,0)                   -> 0,1     ->  3
 	   10, //  3 -> 0,1     -> (0,0) (1,0)             -> 1,3     -> 10
 	   12, //  4 -> 2       -> (0,1)                   -> 2,3     -> 12
@@ -333,13 +333,13 @@ const int MarchingSquares::edgeMask[1<<Square::CORNERS]=
 	   15, //  6 -> 1,2     -> (1,0) (0,1)             -> 0,1,2,3 -> 15
 	    6, //  7 -> 0,1,2   -> (0,0) (1,0) (0,1)       -> 1,2     ->  6
 	    6, //  8 -> 3       -> (1,1)                   -> 1,2     ->  6
-	   15, //  9 -> 0,3     -> (0,0) (1,1)             -> 0,1,2,3 -> 15 
+	   15, //  9 -> 0,3     -> (0,0) (1,1)             -> 0,1,2,3 -> 15
 	    5, // 10 -> 1,3     -> (1,0) (1,1)             -> 0,2     ->  5
 	   12, // 11 -> 0,1,3   -> (0,0) (1,0) (1,1)       -> 2,3     -> 12
 	   10, // 12 -> 2,3     -> (0,1) (1,1)             -> 1,3     -> 10
 	    3, // 13 -> 0,2,3   -> (0,0) (0,1) (1,1)       -> 0,1     ->  3
 	    9, // 14 -> 1,2,3   -> (1,0) (0,1) (1,1)       -> 0,3     ->  9
-	    0, // 15 -> 0,1,2,3 -> (0,0) (1,0) (0,1) (1,1) -> 
+	    0, // 15 -> 0,1,2,3 -> (0,0) (1,0) (0,1) (1,1) ->
 };
 #if NEW_ORDERING
 /*
@@ -950,7 +950,7 @@ bool MarchingCubes::HasEdgeRoots( unsigned char mcIndex , int edgeIndex )
 {
 	int c1 , c2;
 	Cube::EdgeCorners( edgeIndex , c1 , c2 );
-	return !( 
+	return !(
 		( ( mcIndex&(1<<MarchingCubes::cornerMap[c1]) ) &&  ( mcIndex&(1<<MarchingCubes::cornerMap[c2])) )
 		||
 		(!( mcIndex&(1<<MarchingCubes::cornerMap[c1]) ) && !( mcIndex&(1<<MarchingCubes::cornerMap[c2])) )
