@@ -54,6 +54,10 @@ DAMAGE.
 void DumpOutput( const char* format , ... );
 void DumpOutput2( std::vector< char* >& comments , const char* format , ... );
 #include "MultiGridOctreeData.h"
+#include "point_source/AsciiPointSource.h"
+#include "point_source/BinaryPointSource.h"
+#include "point_source/TransformedPointSource.h"
+#include "point_source/PlyPointSource.h"
 
 #define DEFAULT_FULL_DEPTH 5
 

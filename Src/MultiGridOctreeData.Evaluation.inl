@@ -55,7 +55,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 		}
 
 		//// The face stencil
-		for( int f=0 ; f<Cube::FACES ; f++ )
+		for( int f=0 ; f<(int)Cube::FACES ; f++ )
 		{
 			int dir , off;
 			Cube::FactorFaceIndex( f , dir , off );
@@ -92,7 +92,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 		}
 
 		//// The edge stencil
-		for( int e=0 ; e<Cube::EDGES ; e++ )
+		for( int e=0 ; e<(int)Cube::EDGES ; e++ )
 		{
 			int orientation , i1 , i2;
 			Cube::FactorEdgeIndex( e , orientation , i1 , i2 );
@@ -129,7 +129,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 		}
 
 		//// The corner stencil
-		for( int c=0 ; c<Cube::CORNERS ; c++ )
+		for( int c=0 ; c<(int)Cube::CORNERS ; c++ )
 		{
 			int cx , cy  ,cz;
 			Cube::FactorCornerIndex( c , cx , cy , cz );
@@ -168,7 +168,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 			}
 
 			//// The face stencil
-			for( int f=0 ; f<Cube::FACES ; f++ )
+			for( int f=0 ; f<(int)Cube::FACES ; f++ )
 			{
 				int dir , off;
 				Cube::FactorFaceIndex( f , dir , off );
@@ -205,7 +205,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 			}
 
 			//// The edge stencil
-			for( int e=0 ; e<Cube::EDGES ; e++ )
+			for( int e=0 ; e<(int)Cube::EDGES ; e++ )
 			{
 				int orientation , i1 , i2;
 				Cube::FactorEdgeIndex( e , orientation , i1 , i2 );
@@ -242,7 +242,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 			}
 
 			//// The corner stencil
-			for( int c=0 ; c<Cube::CORNERS ; c++ )
+			for( int c=0 ; c<(int)Cube::CORNERS ; c++ )
 			{
 				int cx , cy  ,cz;
 				Cube::FactorCornerIndex( c , cx , cy , cz );
@@ -1123,7 +1123,7 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getCornerValueAndGradient( 
 }
 template< class Real >
 template< int Degree , BoundaryType BType >
-Octree< Real >::MultiThreadedEvaluator< Degree , BType >::MultiThreadedEvaluator( const Octree< Real >* tree , const DenseNodeData< Real >& coefficients , int threads ) : _coefficients( coefficients ) , _tree( tree )
+Octree< Real >::MultiThreadedEvaluator< Degree , BType >::MultiThreadedEvaluator( const Octree< Real >* tree , const DenseNodeData< Real >& coefficients , int threads ) : _tree(tree), _coefficients( coefficients )
 {
 	_threads = std::max< int >( 1 , threads );
 	_neighborKeys.resize( _threads );

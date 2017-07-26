@@ -47,8 +47,8 @@ DAMAGE.
 #endif // _OPENMP
 
 #include "MultiGridOctreeData.h"
-#include "PointSource.h"
 #include "Mesh.h"
+#include "point_source/TransformedPointSource.h"
 
 constexpr BoundaryType BType = BOUNDARY_NEUMANN;
 constexpr int Degree = 2;
@@ -61,26 +61,13 @@ void DumpOutput2( std::vector< char* >& comments , const char* format , ... );
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
+/**
 #if DEFAULT_FULL_DEPTH
 #pragma message ( "[WARNING] Setting default full depth to " XSTR(DEFAULT_FULL_DEPTH) )
 #endif // DEFAULT_FULL_DEPTH
+**/
 
 #include <stdarg.h>
-
-/**
-template< class Real >
-struct ColorInfo
-{
-    static Point3D< Real > ReadASCII( FILE* fp )
-    {
-        Point3D< unsigned char > c;
-        if( fscanf( fp , " %c %c %c " , &c[0] , &c[1] , &c[2] )!=3 ) fprintf( stderr , "[ERROR] Failed to read color\n" ) , exit( 0 );
-        return Point3D< Real >( (Real)c[0] , (Real)c[1] , (Real)c[2] );
-    };
-    static bool ValidPlyProperties( const bool* props ){ return ( props[0] || props[3] ) && ( props[1] || props[4] ) && ( props[2] || props[5] ); }
-    const static PlyProperty PlyProperties[];
-};
-**/
 
 template<typename Real>
 XForm4x4<Real> GetPointXForm(PointSource& source, Real scaleFactor)
@@ -165,6 +152,36 @@ struct PoissonOpts
         m_nonManifold(false), m_polygonMesh(false), m_fullDepth(5),
         m_scale(1.1)
     {}
+
+    void dump()
+    {
+        std::cerr << "Threads = " << m_threads << "!\n";
+        std::cerr << "Voxel depth = " << m_voxelDepth << "!\n";
+        std::cerr << "Primal voxel = " << m_primalVoxel << "!\n";
+        std::cerr << "Verbose = " << m_verbose << "!\n";
+        std::cerr << "Confidence = " << m_confidence << "!\n";
+        std::cerr << "Has color = " << m_hasColor << "!\n";
+        std::cerr << "Color = " << m_color << "!\n";
+        std::cerr << "Voxel filename = " << m_voxelFilename << "!\n";
+        std::cerr << "Xform filename = " << m_xformFilename << "!\n";
+        std::cerr << "Samples per node = " << m_samplesPerNode << "!\n";
+        std::cerr << "Depth = " << m_depth << "!\n";
+        std::cerr << "CG depth = " << m_cgDepth << "!\n";
+        std::cerr << "Iterations = " << m_iterations << "!\n";
+        std::cerr << "Show residual = " << m_showResidual << "!\n";
+        std::cerr << "Low res multiplier = " << m_lowResIterMult << "!\n";
+        std::cerr << "Kernel depth = " << m_kernelDepth << "!\n";
+        std::cerr << "Solve depth = " << m_solveDepth << "!\n";
+        std::cerr << "Solver accuracy = " << m_solverAccuracy << "!\n";
+        std::cerr << "Point weight = " << m_pointWeight << "!\n";
+        std::cerr << "Adapt exponent = " << m_adaptExponent << "!\n";
+        std::cerr << "Density = " << m_density << "!\n";
+        std::cerr << "Linear fit = " << m_linearFit << "!\n";
+        std::cerr << "Non-manifold = " << m_nonManifold << "!\n";
+        std::cerr << "Poly mesh = " << m_polygonMesh << "!\n";
+        std::cerr << "Full depth = " << m_fullDepth << "!\n";
+        std::cerr << "Scale = " << m_scale << "!\n";
+    }
 };
 
 class Profiler
@@ -270,33 +287,6 @@ void PoissonRecon<Real>::writeVoxels()
     }
 }
 
-/**
-template<typename Real>
-void PoissonRecon<Real>::writePly()
-{
-    if (m_opts.m_density && m_opts.m_hasColor)
-    {
-        CoredFileMeshData<PlyColorAndValueVertex<float>> mesh;
-        writeSurface(mesh);
-    }
-    else if (m_opts.m_density)
-    {
-        CoredFileMeshData<PlyValueVertex<float>> mesh;
-        writeSurface(mesh);
-    }
-    else if (m_opts.m_hasColor)
-    {
-        CoredFileMeshData<PlyColorVertex<float>> mesh;
-        writeSurface(mesh);
-    }
-    else
-    {
-        CoredFileMeshData<PlyVertex<float>> mesh;
-        writeSurface(mesh);
-    }
-}
-**/
-
 template <typename Real>
 void PoissonRecon<Real>::extractMesh(Kazhdan::Mesh& mesh)
 {
@@ -339,20 +329,6 @@ void PoissonRecon<Real>::writeSurface(Kazhdan::Mesh& mesh)
     m_tree.template getMCIsoSurface<Degree, BType, WEIGHT_DEGREE, DATA_DEGREE, Vertex>
         (m_density, &colorData, m_solution, m_isoValue, mesh,
          !m_opts.m_linearFit, !m_opts.m_nonManifold, m_opts.m_polygonMesh);
-
-    /**
-    std::cerr << "Vertices / Polygons: " << mesh.pointCount() <<
-        " / " << mesh.polygonCount();
-    m_profiler.dumpOutput2(m_comments, std::string("#   Got ") +
-        (m_opts.m_polygonMesh ? "polygons:" : "triangles:"));
-
-    std::unique_ptr<char *> buf(new char *[m_comments.size()]);
-    for (size_t i = 0; i < m_comments.size(); ++i)
-        *(buf.get() + i) = (char *) m_comments[i].data();
-    PlyWritePolygons((char *)m_opts.m_outputFilename.data(), &mesh,
-        (m_opts.m_ascii ? PLY_ASCII : PLY_BINARY_NATIVE), buf.get(),
-        m_comments.size(), m_iXForm);
-    **/
 }
 
 template<typename Real>
@@ -419,11 +395,6 @@ void PoissonRecon<Real>::readData()
     for( int i=0 ; i<(int)m_samples->size() ; i++ )
         (*m_samples)[i].sample.data.n *= (Real)-1;
 
-//ABELL
-/**
-    dump( "Input Points / Samples: " + std::to_string(pointCount) + " / " +
-        std::to_string(m_samples->size()) + "\n");
-**/
     m_profiler.dumpOutput2(m_comments , "# Read input into tree:");
     m_tree.resetNodeIndices();
 }
@@ -518,11 +489,9 @@ void PoissonRecon<Real>::solve()
 template<typename Real>
 void PoissonRecon<Real>::execute()
 {
-//ABELL
     readXForm(m_opts.m_xformFilename);
     m_comments.push_back("Running Screened Poisson Reconstruction "
         "(Version 9.01)");
-//ABELL
 //    m_debug.dump(m_comments.back());
     m_tree.threads = m_opts.m_threads;
 	OctNode< TreeNodeData >::SetAllocator( MEMORY_ALLOCATOR_BLOCK_SIZE );
@@ -534,14 +503,6 @@ void PoissonRecon<Real>::execute()
     trim();
     addFEMConstraints();
     addInterpolationConstraints();
-//ABELL
-/**
-    DumpOutput("Leaf Nodes / Active Nodes / GhostNodes: " +
-        std::to_string(m_tree.leaves()) + " / " +
-        std::to_string(m_tree.nodes()) + " / " +
-        std::to_string(m_tree.ghostNodes()) + "\n");
-    DumpOutput("Memory usage:
-**/
     solve();
 }
 

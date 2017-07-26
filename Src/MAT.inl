@@ -143,7 +143,7 @@ void MinimalAreaTriangulation<Real>::GetTriangulation(const size_t& i,const size
 	size_t ii=i;
 	if( i<j ) ii += eCount;
 #endif // BRUNO_LEVY_FIX
-	if( j+1>=ii )
+	if( j+1>=(size_t)ii )
 		return;
 	ii=midPoint[i*eCount+j];
 #ifdef BRUNO_LEVY_FIX  // Always true when type of ii is size_t

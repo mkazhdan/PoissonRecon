@@ -41,6 +41,9 @@ DAMAGE.
 
 #include "CmdLineParser.h"
 #include "PoissonRecon.h"
+#include "point_source/AsciiPointSource.h"
+#include "point_source/BinaryPointSource.h"
+#include "point_source/PlyPointSource.h"
 #include "MemMesh.h"
 
 cmdLineString
@@ -342,12 +345,12 @@ int main(int argc, char *argv[])
         params , 1);
 
     PoissonOpts<Real> opts;
-//Right now we only care about some options.
+    //Right now we only care about some options.
 
     if (!In.set)
     {
         std::cerr << "Must supply input file!\n";
-//        ShowUsage(argv[0]);
+        ShowUsage(argv[0]);
         return 0;
     }
     if (!Out.set)
@@ -389,9 +392,7 @@ int main(int argc, char *argv[])
 
     PointSourcePtr pointSource(createPointSource(In.value, opts.m_hasColor));
 
-    std::cerr << "Opts filename = " << In.value << "!\n";
     PoissonRecon<Real> recon(opts, *pointSource);
-
     recon.execute();
     recon.evaluate();
 

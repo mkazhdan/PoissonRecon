@@ -59,10 +59,10 @@ DAMAGE.
 #endif
 #include "BSplineData.h"
 #include "Mesh.h"
-#include "PointSource.h"
 #include "Geometry.h"
 #include "Octree.h"
 #include "SparseMatrix.h"
+#include "point_source/PointSource.h"
 
 #ifndef _OPENMP
 int omp_get_num_procs( void ){ return 1; }
@@ -693,7 +693,10 @@ public:
 				const Point3D< Real >& normal = *n;
 				if( normal[0]!=0 || normal[1]!=0 || normal[2]!=0 ) return true;
 			}
-			if( node->children ) for( int c=0 ; c<Cube::CORNERS ; c++ ) if( (*this)( node->children + c ) ) return true;
+			if( node->children )
+                for( int c=0 ; c<(int)Cube::CORNERS ; c++ )
+                    if( (*this)( node->children + c ) )
+                        return true;
 			return false;
 		}
 	};

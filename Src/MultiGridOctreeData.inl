@@ -32,7 +32,6 @@ DAMAGE.
 
 #include "MemoryUsage.h"
 #include "MyTime.h"
-#include "PointStream.h"
 
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
 //#define MEMORY_ALLOCATOR_BLOCK_SIZE 0
@@ -60,7 +59,7 @@ double Octree< Real >::memoryUsage( void )
 	return mem;
 }
 
-template< class Real > Octree< Real >::Octree( void ) : threads(1) , _maxMemoryUsage(0) , _localMemoryUsage(0) {
+template< class Real > Octree< Real >::Octree( void ) : _maxMemoryUsage(0) , _localMemoryUsage(0), threads(1) {
 	_tree = TreeOctNode::NewBrood( _NodeInitializer );
 	_tree->initChildren( _NodeInitializer ) , _spaceRoot = _tree->children;
 	_depthOffset = 1;
@@ -155,7 +154,7 @@ void Octree< Real >::_setFullDepth( TreeOctNode* node , LocalDepth depth ) const
 	if( refine )
 	{
 		if( !node->children ) node->initChildren( _NodeInitializer );
-		for( int c=0 ; c<Cube::CORNERS ; c++ ) _setFullDepth< Degree , BType >( node->children+c , depth );
+		for( int c=0 ; c<(int)Cube::CORNERS ; c++ ) _setFullDepth< Degree , BType >( node->children+c , depth );
 	}
 }
 template< class Real >
@@ -163,7 +162,7 @@ template< int Degree , BoundaryType BType >
 void Octree< Real >::_setFullDepth( LocalDepth depth )
 {
 	if( !_tree->children ) _tree->initChildren( _NodeInitializer );
-	for( int c=0 ; c<Cube::CORNERS ; c++ ) _setFullDepth< Degree , BType >( _tree->children+c , depth );
+	for( int c=0 ; c<(int)Cube::CORNERS ; c++ ) _setFullDepth< Degree , BType >( _tree->children+c , depth );
 }
 
 template< class Real , bool HasGradients >
@@ -295,7 +294,7 @@ int Octree< Real >::init(PointSource& source , LocalDepth maxDepth ,
 			}
 			Real weight = (Real)( useConfidence ? len : 1. );
 			int nodeIndex = temp->nodeData.nodeIndex;
-			if( nodeIndex>=nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
+			if( nodeIndex>=(int)nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
 			int idx = nodeToIndexMap[ nodeIndex ];
 			if( idx==-1 )
 			{
@@ -332,14 +331,16 @@ typename Octree< Real >::DensityEstimator* Octree< Real >::setDensityEstimator( 
 #ifdef FAST_SET_UP
 	std::vector< int > sampleMap( NodeCount() , -1 );
 #pragma omp parallel for num_threads( threads )
-	for( int i=0 ; i<samples.size() ; i++ ) if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = i;
+	for( int i=0 ; i<(int)samples.size() ; i++ )
+        if( samples[i].sample.weight>0 )
+            sampleMap[ samples[i].node->nodeData.nodeIndex ] = i;
 	std::function< ProjectiveData< OrientedPoint3D< Real > , Real > ( TreeOctNode* ) > SetDensity = [&] ( TreeOctNode* node )
 	{
 		ProjectiveData< OrientedPoint3D< Real > , Real > sample;
 		LocalDepth d = _localDepth( node );
 		int idx = node->nodeData.nodeIndex;
 		if( node->children )
-			for( int c=0 ; c<Cube::CORNERS ; c++ )
+			for( int c=0 ; c<(int)Cube::CORNERS ; c++ )
 			{
 				ProjectiveData< OrientedPoint3D< Real > , Real > s = SetDensity( node->children + c );
 				if( d<=splatDepth && s.weight>0 )
@@ -350,7 +351,7 @@ typename Octree< Real >::DensityEstimator* Octree< Real >::setDensityEstimator( 
 				}
 				sample += s;
 			}
-		else if( idx<sampleMap.size() && sampleMap[idx]!=-1 )
+		else if( idx<(int)sampleMap.size() && sampleMap[idx]!=-1 )
 		{
 			sample = samples[ sampleMap[ idx ] ].sample;
 			if( d<=splatDepth && sample.weight>0 )
@@ -392,7 +393,7 @@ SparseNodeData< Point3D< Real > > Octree< Real >::setNormalField( const std::vec
 	Real weightSum = 0;
 	pointWeightSum = 0;
 	SparseNodeData< Point3D< Real > > normalField;
-	for( int i=0 ; i<samples.size() ; i++ )
+	for( int i=0 ; i<(int)samples.size() ; i++ )
 	{
 		const ProjectiveData< OrientedPoint3D< Real > , Real >& sample = samples[i].sample;
 		if( sample.weight>0 )
@@ -418,7 +419,7 @@ SparseNodeData< ProjectiveData< Data , Real > > Octree< Real >::setDataField( co
 	densityKey.set( _localToGlobal( maxDepth ) ) , dataKey.set( _localToGlobal( maxDepth ) );
 
 	SparseNodeData< ProjectiveData< Data , Real > > dataField;
-	for( int i=0 ; i<samples.size() ; i++ )
+	for( int i=0 ; i<(int)samples.size() ; i++ )
 	{
 		const ProjectiveData< OrientedPoint3D< Real > , Real >& sample = samples[i].sample;
 		const ProjectiveData< Data , Real >& data = sampleData[i];
@@ -459,7 +460,7 @@ void Octree< Real >::inalizeForBroodedMultigrid( LocalDepth fullDepth , const Ha
 		int corner = _depthOffset<=1 ? Cube::CORNERS-1 : 0;
 		newSpaceRootParent[corner].children = _spaceRoot;
 		oldSpaceRootParent->children = newSpaceRootParent;
-		for( int c=0 ; c<Cube::CORNERS ; c++ ) _spaceRoot[c].parent = newSpaceRootParent + corner , newSpaceRootParent[c].parent = oldSpaceRootParent;
+		for( int c=0 ; c<(int)Cube::CORNERS ; c++ ) _spaceRoot[c].parent = newSpaceRootParent + corner , newSpaceRootParent[c].parent = oldSpaceRootParent;
 		_depthOffset++;
 	}
 	int d=0 , off[] = { 0 , 0 , 0 };
@@ -515,8 +516,8 @@ void Octree< Real >::_clipTree( const HasDataFunctor& f )
 	for( TreeOctNode* temp=_tree->nextNode() ; temp ; temp=_tree->nextNode(temp) ) if( temp->children && _localDepth( temp )>=_fullDepth )
 	{
 		bool hasData = false;
-		for( int c=0 ; c<Cube::CORNERS && !hasData ; c++ ) hasData |= f( temp->children + c );
-		for( int c=0 ; c<Cube::CORNERS ; c++ ) SetGhostFlag( temp->children+c , !hasData );
+		for( int c=0 ; c<(int)Cube::CORNERS && !hasData ; c++ ) hasData |= f( temp->children + c );
+		for( int c=0 ; c<(int)Cube::CORNERS ; c++ ) SetGhostFlag( temp->children+c , !hasData );
 	}
 }
 
@@ -545,7 +546,7 @@ bool Octree< Real >::_setInterpolationInfoFromChildren( TreeOctNode* node , Spar
 				hasChildData = true;
 			}
 #else // !POINT_DATA_RES
-		for( int c=0 ; c<Cube::CORNERS ; c++ )
+		for( int c=0 ; c<(int)Cube::CORNERS ; c++ )
 			if( _setInterpolationInfoFromChildren( node->children + c , interpolationInfo ) )
 			{
 				pData += interpolationInfo[ node->children + c ];
@@ -562,7 +563,7 @@ template< bool HasGradients >
 SparseNodeData< PointData< Real , HasGradients > > Octree< Real >::_densifyInterpolationInfo( const std::vector< PointSample >& samples , Real pointValue , int adaptiveExponent ) const
 {
 	SparseNodeData< PointData< Real , HasGradients > > iInfo;
-	for( int i=0 ; i<samples.size() ; i++ )
+	for( int i=0 ; i<(int)samples.size() ; i++ )
 	{
 		const TreeOctNode* node = samples[i].node;
 		const ProjectiveData< OrientedPoint3D< Real > , Real >& pData = samples[i].sample;

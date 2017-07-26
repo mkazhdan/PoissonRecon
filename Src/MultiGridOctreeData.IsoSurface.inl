@@ -33,6 +33,7 @@ DAMAGE.
 #include "MemoryUsage.h"
 #include "MAT.h"
 #include "Mesh.h"
+#include "Ply.h"
 
 template< class Real >
 template< class Vertex >
@@ -288,30 +289,30 @@ void Octree< Real >::_setSliceIsoCorners( const DenseNodeData< Real >& solution 
 
 inline int addPoint(Kazhdan::Mesh& mesh, const PlyVertex<float>& v)
 {
-    std::array<double, 3> p { v.point.coords[0], v.point.coords[1],
-        v.point.coords[2] };
+    std::array<double, 3> p {{v.point.coords[0], v.point.coords[1],
+        v.point.coords[2]}};
     return mesh.newPoint(p);
 }
 
 inline int addPoint(Kazhdan::Mesh& mesh, const PlyValueVertex<float>& v)
 {
-    std::array<double, 3> p { v.point.coords[0], v.point.coords[1],
-        v.point.coords[2] };
+    std::array<double, 3> p {{v.point.coords[0], v.point.coords[1],
+        v.point.coords[2]}};
     return mesh.newPoint(p, (double)v.value);
 }
 
 inline int addPoint(Kazhdan::Mesh& mesh, const PlyColorVertex<float>& v)
 {
     return mesh.newPoint(
-        {v.point.coords[0], v.point.coords[1], v.point.coords[2]},
-        {v.color[0], v.color[1], v.color[2]});
+        {{v.point.coords[0], v.point.coords[1], v.point.coords[2]}},
+        {{v.color[0], v.color[1], v.color[2]}});
 }
 
 inline int addPoint(Kazhdan::Mesh& mesh, const PlyColorAndValueVertex<float>& v)
 {
     return mesh.newPoint(
-        {v.point.coords[0], v.point.coords[1], v.point.coords[2]},
-        {v.color[0], v.color[1], v.color[2]},
+        {{v.point.coords[0], v.point.coords[1], v.point.coords[2]}},
+        {{v.color[0], v.color[1], v.color[2]}},
         (double)v.value);
 }
 
@@ -348,7 +349,7 @@ void Octree< Real >::_setSliceIsoVertices( const BSplineData< ColorDegree , BTyp
 				neighborKey.getNeighbors( leaf );
 				if( densityWeights ) weightKey.getNeighbors( leaf );
 				if( colorData ) colorKey.getNeighbors( leaf );
-				for( int e=0 ; e<Square::EDGES ; e++ )
+				for( int e=0 ; e<(int)Square::EDGES ; e++ )
 					if( MarchingSquares::HasEdgeRoots( sValues.mcIndices[idx] , e ) )
 					{
 						int vIndex = eIndices[e];
@@ -800,7 +801,7 @@ void Octree< Real >::_setIsoSurface( LocalDepth depth , int offset , const _Slic
 			// [WARNING] Just because the node looks empty doesn't mean it doesn't get eges from finer neighbors
 			{
 				// Gather the edges from the faces (with the correct orientation)
-				for( int f=0 ; f<Cube::FACES ; f++ )
+				for( int f=0 ; f<(int)Cube::FACES ; f++ )
 				{
 					int d , o;
 					Cube::FactorFaceIndex( f , d , o );
@@ -861,7 +862,7 @@ void Octree< Real >::_setIsoSurface( LocalDepth depth , int offset , const _Slic
 					{
 						int idx;
 						for( idx=0 ; idx<(int)edges.size() ; idx++ ) if( edges[idx][0]==current ) break;
-						if( idx==edges.size() )
+						if( idx==(int)edges.size() )
 						{
 							typename std::unordered_map< long long, long long >::const_iterator iter;
 							if     ( (iter=bValues.vertexPairMap.find(current))!=bValues.vertexPairMap.end() ) loops.back().push_back( current ) , current = iter->second;
@@ -1086,7 +1087,7 @@ int Octree< Real >::_addIsoPolygons( Kazhdan::Mesh& mesh , std::vector< std::pai
 		if( addBarycenter )
 			for( int i=0 ; i<(int)polygon.size() ; i++ )
 				for( int j=0 ; j<i ; j++ )
-					if( (i+1)%polygon.size()!=j && (j+1)%polygon.size()!=i )
+					if( (i+1)%(int)polygon.size()!=j && (j+1)%(int)polygon.size()!=i )
 					{
 						Vertex v1 = polygon[i].second , v2 = polygon[j].second;
 						for( int k=0 ; k<3 ; k++ ) if( v1.point[k]==v2.point[k] ) isCoplanar = true;

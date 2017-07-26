@@ -543,7 +543,7 @@ void Octree< Real >::_upSample( LocalDepth highDepth , DenseNodeData< C >& coeff
 	static const int DownSampleSize = BSplineSupportSizes< FEMDegree >::DownSample0Size > BSplineSupportSizes< FEMDegree >::DownSample1Size ? BSplineSupportSizes< FEMDegree >::DownSample0Size : BSplineSupportSizes< FEMDegree >::DownSample1Size;
 	Stencil< double , DownSampleSize > downSampleStencils[ Cube::CORNERS ];
 	int lowCenter = ( 1<<lowDepth )>>1;
-	for( int c=0 ; c<Cube::CORNERS ; c++ )
+	for( int c=0 ; c<(int)Cube::CORNERS ; c++ )
 	{
 		int cx , cy , cz;
 		Cube::FactorCornerIndex( c , cx , cy , cz );
@@ -632,7 +632,7 @@ void Octree< Real >::_UpSample( LocalDepth highDepth , ConstPointer( C ) lowCoef
 	static const int DownSampleSize = BSplineSupportSizes< FEMDegree >::DownSample0Size > BSplineSupportSizes< FEMDegree >::DownSample1Size ? BSplineSupportSizes< FEMDegree >::DownSample0Size : BSplineSupportSizes< FEMDegree >::DownSample1Size;
 	Stencil< double , DownSampleSize > downSampleStencils[ Cube::CORNERS ];
 	int lowCenter = ( 1<<lowDepth )>>1;
-	for( int c=0 ; c<Cube::CORNERS ; c++ )
+	for( int c=0 ; c<(int)Cube::CORNERS ; c++ )
 	{
 		int cx , cy , cz;
 		Cube::FactorCornerIndex( c , cx , cy , cz );
@@ -1290,10 +1290,12 @@ int Octree< Real >::_getSliceMatrixAndUpdateConstraints( const FEMSystemFunctor&
 			_updateConstraintsFromCoarser( F , interpolationInfo , neighbors , pNeighbors , node , constraints , metSolution , childIntegrator , stencils[x][y][z] , bsData );
 		}
 	}
+/**
 #if !defined( _WIN32 ) && !defined( _WIN64 )
 #pragma message( "[WARNING] I'm not sure how expensive this system call is on non-Windows system. (You may want to comment this out.)" )
 #endif // !_WIN32 && !_WIN64
 	memoryUsage();
+**/
 	return 1;
 }
 
@@ -1737,7 +1739,6 @@ DenseNodeData< Real > Octree< Real >::solveSystem( const FEMSystemFunctor& F , I
 	BSplineData< FEMDegree , BType > bsData( maxSolveDepth );
 
 	maxSolveDepth = std::min< LocalDepth >( maxSolveDepth , _maxDepth );
-	int iter = 0;
 	const int _iters = std::max< int >( 0 , solverInfo.iters );
 
 	DenseNodeData< Real > solution( _sNodesEnd( _maxDepth ) );
@@ -1749,11 +1750,11 @@ DenseNodeData< Real > Octree< Real >::solveSystem( const FEMSystemFunctor& F , I
 	{
 		int iters = (int)ceil( _iters * pow( solverInfo.lowResIterMultiplier , maxSolveDepth-d ) );
 		_SolverStats sStats;
-		if( !d ) iter = _solveSystemCG( F , bsData , interpolationInfo , d , solution , constraints , metSolution , _sNodesSize(d) , true , sStats , solverInfo.showResidual , 0 );
+		if( !d ) _solveSystemCG( F , bsData , interpolationInfo , d , solution , constraints , metSolution , _sNodesSize(d) , true , sStats , solverInfo.showResidual , 0 );
 		else
 		{
-			if( d>solverInfo.cgDepth ) iter = _solveSystemGS( F , bsData , interpolationInfo , d , solution , constraints , metSolution , iters , true , sStats , solverInfo.showResidual );
-			else                       iter = _solveSystemCG( F , bsData , interpolationInfo , d , solution , constraints , metSolution , iters , true , sStats , solverInfo.showResidual , solverInfo.cgAccuracy );
+			if( d>solverInfo.cgDepth ) _solveSystemGS( F , bsData , interpolationInfo , d , solution , constraints , metSolution , iters , true , sStats , solverInfo.showResidual );
+			else                       _solveSystemCG( F , bsData , interpolationInfo , d , solution , constraints , metSolution , iters , true , sStats , solverInfo.showResidual , solverInfo.cgAccuracy );
 		}
 		int femNodes = 0;
 #pragma omp parallel for reduction( + : femNodes )

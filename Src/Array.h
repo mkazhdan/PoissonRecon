@@ -52,7 +52,8 @@ void* aligned_malloc( size_t size , size_t align )
 	// Add align-1 to the start of the address and then zero out at most of the first align-1 bits.
 	amem = ( char* )( ( (size_t)( ( (char*)amem ) + (align-1) ) ) & ~( align-1 ) );
 	// Pre-write the actual address
-	( ( void** ) amem )[-1] = mem;
+    void **vmem = reinterpret_cast<void **>(amem);
+	vmem[-1] = mem;
 	return amem;
 }
 void aligned_free( void* mem ) { free( ( ( void** )mem )[-1] ); }

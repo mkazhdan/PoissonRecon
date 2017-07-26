@@ -78,6 +78,15 @@ struct XForm3x3
 	}
 	Real& operator() ( int i , int j ){ return coords[i][j]; }
 	const Real& operator() ( int i , int j ) const { return coords[i][j]; }
+    template<class _Real>
+    operator XForm3x3<_Real>() const
+    {
+        XForm3x3<_Real> out;
+	    for( int i=0 ; i<3 ; i++ )
+            for( int j=0 ; j<3 ; j++ )
+                out.coords[i][j] = static_cast<_Real>(coords[i][j]);
+        return out;
+    }
 	template< class _Real > Point3D< _Real > operator * ( const Point3D< _Real >& p ) const
 	{
 		Point3D< _Real > q;
@@ -117,13 +126,6 @@ struct XForm4x4
 {
 	Real coords[4][4];
 	XForm4x4( void ) { for( int i=0 ; i<4 ; i++ ) for( int j=0 ; j<4 ; j++ )  coords[i][j] = Real(0.); }
-    template<typename _Real>
-    XForm4x4(const XForm4x4<_Real>& other)
-    {
-        for (int i = 0; i < 4; ++i)
-            for (int j = 0; j < 4; ++j)
-                coords[i][j] = (Real)other.coords[i][j];
-    }
 	static XForm4x4 Identity( void )
 	{
 		XForm4x4 xForm;
@@ -142,6 +144,15 @@ struct XForm4x4
 		}
 		return q;
 	}
+    template<class _Real>
+    operator XForm4x4<_Real>() const
+    {
+        XForm4x4<_Real> out;
+	    for( int i=0 ; i<4 ; i++ )
+            for( int j=0 ; j<4 ; j++ )
+                out.coords[i][j] = static_cast<_Real>(coords[i][j]);
+        return out;
+    }
 	XForm4x4 operator * ( const XForm4x4& m ) const
 	{
 		XForm4x4 n;
@@ -342,6 +353,7 @@ template< class Vertex >
 class CoredMeshData
 {
 public:
+	std::vector< Vertex > inCorePoints;
 	virtual void resetIterator( void ) = 0;
 
 	virtual int addOutOfCorePoint( const Vertex& p ) = 0;

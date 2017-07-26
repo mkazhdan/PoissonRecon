@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -67,7 +67,7 @@ public:
 	~OctNode( void );
 	int initChildren( void (*Initializer)( OctNode& )=NULL );
 
-	void depthAndOffset( int& depth , int offset[DIMENSION] ) const; 
+	void depthAndOffset( int& depth , int offset[DIMENSION] ) const;
 	void centerIndex( int index[DIMENSION] ) const;
 	int depth( void ) const;
 	static inline void DepthAndOffset( const long long& index , int& depth , int offset[DIMENSION] );
@@ -149,7 +149,7 @@ public:
 		template< bool CreateNodes , unsigned int _LeftRadius , unsigned int _RightRadius > void getNeighbors( OctNode* node , Neighbors< _LeftRadius + _RightRadius + 1 >& neighbors , void (*Initializer)( OctNode& )=NULL );
 		template< bool CreateNodes > bool getChildNeighbors( int cIdx , int d , Neighbors< Width >& childNeighbors , void (*Initializer)( OctNode& )=NULL ) const;
 		template< bool CreateNodes , class Real > bool getChildNeighbors( Point3D< Real > p , int d , Neighbors< Width >& childNeighbors , void (*Initializer)( OctNode& )=NULL ) const;
-		typename OctNode< NodeData >::template Neighbors< LeftRadius+RightRadius+1 >& getNeighbors( const OctNode* node ) { return getNeighbors< false >( (OctNode*)node , NULL ); }
+		typename OctNode< NodeData >::template Neighbors< LeftRadius+RightRadius+1 >& getNeighbors( const OctNode* node ) { return getNeighbors< false >( const_cast<OctNode*>(node), NULL ); }
 		template< unsigned int _LeftRadius , unsigned int _RightRadius > void getNeighbors( const OctNode* node , Neighbors< _LeftRadius + _RightRadius + 1 >& neighbors ){ return getNeighbors< false , _LeftRadius , _RightRadius >( (OctNode*)node , NULL ); }
 		bool getChildNeighbors( int cIdx , int d , Neighbors< Width >& childNeighbors ) const { return getChildNeighbors< false >( cIdx , d , childNeighbors , NULL ); }
 		template< class Real > bool getChildNeighbors( Point3D< Real > p , int d , Neighbors< Width >& childNeighbors ) const { return getChildNeighbors< false , Real >( p , d , childNeighbors , NULL ); }
