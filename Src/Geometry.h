@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -78,6 +78,15 @@ struct XForm3x3
 	}
 	Real& operator() ( int i , int j ){ return coords[i][j]; }
 	const Real& operator() ( int i , int j ) const { return coords[i][j]; }
+    template<class _Real>
+    operator XForm3x3<_Real>() const
+    {
+        XForm3x3<_Real> out;
+	    for( int i=0 ; i<3 ; i++ )
+            for( int j=0 ; j<3 ; j++ )
+                out.coords[i][j] = static_cast<_Real>(coords[i][j]);
+        return out;
+    }
 	template< class _Real > Point3D< _Real > operator * ( const Point3D< _Real >& p ) const
 	{
 		Point3D< _Real > q;
@@ -135,6 +144,15 @@ struct XForm4x4
 		}
 		return q;
 	}
+    template<class _Real>
+    operator XForm4x4<_Real>() const
+    {
+        XForm4x4<_Real> out;
+	    for( int i=0 ; i<4 ; i++ )
+            for( int j=0 ; j<4 ; j++ )
+                out.coords[i][j] = static_cast<_Real>(coords[i][j]);
+        return out;
+    }
 	XForm4x4 operator * ( const XForm4x4& m ) const
 	{
 		XForm4x4 n;
@@ -258,7 +276,7 @@ public:
 		}
 		return Area()/d;
 	}
-	
+
 };
 class CoredPointIndex
 {

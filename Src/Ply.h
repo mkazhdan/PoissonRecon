@@ -1,33 +1,33 @@
 /*
 
  Header for PLY polygon files.
- 
+
   - Greg Turk, March 1994
-  
+
    A PLY file contains a single polygonal _object_.
-   
+
 	An object is composed of lists of _elements_.  Typical elements are
 	vertices, faces, edges and materials.
-	
+
 	 Each type of element for a given object has one or more _properties_
 	 associated with the element type.  For instance, a vertex element may
 	 have as properties three floating-point values x,y,z and three unsigned
 	 chars for red, green and blue.
-	 
+
 	  ---------------------------------------------------------------
-	  
+
 	   Copyright (c) 1994 The Board of Trustees of The Leland Stanford
-	   Junior University.  All rights reserved.   
-	   
-		Permission to use, copy, modify and distribute this software and its   
-		documentation for any purpose is hereby granted without fee, provided   
-		that the above copyright notice and this permission notice appear in   
-		all copies of this software and that you do not sell the software.   
-		
-		 THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND,   
-		 EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY   
-		 WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.   
-		 
+	   Junior University.  All rights reserved.
+
+		Permission to use, copy, modify and distribute this software and its
+		documentation for any purpose is hereby granted without fee, provided
+		that the above copyright notice and this permission notice appear in
+		all copies of this software and that you do not sell the software.
+
+		 THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND,
+		 EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY
+		 WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
 */
 
 #ifndef __PLY_H__
@@ -42,22 +42,22 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-	
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
-    
+
 #define PLY_ASCII         1      /* ascii PLY file */
 #define PLY_BINARY_BE     2      /* binary PLY file, big endian */
 #define PLY_BINARY_LE     3      /* binary PLY file, little endian */
 #define PLY_BINARY_NATIVE 4      /* binary PLY file, same endianness as current architecture */
-    
+
 #define PLY_OKAY    0           /* ply routine worked okay */
 #define PLY_ERROR  -1           /* error in ply routine */
-	
+
 	/* scalar data types supported by PLY format */
-	
+
 #define PLY_START_TYPE 0
 #define PLY_CHAR       1
 #define PLY_SHORT      2
@@ -75,26 +75,26 @@ extern "C" {
 #define PLY_UINT_32    14
 #define PLY_FLOAT_32   15
 #define PLY_FLOAT_64   16
-	
+
 #define PLY_END_TYPE   17
-	
+
 #define  PLY_SCALAR  0
 #define  PLY_LIST    1
-	
+
 #define PLY_STRIP_COMMENT_HEADER 0
 
 typedef struct PlyProperty {    /* description of a property */
-	
+
 	char *name;                           /* property name */
 	int external_type;                    /* file's data type */
 	int internal_type;                    /* program's data type */
 	int offset;                           /* offset bytes of prop in a struct */
-	
+
 	int is_list;                          /* 1 = list, 0 = scalar */
 	int count_external;                   /* file's count type */
 	int count_internal;                   /* program's count type */
 	int count_offset;                     /* offset byte for list count */
-	
+
 } PlyProperty;
 
 typedef struct PlyElement {     /* description of an element */
@@ -144,7 +144,7 @@ typedef struct PlyFile {        /* description of PLY file */
 	PlyElement *which_elem;       /* which element we're currently writing */
 	PlyOtherElems *other_elems;   /* "other" elements from a PLY file */
 } PlyFile;
-	
+
 	/* memory allocation */
 extern char *my_alloc();
 #define myalloc(mem_size) my_alloc((mem_size), __LINE__, __FILE__)
@@ -220,6 +220,7 @@ extern int equal_strings(const char *, const char *);
 }
 #endif
 #include "Geometry.h"
+#include "Mesh.h"
 #include <vector>
 
 template< class Real > int PLYType( void );
@@ -241,7 +242,6 @@ static PlyProperty face_props[] =
 	{ _strdup( "vertex_indices" ) , PLY_INT , PLY_INT , offsetof( PlyFace , vertices ) , 1 , PLY_UCHAR, PLY_UCHAR , offsetof(PlyFace,nr_vertices) },
 };
 
-
 ///////////////////
 // PlyVertexType //
 ///////////////////
@@ -262,6 +262,12 @@ public:
 
 	PlyVertex( void ) { ; }
 	PlyVertex( Point3D< Real > p ) { point=p; }
+	PlyVertex( Kazhdan::Point& p )
+    {
+        point.coords[0] = (Real)p.m_position[0];
+        point.coords[1] = (Real)p.m_position[1];
+        point.coords[2] = (Real)p.m_position[2];
+    }
 	PlyVertex operator + ( PlyVertex p ) const { return PlyVertex( point+p.point ); }
 	PlyVertex operator - ( PlyVertex p ) const { return PlyVertex( point-p.point ); }
 	template< class _Real > PlyVertex operator * ( _Real s ) const { return PlyVertex( point*s ); }
@@ -300,6 +306,13 @@ public:
 
 	PlyValueVertex( void ) : value( Real(0) ) { ; }
 	PlyValueVertex( Point3D< Real > p , Real v ) : point(p) , value(v) { ; }
+	PlyValueVertex( Kazhdan::Point& p )
+    {
+        point.coords[0] = (Real)p.m_position[0];
+        point.coords[1] = (Real)p.m_position[1];
+        point.coords[2] = (Real)p.m_position[2];
+        value = (Real)p.m_density;
+    }
 	PlyValueVertex operator + ( PlyValueVertex p ) const { return PlyValueVertex( point+p.point , value+p.value ); }
 	PlyValueVertex operator - ( PlyValueVertex p ) const { return PlyValueVertex( point-p.value , value-p.value ); }
 	template< class _Real > PlyValueVertex operator * ( _Real s ) const { return PlyValueVertex( point*s , Real(value*s) ); }
@@ -410,7 +423,17 @@ public:
 	PlyColorVertex( void ) { point.coords[0] = point.coords[1] = point.coords[2] = 0 , color[0] = color[1] = color[2] = 0; }
 	PlyColorVertex( const Point3D<Real>& p ) { point=p; }
 	PlyColorVertex( const Point3D< Real >& p , const unsigned char c[3] ) { point = p , color[0] = c[0] , color[1] = c[1] , color[2] = c[2]; }
+	PlyColorVertex( Kazhdan::Point& p )
+    {
+        point.coords[0] = (Real)p.m_position[0];
+        point.coords[1] = (Real)p.m_position[1];
+        point.coords[2] = (Real)p.m_position[2];
+        color[0] = p.m_color[0];
+        color[1] = p.m_color[1];
+        color[2] = p.m_color[2];
+    }
 };
+
 template< class Real , class _Real > PlyColorVertex< Real > operator * ( XForm4x4< _Real > xForm , PlyColorVertex< Real > v ) { return PlyColorVertex< Real >( xForm * v.point , v.color ); }
 
 template< class Real > PlyProperty PlyColorVertex< Real >::ReadProperties[]=
@@ -480,7 +503,18 @@ public:
 	PlyColorAndValueVertex( void ) { point.coords[0] = point.coords[1] = point.coords[2] = (Real)0 , color[0] = color[1] = color[2] = 0 , value = (Real)0; }
 	PlyColorAndValueVertex( const Point3D< Real >& p ) { point=p; }
 	PlyColorAndValueVertex( const Point3D< Real >& p , const unsigned char c[3] , Real v) { point = p , color[0] = c[0] , color[1] = c[1] , color[2] = c[2] , value = v; }
+	PlyColorAndValueVertex( Kazhdan::Point& p )
+    {
+        point.coords[0] = (Real)p.m_position[0];
+        point.coords[1] = (Real)p.m_position[1];
+        point.coords[2] = (Real)p.m_position[2];
+        color[0] = p.m_color[0];
+        color[1] = p.m_color[1];
+        color[2] = p.m_color[2];
+        value = (Real)p.m_density;
+    }
 };
+
 template< class Real , class _Real > PlyColorAndValueVertex< Real > operator * ( XForm4x4< _Real > xForm , PlyColorAndValueVertex< Real > v ) { return PlyColorAndValueVertex< Real >( xForm * v.point , v.color , v.value ); }
 template< class Real > PlyProperty PlyColorAndValueVertex< Real >::ReadProperties[]=
 {
@@ -507,10 +541,10 @@ template< class Real > PlyProperty PlyColorAndValueVertex< Real >::WriteProperti
 };
 
 template< class Vertex , class Real >
-int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >*  mesh , int file_type , const Point3D< float >& translate , float scale , char** comments=NULL , int commentNum=0 , XForm4x4< Real > xForm=XForm4x4< Real >::Identity() );
+int PlyWritePolygons( char* fileName , Kazhdan::Mesh& mesh , int file_type , const Point3D< float >& translate , float scale , char** comments=NULL , int commentNum=0 , XForm4x4< Real > xForm=XForm4x4< Real >::Identity() );
 
 template< class Vertex , class Real >
-int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >*  mesh , int file_type , char** comments=NULL , int commentNum=0 , XForm4x4< Real > xForm=XForm4x4< Real >::Identity() );
+int PlyWritePolygons( char* fileName , Kazhdan::Mesh& mesh, int file_type , char** comments=NULL , int commentNum=0 , XForm4x4< Real > xForm=XForm4x4< Real >::Identity() );
 
 inline bool PlyReadHeader( char* fileName , PlyProperty* properties , int propertyNum , bool* readFlags , int& file_type )
 {
@@ -550,12 +584,12 @@ inline bool PlyReadHeader( char* fileName , PlyProperty* properties , int proper
 			for( int i=0 ; i<ply->num_obj_info ; i++ ) free( ply->obj_info[i] );
 			free( ply->obj_info );
 			ply_free_other_elements( ply->other_elems );
-			
+
 			for( int i=0 ; i<nr_elems ; i++ ) free( elist[i] );
 			free( elist );
 			ply_close( ply );
 			return 0;
-		}		
+		}
 		if( equal_strings( "vertex" , elem_name ) )
 			for( int i=0 ; i<propertyNum ; i++ )
 				if( readFlags ) readFlags[i] = ply_get_property( ply , elem_name , &properties[i] )!=0;
@@ -567,7 +601,7 @@ inline bool PlyReadHeader( char* fileName , PlyProperty* properties , int proper
 		}
 		free( plist );
 	}  // for each type of element
-	
+
 	for( int i=0 ; i<nr_elems ; i++ )
 	{
 		free( ply->elems[i]->name );
@@ -586,8 +620,8 @@ inline bool PlyReadHeader( char* fileName , PlyProperty* properties , int proper
 	for( int i=0 ; i<ply->num_obj_info ; i++ ) free( ply->obj_info[i] );
 	free( ply->obj_info );
 	ply_free_other_elements(ply->other_elems);
-	
-	
+
+
 	for( int i=0 ; i<nr_elems ; i++ ) free( elist[i] );
 	free( elist );
 	ply_close( ply );
@@ -627,24 +661,24 @@ int PlyWritePolygons(char* fileName,
 	const char *elem_names[] = { "vertex" , "face" };
 	PlyFile *ply = ply_open_for_writing( fileName , 2 , elem_names , file_type , &version );
 	if (!ply){return 0;}
-	
+
 	//
 	// describe vertex and face properties
 	//
 	ply_element_count(ply, "vertex", nr_vertices);
 	for(int i=0;i<propertyNum;i++)
 		ply_describe_property(ply, "vertex", &properties[i]);
-	
+
 	ply_element_count(ply, "face", nr_faces);
 	ply_describe_property(ply, "face", &face_props[0]);
-	
+
 	// Write in the comments
 	if(comments && commentNum)
 		for(int i=0;i<commentNum;i++)
 			ply_put_comment(ply,comments[i]);
 
 	ply_header_complete(ply);
-	
+
 	// write vertices
 	ply_put_element_setup(ply, "vertex");
 	for (int i=0; i < int(vertices.size()); i++)
@@ -725,12 +759,12 @@ int PlyReadPolygons(char* fileName,
 			for(i=0;i<ply->num_obj_info;i++){free(ply->obj_info[i]);}
 			free(ply->obj_info);
 			ply_free_other_elements (ply->other_elems);
-			
+
 			for(i=0;i<nr_elems;i++){free(elist[i]);}
 			free(elist);
 			ply_close(ply);
 			return 0;
-		}		
+		}
 		if (equal_strings("vertex", elem_name))
 		{
 			for( int i=0 ; i<propertyNum ; i++)
@@ -761,7 +795,7 @@ int PlyReadPolygons(char* fileName,
 		}
 		free(plist);
 	}  // for each type of element
-	
+
 	for(i=0;i<nr_elems;i++){
 		free(ply->elems[i]->name);
 		free(ply->elems[i]->store_prop);
@@ -778,8 +812,8 @@ int PlyReadPolygons(char* fileName,
 	for(i=0;i<ply->num_obj_info;i++){free(ply->obj_info[i]);}
 	free(ply->obj_info);
 	ply_free_other_elements (ply->other_elems);
-	
-	
+
+
 	for(i=0;i<nr_elems;i++){free(elist[i]);}
 	free(elist);
 	ply_close(ply);
@@ -787,49 +821,45 @@ int PlyReadPolygons(char* fileName,
 }
 
 template< class Vertex , class Real >
-int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_type , const Point3D<float>& translate , float scale , char** comments , int commentNum , XForm4x4< Real > xForm )
+int PlyWritePolygons( char* fileName , Kazhdan::Mesh& mesh, int file_type , const Point3D<float>& translate , float scale , char** comments , int commentNum , XForm4x4< Real > xForm )
 {
 	int i;
-	int nr_vertices=int(mesh->outOfCorePointCount()+mesh->inCorePoints.size());
-	int nr_faces=mesh->polygonCount();
+	int nr_vertices=mesh.pointCount();
+	int nr_faces=mesh.polygonCount();
 	float version;
 	const char *elem_names[] = { "vertex" , "face" };
 	PlyFile *ply = ply_open_for_writing( fileName , 2 , elem_names , file_type , &version );
 	if( !ply ) return 0;
 
-	mesh->resetIterator();
-	
+	mesh.resetIterator();
+
 	//
 	// describe vertex and face properties
 	//
 	ply_element_count( ply , "vertex" , nr_vertices );
 	for( int i=0 ; i<Vertex::Components ; i++ ) ply_describe_property( ply , "vertex" , &Vertex::Properties[i] );
-	
+
 	ply_element_count( ply , "face" , nr_faces );
 	ply_describe_property( ply , "face" , &face_props[0] );
-	
+
 	// Write in the comments
 	for( i=0 ; i<commentNum ; i++ ) ply_put_comment( ply , comments[i] );
 
 	ply_header_complete( ply );
-	
+
 	// write vertices
 	ply_put_element_setup( ply , "vertex" );
-	for( i=0 ; i<int( mesh->inCorePoints.size() ) ; i++ )
+	for( i=0; i<mesh.pointCount(); i++ )
 	{
-		Vertex vertex = xForm * ( mesh->inCorePoints[i] * scale + translate );
-		ply_put_element(ply, (void *) &vertex);
-	}
-	for( i=0; i<mesh->outOfCorePointCount() ; i++ )
-	{
-		Vertex vertex;
-		mesh->nextOutOfCorePoint( vertex );
+        Kazhdan::Point p;
+		mesh.nextPoint(p);
+		Vertex vertex(p);
 		vertex = xForm * ( vertex * scale +translate );
-		ply_put_element(ply, (void *) &vertex);		
+		ply_put_element(ply, (void *) &vertex);
 	}  // for, write vertices
-	
+
 	// write faces
-	std::vector< CoredVertexIndex > polygon;
+	Kazhdan::Polygon polygon;
 	ply_put_element_setup( ply , "face" );
 	for( i=0 ; i<nr_faces ; i++ )
 	{
@@ -837,63 +867,58 @@ int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_
 		// create and fill a struct that the ply code can handle
 		//
 		PlyFace ply_face;
-		mesh->nextPolygon( polygon );
+		mesh.nextPolygon( polygon );
 		ply_face.nr_vertices = int( polygon.size() );
 		ply_face.vertices = new int[ polygon.size() ];
 		for( int i=0 ; i<int(polygon.size()) ; i++ )
-			if( polygon[i].inCore ) ply_face.vertices[i] = polygon[i].idx;
-			else                    ply_face.vertices[i] = polygon[i].idx + int( mesh->inCorePoints.size() );
+			ply_face.vertices[i] = polygon[i];
 		ply_put_element( ply, (void *) &ply_face );
 		delete[] ply_face.vertices;
 	}  // for, write faces
-	
+
 	ply_close( ply );
 	return 1;
 }
 template< class Vertex , class Real >
-int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_type , char** comments , int commentNum , XForm4x4< Real > xForm )
+int PlyWritePolygons( char* fileName , Kazhdan::Mesh& mesh, int file_type , char** comments , int commentNum , XForm4x4< Real > xForm )
 {
 	int i;
-	int nr_vertices=int(mesh->outOfCorePointCount()+mesh->inCorePoints.size());
-	int nr_faces=mesh->polygonCount();
+	int nr_vertices=int(mesh.pointCount());
+	int nr_faces=mesh.polygonCount();
 	float version;
 	const char *elem_names[] = { "vertex" , "face" };
 	PlyFile *ply = ply_open_for_writing( fileName , 2 , elem_names , file_type , &version );
 	if( !ply ) return 0;
 
-	mesh->resetIterator();
-	
+	mesh.resetIterator();
+
 	//
 	// describe vertex and face properties
 	//
 	ply_element_count( ply , "vertex" , nr_vertices );
 	for( int i=0 ; i<Vertex::WriteComponents ; i++ ) ply_describe_property( ply , "vertex" , &Vertex::WriteProperties[i] );
-	
+
 	ply_element_count( ply , "face" , nr_faces );
 	ply_describe_property( ply , "face" , &face_props[0] );
-	
+
 	// Write in the comments
 	for( i=0 ; i<commentNum ; i++ ) ply_put_comment( ply , comments[i] );
 
 	ply_header_complete( ply );
-	
+
 	// write vertices
 	ply_put_element_setup( ply , "vertex" );
-	for( i=0 ; i<int( mesh->inCorePoints.size() ) ; i++ )
+	for( i=0; i<mesh.pointCount() ; i++ )
 	{
-		Vertex vertex = xForm * mesh->inCorePoints[i];
-		ply_put_element(ply, (void *) &vertex);
-	}
-	for( i=0; i<mesh->outOfCorePointCount() ; i++ )
-	{
-		Vertex vertex;
-		mesh->nextOutOfCorePoint( vertex );
+        Kazhdan::Point p;
+		mesh.nextPoint(p);
+        Vertex vertex(p);
 		vertex = xForm * ( vertex );
-		ply_put_element(ply, (void *) &vertex);		
+		ply_put_element(ply, (void *) &vertex);
 	}  // for, write vertices
-	
+
 	// write faces
-	std::vector< CoredVertexIndex > polygon;
+	Kazhdan::Polygon polygon;
 	ply_put_element_setup( ply , "face" );
 	for( i=0 ; i<nr_faces ; i++ )
 	{
@@ -901,16 +926,15 @@ int PlyWritePolygons( char* fileName , CoredMeshData< Vertex >* mesh , int file_
 		// create and fill a struct that the ply code can handle
 		//
 		PlyFace ply_face;
-		mesh->nextPolygon( polygon );
+		mesh.nextPolygon(polygon);
 		ply_face.nr_vertices = int( polygon.size() );
 		ply_face.vertices = new int[ polygon.size() ];
 		for( int i=0 ; i<int(polygon.size()) ; i++ )
-			if( polygon[i].inCore ) ply_face.vertices[i] = polygon[i].idx;
-			else                    ply_face.vertices[i] = polygon[i].idx + int( mesh->inCorePoints.size() );
+			ply_face.vertices[i] = polygon[i];
 		ply_put_element( ply, (void *) &ply_face );
 		delete[] ply_face.vertices;
 	}  // for, write faces
-	
+
 	ply_close( ply );
 	return 1;
 }

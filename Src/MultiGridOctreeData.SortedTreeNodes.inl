@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -81,7 +81,7 @@ void SortedTreeNodes::set( TreeOctNode& root )
 		for( int l=0 ; l<_levels ; l++ )
 		{
 			_sliceStart[l][0] = levelOffset;
-			for( int s=0 ; s<((size_t)1<<l); s++ ) _sliceStart[l][s+1] += _sliceStart[l][s];
+			for( int s=0 ; s<(int)((size_t)1<<l); s++ ) _sliceStart[l][s+1] += _sliceStart[l][s];
 			levelOffset = _sliceStart[l][(size_t)1<<l];
 		}
 	}
@@ -128,7 +128,7 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 {
 	// [NOTE] This is structure is purely for determining adjacency and is independent of the FEM degree
 	typedef OctNode< TreeNodeData >::template ConstNeighborKey< 1 , 1 > ConstAdjacenctNodeKey;
-	if( offset<0 || offset>((size_t)1<<depth) ) return;
+	if( offset<0 || offset>(int)((size_t)1<<depth) ) return;
 	if( threads<=0 ) threads = 1;
 	// The vector of per-depth node spans
 	std::pair< int , int > span( _sliceStart[depth][ std::max< int >( 0 , offset-1 ) ] , _sliceStart[depth][ std::min< int >( (size_t)1<<depth , offset+1 ) ] );
@@ -170,7 +170,7 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 			int fc = Square::CornerIndex( x , y );
 			bool cornerOwner = true;
 			int ac = Cube::AntipodalCornerIndex(c); // The index of the node relative to the corner
-			for( int cc=0 ; cc<Cube::CORNERS ; cc++ ) // Iterate over the corner's cells
+			for( int cc=0 ; cc<(int)Cube::CORNERS ; cc++ ) // Iterate over the corner's cells
 			{
 				int xx , yy , zz;
 				Cube::FactorCornerIndex( cc , xx , yy , zz );
@@ -181,7 +181,7 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 			{
 				int myCount = (i - sData.nodeOffset) * Square::CORNERS + fc;
 				sData._cMap[ myCount ] = 1;
-				for( int cc=0 ; cc<Cube::CORNERS ; cc++ )
+				for( int cc=0 ; cc<(int)Cube::CORNERS ; cc++ )
 				{
 					int xx , yy , zz;
 					Cube::FactorCornerIndex( cc , xx , yy , zz );
@@ -198,7 +198,7 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 			bool edgeOwner = true;
 
 			int ac = Square::AntipodalCornerIndex( Square::CornerIndex( y , z ) );
-			for( int cc=0 ; cc<Square::CORNERS ; cc++ )
+			for( int cc=0 ; cc<(int)Square::CORNERS ; cc++ )
 			{
 				int ii , jj , xx , yy , zz;
 				Square::FactorCornerIndex( cc , ii , jj );
@@ -215,7 +215,7 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 				int myCount = ( i - sData.nodeOffset ) * Square::EDGES + fe;
 				sData._eMap[ myCount ] = 1;
 				// Set all edge indices
-				for( int cc=0 ; cc<Square::CORNERS ; cc++ )
+				for( int cc=0 ; cc<(int)Square::CORNERS ; cc++ )
 				{
 					int ii , jj , aii , ajj , xx , yy , zz;
 					Square::FactorCornerIndex( cc , ii , jj );
@@ -251,9 +251,9 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 #pragma omp parallel for num_threads( threads )
 	for( int i=0 ; i<sData.nodeCount ; i++ )
 	{
-		for( int j=0 ; j<Square::CORNERS ; j++ ) sData.cTable[i][j] = sData._cMap[ sData.cTable[i][j] ];
-		for( int j=0 ; j<Square::EDGES   ; j++ ) sData.eTable[i][j] = sData._eMap[ sData.eTable[i][j] ];
-		for( int j=0 ; j<Square::FACES   ; j++ ) sData.fTable[i][j] = sData._fMap[ sData.fTable[i][j] ];
+		for( int j=0 ; j<(int)Square::CORNERS ; j++ ) sData.cTable[i][j] = sData._cMap[ sData.cTable[i][j] ];
+		for( int j=0 ; j<(int)Square::EDGES   ; j++ ) sData.eTable[i][j] = sData._eMap[ sData.eTable[i][j] ];
+		for( int j=0 ; j<(int)Square::FACES   ; j++ ) sData.fTable[i][j] = sData._fMap[ sData.fTable[i][j] ];
 	}
 
 	sData.cCount = cCount , sData.eCount = eCount , sData.fCount = fCount;
@@ -261,7 +261,7 @@ void SortedTreeNodes::setSliceTableData( SliceTableData& sData , int depth , int
 void SortedTreeNodes::setXSliceTableData( XSliceTableData& sData , int depth , int offset , int threads ) const
 {
 	typedef OctNode< TreeNodeData >::template ConstNeighborKey< 1 , 1 > ConstAdjacenctNodeKey;
-	if( offset<0 || offset>=((size_t)1<<depth) ) return;
+	if( offset<0 || offset>=(int)((size_t)1<<depth) ) return;
 	if( threads<=0 ) threads = 1;
 	// The vector of per-depth node spans
 	std::pair< int , int > span( _sliceStart[depth][offset] , _sliceStart[depth][offset+1] );
@@ -298,7 +298,7 @@ void SortedTreeNodes::setXSliceTableData( XSliceTableData& sData , int depth , i
 			bool edgeOwner = true;
 
 			int ac = Square::AntipodalCornerIndex( Square::CornerIndex( x , y ) );
-			for( int cc=0 ; cc<Square::CORNERS ; cc++ )
+			for( int cc=0 ; cc<(int)Square::CORNERS ; cc++ )
 			{
 				int ii , jj , xx , yy , zz;
 				Square::FactorCornerIndex( cc , ii , jj );
@@ -312,7 +312,7 @@ void SortedTreeNodes::setXSliceTableData( XSliceTableData& sData , int depth , i
 				sData._eMap[ myCount ] = 1;
 
 				// Set all edge indices
-				for( int cc=0 ; cc<Square::CORNERS ; cc++ )
+				for( int cc=0 ; cc<(int)Square::CORNERS ; cc++ )
 				{
 					int ii , jj , aii , ajj , xx , yy , zz;
 					Square::FactorCornerIndex( cc , ii , jj );
@@ -349,8 +349,8 @@ void SortedTreeNodes::setXSliceTableData( XSliceTableData& sData , int depth , i
 #pragma omp parallel for num_threads( threads )
 	for( int i=0 ; i<sData.nodeCount ; i++ )
 	{
-		for( int j=0 ; j<Square::CORNERS ; j++ ) sData.eTable[i][j] = sData._eMap[ sData.eTable[i][j] ];
-		for( int j=0 ; j<Square::EDGES   ; j++ ) sData.fTable[i][j] = sData._fMap[ sData.fTable[i][j] ];
+		for( int j=0 ; j<(int)Square::CORNERS ; j++ ) sData.eTable[i][j] = sData._eMap[ sData.eTable[i][j] ];
+		for( int j=0 ; j<(int)Square::EDGES   ; j++ ) sData.fTable[i][j] = sData._fMap[ sData.fTable[i][j] ];
 	}
 
 	sData.eCount = eCount , sData.fCount = fCount;

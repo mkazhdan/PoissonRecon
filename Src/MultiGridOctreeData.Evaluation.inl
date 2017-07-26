@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -55,7 +55,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 		}
 
 		//// The face stencil
-		for( int f=0 ; f<Cube::FACES ; f++ )
+		for( int f=0 ; f<(int)Cube::FACES ; f++ )
 		{
 			int dir , off;
 			Cube::FactorFaceIndex( f , dir , off );
@@ -92,7 +92,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 		}
 
 		//// The edge stencil
-		for( int e=0 ; e<Cube::EDGES ; e++ )
+		for( int e=0 ; e<(int)Cube::EDGES ; e++ )
 		{
 			int orientation , i1 , i2;
 			Cube::FactorEdgeIndex( e , orientation , i1 , i2 );
@@ -129,7 +129,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 		}
 
 		//// The corner stencil
-		for( int c=0 ; c<Cube::CORNERS ; c++ )
+		for( int c=0 ; c<(int)Cube::CORNERS ; c++ )
 		{
 			int cx , cy  ,cz;
 			Cube::FactorCornerIndex( c , cx , cy , cz );
@@ -168,7 +168,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 			}
 
 			//// The face stencil
-			for( int f=0 ; f<Cube::FACES ; f++ )
+			for( int f=0 ; f<(int)Cube::FACES ; f++ )
 			{
 				int dir , off;
 				Cube::FactorFaceIndex( f , dir , off );
@@ -205,7 +205,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 			}
 
 			//// The edge stencil
-			for( int e=0 ; e<Cube::EDGES ; e++ )
+			for( int e=0 ; e<(int)Cube::EDGES ; e++ )
 			{
 				int orientation , i1 , i2;
 				Cube::FactorEdgeIndex( e , orientation , i1 , i2 );
@@ -242,7 +242,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 			}
 
 			//// The corner stencil
-			for( int c=0 ; c<Cube::CORNERS ; c++ )
+			for( int c=0 ; c<(int)Cube::CORNERS ; c++ )
 			{
 				int cx , cy  ,cz;
 				Cube::FactorCornerIndex( c , cx , cy , cz );
@@ -263,7 +263,7 @@ void Octree< Real >::_Evaluator< FEMDegree , BType >::set( LocalDepth depth )
 }
 template< class Real >
 template< class V , int FEMDegree , BoundaryType BType >
-V Octree< Real >::_getValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const
+V Octree< Real >::_getValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< V >& solution , const DenseNodeData< V >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const
 {
 	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
 	static const int  LeftSupportRadius = -BSplineSupportSizes< FEMDegree >::SupportStart;
@@ -290,7 +290,7 @@ V Octree< Real >::_getValue( const ConstPointSupportKey< FEMDegree >& neighborKe
 				int _fIdx[3];
 				functionIndex< FEMDegree , BType >( _n , _fIdx );
 				for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
-				value += 
+				value +=
 					solution[ _n->nodeData.nodeIndex ] *
 					(Real)
 					(
@@ -323,7 +323,7 @@ V Octree< Real >::_getValue( const ConstPointSupportKey< FEMDegree >& neighborKe
 					int _fIdx[3];
 					functionIndex< FEMDegree , BType >( _n , _fIdx );
 					for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
-					value += 
+					value +=
 						solution[ _n->nodeData.nodeIndex ] *
 						(Real)
 						(
@@ -347,7 +347,7 @@ V Octree< Real >::_getValue( const ConstPointSupportKey< FEMDegree >& neighborKe
 						int _fIdx[3];
 						functionIndex< FEMDegree , BType >( _n , _fIdx );
 						for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
-						value += 
+						value +=
 							coarseSolution[ _n->nodeData.nodeIndex ] *
 							(Real)
 							(
@@ -363,7 +363,7 @@ V Octree< Real >::_getValue( const ConstPointSupportKey< FEMDegree >& neighborKe
 }
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-std::pair< Real , Point3D< Real > > Octree< Real >::_getValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const
+std::pair< Real , Point3D< Real > > Octree< Real >::_getValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , Point3D< Real > p , const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator ) const
 {
 	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
 	static const int  LeftSupportRadius = -BSplineSupportSizes< FEMDegree >::SupportStart;
@@ -391,13 +391,13 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getValueAndGradient( const 
 				int _fIdx[3];
 				functionIndex< FEMDegree , BType >( _n , _fIdx );
 				for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
-				value += 
+				value +=
 					solution[ _n->nodeData.nodeIndex ] *
 					(Real)
 					(
 						evaluator._bsData->baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData->baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData->baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
 					);
-				gradient += 
+				gradient +=
 					Point3D< Real >
 					(
 						evaluator._bsData->dBaseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData-> baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData-> baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] ) ,
@@ -431,13 +431,13 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getValueAndGradient( const 
 					int _fIdx[3];
 					functionIndex< FEMDegree , BType >( _n , _fIdx );
 					for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
-					value += 
+					value +=
 						solution[ _n->nodeData.nodeIndex ] *
 						(Real)
 						(
 							evaluator._bsData->baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData->baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData->baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
 						);
-					gradient += 
+					gradient +=
 						Point3D< Real >
 						(
 							evaluator._bsData->dBaseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData-> baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData-> baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] ) ,
@@ -461,13 +461,13 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getValueAndGradient( const 
 						int _fIdx[3];
 						functionIndex< FEMDegree , BType >( _n , _fIdx );
 						for( int dd=0 ; dd<3 ; dd++ ) _pIdx[dd] = std::max< int >( 0 , std::min< int >( SupportSize-1 , LeftSupportRadius + (int)floor( ( p[dd]-_s[dd] ) / _w ) ) );
-						value += 
+						value +=
 							coarseSolution[ _n->nodeData.nodeIndex ] *
 							(Real)
 							(
 								evaluator._bsData->baseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData->baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData->baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] )
 							);
-						gradient += 
+						gradient +=
 							Point3D< Real >
 							(
 								evaluator._bsData->dBaseBSplines[ _fIdx[0] ][ _pIdx[0] ]( p[0] ) * evaluator._bsData-> baseBSplines[ _fIdx[1] ][ _pIdx[1] ]( p[1] ) * evaluator._bsData-> baseBSplines[ _fIdx[2] ][ _pIdx[2] ]( p[2] ) ,
@@ -482,7 +482,7 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getValueAndGradient( const 
 }
 template< class Real >
 template< class V , int FEMDegree , BoundaryType BType >
-V Octree< Real >::_getCenterValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
+V Octree< Real >::_getCenterValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const DenseNodeData< V >& solution , const DenseNodeData< V >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
 	static const int SupportSize = BSplineEvaluationData< FEMDegree , BType >::SupportSize;
 	static const int  LeftPointSupportRadius =   BSplineEvaluationData< FEMDegree , BType >::SupportEnd;
@@ -559,7 +559,7 @@ V Octree< Real >::_getCenterValue( const ConstPointSupportKey< FEMDegree >& neig
 }
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-std::pair< Real , Point3D< Real > > Octree< Real >::_getCenterValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
+std::pair< Real , Point3D< Real > > Octree< Real >::_getCenterValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
 	static const int SupportSize = BSplineEvaluationData< FEMDegree , BType >::SupportSize;
 	static const int  LeftPointSupportRadius =   BSplineEvaluationData< FEMDegree , BType >::SupportEnd;
@@ -616,7 +616,7 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getCenterValueAndGradient( 
 					(
 						evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , false ) * evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , false ) * evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , false )
 					) * solution[ n->nodeData.nodeIndex ];
-				gradient += 
+				gradient +=
 					Point3D< Real >
 					(
 						evaluator.evaluator.centerValue( fIdx[0] , cIdx[0] , true  ) * evaluator.evaluator.centerValue( fIdx[1] , cIdx[1] , false ) * evaluator.evaluator.centerValue( fIdx[2] , cIdx[2] , false ) ,
@@ -655,7 +655,7 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getCenterValueAndGradient( 
 }
 template< class Real >
 template< class V , int FEMDegree , BoundaryType BType >
-V Octree< Real >::_getEdgeValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
+V Octree< Real >::_getEdgeValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge , const DenseNodeData< V >& solution , const DenseNodeData< V >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
 	static const int SupportSize = BSplineEvaluationData< FEMDegree , BType >::SupportSize;
 	static const int  LeftPointSupportRadius =  BSplineEvaluationData< FEMDegree , BType >::SupportEnd;
@@ -802,7 +802,7 @@ V Octree< Real >::_getEdgeValue( const ConstPointSupportKey< FEMDegree >& neighb
 }
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-std::pair< Real , Point3D< Real > > Octree< Real >::_getEdgeValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
+std::pair< Real , Point3D< Real > > Octree< Real >::_getEdgeValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int edge , const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
 	static const int SupportSize = BSplineEvaluationData< FEMDegree , BType >::SupportSize;
 	static const int  LeftPointSupportRadius =  BSplineEvaluationData< FEMDegree , BType >::SupportEnd;
@@ -960,7 +960,7 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getEdgeValueAndGradient( co
 
 template< class Real >
 template< class V , int FEMDegree , BoundaryType BType >
-V Octree< Real >::_getCornerValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< V , FEMDegree >& solution , const DenseNodeData< V , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
+V Octree< Real >::_getCornerValue( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< V >& solution , const DenseNodeData< V >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
 	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
 	static const int  LeftPointSupportRadius =   BSplineSupportSizes< FEMDegree >::SupportEnd;
@@ -1045,7 +1045,7 @@ V Octree< Real >::_getCornerValue( const ConstPointSupportKey< FEMDegree >& neig
 }
 template< class Real >
 template< int FEMDegree , BoundaryType BType >
-std::pair< Real , Point3D< Real > > Octree< Real >::_getCornerValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< Real , FEMDegree >& solution , const DenseNodeData< Real , FEMDegree >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
+std::pair< Real , Point3D< Real > > Octree< Real >::_getCornerValueAndGradient( const ConstPointSupportKey< FEMDegree >& neighborKey , const TreeOctNode* node , int corner , const DenseNodeData< Real >& solution , const DenseNodeData< Real >& coarseSolution , const _Evaluator< FEMDegree , BType >& evaluator , bool isInterior ) const
 {
 	static const int SupportSize = BSplineSupportSizes< FEMDegree >::SupportSize;
 	static const int  LeftPointSupportRadius =   BSplineSupportSizes< FEMDegree >::SupportEnd;
@@ -1123,7 +1123,7 @@ std::pair< Real , Point3D< Real > > Octree< Real >::_getCornerValueAndGradient( 
 }
 template< class Real >
 template< int Degree , BoundaryType BType >
-Octree< Real >::MultiThreadedEvaluator< Degree , BType >::MultiThreadedEvaluator( const Octree< Real >* tree , const DenseNodeData< Real , Degree >& coefficients , int threads ) : _coefficients( coefficients ) , _tree( tree )
+Octree< Real >::MultiThreadedEvaluator< Degree , BType >::MultiThreadedEvaluator( const Octree< Real >* tree , const DenseNodeData< Real >& coefficients , int threads ) : _tree(tree), _coefficients( coefficients )
 {
 	_threads = std::max< int >( 1 , threads );
 	_neighborKeys.resize( _threads );

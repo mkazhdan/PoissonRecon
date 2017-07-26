@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -268,7 +268,7 @@ int OctNode< NodeData >::maxDepth(void) const{
 	if(!children){return 0;}
 	else{
 		int c,d;
-		for(int i=0;i<Cube::CORNERS;i++){
+		for(int i=0;i<(int)Cube::CORNERS;i++){
 			d=children[i].maxDepth();
 			if(!i || d>c){c=d;}
 		}
@@ -644,7 +644,13 @@ template< unsigned int Width >
 OctNode< NodeData >::Neighbors< Width >::Neighbors( void ){ clear(); }
 template< class NodeData >
 template< unsigned int Width >
-void OctNode< NodeData >::Neighbors< Width >::clear( void ){ for( int i=0 ; i<Width ; i++ ) for( int j=0 ; j<Width ; j++ ) for( int k=0 ; k<Width ; k++ ) neighbors[i][j][k]=NULL; }
+void OctNode< NodeData >::Neighbors< Width >::clear( void )
+{
+    for( int i=0 ; i<(int)Width ; i++ )
+        for( int j=0 ; j<(int)Width ; j++ )
+            for( int k=0 ; k<(int)Width ; k++ )
+                neighbors[i][j][k]=NULL;
+}
 
 /////////////////////////////
 // OctNode::ConstNeighbors //
@@ -654,7 +660,11 @@ template< unsigned int Width >
 OctNode< NodeData >::ConstNeighbors< Width >::ConstNeighbors( void ){ clear(); }
 template< class NodeData >
 template< unsigned int Width >
-void OctNode< NodeData >::ConstNeighbors< Width >::clear( void ){ for( int i=0 ; i<Width ; i++ ) for( int j=0 ; j<Width ; j++ ) for( int k=0 ; k<Width ; k++ ) neighbors[i][j][k]=NULL; }
+void OctNode< NodeData >::ConstNeighbors< Width >::clear( void )
+{ for( int i=0 ; i<(int)Width ; i++ )
+    for( int j=0 ; j<(int)Width ; j++ )
+        for( int k=0 ; k<(int)Width ; k++ ) neighbors[i][j][k]=NULL;
+}
 
 //////////////////////////
 // OctNode::NeighborKey //
@@ -696,7 +706,7 @@ bool OctNode< NodeData >::NeighborKey< LeftRadius , RightRadius >::getChildNeigh
 	Neighbors< Width >& pNeighbors = neighbors[d];
 	// Check that we actuall have a center node
 	if( !pNeighbors.neighbors[LeftRadius][LeftRadius][LeftRadius] ) return false;
-	
+
 	// Get the indices of the child node that would contain the point (and its antipode)
 	int cx , cy , cz;
 	Cube::FactorCornerIndex( cIdx , cx , cy , cz );
@@ -1038,7 +1048,7 @@ void OctNode< NodeData >::ConstNeighborKey< LeftRadius , RightRadius >::getNeigh
 				for( int x=-(int)_LeftRadius ; x<=(int)_RightRadius ; x++ )
 				{
 					int _x = (x+cx) + (_LeftRadius<<1) , px = ( _x>>1 ) - _LeftRadius + LeftRadius , xx = x + _LeftRadius;
-					if( pNeighbors.neighbors[px][py][pz] && pNeighbors.neighbors[px][py][pz]->children ) 
+					if( pNeighbors.neighbors[px][py][pz] && pNeighbors.neighbors[px][py][pz]->children )
 						neighbors.neighbors[xx][yy][zz] = pNeighbors.neighbors[px][py][pz]->children + ( cornerIndex | (_x&1) );
 					else
 						neighbors.neighbors[xx][yy][zz] = NULL;
@@ -1124,7 +1134,7 @@ int OctNode< NodeData >::read( FILE* fp , void (*Initializer)( OctNode& ) )
 template< class NodeData >
 int OctNode< NodeData >::width(int maxDepth) const {
 	int d=depth();
-	return 1<<(maxDepth-d); 
+	return 1<<(maxDepth-d);
 }
 template< class NodeData >
 void OctNode< NodeData >::centerIndex(int maxDepth,int index[DIMENSION]) const
