@@ -73,6 +73,11 @@ public:
         color = pp.second;
         return true;
     }
+
+	virtual void reset() 
+	{
+		m_current = 0;
+	}
 };
 
 
