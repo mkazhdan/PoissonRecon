@@ -144,7 +144,7 @@ struct PoissonOpts
     int m_fullDepth;
     Real m_scale;
 
-    PoissonOpts() : m_threads(1), m_voxelDepth(-1), m_primalVoxel(false),
+    PoissonOpts() : m_threads(omp_get_num_procs()), m_voxelDepth(-1), m_primalVoxel(false),
         m_verbose(false), m_confidence(false), m_color(16),
         m_samplesPerNode(1.5), m_depth(8), m_cgDepth(0), m_iterations(8),
         m_showResidual(false), m_lowResIterMult(1), m_kernelDepth(0),

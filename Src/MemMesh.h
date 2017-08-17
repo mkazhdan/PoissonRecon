@@ -47,7 +47,10 @@ public:
     virtual int polygonCount() const
         { return (int)m_polys.size(); }
     virtual void newPolygon(std::vector<int>& poly)
-        { m_polys.push_back(poly); }
+        { 
+#pragma omp critical(MESH_POLY)
+			m_polys.push_back(poly); 
+		}
 
     virtual void resetIterator()
     {
@@ -78,6 +81,7 @@ public:
         { return (int)m_points.size(); }
     virtual int newPoint(const std::array<double, 3>& position)
     {
+#pragma omp critical(MESH_POINT)
         m_points.push_back(Point({position[0], position[1], position[2]}));
         return m_points.size() - 1;
     }
@@ -111,6 +115,7 @@ public:
     virtual int newPoint(const std::array<double, 3>& position,
         const std::array<uint8_t, 3>& color)
     {
+#pragma omp critical( MESH_POINT )
         m_points.push_back(
             Point({position[0], position[1], position[2],
                    color[0], color[1], color[2]}));
@@ -147,6 +152,7 @@ public:
     virtual int newPoint(const std::array<double, 3>& position,
         double density)
     {
+#pragma omp critical( MESH_POINT )
         m_points.push_back(
             Point({position[0], position[1], position[2], density}));
         return m_points.size() - 1;
@@ -183,6 +189,7 @@ public:
     virtual int newPoint(const std::array<double, 3>& position,
         const std::array<uint8_t, 3>& color, double density)
     {
+#pragma omp critical( MESH_POINT )
         m_points.push_back(
             Point({position[0], position[1], position[2], density,
                    color[0], color[1], color[2]}));
