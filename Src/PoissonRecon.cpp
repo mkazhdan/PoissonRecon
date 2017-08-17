@@ -274,7 +274,7 @@ void writeOutput(PoissonRecon<Real>& recon, Kazhdan::Mesh& mesh)
     for (size_t i = 0; i < comments.size(); ++i)
         *(buf.get() + i) = (char *)comments[i].data();
     PlyWritePolygons<Vertex, Real>(Out.value, mesh,
-        (ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE), buf.get(), comments.size(),
+        (ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE), buf.get(), (int)comments.size(),
         recon.inverseTransform());
 }
 

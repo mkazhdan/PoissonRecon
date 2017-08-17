@@ -83,7 +83,7 @@ public:
     {
 #pragma omp critical(MESH_POINT)
         m_points.push_back(Point({position[0], position[1], position[2]}));
-        return m_points.size() - 1;
+        return (int)m_points.size() - 1;
     }
 
     virtual bool nextPoint(Kazhdan::Point& p)
@@ -119,7 +119,7 @@ public:
         m_points.push_back(
             Point({position[0], position[1], position[2],
                    color[0], color[1], color[2]}));
-        return m_points.size() - 1;
+        return (int)m_points.size() - 1;
     }
 
     virtual bool nextPoint(Kazhdan::Point& p)
@@ -155,7 +155,7 @@ public:
 #pragma omp critical( MESH_POINT )
         m_points.push_back(
             Point({position[0], position[1], position[2], density}));
-        return m_points.size() - 1;
+        return (int)m_points.size() - 1;
     }
 
     virtual bool nextPoint(Kazhdan::Point& p)
@@ -193,7 +193,7 @@ public:
         m_points.push_back(
             Point({position[0], position[1], position[2], density,
                    color[0], color[1], color[2]}));
-        return m_points.size();
+        return (int)m_points.size();
     }
 
     virtual bool nextPoint(Kazhdan::Point& p)

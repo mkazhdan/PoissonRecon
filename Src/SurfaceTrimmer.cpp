@@ -90,10 +90,10 @@ void writeData(std::vector<Vertex>& vertices, std::vector<Polygon>& polygons,
 
     char **cComments = new char *[comments.size()];
     for (size_t i = 0; i < comments.size(); ++i)
-        cComments[i] = strdup(comments[i].data());
+        cComments[i] = _strdup(comments[i].data());
 
     PlyWritePolygons(Out.value, vertices, polygons, Vertex::WriteProperties,
-          Vertex::WriteComponents, fileType, cComments, comments.size());
+          Vertex::WriteComponents, fileType, cComments, (int)comments.size());
 
     for (size_t i = 0; i < comments.size(); ++i)
         free(cComments[i]);
@@ -141,10 +141,7 @@ void printVertexValues(std::vector<Vertex>& vertices)
 
 template <typename Vertex>
 int execute()
-{
-    float min;
-    float max;
-
+{    
     using ST = SurfaceTrimmer<Vertex, float>;
 
     std::vector<Vertex> vertices;

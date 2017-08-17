@@ -60,12 +60,12 @@ void PLYPointSource::reset()
     const int numRequiredProps = sizeof(requiredProps) / sizeof(PlyProperty);
 
     Vertex v;
-    requiredProps[0].offset = (char *)&v.point.coords[0] - (char *)&v;
-    requiredProps[1].offset = (char *)&v.point.coords[1] - (char *)&v;
-    requiredProps[2].offset = (char *)&v.point.coords[2] - (char *)&v;
-    requiredProps[3].offset = (char *)&v.normal.coords[0] - (char *)&v;
-    requiredProps[4].offset = (char *)&v.normal.coords[1] - (char *)&v;
-    requiredProps[5].offset = (char *)&v.normal.coords[2] - (char *)&v;
+    requiredProps[0].offset = (int)((char *)&v.point.coords[0] - (char *)&v);
+    requiredProps[1].offset = (int)((char *)&v.point.coords[1] - (char *)&v);
+    requiredProps[2].offset = (int)((char *)&v.point.coords[2] - (char *)&v);
+    requiredProps[3].offset = (int)((char *)&v.normal.coords[0] - (char *)&v);
+    requiredProps[4].offset = (int)((char *)&v.normal.coords[1] - (char *)&v);
+    requiredProps[5].offset = (int)((char *)&v.normal.coords[2] - (char *)&v);
 
     if (m_ply)
         _free();
@@ -177,12 +177,12 @@ void ColorPLYPointSource::reset()
     const int numRequiredProps = sizeof(requiredProps) / sizeof(PlyProperty);
 
     Vertex v;
-    requiredProps[0].offset = (char *)&v.point.coords[0] - (char *)&v;
-    requiredProps[1].offset = (char *)&v.point.coords[1] - (char *)&v;
-    requiredProps[2].offset = (char *)&v.point.coords[2] - (char *)&v;
-    requiredProps[3].offset = (char *)&v.normal.coords[0] - (char *)&v;
-    requiredProps[4].offset = (char *)&v.normal.coords[1] - (char *)&v;
-    requiredProps[5].offset = (char *)&v.normal.coords[2] - (char *)&v;
+    requiredProps[0].offset = (int)((char *)&v.point.coords[0] - (char *)&v);
+    requiredProps[1].offset = (int)((char *)&v.point.coords[1] - (char *)&v);
+    requiredProps[2].offset = (int)((char *)&v.point.coords[2] - (char *)&v);
+    requiredProps[3].offset = (int)((char *)&v.normal.coords[0] - (char *)&v);
+    requiredProps[4].offset = (int)((char *)&v.normal.coords[1] - (char *)&v);
+    requiredProps[5].offset = (int)((char *)&v.normal.coords[2] - (char *)&v);
 
     PlyProperty reqDataProps[] =
     {
@@ -195,12 +195,12 @@ void ColorPLYPointSource::reset()
     };
     const int numReqDataProps = sizeof(reqDataProps) / sizeof(PlyProperty);
 
-    reqDataProps[0].offset = (char *)&v.color.coords[0] - (char *)&v;
-    reqDataProps[1].offset = (char *)&v.color.coords[1] - (char *)&v;
-    reqDataProps[2].offset = (char *)&v.color.coords[2] - (char *)&v;
-    reqDataProps[3].offset = (char *)&v.color.coords[0] - (char *)&v;
-    reqDataProps[4].offset = (char *)&v.color.coords[1] - (char *)&v;
-    reqDataProps[5].offset = (char *)&v.color.coords[2] - (char *)&v;
+    reqDataProps[0].offset = (int)((char *)&v.color.coords[0] - (char *)&v);
+    reqDataProps[1].offset = (int)((char *)&v.color.coords[1] - (char *)&v);
+    reqDataProps[2].offset = (int)((char *)&v.color.coords[2] - (char *)&v);
+    reqDataProps[3].offset = (int)((char *)&v.color.coords[0] - (char *)&v);
+    reqDataProps[4].offset = (int)((char *)&v.color.coords[1] - (char *)&v);
+    reqDataProps[5].offset = (int)((char *)&v.color.coords[2] - (char *)&v);
 
     if (m_ply)
         _free();
@@ -247,7 +247,7 @@ void ColorPLYPointSource::reset()
                 // The properties r g b/red green blue are represented by
                 // the low 3 bits.  When the propIndicator is 7, we know
                 // we found all three.
-                int bit = pow(2, prop % 3);
+                int bit = (int)pow(2, prop % 3);
                 PlyProperty& property(reqDataProps[prop]);
                 if (ply_get_property(m_ply, elementName, &property))
                     propIndicator |= bit;

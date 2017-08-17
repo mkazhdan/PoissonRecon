@@ -43,7 +43,7 @@ public:
     virtual bool nextPoint(Point& point) = 0;
     void boundingBox(Point3D<double>& min, Point3D<double>& max)
 	{
-        for (size_t i = 0; i < 3; ++i)
+        for (int i = 0; i < 3; ++i)
         {
             min[i] = std::numeric_limits<double>::max();
             max[i] = std::numeric_limits<double>::lowest();

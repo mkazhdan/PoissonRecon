@@ -40,8 +40,8 @@ public:
     TransformedPointSource(const XForm4x4<double>& xForm, PointSource& stream) :
         m_xForm(xForm), m_stream(stream)
     {
-        for (size_t i = 0; i < 3; ++i)
-            for (size_t j = 0; j < 3; ++j)
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
                 m_normalXForm(i, j) = m_xForm(i, j);
         m_normalXForm = m_normalXForm.transpose().inverse();
     }
@@ -69,8 +69,8 @@ public:
     ColorTransformedPointSource(const XForm4x4<double>& xForm,
         ColorPointSource& stream) : m_xForm(xForm), m_stream(stream)
     {
-        for (size_t i = 0; i < 3; ++i)
-            for (size_t j = 0; j < 3; ++j)
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
                 m_normalXForm(i, j) = m_xForm(i, j);
         m_normalXForm = m_normalXForm.transpose().inverse();
     }
