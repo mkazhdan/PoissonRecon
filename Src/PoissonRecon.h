@@ -45,6 +45,7 @@ DAMAGE.
 #ifdef _OPENMP
 #include <omp.h>
 #endif // _OPENMP
+#include <memory>
 
 #include "MultiGridOctreeData.h"
 #include "Mesh.h"
@@ -446,7 +447,7 @@ void PoissonRecon<Real>::addFEMConstraints()
     m_profiler.start();
 
     // This just initializes a vector of data to 0.  Blarf.
-    m_constraints = m_tree.template initDenseNodeData();
+    m_constraints = m_tree.initDenseNodeData();
 //ABELL - This is really slow!
     m_tree.template addFEMConstraints<Degree, BType, NORMAL_DEGREE, BType>(
         FEMVFConstraintFunctor<NORMAL_DEGREE, BType, Degree, BType >( 1., 0.),
