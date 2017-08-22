@@ -500,12 +500,12 @@ int CoredVectorMeshData< Vertex >::polygonCount( void ) { return int( polygons.s
 // CoredFileMeshData //
 ///////////////////////
 template< class Vertex >
-CoredFileMeshData< Vertex >::CoredFileMeshData( void )
+CoredFileMeshData< Vertex >::CoredFileMeshData( const char* fileHeader )
 {
 	oocPoints = polygons = 0;
 	
-	oocPointFile = new BufferedReadWriteFile();
-	polygonFile = new BufferedReadWriteFile();
+	oocPointFile = new BufferedReadWriteFile( NULL , fileHeader );
+	polygonFile = new BufferedReadWriteFile( NULL , fileHeader );
 }
 template< class Vertex >
 CoredFileMeshData< Vertex >::~CoredFileMeshData( void )
