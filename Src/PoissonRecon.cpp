@@ -428,7 +428,7 @@ int _Execute( int argc , char* argv[] )
 	}
 	else xForm = XForm4x4< Real >::Identity();
 
-	DumpOutput2( comments , "Running Screened Poisson Reconstruction (Version 9.01)\n" );
+	DumpOutput2( comments , "Running Screened Poisson Reconstruction (Version 9.011)\n" );
 	char str[1024];
 	for( int i=0 ; i<paramNum ; i++ )
 		if( params[i]->set )
