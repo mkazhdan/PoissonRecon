@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -37,7 +37,7 @@ DAMAGE.
 
 // [TODO]
 // -- Currently, the implementation assumes that the boundary constraints are the same for vector fields and scalar fields
-// -- Modify the setting of the flags so that only the subset of the broods that are needed 
+// -- Modify the setting of the flags so that only the subset of the broods that are needed
 
 #ifndef MULTI_GRID_OCTREE_DATA_INCLUDED
 #define MULTI_GRID_OCTREE_DATA_INCLUDED
@@ -54,7 +54,9 @@ DAMAGE.
 #define MAX_MEMORY_GB 0
 
 #include <unordered_map>
+#ifdef _OPENMP // Assume that we have the header file if we're compiling with the openmp option.
 #include <omp.h>
+#endif
 #include "BSplineData.h"
 #include "PointStream.h"
 #include "Geometry.h"
@@ -336,7 +338,7 @@ struct DenseNodeData
 	Data& operator[]( const OctNode< TreeNodeData >* node ) { return _data[ node->nodeData.nodeIndex ]; }
 	Data* operator()( const OctNode< TreeNodeData >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
 	const Data* operator()( const OctNode< TreeNodeData >* node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
-	int index( const OctNode< TreeNodeData >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_data.size() ) ? -1 : node->nodeData.nodeIndex; }
+	int index( const OctNode< TreeNodeData >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=_sz ) ? -1 : node->nodeData.nodeIndex; }
 protected:
 	size_t _sz;
 	void _resize( size_t sz ){ DeletePointer( _data ) ; if( sz ) _data = NewPointer< Data >( sz ) ; else _data = NullPointer( Data ) ; _sz = sz; }
@@ -628,7 +630,7 @@ protected:
 
 	// Updates the cumulative integral constraints @(depth-1) based on the change in solution coefficients @(depth)
 	template< int FEMDegree , BoundaryType BType , class FEMSystemFunctor >
-	void _updateCumulativeIntegralConstraintsFromFiner( const FEMSystemFunctor& F , 
+	void _updateCumulativeIntegralConstraintsFromFiner( const FEMSystemFunctor& F ,
 		const BSplineData< FEMDegree , BType >& bsData , LocalDepth highDepth , const DenseNodeData< Real , FEMDegree >& fineSolution , DenseNodeData< Real , FEMDegree >& cumulativeConstraints ) const;
 	// Updates the cumulative interpolation constraints @(depth-1) based on the change in solution coefficient @(depth)
 	template< int FEMDegree , BoundaryType BType , bool HasGradients >
