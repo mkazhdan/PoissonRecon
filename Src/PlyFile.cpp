@@ -2184,18 +2184,6 @@ Read an element from a binary file.
 
   double old_write_ascii_item(FILE *fp, void *item, int type)
   {
-	  unsigned char *puchar;
-	  char *pchar;
-	  short int *pshort;
-	  unsigned short int *pushort;
-	  int *pint;
-	  unsigned int *puint;
-	  float *pfloat;
-	  double *pdouble;
-	  int int_value;
-	  unsigned int uint_value;
-	  double double_value;
-
 	  switch (type) {
 	  case PLY_CHAR:
 	  case PLY_INT_8:

@@ -54,8 +54,6 @@ void ASCIIPointSource::reset()
 
 bool ASCIIPointSource::nextPoint(Point& p)
 {
-    double c[6];
-
     if (fscanf(m_fp , " %lf %lf %lf %lf %lf %lf ",
         &p.p[0], &p.p[1], &p.p[2], &p.n[0], &p.n[1], &p.n[2]) != 6)
         return false;
