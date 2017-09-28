@@ -42,14 +42,15 @@ TriangulationTriangle::TriangulationTriangle(void){eIndex[0]=eIndex[1]=eIndex[2]
 ///////////////////////////
 // BufferedReadWriteFile //
 ///////////////////////////
-BufferedReadWriteFile::BufferedReadWriteFile( char* fileName , int bufferSize )
+BufferedReadWriteFile::BufferedReadWriteFile( const char* fileName , const char* fileHeader , int bufferSize )
 {
 	_bufferIndex = 0;
 	_bufferSize = bufferSize;
 	if( fileName ) strcpy( _fileName , fileName ) , tempFile = false , _fp = fopen( _fileName , "w+b" );
 	else
 	{
-		strcpy( _fileName , "PR_XXXXXX" );
+		if( fileHeader && strlen(fileHeader) ) sprintf( _fileName , "%sXXXXXX" , fileHeader );
+		else strcpy( _fileName , "XXXXXX" );
 #ifdef _WIN32
 		_mktemp( _fileName );
 		_fp = fopen( _fileName , "w+b" );

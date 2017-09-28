@@ -115,6 +115,7 @@ void DumpOutput2( std::vector< char* >& comments  , const char* format , ... )
 cmdLineString
 	In( "in" ) ,
 	Out( "out" ) ,
+	TempDir( "tempDir" ) ,
 	VoxelGrid( "voxel" ) ,
 	XForm( "xForm" );
 
@@ -179,6 +180,7 @@ cmdLineReadable* params[] =
 	&Color ,
 	&LinearFit ,
 	&PrimalVoxel ,
+	&TempDir ,
 #if defined( _WIN32 ) || defined( _WIN64 )
 	&Performance ,
 #endif // _WIN32 || _WIN64
@@ -250,6 +252,8 @@ void ShowUsage(char* ex)
 #ifdef _OPENMP
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 #endif // _OPENMP
+
+	printf( "\t[--%s]\n" , TempDir.name );
 
 	printf( "\t[--%s]\n" , Verbose.name );
 
@@ -424,7 +428,7 @@ int _Execute( int argc , char* argv[] )
 	}
 	else xForm = XForm4x4< Real >::Identity();
 
-	DumpOutput2( comments , "Running Screened Poisson Reconstruction (Version 9.01)\n" );
+	DumpOutput2( comments , "Running Screened Poisson Reconstruction (Version 9.011)\n" );
 	char str[1024];
 	for( int i=0 ; i<paramNum ; i++ )
 		if( params[i]->set )
@@ -576,7 +580,29 @@ int _Execute( int argc , char* argv[] )
 		}
 	}
 
-	CoredFileMeshData< Vertex > mesh;
+	char tempHeader[1024];
+	{
+#if defined( _WIN32 ) || defined( _WIN64 )
+		const char FileSeparator = '\\';
+#else // !_WIN
+		const char FileSeparator = '/';
+#endif // _WIN
+		char tempPath[1024];
+		tempPath[0] = 0;
+		if( TempDir.set ) strcpy( tempPath , TempDir.value );
+		else
+		{
+#if defined( _WIN32 ) || defined( _WIN64 )
+			GetTempPath( sizeof(tempPath) , tempPath );
+#else // !_WIN
+			if( std::getenv( "TMPDIR" ) ) strcpy( tempPath , std::getenv( "TMPDIR" ) );
+#endif // _WIN
+		}
+		if( strlen(tempPath)==0 ) sprintf( tempPath , ".%c" , FileSeparator );
+		if( tempPath[ strlen( tempPath )-1 ]==FileSeparator ) sprintf( tempHeader , "%sPR_" , tempPath );
+		else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
+	}
+	CoredFileMeshData< Vertex > mesh( tempHeader );
 
 	{
 		profiler.start();

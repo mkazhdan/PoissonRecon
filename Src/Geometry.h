@@ -380,7 +380,7 @@ class BufferedReadWriteFile
 	char *_buffer , _fileName[1024];
 	size_t _bufferIndex , _bufferSize;
 public:
-	BufferedReadWriteFile( char* fileName=NULL , int bufferSize=(1<<20) );
+	BufferedReadWriteFile( const char* fileName=NULL , const char* fileHeader="" , int bufferSize=(1<<20) );
 	~BufferedReadWriteFile( void );
 	bool write( const void* data , size_t size );
 	bool read ( void* data , size_t size );
@@ -393,7 +393,7 @@ class CoredFileMeshData : public CoredMeshData< Vertex >
 	BufferedReadWriteFile *oocPointFile , *polygonFile;
 	int oocPoints , polygons;
 public:
-	CoredFileMeshData( void );
+	CoredFileMeshData( const char* fileHeader="" );
 	~CoredFileMeshData( void );
 
 	void resetIterator( void );
