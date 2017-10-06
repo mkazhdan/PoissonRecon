@@ -21,19 +21,19 @@ if(MSVC)
   # Enable multi-thread compilation
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   # Disable warnings on Windows
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4127") # condition is constant
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4127 /bigobj") # condition is constant
   # Enable additional warnings on Windows
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11 -fpermissive")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11 -fpermissive")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -std=c++11 -fpermissive")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -std=c++11 -fpermissive")
 elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic -std=c++1y")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11 -fpermissive")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11 -fpermissive")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -std=c++11 -fpermissive")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -std=c++11 -fpermissive")
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic -std=c++1y")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11 -fpermissive")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11 -fpermissive")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp -std=c++11 -fpermissive")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -std=c++11 -fpermissive")
 endif()
 
 option(DEBUG "Enable debugging information" OFF)
