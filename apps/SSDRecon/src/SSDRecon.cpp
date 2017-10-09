@@ -47,8 +47,8 @@ DAMAGE.
 #include <stdio.h>
 #include <stdlib.h>
 #if defined(_WIN32) || defined(_WIN64)
-#include <Psapi.h>
 #include <Windows.h>
+#include <Psapi.h>
 #endif  // _WIN32 || _WIN64
 #include "Mesh/PoissonRecon/CmdLineParser.h"
 #include "Mesh/PoissonRecon/MarchingCubes.h"

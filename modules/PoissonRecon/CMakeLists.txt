@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.7)
 project(PoissonRecon)
 
-if(MSVC)
+option(BUILD_STATIC "Static build" OFF)
+
+if (NOT BUILD_STATIC AND MSVC)
   set(DLLIMPORT "__declspec(dllimport)")
   set(DLLEXPORT "__declspec(dllexport)")
   set(DISABLE "__pragma(warning(push,0))")
@@ -41,7 +43,12 @@ ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrix.h
 source_group("include" FILES ${PROJECT_INCS})
 source_group("src"     FILES ${PROJECT_SRCS})
 
+if (BUILD_STATIC)
+add_library(${PROJECT_NAME} STATIC ${PROJECT_SRCS} ${PROJECT_INCS})
+else()
 add_library(${PROJECT_NAME} SHARED ${PROJECT_SRCS} ${PROJECT_INCS})
+endif()
+
 
 target_include_directories(${PROJECT_NAME} PUBLIC
                           $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
