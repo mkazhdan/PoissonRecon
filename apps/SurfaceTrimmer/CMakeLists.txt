@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.7)
 project(SurfaceTrimmer)
 
 set(PROJECT_SRCS
-${PROJECT_SOURCE_DIR}/src/SurfaceTrimmer.cpp
+${PROJECT_SOURCE_DIR}/src/SurfaceTrimmerApp.cpp
 )
 
 source_group("src" FILES ${PROJECT_SRCS})

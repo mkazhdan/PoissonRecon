@@ -586,7 +586,7 @@ class PoissonRecon
     }
     double startTime = Time();
     Real isoValue    = 0;
-
+    OctNode<TreeNodeData>::SetAllocator(MEMORY_ALLOCATOR_BLOCK_SIZE);
     Octree<Real> tree;
     OctreeProfiler<Real> profiler(tree);
     tree.threads = Threads.value;
@@ -597,7 +597,7 @@ class PoissonRecon
     }
     if (!MaxSolveDepth.set) MaxSolveDepth.value = Depth.value;
 
-    OctNode<TreeNodeData>::SetAllocator(MEMORY_ALLOCATOR_BLOCK_SIZE);
+    
 
     int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value - 2;
     if (kernelDepth > Depth.value)

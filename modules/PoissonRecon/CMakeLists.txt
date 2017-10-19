@@ -7,7 +7,6 @@ ${PROJECT_SOURCE_DIR}/src/Factor.cpp
 ${PROJECT_SOURCE_DIR}/src/Geometry.cpp
 ${PROJECT_SOURCE_DIR}/src/MarchingCubes.cpp
 ${PROJECT_SOURCE_DIR}/src/PlyFile.cpp
-${PROJECT_SOURCE_DIR}/src/PoissonRecon.cpp
 )
 
 set(PROJECT_INCS
@@ -31,6 +30,7 @@ ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Polynomial.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PPolynomial.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrix.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PoissonRecon.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SurfaceTrimming.h
 )
 
 source_group("include" FILES ${PROJECT_INCS})
@@ -75,6 +75,7 @@ ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Polynomial.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PPolynomial.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrix.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PoissonRecon.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SurfaceTrimming.h
         DESTINATION include/Mesh/PoissonRecon)
 
 export(TARGETS ${PROJECT_NAME}

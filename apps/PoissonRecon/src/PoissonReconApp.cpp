@@ -350,56 +350,58 @@ int main(int argc, char **argv)
             polygon_mesh,
             threads,
             verbose);
-    std::cout << input_path << std::endl;
-    std::cout << input_path.c_str() << std::endl;
-    std::cout << ParsePath(input_path, 401) << std::endl;
-
-    std::cout << ParsePath(input_path, 401).c_str() << std::endl;
-    std::cout << const_cast<char *>(ParsePath(input_path, 401).c_str())
-              << std::endl;
   }
-  std::string temp_in  = ParsePath(input_path, 401);
-  std::string temp_out = ParsePath(output_path, 401);
 
-  char *options[] = {const_cast<char *>("--in"),
-                     const_cast<char *>(temp_in.c_str()),
-                     const_cast<char *>("--out"),
-                     const_cast<char *>(temp_out.c_str()),
-                     const_cast<char *>("--degree"),
-                     const_cast<char *>(degree.c_str()),
-                     const_cast<char *>("--bType"),
-                     const_cast<char *>(b_type.c_str()),
-                     const_cast<char *>("--depth"),
-                     const_cast<char *>(depth.c_str()),
-                     const_cast<char *>("--scale"),
-                     const_cast<char *>(scale.c_str()),
-                     const_cast<char *>("--samplesPerNode"),
-                     const_cast<char *>(samples_per_node.c_str()),
-                     const_cast<char *>("--pointWeight"),
-                     const_cast<char *>(point_weight.c_str()),
-                     const_cast<char *>(confidence.c_str()),
-                     const_cast<char *>(n_weights.c_str()),
-                     const_cast<char *>("--iters"),
-                     const_cast<char *>(iters.c_str()),
-                     const_cast<char *>("--cgDepth"),
-                     const_cast<char *>(cg_depth.c_str()),
-                     const_cast<char *>("--fullDepth"),
-                     const_cast<char *>(full_depth.c_str()),
-                     const_cast<char *>("--voxelDepth"),
-                     const_cast<char *>(voxel_depth.c_str()),
-                     const_cast<char *>(primal_voxel.c_str()),
-                     const_cast<char *>("--color"),
-                     const_cast<char *>(color.c_str()),
-                     const_cast<char *>(density.c_str()),
-                     const_cast<char *>(linear_fit.c_str()),
-                     const_cast<char *>(polygon_mesh.c_str()),
-                     const_cast<char *>("--threads"),
-                     const_cast<char *>(threads.c_str()),
-                     const_cast<char *>(verbose.c_str())};
+  const std::size_t start_frm = std::atoi(argv[2]);
+  const std::size_t end_frm   = std::atoi(argv[3]);
+  for (size_t k = start_frm; k <= end_frm; k++)
+  {
+    std::string temp_in  = ParsePath(input_path, k);
+    std::string temp_out = ParsePath(output_path, k);
 
-  int nOptions = sizeof(options) / sizeof(char *);
+    std::cout << temp_in << std::endl;
+    std::cout << temp_out << std::endl;
 
-  PoissonRecon poisson;
+    char *options[] = {const_cast<char *>("--in"),
+                       const_cast<char *>(temp_in.c_str()),
+                       const_cast<char *>("--out"),
+                       const_cast<char *>(temp_out.c_str()),
+                       const_cast<char *>("--degree"),
+                       const_cast<char *>(degree.c_str()),
+                       const_cast<char *>("--bType"),
+                       const_cast<char *>(b_type.c_str()),
+                       const_cast<char *>("--depth"),
+                       const_cast<char *>(depth.c_str()),
+                       const_cast<char *>("--scale"),
+                       const_cast<char *>(scale.c_str()),
+                       const_cast<char *>("--samplesPerNode"),
+                       const_cast<char *>(samples_per_node.c_str()),
+                       const_cast<char *>("--pointWeight"),
+                       const_cast<char *>(point_weight.c_str()),
+                       const_cast<char *>(confidence.c_str()),
+                       const_cast<char *>(n_weights.c_str()),
+                       const_cast<char *>("--iters"),
+                       const_cast<char *>(iters.c_str()),
+                       const_cast<char *>("--cgDepth"),
+                       const_cast<char *>(cg_depth.c_str()),
+                       const_cast<char *>("--fullDepth"),
+                       const_cast<char *>(full_depth.c_str()),
+                       const_cast<char *>("--voxelDepth"),
+                       const_cast<char *>(voxel_depth.c_str()),
+                       const_cast<char *>(primal_voxel.c_str()),
+                       const_cast<char *>("--color"),
+                       const_cast<char *>(color.c_str()),
+                       const_cast<char *>(density.c_str()),
+                       const_cast<char *>(linear_fit.c_str()),
+                       const_cast<char *>(polygon_mesh.c_str()),
+                       const_cast<char *>("--threads"),
+                       const_cast<char *>(threads.c_str()),
+                       const_cast<char *>(verbose.c_str())};
 
-  poisson.reconstruct(nOptions, options);
+    int nOptions = sizeof(options) / sizeof(char *);
+
+    PoissonRecon poisson;
+
+    poisson.reconstruct(nOptions, options);
+  }
 }
