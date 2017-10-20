@@ -1,0 +1,12 @@
+<CONFIG>
+	<INPUT>
+		<INPUT_PATH>/home/hypevr/PoissonRecon/Demo%03d.ply</INPUT_PATH>
+		<TRIM>10</TRIM>
+		<SMOOTH>5</SMOOTH>
+		<A_RATIO>0.001</A_RATIO>
+		<!--<POLYGON_MESH></POLYGON_MESH>-->
+	</INPUT>
+	<OUTPUT>
+		<OUTPUT_PATH>/home/hypevr/PoissonRecon/%03d.ply</OUTPUT_PATH>
+	</OUTPUT>
+</CONFIG>

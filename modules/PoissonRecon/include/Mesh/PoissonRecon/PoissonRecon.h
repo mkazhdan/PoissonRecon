@@ -597,8 +597,6 @@ class PoissonRecon
     }
     if (!MaxSolveDepth.set) MaxSolveDepth.value = Depth.value;
 
-    
-
     int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value - 2;
     if (kernelDepth > Depth.value)
     {
@@ -1142,7 +1140,7 @@ class PoissonRecon
 
 template <>
 const PlyProperty PoissonRecon::ColorInfo<float>::PlyProperties[] = {
-    {"r",
+    {const_cast<char*>("r"),
      PLY_UCHAR,
      PLY_FLOAT,
      int(offsetof(Point3D<float>, coords[0])),
@@ -1150,7 +1148,7 @@ const PlyProperty PoissonRecon::ColorInfo<float>::PlyProperties[] = {
      0,
      0,
      0},
-    {"g",
+    {const_cast<char*>("g"),
      PLY_UCHAR,
      PLY_FLOAT,
      int(offsetof(Point3D<float>, coords[1])),
@@ -1158,7 +1156,7 @@ const PlyProperty PoissonRecon::ColorInfo<float>::PlyProperties[] = {
      0,
      0,
      0},
-    {"b",
+    {const_cast<char*>("b"),
      PLY_UCHAR,
      PLY_FLOAT,
      int(offsetof(Point3D<float>, coords[2])),
@@ -1166,7 +1164,7 @@ const PlyProperty PoissonRecon::ColorInfo<float>::PlyProperties[] = {
      0,
      0,
      0},
-    {"red",
+    {const_cast<char*>("red"),
      PLY_UCHAR,
      PLY_FLOAT,
      int(offsetof(Point3D<float>, coords[0])),
@@ -1174,7 +1172,7 @@ const PlyProperty PoissonRecon::ColorInfo<float>::PlyProperties[] = {
      0,
      0,
      0},
-    {"green",
+    {const_cast<char*>("green"),
      PLY_UCHAR,
      PLY_FLOAT,
      int(offsetof(Point3D<float>, coords[1])),
@@ -1182,7 +1180,7 @@ const PlyProperty PoissonRecon::ColorInfo<float>::PlyProperties[] = {
      0,
      0,
      0},
-    {"blue",
+    {const_cast<char*>("blue"),
      PLY_UCHAR,
      PLY_FLOAT,
      int(offsetof(Point3D<float>, coords[2])),
@@ -1192,7 +1190,7 @@ const PlyProperty PoissonRecon::ColorInfo<float>::PlyProperties[] = {
      0}};
 template <>
 const PlyProperty PoissonRecon::ColorInfo<double>::PlyProperties[] = {
-    {"r",
+    {const_cast<char*>("r"),
      PLY_UCHAR,
      PLY_DOUBLE,
      int(offsetof(Point3D<double>, coords[0])),
@@ -1200,7 +1198,7 @@ const PlyProperty PoissonRecon::ColorInfo<double>::PlyProperties[] = {
      0,
      0,
      0},
-    {"g",
+    {const_cast<char*>("g"),
      PLY_UCHAR,
      PLY_DOUBLE,
      int(offsetof(Point3D<double>, coords[1])),
@@ -1208,7 +1206,7 @@ const PlyProperty PoissonRecon::ColorInfo<double>::PlyProperties[] = {
      0,
      0,
      0},
-    {"b",
+    {const_cast<char*>("b"),
      PLY_UCHAR,
      PLY_DOUBLE,
      int(offsetof(Point3D<double>, coords[2])),
@@ -1216,7 +1214,7 @@ const PlyProperty PoissonRecon::ColorInfo<double>::PlyProperties[] = {
      0,
      0,
      0},
-    {"red",
+    {const_cast<char*>("red"),
      PLY_UCHAR,
      PLY_DOUBLE,
      int(offsetof(Point3D<double>, coords[0])),
@@ -1224,7 +1222,7 @@ const PlyProperty PoissonRecon::ColorInfo<double>::PlyProperties[] = {
      0,
      0,
      0},
-    {"green",
+    {const_cast<char*>("green"),
      PLY_UCHAR,
      PLY_DOUBLE,
      int(offsetof(Point3D<double>, coords[1])),
@@ -1232,7 +1230,7 @@ const PlyProperty PoissonRecon::ColorInfo<double>::PlyProperties[] = {
      0,
      0,
      0},
-    {"blue",
+    {const_cast<char*>("blue"),
      PLY_UCHAR,
      PLY_DOUBLE,
      int(offsetof(Point3D<double>, coords[2])),

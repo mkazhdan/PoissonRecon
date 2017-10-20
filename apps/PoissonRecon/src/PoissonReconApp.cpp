@@ -60,6 +60,13 @@ std::string ParsePath(std::string path, const int index)
   }
 }
 
+void usage()
+{
+  std::cerr << " Usage: ./exec <path/to/xml> <start_frame_number> "
+               "<end_frame_number> <calculate_normal>"
+            << std::endl;
+}
+
 void ReadXML(tinyxml2::XMLDocument &doc_xml,
              std::string &input_path,
              std::string &output_path,
@@ -298,6 +305,11 @@ void ReadXML(tinyxml2::XMLDocument &doc_xml,
 
 int main(int argc, char **argv)
 {
+  if (argc != 4)
+  {
+    usage();
+    return -1;
+  }
   std::string input_path;
   std::string output_path;
   std::string degree;
