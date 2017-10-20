@@ -1,6 +1,6 @@
 <CONFIG>
 	<INPUT>
-		<INPUT_PATH>/home/hypevr/PoissonRecon/clouds/store/Demo%03d.ply</INPUT_PATH>
+		<INPUT_PATH>/input/path/to/ply/Demo%03d.ply</INPUT_PATH>
 		<DEGREE>2</DEGREE>
 		<B_TYPE>3</B_TYPE>
 		<DEPTH>10</DEPTH>
@@ -22,6 +22,6 @@
 		<!--<VERBOSE></VERBOSE>-->
 	</INPUT>
 	<OUTPUT>
-		<OUTPUT_PATH>/home/hypevr/PoissonRecon/Demo%03d.ply</OUTPUT_PATH>
+		<OUTPUT_PATH>/output/path/to/ply/Demo%03d.ply</OUTPUT_PATH>
 	</OUTPUT>
 </CONFIG>
