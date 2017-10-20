@@ -54,7 +54,7 @@ void* aligned_malloc( size_t size , size_t align )
 	( ( void** ) amem )[-1] = mem;
 	return amem;
 }
-void aligned_free( void* mem ) { free( ( ( void** )mem )[-1] ); }
+void aligned_free_poisson( void* mem ) { free( ( ( void** )mem )[-1] ); }
 
 #ifdef ARRAY_DEBUG
 #pragma message ( "[WARNING] Array debugging is enabled" )
@@ -88,7 +88,7 @@ template< class C > ConstArray< C > GetPointer( const C* c , int sz ) { return C
 #define  NullPointer( ... ) NULL
 
 #define        FreePointer( ... ) { if( __VA_ARGS__ )         free( __VA_ARGS__ ) ,                   __VA_ARGS__ = NULL; }
-#define AlignedFreePointer( ... ) { if( __VA_ARGS__ ) aligned_free( __VA_ARGS__ ) ,                   __VA_ARGS__ = NULL; }
+#define AlignedFreePointer( ... ) { if( __VA_ARGS__ ) aligned_free_poisson( __VA_ARGS__ ) ,                   __VA_ARGS__ = NULL; }
 #define      DeletePointer( ... ) { if( __VA_ARGS__ )      delete[] __VA_ARGS__ ,                     __VA_ARGS__ = NULL; }
 
 template< class C > C*          NewPointer(        size_t size ,                    const char* name=NULL ){ return new C[size]; }
