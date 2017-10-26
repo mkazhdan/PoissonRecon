@@ -189,6 +189,7 @@ int main(int argc, char **argv)
     int nOptions = sizeof(options) / sizeof(char *);
 
     SurfaceTrimming trim;
-    trim.trim(nOptions, options);
+    std::vector<double> vertz_iuv; std::vector<double> clrz_iuv; std::vector<double> tri_indices;
+    trim.trim(nOptions, options,vertz_iuv,clrz_iuv,tri_indices);
   }
 }

@@ -102,7 +102,7 @@ void cmdLineInt::writeValue(char* str)
 
 //////////////////
 // cmdLineFloat //
-//////////////////
+/////////////////
 cmdLineFloat::cmdLineFloat(const char* name) : cmdLineReadable(name)
 {
   value = 0;
