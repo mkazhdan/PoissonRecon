@@ -253,7 +253,6 @@ public:
 		double d=0;
 		int i,j;
 		for(i=0;i<3;i++){
-	  for(i=0;i<3;i++)
 			for(j=0;j<3;j++){d+=(p[(i+1)%3][j]-p[i][j])*(p[(i+1)%3][j]-p[i][j]);}
 		}
 		return Area()/d;
