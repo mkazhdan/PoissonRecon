@@ -117,7 +117,7 @@ public:
 				remains=state.remains;
 			}
 			else{
-				for(int j=0;j<state.remains;j<remains){
+				for(int j=0;j<state.remains;j++){
 					memory[index][j].~T();
 					new(&memory[index][j]) T();
 				}
