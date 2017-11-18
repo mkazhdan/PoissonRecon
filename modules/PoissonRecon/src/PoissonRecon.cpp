@@ -184,13 +184,14 @@ double PoissonRecon::PeakMemoryUsageMB(void)
 
 int PoissonRecon::reconstruct(int num_options, char* options[])
 {
-  int i = 0;
-  while (i < num_options)
-  {
-    printf("options[%d]=%s\n", i, options[i++]);
-  }
-  printf("num_options=%d\n", num_options);
-
+// #ifdef ARRAY_DEBUG
+//   int i = 0;
+//   while (i < num_options)
+//   {
+//     printf("options[%d]=%s\n", i, options[i++]);
+//   }
+//   printf("num_options=%d\n", num_options);
+// #endif  // ARRAY_DEBUG
 #ifdef ARRAY_DEBUG
   fprintf(stderr, "[WARNING] Running in array debugging mode\n");
 #endif  // ARRAY_DEBUG
@@ -213,7 +214,6 @@ int PoissonRecon::reconstruct(int num_options, char* options[])
   }
 #endif  // defined( WIN32 ) && defined( MAX_MEMORY_GB )
   double t = Time();
-
   cmdLineParse(num_options - 1,
                &options[0],
                sizeof(params) / sizeof(cmdLineReadable*),

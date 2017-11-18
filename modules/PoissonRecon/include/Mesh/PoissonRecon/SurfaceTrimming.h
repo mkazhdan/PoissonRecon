@@ -309,7 +309,7 @@ class SurfaceTrimming
     for (size_t i = 0; i < vertices.size(); i++)
       min = std::min<float>(min, vertices[i].value),
       max = std::max<float>(max, vertices[i].value);
-    printf("Value Range: [%f,%f]\n", min, max);
+    // printf("Value Range: [%f,%f]\n", min, max);
 
     std::unordered_map<long long, int> vertexTable;
     std::vector<std::vector<int> > ltPolygons, gtPolygons;
@@ -475,7 +475,7 @@ class SurfaceTrimming
     for (size_t i = 0; i < vertices.size(); i++)
       min = std::min<float>(min, vertices[i].value),
       max = std::max<float>(max, vertices[i].value);
-    printf("Value Range: [%f,%f]\n", min, max);
+    // printf("Value Range: [%f,%f]\n", min, max);
 
     std::unordered_map<long long, int> vertexTable;
     std::vector<std::vector<int> > ltPolygons, gtPolygons;

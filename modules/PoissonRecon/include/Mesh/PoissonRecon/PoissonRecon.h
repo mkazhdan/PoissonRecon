@@ -379,7 +379,7 @@ class PoissonRecon
     char str[1024];
     for (int i = 0; i < paramNum; i++)
     {
-      std::cout << params[i] << std::endl;
+      // std::cout << params[i] << std::endl;
       if (params[i]->set)
       {
         params[i]->writeValue(str);

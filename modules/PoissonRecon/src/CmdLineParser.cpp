@@ -289,8 +289,8 @@ void cmdLineParse(
     {
       if (dumpError)
       {
-        fprintf(stderr, "invalid option: %s\n", *argv);
-        fprintf(stderr, "  options must start with a \'--\'\n");
+        // fprintf(stderr, "invalid option: %s\n", *argv);
+        // fprintf(stderr, "  options must start with a \'--\'\n");
       }
       argv++, argc--;
     }
