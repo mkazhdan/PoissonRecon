@@ -331,6 +331,7 @@ int main(int argc, char **argv)
   std::string polygon_mesh;
   std::string threads;
   std::string verbose;
+  std::string temp = "/home/hypevr/PoissonRecon/";
 
   tinyxml2::XMLDocument doc_xml;
   if (doc_xml.LoadFile(argv[1]))
@@ -408,6 +409,8 @@ int main(int argc, char **argv)
                        const_cast<char *>(polygon_mesh.c_str()),
                        const_cast<char *>("--threads"),
                        const_cast<char *>(threads.c_str()),
+                       const_cast<char *>("--tempDir"),
+                       const_cast<char *>(temp.c_str()),
                        const_cast<char *>(verbose.c_str())};
 
     int nOptions = sizeof(options) / sizeof(char *);

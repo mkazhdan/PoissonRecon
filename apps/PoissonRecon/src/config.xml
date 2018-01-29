@@ -1,6 +1,6 @@
 <CONFIG>
 	<INPUT>
-		<INPUT_PATH>/home/hypevr/PoissonRecon/clouds/store/Demo%03d.ply</INPUT_PATH>
+		<INPUT_PATH>/home/hypevr/PoissonRecon/clouds/store/Male.ply</INPUT_PATH>
 		<DEGREE>2</DEGREE>
 		<B_TYPE>3</B_TYPE>
 		<DEPTH>10</DEPTH>
@@ -14,7 +14,7 @@
 		<FULL_DEPTH>5</FULL_DEPTH>
 		<VOXEL_DEPTH>10</VOXEL_DEPTH>
 		<!--<PRIMAL_VOXEL></PRIMAL_VOXEL>-->
-		<COLOR>64</COLOR>
+		<!--<COLOR>64</COLOR>-->
 		<DENSITY>--density</DENSITY>
 		<!--<LINEAR_FIT></LINEAR_FIT>-->
 		<!--<POLYGON_MESH></POLYGON_MESH>-->

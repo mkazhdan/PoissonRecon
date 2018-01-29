@@ -610,7 +610,6 @@ class PoissonRecon
 #if defined(_WIN32) || defined(_WIN64)
         GetTempPath(sizeof(tempPath), tempPath);
 #else   // !_WIN
-        if (std::getenv("TMPDIR")) strcpy(tempPath, std::getenv("TMPDIR"));
 #endif  // _WIN
       }
       if (strlen(tempPath) == 0) sprintf(tempPath, ".%c", FileSeparator);
