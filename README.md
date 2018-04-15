@@ -52,10 +52,10 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</a>
 </ul>
 <hr>
-<a name="EXECUTABLES"><b>EXECUTABLES</b></a><br>
+<a name="EXECUTABLES"><b>EXECUTABLES</b></a> (<A HREF="#PoissonRecon">PoissonRecon</A>)<br>
 <ul>
 <dl>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" onclick="toggleAll( $(&#39;poisson_recon&#39;) ) ; return false;">PoissonRecon</a></b></font><BR>
+<font size="+1"><b><a name="PoissonRecon">PoissonRecon</a></b></font><BR>
 Reconstructs a triangle mesh from a set of oriented 3D points by solving a Poisson system (solving a 3D Laplacian system with positional value constraints) <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
