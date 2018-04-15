@@ -52,7 +52,7 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</a>
 </ul>
 <hr>
-<a name="EXECUTABLES"><b>EXECUTABLES</b></a> (<A HREF="#PoissonRecon">PoissonRecon</A>, <A HREF="#SSDRecon">SSDRecon</A>, <A HREF="#SurfaceTrimmer">SurfaceTrimmer</A>, <A HREF="#EDTInHeat">EDTInHeat</A>)<br>
+<a name="EXECUTABLES"><b>EXECUTABLES</b></a> (<A HREF="#PoissonRecon">PoissonRecon</A>, <A HREF="#SSDRecon">SSDRecon</A>, <A HREF="#SurfaceTrimmer">SurfaceTrimmer</A>, <A HREF="#ImageStitching">ImageStitching</A>, <A HREF="#EDTInHeat">EDTInHeat</A>, <A HREF="#AdaptiveTreeVisualization">AdaptiveTreeVisualization</A>)<br>
 <ul>
 <dl>
 <font size="+1"><b><a name="PoissonRecon">PoissonRecon</a></b></font><BR>
@@ -353,7 +353,7 @@ The default value 0.001.
 
 <ul>
 <dl>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" onclick="toggleAll( $(&#39;image_stitching&#39;) ) ; return false;">ImageStitching</a></b></font><BR>
+<font size="+1"><b><a name="ImageStitching">ImageStitching</a></b></font><BR>
 Stitches together a composite of image tiles into a seamless panorama by solving for the correction term (solving a 2D Laplacian system) <a href="http://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
 
 <dt><b>--in</b> &lt;<i>input composite image</i>&gt; &lt;<i>input label image</i>&gt;
@@ -468,7 +468,7 @@ The default value for this parameter is equal to the numer of (virtual) processo
 
 <ul>
 <dl>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" onclick="toggleAll( $(&#39;adaptive_tree_visualization&#39;) ) ; return false;">AdaptiveTreeVisualization</a></b></font><BR>
+<font size="+1"><b><a name="AdaptiveTreeVisualization">AdaptiveTreeVisualization</a></b></font><BR>
 Extracts iso-surfaces and a sampling on a regular grid from an implicit function represented over an adapted tree
 <dt><b>--in</b> &lt;<i>input tree and coefficients</i>&gt;
 </dt><dd> This string is the name of the file from which the tree and implicit functions coefficients are to be read. 
@@ -513,11 +513,11 @@ individual components of the visualizer.
 </ul>
 
 <hr>
-<a name="USAGE"><b>USAGE EXAMPLES (WITH SAMPLE DATA)</b></a><br>
+<a name="USAGE"><b>USAGE EXAMPLES (WITH SAMPLE DATA)</b></a> (<A HREF="#USAGE_RECONSTRUCTION">Reconstruction</A>, <A HREF="#USAGE_IMAGESTITCHING">Image Stitching</A>, <A HREF="#USAGE_EDTINHEAT">EDT in Heat</A>)<br>
 
 <ul>
 <dl>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" onclick="toggleAll( $(&#39;usage_reconstruction&#39;) ) ; return false;">PoissonRecon / SSDRecon / SurfaceTrimmer</a></b></font>
+<font size="+1"><b><a name="USAGE_RECONSTRUCTION">PoissonRecon / SSDRecon / SurfaceTrimmer</a></b></font>
 
 For testing purposes, three point sets are provided:
 <ol>
@@ -561,7 +561,7 @@ to remove all subsets of the surface where the sampling density corresponds to a
 
 <ul>
 <dl>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" onclick="toggleAll( $(&#39;usage_image_stitching&#39;) ) ; return false;">ImageStitching</a></b></font>
+<font size="+1"><b><a NAME="USAGE_IMAGESTITCHING">ImageStitching</a></b></font>
 
 For testing purposes, two panoramas are provided: <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Jaffa.zip"><b>Jaffa</b></a> (23794 x 9492 pixels) and <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/OldRag.zip"><b>OldRag</b></a> (87722 x 12501 pixels).
 
@@ -574,7 +574,7 @@ A seamless panorama can be obtained by running:
 
 <ul>
 <dl>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" onclick="toggleAll( $(&#39;usage_edt_in_heat&#39;) ) ; return false;">EDTInHeat / AdaptiveTreeVisualization</a></b></font>
+<font size="+1"><b><a name="USAGE_EDTINHEAT">EDTInHeat / AdaptiveTreeVisualization</a></b></font>
 <div id="usage_edt_in_heat" style="display: none;">
 The Euclidean Distance Tranform of the reconstructed horse can be obtained by running:
 <blockquote><code>% EDTInHeat --in horse.ply --out horse.edt --depth 9</code></blockquote>
