@@ -52,11 +52,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</a>
 </ul>
 <hr>
-<a name="EXECUTABLES"><b>EXECUTABLES</b></a> (<A HREF="#PoissonRecon">PoissonRecon</A>, <A HREF="#SSDRecon">SSDRecon</A>, <A HREF="#SurfaceTrimmer">SurfaceTrimmer</A>, <A HREF="#ImageStitching">ImageStitching</A>, <A HREF="#EDTInHeat">EDTInHeat</A>, <A HREF="#AdaptiveTreeVisualization">AdaptiveTreeVisualization</A>)<br>
+<a name="EXECUTABLES"><b>EXECUTABLES</b></a>
 <ul>
 <dl>
-<details>
-<summary><font size="+1"><b><a name="PoissonRecon">PoissonRecon</a></b></font></summary>
+<DETAILS>
+<summary><font size="+1"><b>PoissonRecon</b></font></summary>
 Reconstructs a triangle mesh from a set of oriented 3D points by solving a Poisson system (solving a 3D Laplacian system with positional value constraints) <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
@@ -181,15 +181,15 @@ The default value for this parameter is equal to the numer of (virtual) processo
 </dt><dd> Enabling this flag provides a more verbose description of the running times and memory usages of individual components of the surface reconstructor.
 
 </dd>
+</DETAILS>
 </dl>
 </ul>
-</DETAILS>
 
 
 <ul>
 <dl>
 <DETAILS>
-<SUMMARY><font size="+1"><b><a NAME="SSDRecon">SSDRecon</a></b></font></SUMMARY>
+<SUMMARY><font size="+1"><b>SSDRecon</b></font></SUMMARY>
 Reconstructs a surface mesh from a set of oriented 3D points by solving for a Smooth Signed Distance function (solving a 3D bi-Laplacian operator with positional value and gradient constraints) <a href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>,
 
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
@@ -315,14 +315,15 @@ The default value for this parameter is equal to the numer of (virtual) processo
 individual components of the surface reconstructor.
 
 </dd>
+</DETAILS>
 </dl>
 </ul>
-</DETAILS>
 
 
 <ul>
 <dl>
-<font size="+1"><b><a name="SurfaceTrimmer">SurfaceTrimmer</a></b></font><BR>
+<DETAILS>
+<SUMMARY><font size="+1"><b>SurfaceTrimmer</b></font></SUMMARY>
 Trims off parts of a triangle mesh with a per-vertex signal whose value falls below a threshold (used for removing parts of a reconstructed surface that are generated in low-sampling-density regions)
 
 <dt><b>--in</b> &lt;<i>input triangle mesh</i>&gt;
@@ -351,13 +352,15 @@ The default value 0.001.
 </dt><dd> Enabling this flag provides a more verbose description of the running times and memory usages of individual components of the surface reconstructor.
 
 </dd>
+</DETAILS>
 </dl>
 </ul>
 
 
 <ul>
 <dl>
-<font size="+1"><b><a name="ImageStitching">ImageStitching</a></b></font><BR>
+<DETAILS>
+<SUMMARY><font size="+1"><b>ImageStitching</b></font><BR></SUMMARY>
 Stitches together a composite of image tiles into a seamless panorama by solving for the correction term (solving a 2D Laplacian system) <a href="http://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
 
 <dt><b>--in</b> &lt;<i>input composite image</i>&gt; &lt;<i>input label image</i>&gt;
@@ -401,13 +404,15 @@ The default value for this parameter is equal to the numer of (virtual) processo
 individual components of the image stitcher.
 
 </dd>
+</DETAILS>
 </dl>
 </ul>
 
 
 <ul>
 <dl>
-<font size="+1"><b><a name="EDTInHeat">EDTInHeat</a></b></font><BR>
+<DETAILS>
+<SUMMARY><font size="+1"><b>EDTInHeat</b></font></SUMMARY>
 Computes the unsigned Euclidean Distance Transform of a triangle mesh (solving two 3D Laplacian systems) <A HREF="https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/">[Crane, Weischedel, and Wardetzky, 2013]</A>
 <dt><b>--in</b> &lt;<i>input mesh</i>&gt;
 </dt><dd> This string is the name of the file from which the triangle mesh will be read. 
@@ -466,13 +471,15 @@ The default value for this parameter is equal to the numer of (virtual) processo
 </dt><dd> Enabling this flag provides a more verbose description of the running times and memory usages of individual components of the EDT computation.
 
 </dd>
+</DETAILS>
 </dl>
 </ul>
 
 
 <ul>
 <dl>
-<font size="+1"><b><a name="AdaptiveTreeVisualization">AdaptiveTreeVisualization</a></b></font><BR>
+<DETAILS>
+<SUMMARY><font size="+1"><b>AdaptiveTreeVisualization</b></font></SUMMARY>
 Extracts iso-surfaces and a sampling on a regular grid from an implicit function represented over an adapted tree
 <dt><b>--in</b> &lt;<i>input tree and coefficients</i>&gt;
 </dt><dd> This string is the name of the file from which the tree and implicit functions coefficients are to be read. 
@@ -513,15 +520,17 @@ The default value for this parameter is equal to the numer of (virtual) processo
 individual components of the visualizer.
 
 </dd>
+</DETAILS>
 </dl>
 </ul>
 
 <hr>
-<a name="USAGE"><b>USAGE EXAMPLES (WITH SAMPLE DATA)</b></a> (<A HREF="#USAGE_RECONSTRUCTION">Reconstruction</A>, <A HREF="#USAGE_IMAGESTITCHING">Image Stitching</A>, <A HREF="#USAGE_EDTINHEAT">EDT in Heat</A>)<br>
+<a name="USAGE"><b>USAGE EXAMPLES (WITH SAMPLE DATA)</b></a>
 
 <ul>
 <dl>
-<font size="+1"><b><a name="USAGE_RECONSTRUCTION">PoissonRecon / SSDRecon / SurfaceTrimmer</a></b></font>
+<DETAILS>
+<SUMMARY><font size="+1"><b>PoissonRecon / SSDRecon / SurfaceTrimmer</b></font></SUMMARY>
 
 For testing purposes, three point sets are provided:
 <ol>
@@ -558,27 +567,29 @@ to remove all subsets of the surface where the sampling density corresponds to a
 </li>
 
 </ol>
-
+</DETAILS>
 </dl>
 </ul>
 
 
 <ul>
 <dl>
-<font size="+1"><b><a NAME="USAGE_IMAGESTITCHING">ImageStitching</a></b></font>
+<DETAILS>
+<SUMMARY><font size="+1"><b>ImageStitching</b></font></SUMMARY>
 
 For testing purposes, two panoramas are provided: <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Jaffa.zip"><b>Jaffa</b></a> (23794 x 9492 pixels) and <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/OldRag.zip"><b>OldRag</b></a> (87722 x 12501 pixels).
 
 A seamless panorama can be obtained by running:
 <blockquote><code>% ImageSitching --in pixels.png labels.png --out out.png</code></blockquote>
-
+</DETAILS>
 </dl>
 </ul>
 
 
 <ul>
 <dl>
-<font size="+1"><b><a name="USAGE_EDTINHEAT">EDTInHeat / AdaptiveTreeVisualization</a></b></font>
+<DETAILS>
+<SUMMARY><font size="+1"><b>EDTInHeat / AdaptiveTreeVisualization</b></font></SUMMARY>
 <div id="usage_edt_in_heat" style="display: none;">
 The Euclidean Distance Tranform of the reconstructed horse can be obtained by running:
 <blockquote><code>% EDTInHeat --in horse.ply --out horse.edt --depth 9</code></blockquote>
@@ -591,13 +602,14 @@ To obtain a visualization closer to the boundary of the bounding box, use an iso
 (Since the default <CODE>--scale</CODE> is 2, a value of 0.25 should still give a surface that is contained within the bounding box.)<BR>
 To obtain a sampling of the implicit function over a regular grid:
 <blockquote><code>% AdaptiveTreeVisualization.exe --in horse.edt --grid horse.grid</code></blockquote>
-
+</DETAILS>
 </dl>
 </ul>
 
 
 <hr>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" name="CHANGES" onclick="toggleAll( $(&#39;changes&#39;) ) ; return false;"><B>HISTORY OF CHANGES</B></a></b></font>
+<DETAILS>
+<SUMMARY><font size="+1"><b><B>HISTORY OF CHANGES</B></b></font></SUMMARY>
 <div id="changes" style="display: none;">
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">Version 3</a>:
 <ol>
@@ -732,6 +744,7 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> For the reconstruction code, added the <B>--width</B> flag which allows the system to compute the depth of the octree given a target depth for the finest resolution nodes.</LI>
 <LI> For the reconstruction code, fixed a bug in the handling of the confidence encoded in the lengths of the normals. In addition, added the flags <B>--confidence</B> and <B>--confidenceBias</B> which allow the user more control of how confidence is used to affect the contribution of a sample.</LI>
 </ol>
+</DETAILS>
 
 
 <hr>
