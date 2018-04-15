@@ -52,7 +52,7 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</a>
 </ul>
 <hr>
-<a name="EXECUTABLES"><b>EXECUTABLES</b></a> (<A HREF="#PoissonRecon">PoissonRecon</A>, <A HREF="#SSDRecon">SSDRecon</A>)<br>
+<a name="EXECUTABLES"><b>EXECUTABLES</b></a> (<A HREF="#PoissonRecon">PoissonRecon</A>, <A HREF="#SSDRecon">SSDRecon</A>, <A HREF="#SurfaceTrimmer">SurfaceTrimmer</A>, <A HREF="#EDTInHeat">EDTInHeat</A>)<br>
 <ul>
 <dl>
 <font size="+1"><b><a name="PoissonRecon">PoissonRecon</a></b></font><BR>
@@ -318,7 +318,7 @@ individual components of the surface reconstructor.
 
 <ul>
 <dl>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" onclick="toggleAll( $(&#39;surface_trimmer&#39;) ) ; return false;">SurfaceTrimmer</a></b></font><BR>
+<font size="+1"><b><a name="SurfaceTrimmer">SurfaceTrimmer</a></b></font><BR>
 Trims off parts of a triangle mesh with a per-vertex signal whose value falls below a threshold (used for removing parts of a reconstructed surface that are generated in low-sampling-density regions)
 
 <dt><b>--in</b> &lt;<i>input triangle mesh</i>&gt;
@@ -403,7 +403,7 @@ individual components of the image stitcher.
 
 <ul>
 <dl>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" onclick="toggleAll( $(&#39;edt_in_heat&#39;) ) ; return false;">EDTInHeat</a></b></font><BR>
+<font size="+1"><b><a name="EDTInHeat">EDTInHeat</a></b></font><BR>
 Computes the unsigned Euclidean Distance Transform of a triangle mesh (solving two 3D Laplacian systems) <A HREF="https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/">[Crane, Weischedel, and Wardetzky, 2013]</A>
 <dt><b>--in</b> &lt;<i>input mesh</i>&gt;
 </dt><dd> This string is the name of the file from which the triangle mesh will be read. 
