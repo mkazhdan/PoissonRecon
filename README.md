@@ -52,7 +52,7 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</a>
 </ul>
 <hr>
-<a name="EXECUTABLES"><b>EXECUTABLES</b></a> (<A HREF="#PoissonRecon">PoissonRecon</A>)<br>
+<a name="EXECUTABLES"><b>EXECUTABLES</b></a> (<A HREF="#PoissonRecon">PoissonRecon</A>, <A HREF="#SSDRecon">SSDRecon</A>)<br>
 <ul>
 <dl>
 <font size="+1"><b><a name="PoissonRecon">PoissonRecon</a></b></font><BR>
@@ -186,7 +186,7 @@ The default value for this parameter is equal to the numer of (virtual) processo
 
 <ul>
 <dl>
-<font size="+1"><b><a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html" onclick="toggleAll( $(&#39;ssd_recon&#39;) ) ; return false;">SSDRecon</a></b></font><BR>
+<font size="+1"><b><a NAME="SSDRecon">SSDRecon</a></b></font><BR>
 Reconstructs a surface mesh from a set of oriented 3D points by solving for a Smooth Signed Distance function (solving a 3D bi-Laplacian operator with positional value and gradient constraints) <a href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>,
 
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
