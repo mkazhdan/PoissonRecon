@@ -172,7 +172,7 @@ template<int Degree>
 double PPolynomial<Degree>::operator ()( double t ) const
 {
 	double v=0;
-	for( int i=0 ; i<int(polyCount) && t>polys[i].start ; i++ ) v += polys[i].p(t);
+	for( int i=0 ; i<int(polyCount) && t>polys[i].start ; i++ ) v+=polys[i].p(t);
 	return v;
 }
 

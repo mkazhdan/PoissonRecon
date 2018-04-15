@@ -27,39 +27,51 @@ DAMAGE.
 */
 
 #undef ARRAY_DEBUG
+#define DIMENSION 3
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <float.h>
-#ifdef _OPENMP
-#include <omp.h>
-#endif // _OPENMP
 #include <algorithm>
+#include "FEMTree.h"
+#include "MyMiscellany.h"
 #include "CmdLineParser.h"
+#include "MAT.h"
 #include "Geometry.h"
 #include "Ply.h"
-#include "MAT.h"
-#include "MyTime.h"
 
-cmdLineString In( "in" ) , Out( "out" );
-cmdLineInt Smooth( "smooth" , 5 );
-cmdLineFloat Trim( "trim" ) , IslandAreaRatio( "aRatio" , 0.001f );
-cmdLineReadable PolygonMesh( "polygonMesh" );
+MessageWriter messageWriter;
+
+
+cmdLineParameter< char* >
+	In( "in" ) ,
+	Out( "out" );
+cmdLineParameter< int >
+	Smooth( "smooth" , 5 );
+cmdLineParameter< float >
+	Trim( "trim" ) ,
+	IslandAreaRatio( "aRatio" , 0.001f );
+cmdLineReadable
+	PolygonMesh( "polygonMesh" ) ,
+	Verbose( "verbose" );
+
 
 cmdLineReadable* params[] =
 {
-	&In , &Out , &Trim , &PolygonMesh , &Smooth , &IslandAreaRatio
+	&In , &Out , &Trim , &PolygonMesh , &Smooth , &IslandAreaRatio , &Verbose ,
+	NULL
 };
 
 void ShowUsage( char* ex )
 {
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input polygon mesh>\n" , In.name );
-	printf( "\t[--%s <trimming value>]\n" , Trim.name );
+	printf( "\t --%s <trimming value>\n" , Trim.name );
 	printf( "\t[--%s <ouput polygon mesh>]\n" , Out.name );
 	printf( "\t[--%s <smoothing iterations>=%d]\n" , Smooth.name , Smooth.value );
 	printf( "\t[--%s <relative area of islands>=%f]\n" , IslandAreaRatio.name , IslandAreaRatio.value );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
+	printf( "\t[--%s]\n" , Verbose.name );
 }
 
 long long EdgeKey( int key1 , int key2 )
@@ -72,10 +84,9 @@ template< class Real , class Vertex >
 Vertex InterpolateVertices( const Vertex& v1 , const Vertex& v2 , Real value )
 {
 	typename Vertex::Wrapper _v1(v1) , _v2(v2);
-	if( _v1.value==_v2.value ) return Vertex( (_v1+_v2)/Real(2.) );
-
-	Real dx = ( _v1.value-value ) / ( _v1.value-_v2.value );
-	return Vertex( _v1*(1.f-dx) + _v2*dx );
+	if( _v1.value()==_v2.value() ) return (_v1+_v2)/Real(2.);
+	Real dx = ( _v1.value()-value ) / ( _v1.value()-_v2.value() );
+	return _v1*(1.f-dx) + _v2*dx;
 }
 template< class Real , class Vertex >
 void SmoothValues( std::vector< Vertex >& vertices , const std::vector< std::vector< int > >& polygons )
@@ -90,10 +101,10 @@ void SmoothValues( std::vector< Vertex >& vertices , const std::vector< std::vec
 			int j1 = j , j2 = (j+1)%sz;
 			int v1 = polygons[i][j1] , v2 = polygons[i][j2];
 			count[v1]++ , count[v2]++;
-			sums[v1] += vertices[v2].value , sums[v2] += vertices[v1].value;
+			sums[v1] += vertices[v2].value() , sums[v2] += vertices[v1].value();
 		}
 	}
-	for( size_t i=0 ; i<vertices.size() ; i++ ) vertices[i].value = ( sums[i] + vertices[i].value ) / ( count[i] + 1 );
+	for( size_t i=0 ; i<vertices.size() ; i++ ) vertices[i].value() = ( sums[i] + vertices[i].value() ) / ( count[i] + 1 );
 }
 template< class Real , class Vertex >
 void SplitPolygon
@@ -111,7 +122,7 @@ void SplitPolygon
 	int gtCount = 0;
 	for( int j=0 ; j<sz ; j++ )
 	{
-		gt[j] = ( vertices[ polygon[j] ].value>trimValue );
+		gt[j] = ( vertices[ polygon[j] ].value()>trimValue );
 		if( gt[j] ) gtCount++;
 	}
 	if     ( gtCount==sz ){ if( gtPolygons ) gtPolygons->push_back( polygon ) ; if( gtFlags ) gtFlags->push_back( false ); }
@@ -170,11 +181,9 @@ void Triangulate( const std::vector< Vertex >& vertices , const std::vector< std
 	for( size_t i=0 ; i<polygons.size() ; i++ )
 		if( polygons.size()>3 )
 		{
-			MinimalAreaTriangulation< Real > mat;
-			std::vector< Point3D< Real > > _vertices( polygons[i].size() );
-			std::vector< TriangleIndex > _triangles;
+			std::vector< Point< Real , DIMENSION > > _vertices( polygons[i].size() );
 			for( int j=0 ; j<int( polygons[i].size() ) ; j++ ) _vertices[j] = vertices[ polygons[i][j] ].point;
-			mat.GetTriangulation( _vertices , _triangles );
+			std::vector< TriangleIndex > _triangles = MinimalAreaTriangulation< Real , DIMENSION >( ( ConstPointer( Point< Real , DIMENSION > ) )GetPointer( _vertices ) , _vertices.size() );
 
 			// Add the triangles to the mesh
 			size_t idx = triangles.size();
@@ -191,14 +200,14 @@ template< class Real , class Vertex >
 double PolygonArea( const std::vector< Vertex >& vertices , const std::vector< int >& polygon )
 {
 	if( polygon.size()<3 ) return 0.;
-	else if( polygon.size()==3 ) return TriangleArea( vertices[polygon[0]].point , vertices[polygon[1]].point , vertices[polygon[2]].point );
+	else if( polygon.size()==3 ) return Area( vertices[polygon[0]].point , vertices[polygon[1]].point , vertices[polygon[2]].point );
 	else
 	{
-		Point3D< Real > center;
+		Point< Real , DIMENSION > center;
 		for( size_t i=0 ; i<polygon.size() ; i++ ) center += vertices[ polygon[i] ].point;
 		center /= Real( polygon.size() );
 		double area = 0;
-		for( size_t i=0 ; i<polygon.size() ; i++ ) area += TriangleArea( center , vertices[ polygon[i] ].point , vertices[ polygon[ (i+1)%polygon.size() ] ].point );
+		for( size_t i=0 ; i<polygon.size() ; i++ ) area += Area( center , vertices[ polygon[i] ].point , vertices[ polygon[ (i+1)%polygon.size() ] ].point );
 		return area;
 	}
 }
@@ -264,42 +273,40 @@ void SetConnectedComponents( const std::vector< std::vector< int > >& polygons ,
 	components.resize( cCount );
 	for( int i=0 ; i<int(polygonRoots.size()) ; i++ ) components[ vMap[ polygonRoots[i] ] ].push_back(i);
 }
-template< class Real >
-inline Point3D< Real > CrossProduct( Point3D< Real > p1 , Point3D< Real > p2 ){ return Point3D< Real >( p1[1]*p2[2]-p1[2]*p2[1] , p1[2]*p2[0]-p1[0]*p2[2] , p1[0]*p1[1]-p1[1]*p2[0] ); }
-template< class Real >
-double TriangleArea( Point3D< Real > v1 , Point3D< Real > v2 , Point3D< Real > v3 )
-{
-	Point3D< Real > n = CrossProduct( v2-v1 , v3-v1 );
-	return sqrt( n[0]*n[0] + n[1]*n[1] + n[2]*n[2] ) / 2.;
-}
 template< class Vertex >
 int Execute( void )
 {
 	float min , max;
-	int paramNum = sizeof(params)/sizeof(cmdLineReadable*);
 	std::vector< Vertex > vertices;
 	std::vector< std::vector< int > > polygons;
 
-	int ft , commentNum = paramNum+2;
-	char** comments;
-	PlyReadPolygons( In.value , vertices , polygons , Vertex::ReadProperties , Vertex::ReadComponents , ft , &comments , &commentNum );
+	int ft , commentNum = 0;
+	std::vector< char* > comments;
+	char** _comments;
+	PlyReadPolygons< Vertex >( In.value , vertices , polygons , Vertex::Properties() , Vertex::ReadComponents , ft , &_comments , &commentNum );
+	for( int i=0 ; i<commentNum ; i++ ) comments.push_back( _comments[i] );
 	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< float , Vertex >( vertices , polygons );
-	min = max = vertices[0].value;
-	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , vertices[i].value ) , max = std::max< float >( max , vertices[i].value );
-	printf( "Value Range: [%f,%f]\n" , min , max );
+	min = max = vertices[0].value();
+	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , vertices[i].value() ) , max = std::max< float >( max , vertices[i].value() );
+	if( Verbose.set ) printf( "Value Range: [%f,%f]\n" , min , max );
 
 	std::unordered_map< long long, int > vertexTable;
 	std::vector< std::vector< int > > ltPolygons , gtPolygons;
 	std::vector< bool > ltFlags , gtFlags;
 
-	for( int i=0 ; i<paramNum+2 ; i++ ) comments[i+commentNum]=new char[1024];
-	sprintf( comments[commentNum++] , "Running Surface Trimmer (V5)" );
-	if(              In.set ) sprintf(comments[commentNum++],"\t--%s %s" , In.name , In.value );
-	if(             Out.set ) sprintf(comments[commentNum++],"\t--%s %s" , Out.name , Out.value );
-	if(            Trim.set ) sprintf(comments[commentNum++],"\t--%s %f" , Trim.name , Trim.value );
-	if(          Smooth.set ) sprintf(comments[commentNum++],"\t--%s %d" , Smooth.name , Smooth.value );
-	if( IslandAreaRatio.set ) sprintf(comments[commentNum++],"\t--%s %f" , IslandAreaRatio.name , IslandAreaRatio.value );
-	if(     PolygonMesh.set ) sprintf(comments[commentNum++],"\t--%s" , PolygonMesh.name );
+	messageWriter( comments , "*********************************************\n" );
+	messageWriter( comments , "*********************************************\n" );
+	messageWriter( comments , "** Running Surface Trimmer (Version %s) **\n" , VERSION );
+	messageWriter( comments , "*********************************************\n" );
+	messageWriter( comments , "*********************************************\n" );
+	char str[1024];
+	for( int i=0 ; params[i] ; i++ )
+		if( params[i]->set )
+		{
+			params[i]->writeValue( str );
+			if( strlen( str ) ) messageWriter( comments , "\t--%s %s\n" , params[i]->name , str );
+			else                messageWriter( comments , "\t--%s\n" , params[i]->name );
+		}
 
 	double t=Time();
 	for( size_t i=0 ; i<polygons.size() ; i++ ) SplitPolygon( polygons[i] , vertices , &ltPolygons , &gtPolygons , &ltFlags , &gtFlags , vertexTable , Trim.value );
@@ -356,27 +363,27 @@ int Execute( void )
 
 	RemoveHangingVertices( vertices , gtPolygons );
 	sprintf( comments[commentNum++] , "#Trimmed In: %9.1f (s)" , Time()-t );
-	if( Out.set ) PlyWritePolygons( Out.value , vertices , gtPolygons , Vertex::WriteProperties , Vertex::WriteComponents , ft , comments , commentNum );
+	if( Out.set ) PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::Properties() , Vertex::WriteComponents , ft , &comments[0] , (int)comments.size() );
 
 	return EXIT_SUCCESS;
 }
 int main( int argc , char* argv[] )
 {
-	int paramNum = sizeof(params)/sizeof(cmdLineReadable*);
-	cmdLineParse( argc-1 , &argv[1] , paramNum , params , 0 );
+	cmdLineParse( argc-1 , &argv[1] , params );
+	messageWriter.echoSTDOUT = Verbose.set;
 
 	if( !In.set || !Trim.set )
 	{
 		ShowUsage( argv[0] );
 		return EXIT_FAILURE;
 	}
-	bool readFlags[ PlyColorAndValueVertex< float >::ReadComponents ];
-	if( !PlyReadHeader( In.value , PlyColorAndValueVertex< float >::ReadProperties , PlyColorAndValueVertex< float >::ReadComponents , readFlags ) ) fprintf( stderr , "[ERROR] Failed to read ply header: %s\n" , In.value ) , exit( 0 );
+	bool readFlags[ PlyColorAndValueVertex< float , DIMENSION >::ReadComponents ];
+	if( !PlyReadHeader( In.value , PlyColorAndValueVertex< float , DIMENSION >::Properties() , PlyColorAndValueVertex< float , DIMENSION >::ReadComponents , readFlags ) ) fprintf( stderr , "[ERROR] Failed to read ply header: %s\n" , In.value ) , exit( 0 );
 
-	bool hasValue = readFlags[3];
-	bool hasColor = ( readFlags[4] || readFlags[7] ) && ( readFlags[5] || readFlags[8] ) && ( readFlags[6] || readFlags[9] );
+	bool hasValue = readFlags[DIMENSION];
+	bool hasColor = ( readFlags[DIMENSION+1] || readFlags[DIMENSION+4] ) && ( readFlags[DIMENSION+2] || readFlags[DIMENSION+5] ) && ( readFlags[DIMENSION+3] || readFlags[DIMENSION+6] );
 
 	if( !hasValue ) fprintf( stderr , "[ERROR] Ply file does not contain values\n" ) , exit( 0 );
-	if( hasColor ) return Execute< PlyColorAndValueVertex< float > >();
-	else           return Execute< PlyValueVertex< float > >();
+	if( hasColor ) return Execute< PlyColorAndValueVertex< float , DIMENSION > >();
+	else           return Execute< PlyValueVertex< float , DIMENSION > >();
 }

@@ -29,7 +29,7 @@ DAMAGE.
 #ifndef BSPLINE_DATA_INCLUDED
 #define BSPLINE_DATA_INCLUDED
 
-#define NEW_BSPLINE_CODE
+#include <string.h>
 
 #include "BinaryNode.h"
 #include "PPolynomial.h"
@@ -44,11 +44,37 @@ enum BoundaryType
 };
 const char* BoundaryNames[] = { "free" , "Dirichlet" , "Neumann" };
 template< BoundaryType BType > inline bool HasPartitionOfUnity( void ){ return BType!=BOUNDARY_DIRICHLET; }
+inline bool HasPartitionOfUnity( BoundaryType bType ){ return bType!=BOUNDARY_DIRICHLET; }
+template< BoundaryType BType , unsigned int D > struct DerivativeBoundary{};
+template< unsigned int D > struct DerivativeBoundary< BOUNDARY_FREE      , D >{ static const BoundaryType BType = BOUNDARY_FREE; };
+template< unsigned int D > struct DerivativeBoundary< BOUNDARY_DIRICHLET , D >{ static const BoundaryType BType = DerivativeBoundary< BOUNDARY_NEUMANN   , D-1 >::BType; };
+template< unsigned int D > struct DerivativeBoundary< BOUNDARY_NEUMANN   , D >{ static const BoundaryType BType = DerivativeBoundary< BOUNDARY_DIRICHLET , D-1 >::BType; };
+template< > struct DerivativeBoundary< BOUNDARY_FREE      , 0 >{ static const BoundaryType BType = BOUNDARY_FREE; };
+template< > struct DerivativeBoundary< BOUNDARY_DIRICHLET , 0 >{ static const BoundaryType BType = BOUNDARY_DIRICHLET; };
+template< > struct DerivativeBoundary< BOUNDARY_NEUMANN   , 0 >{ static const BoundaryType BType = BOUNDARY_NEUMANN; };
 
-// This class represents a function that is a linear combination of B-spline elements.
-// The coeff member indicating how much of each element is present.
+
+// Generate a single signature that combines the degree, boundary type, and number of supported derivatives
+template< unsigned int Degree , BoundaryType BType=BOUNDARY_FREE > struct FEMDegreeAndBType { static const unsigned int Signature =  Degree * BOUNDARY_COUNT + BType; };
+
+// Extract the degree and boundary type from the signaure
+template< unsigned int Signature > struct FEMSignature
+{
+	static const unsigned int Degree = ( Signature / BOUNDARY_COUNT );
+	static const BoundaryType BType = (BoundaryType)( Signature % BOUNDARY_COUNT );
+	template< unsigned int D=1 >
+	static constexpr typename std::enable_if< (Degree>=D) , unsigned int >::type DSignature( void ){ return FEMDegreeAndBType< Degree-D , DerivativeBoundary< BType , D >::BType >::Signature; }
+};
+
+unsigned int FEMSignatureDegree( unsigned int signature ){ return signature / BOUNDARY_COUNT; }
+BoundaryType FEMSignatureBType ( unsigned int signature ){ return (BoundaryType)( signature % BOUNDARY_COUNT ); }
+
+static const unsigned int FEMTrivialSignature = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
+
+// This class represents a function that is a linear combination of B-spline elements,
+// with the coeff member indicating how much of each element is present.
 // [WARNING] The ordering of B-spline elements is in the opposite order from that returned by Polynomial::BSplineComponent
-template< int Degree >
+template< unsigned int Degree >
 struct BSplineElementCoefficients
 {
 	int coeffs[Degree+1];
@@ -61,7 +87,7 @@ struct BSplineElementCoefficients
 // On each block, the function is a degree-Degree polynomial, represented by the coefficients
 // in the associated BSplineElementCoefficients.
 // [NOTE] This representation of a function is agnostic to the type of boundary conditions (though the constructor is not).
-template< int Degree >
+template< unsigned int Degree >
 struct BSplineElements : public std::vector< BSplineElementCoefficients< Degree > >
 {
 	static const bool _Primal = (Degree&1)==1;
@@ -110,12 +136,14 @@ public:
 		return P.compress(0);
 	}
 };
-template< int Degree , int DDegree > struct Differentiator                   { static void Differentiate( const BSplineElements< Degree >& bse , BSplineElements< DDegree >& dbse ); };
-template< int Degree >               struct Differentiator< Degree , Degree >{ static void Differentiate( const BSplineElements< Degree >& bse , BSplineElements<  Degree >& dbse ); };
+
+template< unsigned int Degree , unsigned int DDegree > struct Differentiator                   { static void Differentiate( const BSplineElements< Degree >& bse , BSplineElements< DDegree >& dbse ); };
+template< unsigned int Degree >                        struct Differentiator< Degree , Degree >{ static void Differentiate( const BSplineElements< Degree >& bse , BSplineElements<  Degree >& dbse ); };
+
 #define BSPLINE_SET_BOUNDS( name , s , e ) \
 	static const int name ## Start = (s); \
 	static const int name ## End   = (e); \
-	static const int name ## Size  = (e)-(s)+1
+	static const unsigned int name ## Size  = (e)-(s)+1
 
 // Assumes that x is non-negative
 #define _FLOOR_OF_HALF( x ) (   (x)    >>1 )
@@ -128,13 +156,17 @@ template< int Degree >               struct Differentiator< Degree , Degree >{ s
 #define SMALLEST_INTEGER_LARGER_THAN_OR_EQUAL_TO_HALF( x ) (  CEIL_OF_HALF( x ) )
 #define LARGEST_INTEGER_SMALLER_THAN_OR_EQUAL_TO_HALF( x ) ( FLOOR_OF_HALF( x ) )
 
-template< int Degree >
+template< unsigned int Degree >
 struct BSplineSupportSizes
 {
+protected:
+	static const int _Degree = Degree;
+public:
 	inline static int Nodes( int depth ){ return ( 1<<depth ) + ( Degree&1 ); }
 	inline static bool OutOfBounds( int depth , int offset ){ return offset>=0 || offset<Nodes(depth); }
 	// An index is interiorly supported if its support is in the range [0,1<<depth)
 	inline static void InteriorSupportedSpan( int depth , int& begin , int& end ){ begin = -SupportStart , end = (1<<depth)-SupportEnd; }
+	inline static bool IsInteriorlySupported( int depth , int offset ){ return offset+SupportStart>=0 && offset+SupportEnd<(1<<depth); }
 
 	// If the degree is even, we use a dual basis and functions are centered at the center of the interval
 	// It the degree is odd, we use a primal basis and functions are centered at the left end of the interval
@@ -142,10 +174,12 @@ struct BSplineSupportSizes
 	//	Support( I ) = [ I - (Degree+1-Inset)/2 , I + (Degree+1+Inset)/2 ]
 	// [NOTE] The value of ( Degree + 1 +/- Inset ) is always even
 	static const int Inset = (Degree&1) ? 0 : 1;
-	BSPLINE_SET_BOUNDS(      Support , -( (Degree+1)/2 ) , Degree/2           );
-	BSPLINE_SET_BOUNDS( ChildSupport ,    2*SupportStart , 2*(SupportEnd+1)-1 );
-	BSPLINE_SET_BOUNDS(       Corner ,    SupportStart+1 , SupportEnd         );
-	BSPLINE_SET_BOUNDS(  ChildCorner ,  2*SupportStart+1 , 2*SupportEnd + 1   );
+	BSPLINE_SET_BOUNDS(      Support , -( (_Degree+1)/2 ) , _Degree/2          );
+	BSPLINE_SET_BOUNDS( ChildSupport ,     2*SupportStart , 2*(SupportEnd+1)-1 );
+	BSPLINE_SET_BOUNDS(       Corner ,     SupportStart+1 , SupportEnd         );
+	BSPLINE_SET_BOUNDS(  ChildCorner ,   2*SupportStart+1 , 2*SupportEnd + 1   );
+	BSPLINE_SET_BOUNDS(      BCorner ,      CornerStart-1 ,      CornerEnd+1 );
+	BSPLINE_SET_BOUNDS( ChildBCorner , ChildCornerStart-1 , ChildCornerEnd+1 );
 
 	// Setting I=0, we are looking for the smallest/largest integers J such that:
 	//		Support( 0 ) CONTAINS Support( J )
@@ -153,7 +187,7 @@ struct BSplineSupportSizes
 	// Which is the same as the smallest/largest integers J such that:
 	//		J - (Degree+1-Inset)/2 >= -(Degree+1-Inset)	| J + (Degree+1+Inset)/2 <= (Degree+1+Inset)
 	// <=>	J >= -(Degree+1-Inset)/2					| J <= (Degree+1+Inset)/2
-	BSPLINE_SET_BOUNDS( UpSample , - ( Degree + 1 - Inset ) / 2 , ( Degree + 1 + Inset ) /2 );
+	BSPLINE_SET_BOUNDS( UpSample , - ( _Degree + 1 - Inset ) / 2 , ( _Degree + 1 + Inset ) /2 );
 
 	// Setting I=0/1, we are looking for the smallest/largest integers J such that:
 	//		Support( J ) CONTAINS Support( 0/1 )
@@ -161,19 +195,22 @@ struct BSplineSupportSizes
 	// Which is the same as the smallest/largest integers J such that:
 	//		2*J + (Degree+1+Inset) >= 0/1 + (Degree+1+Inset)/2	| 2*J - (Degree+1-Inset) <= 0/1 - (Degree+1-Inset)/2
 	// <=>	2*J >= 0/1 - (Degree+1+Inset)/2						| 2*J <= 0/1 + (Degree+1-Inset)/2
-	BSPLINE_SET_BOUNDS( DownSample0 , SMALLEST_INTEGER_LARGER_THAN_OR_EQUAL_TO_HALF( 0 - ( Degree + 1 + Inset ) / 2 ) , LARGEST_INTEGER_SMALLER_THAN_OR_EQUAL_TO_HALF( 0 + ( Degree + 1 - Inset ) / 2 ) );
-	BSPLINE_SET_BOUNDS( DownSample1 , SMALLEST_INTEGER_LARGER_THAN_OR_EQUAL_TO_HALF( 1 - ( Degree + 1 + Inset ) / 2 ) , LARGEST_INTEGER_SMALLER_THAN_OR_EQUAL_TO_HALF( 1 + ( Degree + 1 - Inset ) / 2 ) );
-	static const int DownSampleStart[] , DownSampleEnd[] , DownSampleSize[];
+	BSPLINE_SET_BOUNDS( DownSample0 , SMALLEST_INTEGER_LARGER_THAN_OR_EQUAL_TO_HALF( 0 - ( _Degree + 1 + Inset ) / 2 ) , LARGEST_INTEGER_SMALLER_THAN_OR_EQUAL_TO_HALF( 0 + ( _Degree + 1 - Inset ) / 2 ) );
+	BSPLINE_SET_BOUNDS( DownSample1 , SMALLEST_INTEGER_LARGER_THAN_OR_EQUAL_TO_HALF( 1 - ( _Degree + 1 + Inset ) / 2 ) , LARGEST_INTEGER_SMALLER_THAN_OR_EQUAL_TO_HALF( 1 + ( _Degree + 1 - Inset ) / 2 ) );
+	static const int DownSampleStart[] , DownSampleEnd[];
+	static const unsigned int DownSampleSize[];
 };
-template< int Degree > const int BSplineSupportSizes< Degree >::DownSampleStart[] = { DownSample0Start , DownSample1Start };
-template< int Degree > const int BSplineSupportSizes< Degree >::DownSampleEnd  [] = { DownSample0End   , DownSample1End   };
-template< int Degree > const int BSplineSupportSizes< Degree >::DownSampleSize [] = { DownSample0Size  , DownSample1Size  };
+template< unsigned int Degree > const int BSplineSupportSizes< Degree >::DownSampleStart[] = { DownSample0Start , DownSample1Start };
+template< unsigned int Degree > const int BSplineSupportSizes< Degree >::DownSampleEnd  [] = { DownSample0End   , DownSample1End   };
+template< unsigned int Degree > const unsigned int BSplineSupportSizes< Degree >::DownSampleSize [] = { DownSample0Size  , DownSample1Size  };
 
-
-// Given a B-Spline of degree Degree1 at position i, this gives the offsets of the B-splines of degree Degree2 that just overlap with it.
-template< int Degree1 , int Degree2 >
+template< unsigned int Degree1 , unsigned int Degree2=Degree1 >
 struct BSplineOverlapSizes
 {
+protected:
+	static const int _Degree1 = Degree1;
+	static const int _Degree2 = Degree2;
+public:
 	typedef BSplineSupportSizes< Degree1 > EData1;
 	typedef BSplineSupportSizes< Degree2 > EData2;
 	BSPLINE_SET_BOUNDS(             Overlap , EData1::     SupportStart - EData2::SupportEnd , EData1::     SupportEnd - EData2::SupportStart );
@@ -187,19 +224,42 @@ struct BSplineOverlapSizes
 	// Which is the same as the smallest/largest integers J such that:
 	//		0/1 - (Degree1+1-Inset1)/2 < 2*J + (Degree2+1+Inset2)			| 0/1 + (Degree1+1+Inset1)/2 > 2*J - (Degree2+1-Inset2)	
 	// <=>	2*J > 0/1 - ( 2*Degree2 + Degree1 + 3 + 2*Inset2 - Inset1 ) / 2	| 2*J < 0/1 + ( 2*Degree2 + Degree1 + 3 - 2*Inset2 + Inset1 ) / 2
-	BSPLINE_SET_BOUNDS( ParentOverlap0 , SMALLEST_INTEGER_LARGER_THAN_HALF( 0 - ( 2*Degree2 + Degree1 + 3 + 2*EData2::Inset - EData1::Inset ) / 2 ) , LARGEST_INTEGER_SMALLER_THAN_HALF( 0 + ( 2*Degree2 + Degree1 + 3 - 2*EData2::Inset + EData1::Inset ) / 2 ) );
-	BSPLINE_SET_BOUNDS( ParentOverlap1 , SMALLEST_INTEGER_LARGER_THAN_HALF( 1 - ( 2*Degree2 + Degree1 + 3 + 2*EData2::Inset - EData1::Inset ) / 2 ) , LARGEST_INTEGER_SMALLER_THAN_HALF( 1 + ( 2*Degree2 + Degree1 + 3 - 2*EData2::Inset + EData1::Inset ) / 2 ) );
+	BSPLINE_SET_BOUNDS( ParentOverlap0 , SMALLEST_INTEGER_LARGER_THAN_HALF( 0 - ( 2*_Degree2 + _Degree1 + 3 + 2*EData2::Inset - EData1::Inset ) / 2 ) , LARGEST_INTEGER_SMALLER_THAN_HALF( 0 + ( 2*_Degree2 + _Degree1 + 3 - 2*EData2::Inset + EData1::Inset ) / 2 ) );
+	BSPLINE_SET_BOUNDS( ParentOverlap1 , SMALLEST_INTEGER_LARGER_THAN_HALF( 1 - ( 2*_Degree2 + _Degree1 + 3 + 2*EData2::Inset - EData1::Inset ) / 2 ) , LARGEST_INTEGER_SMALLER_THAN_HALF( 1 + ( 2*_Degree2 + _Degree1 + 3 - 2*EData2::Inset + EData1::Inset ) / 2 ) );
 	static const int ParentOverlapStart[] , ParentOverlapEnd[] , ParentOverlapSize[];
 };
-template< int Degree1 , int Degree2 > const int BSplineOverlapSizes< Degree1 , Degree2 >::ParentOverlapStart[] = { ParentOverlap0Start , ParentOverlap1Start };
-template< int Degree1 , int Degree2 > const int BSplineOverlapSizes< Degree1 , Degree2 >::ParentOverlapEnd  [] = { ParentOverlap0End   , ParentOverlap1End   };
-template< int Degree1 , int Degree2 > const int BSplineOverlapSizes< Degree1 , Degree2 >::ParentOverlapSize [] = { ParentOverlap0Size  , ParentOverlap1Size  };
+template< unsigned int Degree1 , unsigned int Degree2 > const int BSplineOverlapSizes< Degree1 , Degree2 >::ParentOverlapStart[] = { ParentOverlap0Start , ParentOverlap1Start };
+template< unsigned int Degree1 , unsigned int Degree2 > const int BSplineOverlapSizes< Degree1 , Degree2 >::ParentOverlapEnd  [] = { ParentOverlap0End   , ParentOverlap1End   };
+template< unsigned int Degree1 , unsigned int Degree2 > const int BSplineOverlapSizes< Degree1 , Degree2 >::ParentOverlapSize [] = { ParentOverlap0Size  , ParentOverlap1Size  };
 
-template< int Degree , BoundaryType BType >
+struct EvaluationData
+{
+	struct CornerEvaluator
+	{
+		virtual double value( int fIdx , int cIdx , int d ) const = 0;
+		virtual void set( int depth ) = 0;
+		virtual ~CornerEvaluator( void ){}
+	};
+	struct CenterEvaluator
+	{
+		virtual double value( int fIdx , int cIdx , int d ) const = 0;
+		virtual void set( int depth ) = 0;
+		virtual ~CenterEvaluator( void ){}
+	};
+	struct UpSampleEvaluator
+	{
+		virtual double value( int pIdx , int cIdx ) const = 0;
+		virtual void set( int depth ) = 0;
+		virtual ~UpSampleEvaluator( void ){}
+	};
+};
+
+template< unsigned int FEMSig >
 class BSplineEvaluationData
 {
 public:
-	static const int Pad = (BType==BOUNDARY_FREE ) ? BSplineSupportSizes< Degree >::SupportEnd : ( (Degree&1) && BType==BOUNDARY_DIRICHLET ) ? -1 : 0;
+	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
+	static const int Pad = (FEMSignature< FEMSig >::BType==BOUNDARY_FREE ) ? BSplineSupportSizes< Degree >::SupportEnd : ( (Degree&1) && FEMSignature< FEMSig >::BType==BOUNDARY_DIRICHLET ) ? -1 : 0;
 	inline static int Begin( int depth ){ return -Pad; }
 	inline static int End  ( int depth ){ return (1<<depth) + (Degree&1) + Pad; }
 	inline static bool OutOfBounds( int depth , int offset ){ return offset<Begin(depth) || offset>=End(depth); }
@@ -215,22 +275,9 @@ public:
 	static inline int IndexToOffset( int depth , int idx ){ return ( idx-Pad<=OffsetStart ? idx - Pad : ( BSplineSupportSizes< Degree >::Nodes(depth) + Pad - IndexSize + idx ) ); }
 
 	BSplineEvaluationData( void );
+	static double Value( int depth , int off , double s , int d );
+	static double Integral( int depth , int off , double b , double e , int d );
 
-	// [NOTE] The offset represents the node position, not the index of the function
-	static double Value( int depth , int off , double s , bool derivative );
-
-	// Note that this struct stores the components in left-to-right order
-	struct BSplineComponents
-	{
-	protected:
-		Polynomial< Degree > _polys[Degree+1];
-	public:
-		BSplineComponents( void ){ ; }
-		BSplineComponents( int depth , int offset );
-		const Polynomial< Degree >& operator[] ( int idx ) const { return _polys[idx]; }
-		BSplineComponents derivative( void ) const;
-		void printnl( void ) const { for( int d=0 ; d<=Degree ; d++ ) printf( "[%d] " , d ) , _polys[d].printnl(); }
-	};
 	struct BSplineUpSamplingCoefficients
 	{
 	protected:
@@ -241,119 +288,121 @@ public:
 		double operator[] ( int idx ){ return (double)_coefficients[idx] / (1<<Degree); }
 	};
 
+	template< unsigned int D >
 	struct CenterEvaluator
 	{
-		struct Evaluator
+		struct Evaluator : public EvaluationData::CenterEvaluator
 		{
 		protected:
 			friend BSplineEvaluationData;
 			int _depth;
-			double _ccValues[2][IndexSize][BSplineSupportSizes< Degree >::SupportSize];
+			double _ccValues[D+1][IndexSize][BSplineSupportSizes< Degree >::SupportSize];
 		public:
-#ifdef BRUNO_LEVY_FIX
 			Evaluator( void ){ _depth = 0 ; memset( _ccValues , 0 , sizeof(_ccValues) ); }
-#endif // BRUNO_LEVY_FIX
-			double value( int fIdx , int cIdx , bool d ) const;
+			double value( int fIdx , int cIdx , int d ) const;
 			int depth( void ) const { return _depth; }
+			void set( int depth ){ BSplineEvaluationData< FEMSig >::template SetCenterEvaluator< D >( *this , depth ); }
 		};
-		struct ChildEvaluator
+		struct ChildEvaluator : public EvaluationData::CenterEvaluator
 		{
 		protected:
 			friend BSplineEvaluationData;
 			int _parentDepth;
-			double _pcValues[2][IndexSize][BSplineSupportSizes< Degree >::ChildSupportSize];
+			double _pcValues[D+1][IndexSize][BSplineSupportSizes< Degree >::ChildSupportSize];
 		public:
-#ifdef BRUNO_LEVY_FIX
 			ChildEvaluator( void ){ _parentDepth = 0 ; memset( _pcValues , 0 , sizeof(_pcValues) ); }
-#endif // BRUNO_LEVY_FIX
-			double value( int fIdx , int cIdx , bool d ) const;
+			double value( int fIdx , int cIdx , int d ) const;
 			int parentDepth( void ) const { return _parentDepth; }
 			int childDepth( void ) const { return _parentDepth+1; }
+			void set( int parentDepth ){ BSplineEvaluationData< FEMSig >::template SetChildCenterEvaluator< D >( *this , parentDepth ); }
 		};
 	};
-	static void SetCenterEvaluator( typename CenterEvaluator::Evaluator& evaluator , int depth );
-	static void SetChildCenterEvaluator( typename CenterEvaluator::ChildEvaluator& evaluator , int parentDepth );
+	template< unsigned int D > static void SetCenterEvaluator( typename CenterEvaluator< D >::Evaluator& evaluator , int depth );
+	template< unsigned int D > static void SetChildCenterEvaluator( typename CenterEvaluator< D >::ChildEvaluator& evaluator , int parentDepth );
 
+	template< unsigned int D >
 	struct CornerEvaluator
 	{
-		struct Evaluator
+		struct Evaluator : public EvaluationData::CornerEvaluator
 		{
 		protected:
 			friend BSplineEvaluationData;
 			int _depth;
-			double _ccValues[2][IndexSize][BSplineSupportSizes< Degree >::CornerSize];
+			double _ccValues[D+1][IndexSize][BSplineSupportSizes< Degree >::BCornerSize];
 		public:
-#ifdef BRUNO_LEVY_FIX
 			Evaluator( void ){ _depth = 0 ; memset( _ccValues , 0 , sizeof( _ccValues ) ); }
-#endif // BRUNO_LEVY_FIX
-			double value( int fIdx , int cIdx , bool d ) const;
+			double value( int fIdx , int cIdx , int d ) const;
 			int depth( void ) const { return _depth; }
+			void set( int depth ){ BSplineEvaluationData< FEMSig >::template SetCornerEvaluator< D >( *this , depth ); }
 		};
-		struct ChildEvaluator
+		struct ChildEvaluator : public EvaluationData::CornerEvaluator
 		{
 		protected:
 			friend BSplineEvaluationData;
 			int _parentDepth;
-			double _pcValues[2][IndexSize][BSplineSupportSizes< Degree >::ChildCornerSize];
+			double _pcValues[D+1][IndexSize][BSplineSupportSizes< Degree >::ChildBCornerSize];
 		public:
-#ifdef BRUNO_LEVY_FIX
 			ChildEvaluator( void ){ _parentDepth = 0 ; memset( _pcValues , 0 , sizeof( _pcValues ) ); }
-#endif // BRUNO_LEVY_FIX
-			double value( int fIdx , int cIdx , bool d ) const;
+			double value( int fIdx , int cIdx , int d ) const;
 			int parentDepth( void ) const { return _parentDepth; }
 			int childDepth( void ) const { return _parentDepth+1; }
+			void set( int parentDepth ){ BSplineEvaluationData< FEMSig >::template SetChildCornerEvaluator< D >( *this , parentDepth ); }
 		};
 	};
-	static void SetCornerEvaluator( typename CornerEvaluator::Evaluator& evaluator , int depth );
-	static void SetChildCornerEvaluator( typename CornerEvaluator::ChildEvaluator& evaluator , int parentDepth );
+	template< unsigned int D > static void SetCornerEvaluator( typename CornerEvaluator< D >::Evaluator& evaluator , int depth );
+	template< unsigned int D > static void SetChildCornerEvaluator( typename CornerEvaluator< D >::ChildEvaluator& evaluator , int parentDepth );
 
+	template< unsigned int D >
 	struct Evaluator
 	{
-		typename CenterEvaluator::Evaluator centerEvaluator;
-		typename CornerEvaluator::Evaluator cornerEvaluator;
-		double centerValue( int fIdx , int cIdx , bool d ) const { return centerEvaluator.value( fIdx , cIdx , d ); }
-		double cornerValue( int fIdx , int cIdx , bool d ) const { return cornerEvaluator.value( fIdx , cIdx , d ); }
+		typename CenterEvaluator< D >::Evaluator centerEvaluator;
+		typename CornerEvaluator< D >::Evaluator cornerEvaluator;
+		double centerValue( int fIdx , int cIdx , int d ) const { return centerEvaluator.value( fIdx , cIdx , d ); }
+		double cornerValue( int fIdx , int cIdx , int d ) const { return cornerEvaluator.value( fIdx , cIdx , d ); }
 	};
-	static void SetEvaluator( Evaluator& evaluator , int depth ){ SetCenterEvaluator( evaluator.centerEvaluator , depth ) , SetCornerEvaluator( evaluator.cornerEvaluator , depth ); }
-
+	template< unsigned int D > static void SetEvaluator( Evaluator< D >& evaluator , int depth ){ SetCenterEvaluator< D >( evaluator.centerEvaluator , depth ) , SetCornerEvaluator< D >( evaluator.cornerEvaluator , depth ); }
+	template< unsigned int D >
 	struct ChildEvaluator
 	{
-		typename CenterEvaluator::ChildEvaluator centerEvaluator;
-		typename CornerEvaluator::ChildEvaluator cornerEvaluator;
-		double centerValue( int fIdx , int cIdx , bool d ) const { return centerEvaluator.value( fIdx , cIdx , d ); }
-		double cornerValue( int fIdx , int cIdx , bool d ) const { return cornerEvaluator.value( fIdx , cIdx , d ); }
+		typename CenterEvaluator< D >::ChildEvaluator centerEvaluator;
+		typename CornerEvaluator< D >::ChildEvaluator cornerEvaluator;
+		double centerValue( int fIdx , int cIdx , int d ) const { return centerEvaluator.value( fIdx , cIdx , d ); }
+		double cornerValue( int fIdx , int cIdx , int d ) const { return cornerEvaluator.value( fIdx , cIdx , d ); }
 	};
-	static void SetChildEvaluator( ChildEvaluator& evaluator , int depth ){ SetChildCenterEvaluator( evaluator.centerEvaluator , depth ) , SetChildCornerEvaluator( evaluator.cornerEvaluator , depth ); }
+	template< unsigned int D > static void SetChildEvaluator( ChildEvaluator< D >& evaluator , int depth ){ SetChildCenterEvaluator< D >( evaluator.centerEvaluator , depth ) , SetChildCornerEvaluator< D >( evaluator.cornerEvaluator , depth ); }
 
-	struct UpSampleEvaluator
+	struct UpSampleEvaluator : public EvaluationData::UpSampleEvaluator
 	{
 	protected:
 		friend BSplineEvaluationData;
 		int _lowDepth;
 		double _pcValues[IndexSize][BSplineSupportSizes< Degree >::UpSampleSize];
 	public:
-#ifdef BRUNO_LEVY_FIX
 		UpSampleEvaluator( void ){ _lowDepth = 0 ; memset( _pcValues , 0 , sizeof( _pcValues ) ); }
-#endif // BRUNO_LEVY_FIX
 		double value( int pIdx , int cIdx ) const;
 		int lowDepth( void ) const { return _lowDepth; }
+		void set( int lowDepth ){ BSplineEvaluationData::SetUpSampleEvaluator( *this , lowDepth ); }
 	};
 	static void SetUpSampleEvaluator( UpSampleEvaluator& evaluator , int lowDepth );
 };
 
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 class BSplineIntegrationData
 {
 public:
-	static const int OffsetStart = - BSplineOverlapSizes< Degree1 , Degree2 >::OverlapSupportStart , OffsetStop = BSplineOverlapSizes< Degree1 , Degree2 >::OverlapSupportEnd + ( Degree1&1 ) , IndexSize = OffsetStart + OffsetStop + 1 + 2 * BSplineEvaluationData< Degree1 , BType1 >::Pad;
+	static const unsigned int Degree1 = FEMSignature< FEMSig1 >::Degree;
+	static const unsigned int Degree2 = FEMSignature< FEMSig2 >::Degree;
+	static const int OffsetStart = - BSplineOverlapSizes< Degree1 , Degree2 >::OverlapSupportStart;
+	static const int OffsetStop  =   BSplineOverlapSizes< Degree1 , Degree2 >::OverlapSupportEnd + ( Degree1&1 );
+	static const int IndexSize = OffsetStart + OffsetStop + 1 + 2 * BSplineEvaluationData< FEMSig1 >::Pad;
 	static int OffsetToIndex( int depth , int offset )
 	{
 		int dim = BSplineSupportSizes< Degree1 >::Nodes( depth );
-		if     ( offset<OffsetStart )     return BSplineEvaluationData< Degree1 , BType1 >::Pad + offset;
-		else if( offset>=dim-OffsetStop ) return BSplineEvaluationData< Degree1 , BType1 >::Pad + OffsetStart + 1 + offset - ( dim-OffsetStop );
-		else                              return BSplineEvaluationData< Degree1 , BType1 >::Pad + OffsetStart;
+		if     ( offset<OffsetStart )     return BSplineEvaluationData< FEMSig1 >::Pad + offset;
+		else if( offset>=dim-OffsetStop ) return BSplineEvaluationData< FEMSig1 >::Pad + OffsetStart + 1 + offset - ( dim-OffsetStop );
+		else                              return BSplineEvaluationData< FEMSig1 >::Pad + OffsetStart;
 	}
-	static inline int IndexToOffset( int depth , int idx ){ return ( idx-BSplineEvaluationData< Degree1 , BType1 >::Pad<=OffsetStart ? idx-BSplineEvaluationData< Degree1 , BType1 >::Pad : ( BSplineSupportSizes< Degree1 >::Nodes(depth) + BSplineEvaluationData< Degree1 , BType1 >::Pad - IndexSize + idx ) ); }
+	static inline int IndexToOffset( int depth , int idx ){ return ( idx-BSplineEvaluationData< FEMSig1 >::Pad<=OffsetStart ? idx-BSplineEvaluationData< FEMSig1 >::Pad : ( BSplineSupportSizes< Degree1 >::Nodes(depth) + BSplineEvaluationData< FEMSig1 >::Pad - IndexSize + idx ) ); }
 
 	template< unsigned int D1 , unsigned int D2 > static double Dot( int depth1 , int off1 , int depth2 , int off2 );
 	// An index is interiorly overlapped if the support of its overlapping neighbors is in the range [0,1<<depth)
@@ -361,7 +410,7 @@ public:
 
 	struct FunctionIntegrator
 	{
-		template< unsigned int D1 , unsigned int D2 >
+		template< unsigned int D1=Degree1 , unsigned int D2=Degree2 >
 		struct Integrator
 		{
 		protected:
@@ -369,13 +418,16 @@ public:
 			int _depth;
 			double _ccIntegrals[D1+1][D2+1][IndexSize][BSplineOverlapSizes< Degree1 , Degree2 >::OverlapSize];
 		public:
-#ifdef BRUNO_LEVY_FIX
-			Integrator( void ){ _depth = 0 ; memset(_ccIntegrals, 0, sizeof(_ccIntegrals)); }
-#endif // BRUNO_LEVY_FIX
+			Integrator( void )
+			{
+				_depth = 0;
+				memset(_ccIntegrals, 0, sizeof(_ccIntegrals));
+			}
 			double dot( int fIdx1 , int fidx2 , int d1 , int d2 ) const;
 			int depth( void ) const { return _depth; }
+			void set( int depth ){ BSplineIntegrationData::SetIntegrator( *this , depth ); }
 		};
-		template< unsigned int D1 , unsigned int D2 >
+		template< unsigned int D1=Degree1 , unsigned int D2=Degree2 >
 		struct ChildIntegrator
 		{
 		protected:
@@ -383,12 +435,15 @@ public:
 			int _parentDepth;
 			double _pcIntegrals[D1+1][D2+1][IndexSize][BSplineOverlapSizes< Degree1 , Degree2 >::ChildOverlapSize];
 		public:
-#ifdef BRUNO_LEVY_FIX
-			ChildIntegrator( void ){ _parentDepth = 0 ; memset( _pcIntegrals , 0 , sizeof( _pcIntegrals ) ); }
-#endif // BRUNO_LEVY_FIX
+			ChildIntegrator( void )
+			{
+				_parentDepth = 0;
+				memset( _pcIntegrals , 0 , sizeof( _pcIntegrals ) ); 
+			}
 			double dot( int fIdx1 , int fidx2 , int d1 , int d2 ) const;
 			int parentDepth( void ) const { return _parentDepth; }
 			int childDepth( void ) const { return _parentDepth+1; }
+			void set( int depth ){ BSplineIntegrationData::SetChildIntegrator( *this , depth ); }
 		};
 	};
 	// D1 and D2 indicate the number of derivatives that should be taken
@@ -441,30 +496,74 @@ protected:
 #undef SMALLEST_INTEGER_LARGER_THAN_OR_EQUAL_TO_HALF
 #undef LARGEST_INTEGER_SMALLER_THAN_OR_EQUAL_TO_HALF
 
-template< int Degree , BoundaryType BType >
+
+template< unsigned int FEMSig , unsigned int D=0 >
 struct BSplineData
 {
-	inline static int TotalFunctionCount( int depth ){ return depth<0 ? 0 : (1<<(depth+1)) - 1 + (depth+1) * ( (Degree&1) + 2 * BSplineEvaluationData< Degree , BType >::Pad ); }
-	inline static int FunctionIndex( int depth , int offset ){ return TotalFunctionCount( depth-1 ) + offset + BSplineEvaluationData< Degree , BType >::Pad; }
-	inline static void FactorFunctionIndex( int idx , int& depth , int& offset )
+	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
+	static const int _Degree = Degree;
+	// Note that this struct stores the components in left-to-right order
+	struct BSplineComponents
 	{
-		int dim;
-		depth = 0;
-		while( idx>=( dim = BSplineEvaluationData< Degree , BType >::End( depth ) - BSplineEvaluationData< Degree , BType >::Begin( depth ) ) ) idx -= dim , depth++;
-		offset = idx - BSplineEvaluationData< Degree , BType >::Pad;
-	}
-	inline static void FunctionSpan( int depth , int& fStart , int& fEnd ){ fStart = TotalFunctionCount( depth-1 ) , fEnd = TotalFunctionCount( depth ); }
+		BSplineComponents( void ){ ; }
+		BSplineComponents( int depth , int offset );
+		const Polynomial< Degree >* operator[] ( int idx ) const { return _polys[idx]; }
+	protected:
+		Polynomial< Degree > _polys[Degree+1][D+1];
+	};
+	struct SparseBSplineEvaluator
+	{
+		void init( unsigned int depth )
+		{
+			_depth = depth , _width = 1./(1<<depth);
+			// _preStart + BSplineSupportSizes< _Degree >::SupportEnd >=0
+			_preStart = -BSplineSupportSizes< _Degree >::SupportEnd;
+			// _postStart + BSplineSupportSizes< _Degree >::SupportEnd <= (1<<depth)-1
+			_postStart = (1<<depth) - 1 - BSplineSupportSizes< _Degree >::SupportEnd;
+			_preEnd = _preStart + _Degree + 1;
+			_postEnd = _postStart + _Degree + 1;
+			_centerIndex = ( ( _preStart + _Degree + 1 ) + ( _postStart - 1 ) ) / 2;
+			_centerComponents = BSplineComponents( depth , _centerIndex );
+			for( int i=0 ; i<=Degree ; i++ ) _preComponents[i] = BSplineComponents( depth , _preStart+i ) , _postComponents[i] = BSplineComponents( depth , _postStart+i );
+		}
+		double value( double p ,            int fIdx , int d ) const { return value( p , (int)( p * (1<<_depth ) ) , fIdx , d ); }
+		double value( double p , int pIdx , int fIdx , int d ) const
+		{
+			if     ( fIdx<_preStart  ) return 0;
+			else if( fIdx<_preEnd    ) return _preComponents [fIdx-_preStart ][pIdx-fIdx+_LeftSupportRadius][d]( p );
+			else if( fIdx<_postStart ) return _centerComponents               [pIdx-fIdx+_LeftSupportRadius][d]( p+_width*(_centerIndex-fIdx) );
+			else if( fIdx<_postEnd   ) return _postComponents[fIdx-_postStart][pIdx-fIdx+_LeftSupportRadius][d]( p );
+			else                       return 0;
+		}
+		const Polynomial< _Degree >* polynomialsAndOffset( double& p ,            int fIdx ) const { return polynomialsAndOffset( p , (int)( p * (1<<_depth ) ) , fIdx ); }
+		const Polynomial< _Degree >* polynomialsAndOffset( double& p , int pIdx , int fIdx ) const
+		{
+			if     ( fIdx<_preEnd    ){                                   return _preComponents [fIdx-_preStart ][pIdx-fIdx+_LeftSupportRadius]; }
+			else if( fIdx<_postStart ){ p += _width*(_centerIndex-fIdx) ; return _centerComponents               [pIdx-fIdx+_LeftSupportRadius]; }
+			else                      {                                   return _postComponents[fIdx-_postStart][pIdx-fIdx+_LeftSupportRadius]; }
+		}
+	protected:
+		static const int _LeftSupportRadius = -BSplineSupportSizes< _Degree >::SupportStart;
+		BSplineComponents _preComponents[_Degree+1] , _postComponents[_Degree+1] ,_centerComponents;
+		int _preStart , _preEnd , _postStart , _postEnd , _centerIndex;
+		unsigned int _depth;
+		double _width;
+	};
+	const SparseBSplineEvaluator& operator[]( int depth ) const { return _evaluators[depth]; }
+
 	inline static int RemapOffset( int depth , int idx , bool& reflect );
 
-	size_t functionCount;
-	Pointer( typename BSplineEvaluationData< Degree , BType >::BSplineComponents )  baseBSplines;
-	Pointer( typename BSplineEvaluationData< Degree , BType >::BSplineComponents ) dBaseBSplines;
-
+	BSplineData( void );
+	void reset( int maxDepth );
 	BSplineData( int maxDepth );
 	~BSplineData( void );
+
+protected:
+	unsigned int _maxDepth;
+	Pointer( SparseBSplineEvaluator ) _evaluators;
 };
 
-template< int Degree1 , int Degree2 > void SetBSplineElementIntegrals( double integrals[Degree1+1][Degree2+1] );
+template< unsigned int Degree1 , unsigned int Degree2 > void SetBSplineElementIntegrals( double integrals[Degree1+1][Degree2+1] );
 
 
 #include "BSplineData.inl"

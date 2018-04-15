@@ -28,20 +28,35 @@ DAMAGE.
 #ifndef MAT_INCLUDED
 #define MAT_INCLUDED
 #include "Geometry.h"
+#include "Array.h"
 
-template <class Real>
-class MinimalAreaTriangulation
+template< class Real , unsigned int Dim >
+std::vector< TriangleIndex > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
+
+template< class Real , unsigned int Dim >
+class _MinimalAreaTriangulation
 {
-	Real* bestTriangulation;
-	int* midPoint;
-	Real GetArea(const size_t& i,const size_t& j,const std::vector<Point3D<Real> >& vertices);
-	void GetTriangulation(const size_t& i,const size_t& j,const std::vector<Point3D<Real> >& vertices,std::vector<TriangleIndex>& triangles);
-public:
-	MinimalAreaTriangulation(void);
-	~MinimalAreaTriangulation(void);
-	Real GetArea(const std::vector<Point3D<Real> >& vertices);
-	void GetTriangulation(const std::vector<Point3D<Real> >& vertices,std::vector<TriangleIndex>& triangles);
+	Pointer( Real ) _bestTriangulation;
+	Pointer( int ) _midpoint;
+	size_t _vCount;
+	ConstPointer( Point< Real , Dim > ) _vertices;
+
+	void _set( void );
+	Real _subPolygonArea( size_t i , size_t j );
+	void _addTriangles( size_t i , size_t j , std::vector< TriangleIndex >& triangles ) const;
+	size_t _subPolygonIndex( size_t i , size_t j ) const;
+
+	_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
+	~_MinimalAreaTriangulation( void );
+	std::vector< TriangleIndex > getTriangulation( void );
+	friend std::vector< TriangleIndex > MinimalAreaTriangulation< Real , Dim >( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
 };
+template< class Real , unsigned int Dim >
+std::vector< TriangleIndex > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount )
+{
+	_MinimalAreaTriangulation< Real , Dim > MAT( vertices , vCount );
+	return MAT.getTriangulation();
+}
 
 #include "MAT.inl"
 

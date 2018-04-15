@@ -29,19 +29,14 @@ DAMAGE.
 #ifndef POLYNOMIAL_INCLUDED
 #define POLYNOMIAL_INCLUDED
 
-#define NEW_POLYNOMIAL_CODE 1
-
-#include <vector>
-
 template< int Degree >
 class Polynomial
 {
 public:
 	double coefficients[Degree+1];
 
-	Polynomial(void);
-	template<int Degree2>
-	Polynomial(const Polynomial<Degree2>& P);
+	Polynomial( void );
+	template< int Degree2 > Polynomial( const Polynomial< Degree2 >& P );
 	double operator()( double t ) const;
 	double integral( double tMin , double tMax ) const;
 
@@ -72,13 +67,20 @@ public:
 	Polynomial scale( double s ) const;
 	Polynomial shift( double t ) const;
 
-	Polynomial<Degree-1> derivative(void) const;
-	Polynomial<Degree+1> integral(void) const;
+	template< int _Degree=Degree >
+	typename std::enable_if< (_Degree==0) , Polynomial< Degree   > >::type derivative( void ) const { return Polynomial< Degree >(); }
+	template< int _Degree=Degree >
+	typename std::enable_if< (_Degree> 0) , Polynomial< Degree-1 > >::type derivative( void ) const
+	{
+		Polynomial< Degree-1 > p;
+		for( int i=0 ; i<Degree ; i++ ) p.coefficients[i] = coefficients[i+1]*(i+1);
+		return p;
+	}
+	Polynomial< Degree+1 > integral(void) const;
 
-	void printnl(void) const;
+	void printnl( void ) const;
 
 	Polynomial& addScaled(const Polynomial& p,double scale);
-
 	static void Negate(const Polynomial& in,Polynomial& out);
 	static void Subtract(const Polynomial& p1,const Polynomial& p2,Polynomial& q);
 	static void Scale(const Polynomial& p,double w,Polynomial& q);
@@ -86,7 +88,6 @@ public:
 	static void AddScaled(const Polynomial& p1,const Polynomial& p2,double w2,Polynomial& q);
 	static void AddScaled(const Polynomial& p1,double w1,const Polynomial& p2,Polynomial& q);
 
-	void getSolutions(double c,std::vector<double>& roots,double EPS) const;
 	int getSolutions( double c , double* roots , double EPS ) const;
 
 	// [NOTE] Both of these methods define the indexing according to DeBoor's algorithm, so that

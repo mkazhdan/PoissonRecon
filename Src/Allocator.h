@@ -28,14 +28,9 @@ DAMAGE.
 
 #ifndef ALLOCATOR_INCLUDED
 #define ALLOCATOR_INCLUDED
-
 #include <vector>
 
-class AllocatorState
-{
-public:
-	int index , remains;
-};
+struct AllocatorState{ int index , remains; };
 /** This templated class assists in memory allocation and is well suited for instances
   * when it is known that the sequence of memory allocations is performed in a stack-based
   * manner, so that memory allocated last is released first. It also preallocates memory
@@ -44,30 +39,30 @@ public:
   * The allocator is templated off of the class of objects that we would like it to allocate,
   * ensuring that appropriate constructors and destructors are called as necessary.
   */
-template<class T>
-class Allocator
+template< class T >
+class SingleThreadedAllocator
 {
 	int blockSize;
 	int index , remains;
 	std::vector< T* > memory;
 public:
-	Allocator( void ){ blockSize = index = remains = 0; }
-	~Allocator( void ){ reset(); }
+	SingleThreadedAllocator( void ){ blockSize = index = remains = 0; }
+	~SingleThreadedAllocator( void ){ reset(); }
 
 	/** This method is the allocators destructor. It frees up any of the memory that
 	  * it has allocated. */
 	void reset( void )
 	{
-		for( size_t i=0 ; i<memory.size() ; i++ ) delete[] memory[i];
+		for( size_t i=0;i<memory.size();i++ ) delete[] memory[i];
 		memory.clear();
-		blockSize = index = remains = 0;
+		blockSize=index=remains=0;
 	}
 	/** This method returns the memory state of the allocator. */
 	AllocatorState getState( void ) const
 	{
 		AllocatorState s;
-		s.index = index;
-		s.remains = remains;
+		s.index=index;
+		s.remains=remains;
 		return s;
 	}
 
@@ -117,7 +112,7 @@ public:
 				remains=state.remains;
 			}
 			else{
-				for(int j=0;j<state.remains;j<remains){
+				for(int j=0;j<state.remains;j++){
 					memory[index][j].~T();
 					new(&memory[index][j]) T();
 				}
@@ -155,11 +150,28 @@ public:
 				memory.push_back( mem );
 			}
 			index++;
-			remains = blockSize;
+			remains=blockSize;
 		}
 		mem = &(memory[index][blockSize-remains]);
 		remains -= elements;
 		return mem;
 	}
 };
+template< class T >
+class Allocator
+{
+	SingleThreadedAllocator< T >* _allocators;
+	int _maxThreads;
+public:
+	Allocator( void )
+	{
+		_maxThreads = omp_get_max_threads();
+		_allocators = new SingleThreadedAllocator< T >[_maxThreads];
+	}
+	~Allocator( void ){ delete[] _allocators; }
+
+	void set( int blockSize ){ for( int t=0 ; t<_maxThreads ; t++ ) _allocators[t].set( blockSize ); }
+	T* newElements( int elements=1 ){ return _allocators[ omp_get_thread_num() ].newElements( elements ); }
+};
+
 #endif // ALLOCATOR_INCLUDE

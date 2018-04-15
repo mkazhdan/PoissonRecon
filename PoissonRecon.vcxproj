@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -23,31 +23,30 @@
     <ProjectGuid>{46F87D0E-C53A-4F95-AB48-A5DBA8014340}</ProjectGuid>
     <RootNamespace>PoissonRecon</RootNamespace>
     <Keyword>Win32Proj</Keyword>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v140</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -71,7 +70,7 @@
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)\Obj\$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\Bin\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\Obj\$(TargetName)\$(Platform)\$(Configuration)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)\Obj\$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)Bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)\Obj\$(TargetName)\$(Platform)\$(Configuration)\</IntDir>
@@ -116,7 +115,6 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -167,6 +165,8 @@
       <OpenMPSupport>true</OpenMPSupport>
       <IntrinsicFunctions>false</IntrinsicFunctions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AdditionalOptions>
+      </AdditionalOptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -184,50 +184,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Src\CmdLineParser.cpp" />
-    <ClCompile Include="Src\Factor.cpp" />
-    <ClCompile Include="Src\Geometry.cpp" />
-    <ClCompile Include="Src\MarchingCubes.cpp" />
     <ClCompile Include="Src\PlyFile.cpp" />
     <ClCompile Include="Src\PoissonRecon.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Src\Allocator.h" />
-    <ClInclude Include="Src\Array.h" />
-    <ClInclude Include="Src\BinaryNode.h" />
-    <ClInclude Include="Src\BSplineData.h" />
-    <ClInclude Include="Src\CmdLineParser.h" />
-    <ClInclude Include="Src\Factor.h" />
-    <ClInclude Include="Src\Geometry.h" />
-    <ClInclude Include="Src\MarchingCubes.h" />
-    <ClInclude Include="Src\MAT.h" />
-    <ClInclude Include="Src\MemoryUsage.h" />
-    <ClInclude Include="Src\MultiGridOctreeData.h" />
-    <ClInclude Include="Src\MyTime.h" />
-    <ClInclude Include="Src\Octree.h" />
-    <ClInclude Include="Src\Ply.h" />
-    <ClInclude Include="Src\PointStream.h" />
-    <ClInclude Include="Src\Polynomial.h" />
-    <ClInclude Include="Src\PPolynomial.h" />
-    <ClInclude Include="Src\SparseMatrix.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Src\Array.inl" />
-    <None Include="Src\CmdLineParser.inl" />
-    <None Include="Src\MAT.inl" />
-    <None Include="Src\MultiGridOctreeData.Evaluation.inl" />
-    <None Include="Src\MultiGridOctreeData.IsoSurface.inl" />
-    <None Include="Src\MultiGridOctreeData.SortedTreeNodes.inl" />
-    <None Include="Src\MultiGridOctreeData.System.inl" />
-    <None Include="Src\MultiGridOctreeData.WeightedSamples.inl" />
-    <None Include="Src\PointStream.inl" />
-    <None Include="Src\BSplineData.inl" />
-    <None Include="Src\Geometry.inl" />
-    <None Include="Src\MultiGridOctreeData.inl" />
-    <None Include="Src\Octree.inl" />
-    <None Include="Src\Polynomial.inl" />
-    <None Include="Src\PPolynomial.inl" />
-    <None Include="Src\SparseMatrix.inl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

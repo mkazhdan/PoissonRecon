@@ -27,6 +27,7 @@ DAMAGE.
 */
 #define FULL_ARRAY_DEBUG    0	// Note that this is not thread-safe
 
+#include <string.h>
 #include <stdio.h>
 #include <emmintrin.h>
 #include <vector>
@@ -66,6 +67,7 @@ static std::vector< DebugMemoryInfo > memoryInfo;
 template< class C >
 class Array
 {
+	template< class D > friend class Array;
 	void _assertBounds( long long idx ) const
 	{
 		if( idx<min || idx>=max )
@@ -115,7 +117,9 @@ public:
 		Array a;
 		a._data = a.data = new C[size];
 		a.min = 0;
+#ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
+#endif // SHOW_WARNINGS
 		a.max = ( long long ) size;
 #if FULL_ARRAY_DEBUG
 		_AddMemoryInfo( a._data , name );
@@ -129,7 +133,9 @@ public:
 		if( clear ) memset( a.data ,  0 , size * sizeof( C ) );
 //		else        memset( a.data , -1 , size * sizeof( C ) );
 		a.min = 0;
+#ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
+#endif // SHOW_WARNINGS
 		a.max = ( long long ) size;
 #if FULL_ARRAY_DEBUG
 		_AddMemoryInfo( a._data , name );
@@ -144,7 +150,9 @@ public:
 		if( clear ) memset( a.data ,  0 , size * sizeof( C ) );
 //		else        memset( a.data , -1 , size * sizeof( C ) );
 		a.min = 0;
+#ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
+#endif // SHOW_WARNINGS
 		a.max = ( long long ) size;
 #if FULL_ARRAY_DEBUG
 		_AddMemoryInfo( a._data , name );
@@ -161,7 +169,9 @@ public:
 #endif // FULL_ARRAY_DEBUG
 		a._data = NULL;
 		_a.min = 0;
+#ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
+#endif // SHOW_WARNINGS
 		_a.max = ( long long ) size;
 #if FULL_ARRAY_DEBUG
 		_AddMemoryInfo( _a._data , name );
@@ -350,6 +360,7 @@ public:
 template< class C >
 class ConstArray
 {
+	template< class D > friend class ConstArray;
 	void _assertBounds( long long idx ) const
 	{
 		if( idx<min || idx>=max )

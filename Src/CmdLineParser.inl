@@ -26,116 +26,275 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
+#include <cassert>
+#include <string.h>
+
+#if defined( WIN32 ) || defined( _WIN64 )
+inline int strcasecmp( const char* c1 , const char* c2 ){ return _stricmp( c1 , c2 ); }
+#endif // WIN32 || _WIN64
+
+template< > void cmdLineCleanUp< int    >( int*    t ){ }
+template< > void cmdLineCleanUp< float  >( float*  t ){ }
+template< > void cmdLineCleanUp< double >( double* t ){ }
+template< > void cmdLineCleanUp< char*  >( char** t ){ if( *t ) free( *t ) ; *t = NULL; }
+template< > int    cmdLineInitialize< int    >( void ){ return 0; }
+template< > float  cmdLineInitialize< float  >( void ){ return 0.f; }
+template< > double cmdLineInitialize< double >( void ){ return 0.; }
+template< > char*  cmdLineInitialize< char*  >( void ){ return NULL; }
+template< > void cmdLineWriteValue< int    >( int    t , char* str ){ sprintf( str , "%d" , t ); }
+template< > void cmdLineWriteValue< float  >( float  t , char* str ){ sprintf( str , "%f" , t ); }
+template< > void cmdLineWriteValue< double >( double t , char* str ){ sprintf( str , "%f" , t ); }
+template< > void cmdLineWriteValue< char*  >( char*  t , char* str ){ if( t ) sprintf( str , "%s" , t ) ; else str[0]=0; }
+template< > int    cmdLineCopy( int    t ){ return t;  }
+template< > float  cmdLineCopy( float  t ){ return t;  }
+template< > double cmdLineCopy( double t ){ return t;  }
+#if defined( WIN32 ) || defined( _WIN64 )
+template< > char*  cmdLineCopy( char* t ){ return _strdup( t ); }
+#else // !WIN32 && !_WIN64
+template< > char*  cmdLineCopy( char* t ){ return strdup( t ); }
+#endif // WIN32 || _WIN64
+template< > int    cmdLineStringToType( const char* str ){ return atoi( str ); }
+template< > float  cmdLineStringToType( const char* str ){ return float( atof( str ) ); }
+template< > double cmdLineStringToType( const char* str ){ return double( atof( str ) ); }
+#if defined( WIN32 ) || defined( _WIN64 )
+template< > char*  cmdLineStringToType( const char* str ){ return _strdup( str ); }
+#else // !WIN32 && !_WIN64
+template< > char*  cmdLineStringToType( const char* str ){ return  strdup( str ); }
+#endif // WIN32 || _WIN64
+
+
 /////////////////////
-// cmdLineIntArray //
+// cmdLineReadable //
 /////////////////////
-template<int Dim>
-cmdLineIntArray<Dim>::cmdLineIntArray(const char* name) : cmdLineReadable(name)
+#if defined( WIN32 ) || defined( _WIN64 )
+inline cmdLineReadable::cmdLineReadable( const char *name ) : set(false) { this->name = _strdup( name ); }
+#else // !WIN32 && !_WIN64
+inline cmdLineReadable::cmdLineReadable( const char *name ) : set(false) { this->name =  strdup( name ); }
+#endif // WIN32 || _WIN64
+
+inline cmdLineReadable::~cmdLineReadable( void ){ if( name ) free( name ) ; name = NULL; }
+inline int cmdLineReadable::read( char** , int ){ set = true ; return 0; }
+inline void cmdLineReadable::writeValue( char* str ) const { str[0] = 0; }
+
+//////////////////////
+// cmdLineParameter //
+//////////////////////
+template< class Type > cmdLineParameter< Type >::~cmdLineParameter( void ) { cmdLineCleanUp( &value ); }
+template< class Type > cmdLineParameter< Type >::cmdLineParameter( const char *name ) : cmdLineReadable( name ){ value = cmdLineInitialize< Type >(); }
+template< class Type > cmdLineParameter< Type >::cmdLineParameter( const char *name , Type v ) : cmdLineReadable( name ){ value = cmdLineCopy< Type >( v ); }
+template< class Type >
+int cmdLineParameter< Type >::read( char** argv , int argc )
 {
-	for(int i=0;i<Dim;i++)	values[i]=0;
-}
-template<int Dim>
-cmdLineIntArray<Dim>::cmdLineIntArray(const char* name,const int v[Dim]) : cmdLineReadable(name)
-{
-	for(int i=0;i<Dim;i++)	values[i]=v[i];
-}
-template<int Dim>
-int cmdLineIntArray<Dim>::read(char** argv,int argc)
-{
-	if(argc>=Dim)
+	if( argc>0 )
 	{
-		for(int i=0;i<Dim;i++)	values[i]=atoi(argv[i]);
-		set=true;
+		cmdLineCleanUp< Type >( &value ) , value = cmdLineStringToType< Type >( argv[0] );
+		set = true;
+		return 1;
+	}
+	else return 0;
+}
+template< class Type >
+void cmdLineParameter< Type >::writeValue( char* str ) const { cmdLineWriteValue< Type >( value , str ); }
+
+
+///////////////////////////
+// cmdLineParameterArray //
+///////////////////////////
+template< class Type , int Dim >
+cmdLineParameterArray< Type , Dim >::cmdLineParameterArray( const char *name , const Type* v ) : cmdLineReadable( name )
+{
+	if( v ) for( int i=0 ; i<Dim ; i++ ) values[i] = cmdLineCopy< Type >( v[i] );
+	else    for( int i=0 ; i<Dim ; i++ ) values[i] = cmdLineInitialize< Type >();
+}
+template< class Type , int Dim >
+cmdLineParameterArray< Type , Dim >::~cmdLineParameterArray( void ){ for( int i=0 ; i<Dim ; i++ ) cmdLineCleanUp< Type >( values+i ); }
+template< class Type , int Dim >
+int cmdLineParameterArray< Type , Dim >::read( char** argv , int argc )
+{
+	if( argc>=Dim )
+	{
+		for( int i=0 ; i<Dim ; i++ ) cmdLineCleanUp< Type >( values+i ) , values[i] = cmdLineStringToType< Type >( argv[i] );
+		set = true;
 		return Dim;
 	}
-	else{return 0;}
+	else return 0;
 }
-template<int Dim>
-void cmdLineIntArray<Dim>::writeValue(char* str)
+template< class Type , int Dim >
+void cmdLineParameterArray< Type , Dim >::writeValue( char* str ) const
 {
 	char* temp=str;
-	for(int i=0;i<Dim;i++)
+	for( int i=0 ; i<Dim ; i++ )
 	{
-		sprintf(temp,"%d ",values[i]);
-		temp=str+strlen(str);
+		cmdLineWriteValue< Type >( values[i] , temp );
+		temp = str+strlen( str );
 	}
 }
+///////////////////////
+// cmdLineParameters //
+///////////////////////
+template< class Type >
+cmdLineParameters< Type >::cmdLineParameters( const char* name ) : cmdLineReadable( name ) , values(NULL) , count(0) { }
+template< class Type >
+cmdLineParameters< Type >::~cmdLineParameters( void )
+{
+	if( values ) delete[] values;
+	values = NULL;
+	count = 0;
+}
+template< class Type >
+int cmdLineParameters< Type >::read( char** argv , int argc )
+{
+	if( values ) delete[] values;
+	values = NULL;
 
-///////////////////////
-// cmdLineFloatArray //
-///////////////////////
-template<int Dim>
-cmdLineFloatArray<Dim>::cmdLineFloatArray(const char* name) : cmdLineReadable(name)
-{
-	for(int i=0;i<Dim;i++)	values[i]=0;
-}
-template<int Dim>
-cmdLineFloatArray<Dim>::cmdLineFloatArray(const char* name,const float f[Dim]) : cmdLineReadable(name)
-{
-	for(int i=0;i<Dim;i++)	values[i]=f[i];
-}
-template<int Dim>
-int cmdLineFloatArray<Dim>::read(char** argv,int argc)
-{
-	if(argc>=Dim)
+	if( argc>0 )
 	{
-		for(int i=0;i<Dim;i++)	values[i]=(float)atof(argv[i]);
-		set=true;
-		return Dim;
+		count = atoi(argv[0]);
+		if( count <= 0 || argc <= count ) return 1;
+		values = new Type[count];
+		if( !values ) return 0;
+		for( int i=0 ; i<count ; i++ ) values[i] = cmdLineStringToType< Type >( argv[i+1] );
+		set = true;
+		return count+1;
 	}
-	else{return 0;}
+	else return 0;
 }
-template<int Dim>
-void cmdLineFloatArray<Dim>::writeValue(char* str)
+template< class Type >
+void cmdLineParameters< Type >::writeValue( char* str ) const
 {
 	char* temp=str;
-	for(int i=0;i<Dim;i++)
+	for( int i=0 ; i<count ; i++ )
 	{
-		sprintf(temp,"%f ",values[i]);
-		temp=str+strlen(str);
+		cmdLineWriteValue< Type >( values[i] , temp );
+		temp = str+strlen( str );
 	}
 }
 
 
-////////////////////////
-// cmdLineStringArray //
-////////////////////////
-template<int Dim>
-cmdLineStringArray<Dim>::cmdLineStringArray(const char* name) : cmdLineReadable(name)
+inline char* FileExtension( char* fileName )
 {
-	for(int i=0;i<Dim;i++)	values[i]=NULL;
+	char* temp = fileName;
+	for( int i=0 ; i<strlen(fileName) ; i++ ) if( fileName[i]=='.' ) temp = &fileName[i+1];
+	return temp;
 }
-template<int Dim>
-cmdLineStringArray<Dim>::~cmdLineStringArray(void)
+
+inline char* GetFileExtension( const char* fileName )
 {
-	for(int i=0;i<Dim;i++)
+	char* fileNameCopy;
+	char* ext=NULL;
+	char* temp;
+
+	fileNameCopy=new char[strlen(fileName)+1];
+	assert(fileNameCopy);
+	strcpy(fileNameCopy,fileName);
+	temp=strtok(fileNameCopy,".");
+	while(temp!=NULL)
 	{
-		if(values[i])	delete[] values[i];
-		values[i]=NULL;
+		if(ext!=NULL){delete[] ext;}
+		ext=new char[strlen(temp)+1];
+		assert(ext);
+		strcpy(ext,temp);
+		temp=strtok(NULL,".");
 	}
+	delete[] fileNameCopy;
+	return ext;
 }
-template<int Dim>
-int cmdLineStringArray<Dim>::read(char** argv,int argc)
+inline char* GetLocalFileName( const char* fileName )
 {
-	if(argc>=Dim)
-	{
-		for(int i=0;i<Dim;i++)
+	char* fileNameCopy;
+	char* name=NULL;
+	char* temp;
+
+	fileNameCopy=new char[strlen(fileName)+1];
+	assert(fileNameCopy);
+	strcpy(fileNameCopy,fileName);
+	temp=strtok(fileNameCopy,"\\");
+	while(temp!=NULL){
+		if(name!=NULL){delete[] name;}
+		name=new char[strlen(temp)+1];
+		assert(name);
+		strcpy(name,temp);
+		temp=strtok(NULL,"\\");
+	}
+	delete[] fileNameCopy;
+	return name;
+}
+inline char* LocalFileName( char* fileName )
+{
+	char* temp = fileName;
+	for( int i=0 ; i<(int)strlen(fileName) ; i++ ) if( fileName[i] =='\\' ) temp = &fileName[i+1];
+	return temp;
+}
+inline char* DirectoryName( char* fileName )
+{
+	for( int i=int( strlen(fileName) )-1 ; i>=0 ; i-- )
+		if( fileName[i] =='\\' )
 		{
-			values[i]=new char[strlen(argv[i])+1];
-			strcpy(values[i],argv[i]);
+			fileName[i] = 0;
+			return fileName;
 		}
-		set=true;
-		return Dim;
-	}
-	else{return 0;}
+	fileName[0] = 0;
+	return fileName;
 }
-template<int Dim>
-void cmdLineStringArray<Dim>::writeValue(char* str)
+
+inline void cmdLineParse( int argc , char **argv , cmdLineReadable** params )
 {
-	char* temp=str;
-	for(int i=0;i<Dim;i++)
+	while( argc>0 )
 	{
-		sprintf(temp,"%s ",values[i]);
-		temp=str+strlen(str);
+		if( argv[0][0]=='-' && argv[0][1]=='-' )
+		{
+			cmdLineReadable* readable=NULL;
+			for( int i=0 ; params[i]!=NULL && readable==NULL ; i++ ) if( !strcasecmp( params[i]->name , argv[0]+2 ) ) readable = params[i];
+			if( readable )
+			{
+				int j = readable->read( argv+1 , argc-1 );
+				argv += j , argc -= j;
+			}
+			else
+			{
+				fprintf( stderr , "[WARNING] Invalid option: %s\n" , argv[0] );
+				for( int i=0 ; params[i]!=NULL ; i++ ) printf( "\t--%s\n" , params[i]->name );
+			}
+		}
+		else fprintf( stderr , "[WARNING] Parameter name should be of the form --<name>: %s\n" , argv[0] );
+		++argv , --argc;
 	}
+}
+
+inline char** ReadWords(const char* fileName,int& cnt)
+{
+	char** names;
+	char temp[500];
+	FILE* fp;
+
+	fp=fopen(fileName,"r");
+	if(!fp){return NULL;}
+	cnt=0;
+	while(fscanf(fp," %s ",temp)==1){cnt++;}
+	fclose(fp);
+
+	names=new char*[cnt];
+	if(!names){return NULL;}
+
+	fp=fopen(fileName,"r");
+	if(!fp){
+		delete[] names;
+		cnt=0;
+		return NULL;
+	}
+	cnt=0;
+	while(fscanf(fp," %s ",temp)==1){
+		names[cnt]=new char[strlen(temp)+1];
+		if(!names){
+			for(int j=0;j<cnt;j++){delete[] names[j];}
+			delete[] names;
+			cnt=0;
+			fclose(fp);
+			return NULL;
+		}
+		strcpy(names[cnt],temp);
+		cnt++;
+	}
+	fclose(fp);
+	return names;
 }

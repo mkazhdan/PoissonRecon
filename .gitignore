@@ -5,3 +5,4 @@
 /Bin/
 *.opensdf
 *.bat
+.vs/*
