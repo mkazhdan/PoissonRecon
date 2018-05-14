@@ -271,43 +271,93 @@ XForm< Real , Dim+1 > GetPointXForm( InputPointStream< Real , Dim >& stream , Re
 	return GetBoundingBoxXForm( min , max , scaleFactor );
 }
 
-template< unsigned int Dim , typename Real , class StreamDataInfo >
+template< unsigned int Dim , typename Real , typename TotalPointSampleData >
 struct ConstraintDual
 {
 	Real target , vWeight , gWeight;
 	ConstraintDual( Real t , Real v , Real g ) : target(t) , vWeight(v) , gWeight(g) { }
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const typename StreamDataInfo::Type& data ) const 
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const TotalPointSampleData& data ) const 
 	{
-		return CumulativeDerivativeValues< Real , Dim , 1 >( target*vWeight , -data.normal[0]*gWeight , -data.normal[1]*gWeight , -data.normal[2]*gWeight );
+		Point< Real , Dim > n = std::get<0>( data.data ).data;
+		CumulativeDerivativeValues< Real , Dim , 1 > cdv;
+		cdv[0] = target*vWeight;
+		for( int d=0 ; d<Dim ; d++ ) cdv[1+d] = -n[d]*gWeight;
+		return cdv;
 	}
 };
-template< unsigned int Dim , typename Real , class StreamDataInfo >
+template< unsigned int Dim , typename Real , typename TotalPointSampleData >
 struct SystemDual
 {
 	CumulativeDerivativeValues< Real , Dim , 1 > weight;
 	SystemDual( Real v , Real g ) : weight( v , g , g , g ) { }
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const typename StreamDataInfo::Type& data , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const TotalPointSampleData& data , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
 	{
 		return dValues * weight;
 	}
-	CumulativeDerivativeValues< double , Dim , 1 > operator()( Point< Real , Dim > p , const typename StreamDataInfo::Type& data , const CumulativeDerivativeValues< double , Dim , 1 >& dValues ) const
+	CumulativeDerivativeValues< double , Dim , 1 > operator()( Point< Real , Dim > p , const TotalPointSampleData& data , const CumulativeDerivativeValues< double , Dim , 1 >& dValues ) const
 	{
 		return dValues * weight;
 	};
 };
-template< unsigned int Dim , class StreamDataInfo >
-struct SystemDual< Dim , double , StreamDataInfo >
+template< unsigned int Dim , class TotalPointSampleData >
+struct SystemDual< Dim , double , TotalPointSampleData >
 {
 	typedef double Real;
 	CumulativeDerivativeValues< Real , Dim , 1 > weight;
 	SystemDual( Real v , Real g ) : weight( v , g , g , g ) { }
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const typename StreamDataInfo::Type& data , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const TotalPointSampleData& data , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
 	{
 		return dValues * weight;
 	}
 };
 
-template< class Real , class StreamDataInfo , class Vertex , unsigned int ... FEMSigs >
+template< typename Vertex , typename Real , unsigned int ... FEMSigs , typename ... SampleData >
+void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTree< sizeof ... ( FEMSigs ) , Real >& tree , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , Real isoValue , const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample >* samples , std::vector< MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > >* sampleData , const typename FEMTree< sizeof ... ( FEMSigs ) , Real >::template DensityEstimator< WEIGHT_DEGREE >* density , std::function< void ( Vertex& , Point< Real , DIMENSION > , Real , MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > ) > SetVertex , std::vector< char* > comments , XForm< Real , sizeof...(FEMSigs)+1 > iXForm )
+{
+	static const int Dim = sizeof ... ( FEMSigs );
+	typedef UIntPack< FEMSigs ... > Sigs;
+	typedef PointStreamNormal< Real , Dim > NormalPointSampleData;
+	typedef MultiPointStreamData< Real , SampleData ... > AdditionalPointSampleData;
+	typedef MultiPointStreamData< Real , NormalPointSampleData , AdditionalPointSampleData > TotalPointSampleData;
+	static const unsigned int DataSig = FEMDegreeAndBType< DATA_DEGREE , BOUNDARY_FREE >::Signature;
+	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
+
+	FEMTreeProfiler< Dim , Real > profiler( tree );
+
+	char tempHeader[1024];
+	{
+		char tempPath[1024];
+		tempPath[0] = 0;
+		if( TempDir.set ) strcpy( tempPath , TempDir.value );
+		else SetTempDirectory( tempPath , sizeof(tempPath) );
+		if( strlen(tempPath)==0 ) sprintf( tempPath , ".%c" , FileSeparator );
+		if( tempPath[ strlen( tempPath )-1 ]==FileSeparator ) sprintf( tempHeader , "%sPR_" , tempPath );
+		else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
+	}
+	CoredFileMeshData< Vertex > mesh( tempHeader );
+	profiler.start();
+	typename IsoSurfaceExtractor< Dim , Real , Vertex >::IsoStats isoStats;
+	if( sampleData )
+	{
+		SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
+		for( const RegularTreeNode< Dim , FEMTreeNodeData >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
+		{
+			ProjectiveData< TotalPointSampleData , Real >* clr = _sampleData( n );
+			if( clr ) (*clr) *= (Real)pow( DataX.value , tree.depth( n ) );
+		}
+		isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , &_sampleData , solution , isoValue , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+	}
+	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+	messageWriter( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
+	messageWriter( "Corners / Vertices / Edges / Surface / Set Table / Copy Finer: %.1f / %.1f / %.1f / %.1f / %.1f / %.1f (s)\n" , isoStats.cornersTime , isoStats.verticesTime , isoStats.edgesTime , isoStats.surfaceTime , isoStats.setTableTime , isoStats.copyFinerTime );
+	if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
+	else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
+
+	if( NoComments.set ) PlyWritePolygons< Vertex , Real , Dim >( Out.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NULL         , 0                    , iXForm );
+	else                 PlyWritePolygons< Vertex , Real , Dim >( Out.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , &comments[0] , (int)comments.size() , iXForm );
+}
+
+template< class Real , typename ... SampleData , unsigned int ... FEMSigs >
 int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 {
 	static const int Dim = sizeof ... ( FEMSigs );
@@ -315,11 +365,13 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > Degrees;
 	typedef UIntPack< FEMDegreeAndBType< NORMAL_DEGREE , DerivativeBoundary< FEMSignature< FEMSigs >::BType , 1 >::BType >::Signature ... > NormalSigs;
 	static const unsigned int DataSig = FEMDegreeAndBType< DATA_DEGREE , BOUNDARY_FREE >::Signature;
-	typedef Point< Real , 3 > Color;
 	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 1 > InterpolationInfo;
-	typedef InputPointStreamWithData< Real , Dim , typename StreamDataInfo::Type > InputPointStream;
-	typedef TransformedInputPointStreamWithData< Real , Dim , typename StreamDataInfo::Type > XInputPointStream;
+	typedef PointStreamNormal< Real , Dim > NormalPointSampleData;
+	typedef MultiPointStreamData< Real , SampleData ... > AdditionalPointSampleData;
+	typedef MultiPointStreamData< Real , NormalPointSampleData , AdditionalPointSampleData > TotalPointSampleData;
+	typedef InputPointStreamWithData< Real , Dim , TotalPointSampleData > InputPointStream;
+	typedef TransformedInputPointStreamWithData< Real , Dim , TotalPointSampleData > XInputPointStream;
 	std::vector< char* > comments;
 	messageWriter( comments , "************************************************\n" );
 	messageWriter( comments , "************************************************\n" );
@@ -374,7 +426,7 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 	Real pointWeightSum;
 	std::vector< typename FEMTree< Dim , Real >::PointSample >* samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
-	std::vector< typename StreamDataInfo::Type >* sampleData = NULL;
+	std::vector< TotalPointSampleData >* sampleData = NULL;
 	DensityEstimator* density = NULL;
 	SparseNodeData< Point< Real , Dim > , NormalSigs >* normalInfo = NULL;
 	Real targetValue = (Real)0.;
@@ -384,18 +436,33 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		profiler.start();
 		InputPointStream* pointStream;
 		char* ext = GetFileExtension( In.value );
-		sampleData = new std::vector< typename StreamDataInfo::Type >();
-		if     ( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputPointStreamWithData< Real , Dim , typename StreamDataInfo::Type >( In.value , StreamDataInfo::ReadBinary );
-		else if( !strcasecmp( ext , "ply"   ) ) pointStream = new    PLYInputPointStreamWithData< Real , Dim , typename StreamDataInfo::Type >( In.value , StreamDataInfo::PlyProperties , StreamDataInfo::PlyPropertyNum , StreamDataInfo::ValidPlyProperties );
-		else                                    pointStream = new  ASCIIInputPointStreamWithData< Real , Dim , typename StreamDataInfo::Type >( In.value , StreamDataInfo::ReadASCII );
+		sampleData = new std::vector< TotalPointSampleData >();
+		if     ( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputPointStreamWithData< Real , Dim , TotalPointSampleData >( In.value , TotalPointSampleData::ReadBinary );
+		else if( !strcasecmp( ext , "ply"   ) ) pointStream = new    PLYInputPointStreamWithData< Real , Dim , TotalPointSampleData >( In.value , TotalPointSampleData::PlyReadProperties() , TotalPointSampleData::PlyReadNum , TotalPointSampleData::ValidPlyReadProperties );
+		else                                    pointStream = new  ASCIIInputPointStreamWithData< Real , Dim , TotalPointSampleData >( In.value , TotalPointSampleData::ReadASCII );
 		delete[] ext;
-		XInputPointStream _pointStream( typename StreamDataInfo::Transform( xForm ) , *pointStream );
+		typename TotalPointSampleData::Transform _xForm( xForm );
+		XInputPointStream _pointStream( [&]( Point< Real , Dim >& p , TotalPointSampleData& d ){ p = xForm*p , d = _xForm(d); } , *pointStream );
 		if( Width.value>0 ) xForm = GetPointXForm< Real , Dim >( _pointStream , Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * xForm;
 		else                xForm = Scale.value>0 ? GetPointXForm< Real , Dim >( _pointStream , (Real)Scale.value ) * xForm : xForm;
 		{
-			XInputPointStream _pointStream( typename StreamDataInfo::Transform( xForm ) , *pointStream );
-			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< typename StreamDataInfo::Type >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocator , tree.initializer() , [&]( const Point< Real , Dim >&p , typename StreamDataInfo::Type& d ){ return (Real)pow( StreamDataInfo::ProcessDataWithConfidence( p , d ) , Confidence.value ); } );
-			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< typename StreamDataInfo::Type >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocator , tree.initializer() , StreamDataInfo::ProcessData );
+			typename TotalPointSampleData::Transform _xForm( xForm );
+			XInputPointStream _pointStream( [&]( Point< Real , Dim >& p , TotalPointSampleData& d ){ p = xForm*p , d = _xForm(d); } , *pointStream );
+			auto ProcessDataWithConfidence = [&]( const Point< Real , Dim >& p , TotalPointSampleData& d )
+			{
+				Real l = (Real)Length( std::get< 0 >( d.data ).data );
+				if( !l || l!=l ) return (Real)-1.;
+				return (Real)pow( l , Confidence.value );
+			};
+			auto ProcessData = []( const Point< Real , Dim >& p , TotalPointSampleData& d )
+			{
+				Real l = (Real)Length( std::get< 0 >( d.data ).data );
+				if( !l || l!=l ) return (Real)-1.;
+				std::get< 0 >( d.data ).data /= l;
+				return (Real)1.;
+			};
+			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocator , tree.initializer() , ProcessDataWithConfidence );
+			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocator , tree.initializer() , ProcessData );
 		}
 		iXForm = xForm.inverse();
 		delete pointStream;
@@ -452,8 +519,8 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		if( ValueWeight.value>0 || GradientWeight.value>0 )
 		{
 			profiler.start();
-			if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , typename StreamDataInfo::Type , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , StreamDataInfo >( targetValue , (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum  ) , SystemDual< Dim , Real , StreamDataInfo >( (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum ) , true , false );
-			else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , typename StreamDataInfo::Type , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , StreamDataInfo >( targetValue , (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum  ) , SystemDual< Dim , Real , StreamDataInfo >( (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum ) , true , 1 );
+			if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , TotalPointSampleData , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , TotalPointSampleData >( targetValue , (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum  ) , SystemDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum ) , true , false );
+			else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , TotalPointSampleData , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , TotalPointSampleData >( targetValue , (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum  ) , SystemDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum ) , true , 1 );
 			constraints = tree.initDenseNodeData( Sigs() );
 			tree.addInterpolationConstraints( constraints , solveDepth , *iInfo );
 			profiler.dumpOutput2( comments , "#Set point constraints:" );
@@ -531,48 +598,37 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 	if( Out.set )
 	{
-		char tempHeader[1024];
+		if( Normals.set )
 		{
-			char tempPath[1024];
-			tempPath[0] = 0;
-			if( TempDir.set ) strcpy( tempPath , TempDir.value );
-			else SetTempDirectory( tempPath , sizeof(tempPath) );
-			if( strlen(tempPath)==0 ) sprintf( tempPath , ".%c" , FileSeparator );
-			if( tempPath[ strlen( tempPath )-1 ]==FileSeparator ) sprintf( tempHeader , "%sPR_" , tempPath );
-			else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
-		}
-		CoredFileMeshData< Vertex > mesh( tempHeader );
-
-		profiler.start();
-		typename IsoSurfaceExtractor< Dim , Real , Vertex >::IsoStats isoStats;
-		if( sampleData )
-		{
-			SparseNodeData< ProjectiveData< typename StreamDataInfo::Type , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
-			for( const RegularTreeNode< Dim , FEMTreeNodeData >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
+			if( Density.set )
 			{
-				ProjectiveData< typename StreamDataInfo::Type , Real >* clr = _sampleData( n );
-				if( clr ) (*clr) *= (Real)pow( DataX.value , tree.depth( n ) );
+				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , PointStreamValue< Real > , AdditionalPointSampleData > > Vertex;
+				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ).data = w , std::get< 2 >( v.data.data ) = std::get< 1 >( d.data ); };
+				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
 			}
-			delete sampleData , sampleData = NULL;
-
-			isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< typename StreamDataInfo::Type >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , &_sampleData , solution , isoValue , mesh , StreamDataInfo::template VertexSetter< Vertex >::SetValue , StreamDataInfo::template VertexSetter< Vertex >::SetData , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
-		}
-		else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< typename StreamDataInfo::Type >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , mesh , StreamDataInfo::template VertexSetter< Vertex >::SetValue , StreamDataInfo::template VertexSetter< Vertex >::SetData , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
-		messageWriter( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
-		messageWriter( "Corners / Vertices / Edges / Surface / Set Table / Copy Finer: %.1f / %.1f / %.1f / %.1f / %.1f / %.1f (s)\n" , isoStats.cornersTime , isoStats.verticesTime , isoStats.edgesTime , isoStats.surfaceTime , isoStats.setTableTime , isoStats.copyFinerTime );
-		if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
-		else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
-
-		if( NoComments.set )
-		{
-			if( ASCII.set ) PlyWritePolygons< Vertex , Real , Dim >( Out.value , &mesh , PLY_ASCII         , NULL , 0 , iXForm );
-			else            PlyWritePolygons< Vertex , Real , Dim >( Out.value , &mesh , PLY_BINARY_NATIVE , NULL , 0 , iXForm );
+			else
+			{
+				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , AdditionalPointSampleData > > Vertex;
+				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ) = std::get< 1 >( d.data ); };
+				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+			}
 		}
 		else
 		{
-			if( ASCII.set ) PlyWritePolygons< Vertex , Real , Dim >( Out.value , &mesh , PLY_ASCII         , &comments[0] , (int)comments.size() , iXForm );
-			else            PlyWritePolygons< Vertex , Real , Dim >( Out.value , &mesh , PLY_BINARY_NATIVE , &comments[0] , (int)comments.size() , iXForm );
+			if( Density.set )
+			{
+				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamValue< Real > , AdditionalPointSampleData > > Vertex;
+				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ).data = w , std::get< 1 >( v.data.data ) = std::get< 1 >( d.data ); };
+				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+			}
+			else
+			{
+				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , AdditionalPointSampleData > > Vertex;
+				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 1 >( d.data ); };
+				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+			}
 		}
+		if( sampleData ){ delete sampleData ; sampleData = NULL; }
 	}
 	if( density ) delete density , density = NULL;
 	messageWriter( comments , "#          Total Solve: %9.1f (s), %9.1f (MB)\n" , Time()-startTime , FEMTree< Dim , Real >::MaxMemoryUsage() );
@@ -581,7 +637,7 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 }
 
 #ifndef FAST_COMPILE
-template< unsigned int Dim , class Real , class InfoType , class Vertex >
+template< unsigned int Dim , class Real , typename ... SampleData >
 int Execute( int argc , char* argv[] )
 {
 	switch( BType.value )
@@ -590,9 +646,9 @@ int Execute( int argc , char* argv[] )
 	{
 		switch( Degree.value )
 		{
-			case 2: return Execute< Real , InfoType , Vertex >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >() );
-			case 3: return Execute< Real , InfoType , Vertex >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >() );
-//			case 4: return Execute< Real , InfoType , Vertex >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >() );
+			case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >() );
+			case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >() );
+//			case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >() );
 			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 2 - 3 are supported" ) ; return EXIT_FAILURE;
 		}
 	}
@@ -600,9 +656,9 @@ int Execute( int argc , char* argv[] )
 	{
 		switch( Degree.value )
 		{
-			case 2: return Execute< Real , InfoType , Vertex >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >() );
-			case 3: return Execute< Real , InfoType , Vertex >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >() );
-//			case 4: return Execute< Real , InfoType , Vertex >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >() );
+			case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >() );
+			case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >() );
+//			case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >() );
 			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 2 - 3 are supported" ) ; return EXIT_FAILURE;
 		}
 	}
@@ -610,9 +666,9 @@ int Execute( int argc , char* argv[] )
 	{
 		switch( Degree.value )
 		{
-			case 2: return Execute< Real , InfoType , Vertex >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >() );
-			case 3: return Execute< Real , InfoType , Vertex >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >() );
-//			case 4: return Execute< Real , InfoType , Vertex >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >() );
+			case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >() );
+			case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >() );
+//			case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >() );
 			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 2- 3 are supported" ) ; return EXIT_FAILURE;
 		}
 	}
@@ -661,35 +717,11 @@ int main( int argc , char* argv[] )
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
 	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
 	fprintf( stderr , "[WARNING] Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
-	if( Normals.set )
-		if( Colors.set )
-			if( Density.set ) Execute< Real , NormalAndColorInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , true  , true  , true  > >( argc , argv , FEMSigs() );
-			else              Execute< Real , NormalAndColorInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , true  , false , true  > >( argc , argv , FEMSigs() );
-		else
-			if( Density.set ) Execute< Real , NormalInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , true  , true  , false > >( argc , argv , FEMSigs() );
-			else              Execute< Real , NormalInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , true  , false , false > >( argc , argv , FEMSigs() );
-	else
-		if( Colors.set )
-			if( Density.set ) Execute< Real , NormalAndColorInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , false , true  , true  > >( argc , argv , FEMSigs() );
-			else              Execute< Real , NormalAndColorInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , false , false , true  > >( argc , argv , FEMSigs() );
-		else
-			if( Density.set ) Execute< Real , NormalInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , false , true  , false > >( argc , argv , FEMSigs() );
-			else              Execute< Real , NormalInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , false , false , false > >( argc , argv , FEMSigs() );
+	if( Colors.set ) Execute< DefaultFloatType , PointStreamColor< DefaultFloatType > >( argc , argv , FEMSigs() );
+	else             Execute< DefaultFloatType >( argc , argv , FEMSigs() );
 #else // !FAST_COMPILE
-	if( Normals.set )
-		if( Density.set )
-			if( Colors.set ) Execute< DIMENSION , Real , NormalAndColorInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , true  , true  , true  > >( argc , argv );
-			else             Execute< DIMENSION , Real ,         NormalInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , true  , true  , false > >( argc , argv );
-		else
-			if( Colors.set ) Execute< DIMENSION , Real , NormalAndColorInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , true  , false , true  > >( argc , argv );
-			else             Execute< DIMENSION , Real ,         NormalInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , true  , false , false > >( argc , argv );
-	else
-		if( Density.set )
-			if( Colors.set ) Execute< DIMENSION , Real , NormalAndColorInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , false , true  , true  > >( argc , argv );
-			else             Execute< DIMENSION , Real ,         NormalInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , false , true  , false > >( argc , argv );
-		else
-			if( Colors.set ) Execute< DIMENSION , Real , NormalAndColorInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , false , false , true  > >( argc , argv );
-			else             Execute< DIMENSION , Real ,         NormalInfo< Real , DIMENSION > , FullPlyVertex< float , DIMENSION , false , false , false > >( argc , argv );
+	if( Colors.set ) Execute< DIMENSION , float , PointStreamColor< float > >( argc , argv );
+	else             Execute< DIMENSION , float >( argc , argv );
 #endif // FAST_COMPILE
 	if( Performance.set )
 	{

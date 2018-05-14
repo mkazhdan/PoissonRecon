@@ -271,7 +271,7 @@ int _Execute( int argc , char* argv[] )
 			int file_type;
 			std::vector< PlyVertex< float , Dim > > _vertices;
 			std::vector< std::vector< int > > _polygons;
-			PlyReadPolygons( In.value , _vertices , _polygons , PlyVertex< float , Dim >::Properties() , PlyVertex< float , Dim >::ReadComponents , file_type );
+			PlyReadPolygons( In.value , _vertices , _polygons , PlyVertex< float , Dim >::PlyReadProperties() , PlyVertex< float , Dim >::PlyReadNum , file_type );
 			vertices.resize( _vertices.size() );
 			for( int i=0 ; i<vertices.size() ; i++ ) for( int d=0 ; d<Dim ; d++ ) vertices[i][d] = _vertices[i].point[d];
 			triangles.resize( _polygons.size() );

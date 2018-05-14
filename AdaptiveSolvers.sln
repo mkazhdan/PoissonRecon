@@ -41,6 +41,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Header Files", "Header File
 		Src\MAT.h = Src\MAT.h
 		Src\MyMiscellany.h = Src\MyMiscellany.h
 		Src\Ply.h = Src\Ply.h
+		Src\PlyFile.h = Src\PlyFile.h
 		Src\PointStream.h = Src\PointStream.h
 		Src\PointStreamData.h = Src\PointStreamData.h
 		Src\Polynomial.h = Src\Polynomial.h

@@ -35,192 +35,9 @@
 #define __PLY_H__
 
 #define NEW_PLY_CODE
-
-#ifndef WIN32
-#define _strdup strdup
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-	
-#include <stdlib.h>
-#include <stdio.h>
-#include <stddef.h>
-#include <string.h>
-    
-#define PLY_ASCII         1      /* ascii PLY file */
-#define PLY_BINARY_BE     2      /* binary PLY file, big endian */
-#define PLY_BINARY_LE     3      /* binary PLY file, little endian */
-#define PLY_BINARY_NATIVE 4      /* binary PLY file, same endianness as current architecture */
-    
-#define PLY_OKAY    0           /* ply routine worked okay */
-#define PLY_ERROR  -1           /* error in ply routine */
-	
-	/* scalar data types supported by PLY format */
-	
-#define PLY_START_TYPE 0
-#define PLY_CHAR       1
-#define PLY_SHORT      2
-#define PLY_INT        3
-#define PLY_UCHAR      4
-#define PLY_USHORT     5
-#define PLY_UINT       6
-#define PLY_FLOAT      7
-#define PLY_DOUBLE     8
-#define PLY_INT_8      9
-#define PLY_UINT_8     10
-#define PLY_INT_16     11
-#define PLY_UINT_16    12
-#define PLY_INT_32     13
-#define PLY_UINT_32    14
-#define PLY_FLOAT_32   15
-#define PLY_FLOAT_64   16
-	
-#define PLY_END_TYPE   17
-	
-#define  PLY_SCALAR  0
-#define  PLY_LIST    1
-	
-#define PLY_STRIP_COMMENT_HEADER 0
-
-typedef struct PlyProperty {    /* description of a property */
-	char *name;                           /* property name */
-	int external_type;                    /* file's data type */
-	int internal_type;                    /* program's data type */
-	int offset;                           /* offset bytes of prop in a struct */
-	
-	int is_list;                          /* 1 = list, 0 = scalar */
-	int count_external;                   /* file's count type */
-	int count_internal;                   /* program's count type */
-	int count_offset;                     /* offset byte for list count */
-}
-PlyProperty;
-
-typedef struct PlyElement {     /* description of an element */
-	char *name;                   /* element name */
-	int num;                      /* number of elements in this object */
-	int size;                     /* size of element (bytes) or -1 if variable */
-	int nprops;                   /* number of properties for this element */
-	PlyProperty **props;          /* list of properties in the file */
-	char *store_prop;             /* flags: property wanted by user? */
-	int other_offset;             /* offset to un-asked-for props, or -1 if none*/
-	int other_size;               /* size of other_props structure */
-} PlyElement;
-
-typedef struct PlyOtherProp {   /* describes other properties in an element */
-	char *name;                   /* element name */
-	int size;                     /* size of other_props */
-	int nprops;                   /* number of properties in other_props */
-	PlyProperty **props;          /* list of properties in other_props */
-} PlyOtherProp;
-
-typedef struct OtherData { /* for storing other_props for an other element */
-	void *other_props;
-} OtherData;
-
-typedef struct OtherElem {     /* data for one "other" element */
-	char *elem_name;             /* names of other elements */
-	int elem_count;              /* count of instances of each element */
-	OtherData **other_data;      /* actual property data for the elements */
-	PlyOtherProp *other_props;   /* description of the property data */
-} OtherElem;
-
-typedef struct PlyOtherElems {  /* "other" elements, not interpreted by user */
-	int num_elems;                /* number of other elements */
-	OtherElem *other_list;        /* list of data for other elements */
-} PlyOtherElems;
-
-typedef struct PlyFile {        /* description of PLY file */
-	FILE *fp;                     /* file pointer */
-	int file_type;                /* ascii or binary */
-	float version;                /* version number of file */
-	int nelems;                   /* number of elements of object */
-	PlyElement **elems;           /* list of elements */
-	int num_comments;             /* number of comments */
-	char **comments;              /* list of comments */
-	int num_obj_info;             /* number of items of object information */
-	char **obj_info;              /* list of object info items */
-	PlyElement *which_elem;       /* which element we're currently writing */
-	PlyOtherElems *other_elems;   /* "other" elements from a PLY file */
-} PlyFile;
-	
-	/* memory allocation */
-extern char *my_alloc();
-#define myalloc(mem_size) my_alloc((mem_size), __LINE__, __FILE__)
-
-#ifndef ALLOCN
-#define REALLOCN(PTR,TYPE,OLD_N,NEW_N)							\
-{										\
-	if ((OLD_N) == 0)                                           		\
-{   ALLOCN((PTR),TYPE,(NEW_N));}                            		\
-	else									\
-{								    		\
-	(PTR) = (TYPE *)realloc((PTR),(NEW_N)*sizeof(TYPE));			\
-	if (((PTR) == NULL) && ((NEW_N) != 0))					\
-{									\
-	fprintf(stderr, "Memory reallocation failed on line %d in %s\n", 	\
-	__LINE__, __FILE__);                             		\
-	fprintf(stderr, "  tried to reallocate %d->%d\n",       		\
-	(OLD_N), (NEW_N));                              		\
-	exit(-1);								\
-}									\
-	if ((NEW_N)>(OLD_N))							\
-	memset((char *)(PTR)+(OLD_N)*sizeof(TYPE), 0,			\
-	((NEW_N)-(OLD_N))*sizeof(TYPE));				\
-}										\
-}
-
-#define  ALLOCN(PTR,TYPE,N) 					\
-{ (PTR) = (TYPE *) calloc(((unsigned)(N)),sizeof(TYPE));\
-	if ((PTR) == NULL) {    				\
-	fprintf(stderr, "Memory allocation failed on line %d in %s\n", \
-	__LINE__, __FILE__);                           \
-	exit(-1);                                             \
-	}							\
-}
-
-
-#define FREE(PTR)  { free((PTR)); (PTR) = NULL; }
-#endif
-
-
-/*** delcaration of routines ***/
-
-extern PlyFile *ply_write(FILE *, int, const char **, int);
-extern PlyFile *ply_open_for_writing( const char *, int, const char **, int, float *);
-extern void ply_describe_element(PlyFile *, char *, int, int, PlyProperty *);
-extern void ply_describe_property(PlyFile *, const char *, PlyProperty *);
-extern void ply_element_count(PlyFile *, const char *, int);
-extern void ply_header_complete(PlyFile *);
-extern void ply_put_element_setup(PlyFile *, const char *);
-extern void ply_put_element(PlyFile *, void *);
-extern void ply_put_comment(PlyFile *, char *);
-extern void ply_put_obj_info(PlyFile *, char *);
-extern PlyFile *ply_read(FILE *, int *, char ***);
-extern PlyFile *ply_open_for_reading( const char *, int *, char ***, int *, float *);
-extern PlyProperty **ply_get_element_description(PlyFile *, char *, int*, int*);
-extern void ply_get_element_setup( PlyFile *, char *, int, PlyProperty *);
-extern int ply_get_property(PlyFile *, char *, PlyProperty *);
-extern PlyOtherProp *ply_get_other_properties(PlyFile *, char *, int);
-extern void ply_get_element(PlyFile *, void *);
-extern char **ply_get_comments(PlyFile *, int *);
-extern char **ply_get_obj_info(PlyFile *, int *);
-extern void ply_close(PlyFile *);
-extern void ply_get_info(PlyFile *, float *, int *);
-extern PlyOtherElems *ply_get_other_element (PlyFile *, char *, int);
-extern void ply_describe_other_elements ( PlyFile *, PlyOtherElems *);
-extern void ply_put_other_elements (PlyFile *);
-extern void ply_free_other_elements (PlyOtherElems *);
-extern void ply_describe_other_properties(PlyFile *, PlyOtherProp *, int);
-
-extern int equal_strings(const char *, const char *);
-
-#ifdef __cplusplus
-}
-#endif
-#include "Geometry.h"
 #include <vector>
+#include "PlyFile.h"
+#include "Geometry.h"
 
 template< class Real > int PLYType( void );
 template<> inline int PLYType< int           >( void ){ return PLY_INT   ; }
@@ -242,35 +59,6 @@ static PlyProperty face_props[] =
 };
 
 
-///////////////
-// PlyVertex //
-///////////////
-#ifdef NEW_PLY_CODE
-static char*       PlyPositionNames[] = { "x" , "y" , "z" ,  "w" };
-static char*         PlyNormalNames[] = { "nx" , "ny" , "nz" , "nw" };
-static char*          PlyValueNames[] = { "value" };
-static char*          PlyColorNames[] = { "red" , "green" , "blue" , "alpha" };
-static char* PlyAlternateColorNames[] = { "r" , "g" , "b" , "a" };
-#else // !NEW_PLY_CODE
-static char*       PlyPositionNames[] = { _strdup(  "x" ) , _strdup(  "y" ) , _strdup(  "z" ) , _strdup(  "w" ) };
-static char*         PlyNormalNames[] = { _strdup( "nx" ) , _strdup( "ny" ) , _strdup( "nz" ) , _strdup( "nw" ) };
-static char*          PlyValueNames[] = { _strdup( "value" ) };
-static char*          PlyColorNames[] = { _strdup( "red"  ), _strdup( "green" ) , _strdup( "blue" ) , _strdup( "alpha" ) };
-static char* PlyAlternateColorNames[] = { _strdup( "r" ) , _strdup( "g" ) , _strdup( "b" ) , _strdup( "a" ) };
-#endif // NEW_PLY_CODE
-inline PlyProperty MakePlyProperty( char* name , int internalType , int externalType , int offset )
-{
-	PlyProperty p;
-	p.name = name;
-	p.external_type = externalType;
-	p.internal_type = internalType;
-	p.offset = offset;
-	p.is_list = p.count_external = p.count_internal = p.count_offset = 0;
-	return p;
-}
-
-// The "Wrapper" class indicates the class to cast to/from in order to support linear operations.
-
 struct RGBColor
 {
 	unsigned char c[3];
@@ -280,127 +68,192 @@ struct RGBColor
 	RGBColor( const RGBColor& rgb ){ memcpy( c , rgb.c , sizeof(unsigned char) * 3 ); }
 	RGBColor& operator = ( const RGBColor& rgb ){ memcpy( c , rgb.c , sizeof(unsigned char) * 3 ) ; return *this; }
 };
-///////////////////
-// FullPlyVertex //
-///////////////////
-template< class _Real , int Dim , bool HasNormal , bool HasValue , bool HasColor >
-class FullPlyVertex
+///////////////
+// PlyVertex //
+///////////////
+template< typename _Real , int Dim , typename _RealOnDisk=float >
+class PlyVertex
 {
 public:
 	typedef _Real Real;
-protected:
-	static PlyProperty _Properties[];
-	static const int _NormalSize = HasNormal ? sizeof( Point< Real , Dim > ) : 0;
-	static const int  _ValueSize = HasValue  ? sizeof( Real )                : 0;
-	static const int  _ColorSize = HasColor  ? sizeof( RGBColor )            : 0;
-	static const int _Size = _NormalSize + _ValueSize + _ColorSize;
 
-	static const int _NormalOffset =  0;
-	static const int  _ValueOffset = _NormalOffset + _NormalSize;
-	static const int  _ColorOffset =  _ValueOffset +  _ValueSize;
+	PlyVertex& operator += ( const PlyVertex& p ){ point += p.point ; return *this; }
+	PlyVertex& operator -= ( const PlyVertex& p ){ point -= p.point ; return *this; }
+	PlyVertex& operator *= ( Real s )            { point *= s ; return *this; }
+	PlyVertex& operator /= ( Real s )            { point /= s ; return *this; }
+	PlyVertex  operator +  ( const PlyVertex& p ) const { return PlyVertex( point + p.point ); }
+	PlyVertex  operator -  ( const PlyVertex& p ) const { return PlyVertex( point - p.point ); }
+	PlyVertex  operator *  ( Real s )             const { return PlyVertex( point * s ); }
+	PlyVertex  operator /  ( Real s )             const { return PlyVertex( point / s ); }
 
-	char _vertexData[ _Size==0 ? 1 :_Size ];
-public:
-	struct _FullPlyVertex
-	{
-		static const int  PointCount =               Dim      ;
-		static const int NormalCount = ( HasNormal ? Dim : 0 );
-		static const int  ValueCount = ( HasValue  ?   1 : 0 );
-		static const int  ColorCount = ( HasColor  ?   3 : 0 );
-		static const int Count = NormalCount + ValueCount + ColorCount;
+	const static int PlyReadNum = Dim;
+	const static int PlyWriteNum = Dim;
 
-		static const int NormalOffset = 0;
-		static const int  ValueOffset = NormalOffset + NormalCount;
-		static const int  ColorOffset =  ValueOffset +  ValueCount;
-
-		Point< Real , Count==0 ? 1 : Count > vertexData;
-		Point< Real , Dim > point;
-		Point< Real , Dim >& normal( void ){ return *( ( Point< Real , Dim >*)(&vertexData[0] + NormalOffset) ); }
-		Real               & value ( void ){ return *( ( Real               *)(&vertexData[0] +  ValueOffset) ); }
-		Point< Real , 3   >& color ( void ){ return *( ( Point< Real , 3   >*)(&vertexData[0] +  ColorOffset) ); }
-		const Point< Real , Dim >& normal( void ) const { return *( ( Point< Real , Dim >*)(&vertexData[0] + NormalOffset) ); }
-		const Real               & value ( void ) const { return *( ( Real               *)(&vertexData[0] +  ValueOffset) ); }
-		const Point< Real , 3   >& color ( void ) const { return *( ( Point< Real , 3   >*)(&vertexData[0] +  ColorOffset) ); }
-
-		_FullPlyVertex( void ) {;}
-		_FullPlyVertex( Point< Real , Dim > p , Point< Real , Count > vData ){ point = p , vertexData = vData; }
-		_FullPlyVertex( FullPlyVertex p )
-		{
-			point = p.point;
-			if( HasNormal ) for( int i=0 ; i<Dim ; i++ ) vertexData[NormalOffset+i] = p.normal()[i];
-			if( HasValue  )                              vertexData[ ValueOffset  ] = p.value();
-			if( HasColor  ) for( int i=0 ; i<3 ; i++ )   vertexData[ ColorOffset+i] = (Real)p.color()[i];
-		}
-		operator FullPlyVertex()
-		{
-			FullPlyVertex p;
-			p.point = point;
-			if( HasNormal ) for( int i=0 ; i<Dim ; i++ ) p.normal()[i] = vertexData[NormalOffset+i];
-			if( HasValue  )                              p.value ()    = vertexData[ ValueOffset  ];
-			if( HasColor  ) for( int i=0 ; i<3 ; i++ )   p.color ()[i] = (unsigned char)std::max< int >( 0 , std::min< int >( 255 , (int)( vertexData[ColorOffset+i]+0.5 ) ) );
-			return p;
-		}
-		_FullPlyVertex& operator += ( const _FullPlyVertex& p ){ point += p.point , vertexData += p.vertexData ; return *this; }
-		_FullPlyVertex& operator -= ( const _FullPlyVertex& p ){ point -= p.point , vertexData -= p.vertexData ; return *this; }
-		_FullPlyVertex& operator *= ( Real s )                 { point *= s , vertexData *= s            ; return *this; }
-		_FullPlyVertex& operator /= ( Real s )                 { point /= s , vertexData /= s            ; return *this; }
-		_FullPlyVertex  operator +  ( const _FullPlyVertex& p ) const { return _FullPlyVertex( point + p.point , vertexData + p.vertexData ); }
-		_FullPlyVertex  operator -  ( const _FullPlyVertex& p ) const { return _FullPlyVertex( point - p.point , vertexData - p.vertexData ); }
-		_FullPlyVertex  operator *  ( Real s )                  const { return _FullPlyVertex( point * s , vertexData * s            ); }
-		_FullPlyVertex  operator /  ( Real s )                  const { return _FullPlyVertex( point / s , vertexData / s            ); }
-	};
-
-	typedef _FullPlyVertex Wrapper;
-
-	const static int  ReadComponents = Dim + ( HasNormal ? Dim : 0 ) + ( HasValue ? 1 : 0 ) + ( HasColor ? 6 : 0 );
-	const static int WriteComponents = Dim + ( HasNormal ? Dim : 0 ) + ( HasValue ? 1 : 0 ) + ( HasColor ? 3 : 0 );
-
-	static PlyProperty* Properties( void );
+	static const PlyProperty* PlyReadProperties( void ){ return _PlyProperties; }
+	static const PlyProperty* PlyWriteProperties( void ){ return _PlyProperties; }
 
 	Point< Real , Dim > point;
-	Point< Real , Dim >& normal( void ){ return *( ( Point< Real , Dim >* )( _vertexData + _NormalOffset ) ); }
-	Real&                 value( void ){ return *( ( Real* )               ( _vertexData +  _ValueOffset ) ); }
-	RGBColor&             color( void ){ return *( ( RGBColor* )           ( _vertexData +  _ColorOffset ) ); }
-	FullPlyVertex( void ){ memset( _vertexData , 0 , _Size ); }
-	FullPlyVertex( Point< Real , Dim > p )  : FullPlyVertex() { point = p; }
-	FullPlyVertex( const FullPlyVertex& v ) : FullPlyVertex() { point = v.point , memcpy( _vertexData , v._vertexData , _Size ); }
-	FullPlyVertex& operator = ( const FullPlyVertex& v )      { point = v.point , memcpy( _vertexData , v._vertexData , _Size ) ; return *this; }
+	PlyVertex( void ) {}
+	PlyVertex( Point< Real , Dim > p ) : point(p) { }
+
+	struct Transform
+	{
+		Transform( void ){}
+		Transform( const XForm< Real , Dim+1 >& xForm ) : _pointXForm(xForm) { }
+		PlyVertex operator() ( const PlyVertex& p ) const
+		{
+			PlyVertex _p;
+			_p.point = _pointXForm * p.point;
+			return _p;
+		}
+	protected:
+		XForm< Real , Dim+1 > _pointXForm;
+	};
+
+protected:
+	static const PlyProperty _PlyProperties[];
 };
-template< class Real , int Dim , bool HasNormal , bool HasValue , bool HasColor , class _Real >
-FullPlyVertex< Real , Dim , HasNormal , HasValue , HasColor > operator * ( XForm< _Real , Dim+1 > xForm , FullPlyVertex< Real , Dim , HasNormal , HasValue , HasColor > p )
+
+template<>
+const PlyProperty PlyVertex< float , 2 , float >::_PlyProperties[] =
 {
-	FullPlyVertex< Real , Dim , HasNormal , HasValue , HasColor > _p = p;
-	_p.point = xForm * p.point;
-	if( HasNormal ) _p.normal() = xForm.inverse().transpose() * p.normal();
-	return _p;
-}
-
-template< class Real , int Dim , bool HasNormal , bool HasValue , bool HasColor > PlyProperty FullPlyVertex< Real , Dim , HasNormal , HasValue , HasColor >::_Properties[ FullPlyVertex::ReadComponents ];
-template< class Real , int Dim , bool HasNormal , bool HasValue , bool HasColor >
-PlyProperty* FullPlyVertex< Real , Dim , HasNormal , HasValue , HasColor >::Properties( void )
+	{ "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+const PlyProperty PlyVertex< double , 2 , float >::_PlyProperties[] =
 {
-	int idx = 0;
+	{ "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+const PlyProperty PlyVertex< float , 2 , double >::_PlyProperties[] =
+{
+	{ "x" , PLY_DOUBLE , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "y" , PLY_DOUBLE , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+const PlyProperty PlyVertex< double , 2 , double >::_PlyProperties[] =
+{
+	{ "x" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "y" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+};
 
-	// Primary values (for writing)
-	int vertexDataOffset = (size_t)(&( ( (FullPlyVertex*)0 )->_vertexData ));
-	int      pointOffset = (size_t)(&( ( (FullPlyVertex*)0 )->point ));
-	for( int d=0 ; d<Dim ; d++ )                 _Properties[idx++] = MakePlyProperty( PlyPositionNames[d] , PLYType< Real >()          , PLYType< Real >()          ,      pointOffset                 + sizeof( Real )*d );
-	if( HasNormal ) for( int d=0 ; d<Dim ; d++ ) _Properties[idx++] = MakePlyProperty(   PlyNormalNames[d] , PLYType< Real >()          , PLYType< Real >()          , vertexDataOffset + _NormalOffset + sizeof( Real )*d );
-	if( HasValue )                               _Properties[idx++] = MakePlyProperty(    PlyValueNames[0] , PLYType< Real >()          , PLYType< Real >()          , vertexDataOffset +  _ValueOffset );
-	if( HasColor ) for( int c=0 ; c<3 ; c++ )    _Properties[idx++] = MakePlyProperty(    PlyColorNames[c] , PLYType< unsigned char >() , PLYType< unsigned char >() , vertexDataOffset +  _ColorOffset + sizeof( unsigned char )*c );
+template<>
+const PlyProperty PlyVertex< float , 3 , float >::_PlyProperties[] =
+{
+	{ "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "z" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+const PlyProperty PlyVertex< double , 3 , float >::_PlyProperties[] =
+{
+	{ "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "z" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+const PlyProperty PlyVertex< float , 3 , double >::_PlyProperties[] =
+{
+	{ "x" , PLY_DOUBLE , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "y" , PLY_DOUBLE , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "z" , PLY_DOUBLE , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+const PlyProperty PlyVertex< double , 3 , double >::_PlyProperties[] =
+{
+	{ "x" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "y" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "z" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
 
-	// Alternative values (for reading or writing)
-	if( HasColor ) for( int c=0 ; c<3 ; c++ ) _Properties[idx++] = MakePlyProperty( PlyAlternateColorNames[c] , PLYType< unsigned char >() , PLYType< unsigned char >() , vertexDataOffset + _ColorOffset + sizeof( unsigned char )*c );
+///////////////////////
+// PlyVertexWithData //
+///////////////////////
+template< typename _Real , int Dim , typename Data , typename _RealOnDisk=float >
+class PlyVertexWithData
+{
+public:
+	typedef _Real Real;
 
-	return _Properties;
+	PlyVertexWithData& operator += ( const PlyVertexWithData& p ){ point += p.point , data += p.data ; return *this; }
+	PlyVertexWithData& operator -= ( const PlyVertexWithData& p ){ point -= p.point , data -= p.data ; return *this; }
+	PlyVertexWithData& operator *= ( Real s )                    { point *= s , data *= s ; return *this; }
+	PlyVertexWithData& operator /= ( Real s )                    { point /= s , data /= s ; return *this; }
+	PlyVertexWithData  operator +  ( const PlyVertexWithData& p ) const { return PlyVertexWithData( point + p.point , data + p.data ); }
+	PlyVertexWithData  operator -  ( const PlyVertexWithData& p ) const { return PlyVertexWithData( point - p.point , data - p.data ); }
+	PlyVertexWithData  operator *  ( Real s )                     const { return PlyVertexWithData( point * s , data * s ); }
+	PlyVertexWithData  operator /  ( Real s )                     const { return PlyVertexWithData( point / s , data / s ); }
+
+	const static int PlyReadNum = Data::PlyReadNum + Dim;
+	const static int PlyWriteNum = Data::PlyWriteNum + Dim;
+
+	static const PlyProperty* PlyReadProperties( void ){ _SetReadProperties() ; return _PlyReadProperties; }
+	static const PlyProperty* PlyWriteProperties( void ){ _SetWriteProperties() ; return _PlyWriteProperties; }
+
+
+	Point< Real , Dim > point;
+	Data data;
+	PlyVertexWithData( void ) {}
+	PlyVertexWithData( Point< Real , Dim > p , Data d ) : point(p) , data(d) { }
+
+	struct Transform
+	{
+		Transform( void ){}
+		Transform( const XForm< Real , Dim+1 >& xForm ) : _pointXForm(xForm) , _dataXForm(xForm) { }
+		PlyVertexWithData operator() ( const PlyVertexWithData& p ) const
+		{
+			PlyVertexWithData _p;
+			_p.point = _pointXForm * p.point;
+			_p.data = _dataXForm( p.data );
+			return _p;
+		}
+	protected:
+		XForm< Real , Dim+1 > _pointXForm;
+		typename Data::Transform _dataXForm;
+	};
+
+protected:
+	static void _SetReadProperties( void );
+	static void _SetWriteProperties( void );
+	static PlyProperty _PlyReadProperties[];
+	static PlyProperty _PlyWriteProperties[];
+};
+template< typename Real , int Dim , typename Data , typename RealOnDisk > PlyProperty PlyVertexWithData< Real , Dim , Data , RealOnDisk >::_PlyReadProperties[ PlyReadNum ];
+template< typename Real , int Dim , typename Data , typename RealOnDisk > PlyProperty PlyVertexWithData< Real , Dim , Data , RealOnDisk >::_PlyWriteProperties[ PlyWriteNum ];
+template< typename Real , int Dim , typename Data , typename RealOnDisk >
+void PlyVertexWithData< Real , Dim , Data , RealOnDisk >::_SetReadProperties( void )
+{
+	{
+		const PlyProperty * ReadProps = PlyVertex< Real , Dim , RealOnDisk >::PlyReadProperties();
+		for( int d=0 ; d<PlyVertex< Real , Dim , RealOnDisk >::PlyReadNum ; d++ ) _PlyReadProperties[d] = ReadProps[d];
+	}
+	{
+		const PlyProperty * ReadProps = Data::PlyReadProperties();
+		for( int d=0 ; d<Data::PlyReadNum ; d++ )
+		{
+			_PlyReadProperties[d+PlyVertex< Real , Dim , RealOnDisk >::PlyReadNum ] = ReadProps[d];
+			_PlyReadProperties[d+PlyVertex< Real , Dim , RealOnDisk >::PlyReadNum ].offset += (int)offsetof( PlyVertexWithData , data );
+		}
+	}
 }
-
-template< class Real , int Dim > using PlyVertex              = FullPlyVertex< Real , Dim , false , false , false >;
-template< class Real , int Dim > using PlyOrientedVertex      = FullPlyVertex< Real , Dim , true  , false , false >;
-template< class Real , int Dim > using PlyValueVertex         = FullPlyVertex< Real , Dim , false , true  , false >;
-template< class Real , int Dim > using PlyColorVertex         = FullPlyVertex< Real , Dim , false , false , true  >;
-template< class Real , int Dim > using PlyOrientedColorVertex = FullPlyVertex< Real , Dim , true  , false , true  >;
-template< class Real , int Dim > using PlyColorAndValueVertex = FullPlyVertex< Real , Dim , false , true  , true  >;
+template< typename Real , int Dim , typename Data , typename RealOnDisk >
+void PlyVertexWithData< Real , Dim , Data , RealOnDisk >::_SetWriteProperties( void )
+{
+	{
+		const PlyProperty * WriteProps = PlyVertex< Real , Dim , RealOnDisk >::PlyWriteProperties();
+		for( int d=0 ; d<PlyVertex< Real , Dim , RealOnDisk >::PlyWriteNum ; d++ ) _PlyWriteProperties[d] = WriteProps[d];
+	}
+	{
+		const PlyProperty * WriteProps = Data::PlyWriteProperties();
+		for( int d=0 ; d<Data::PlyWriteNum ; d++ )
+		{
+			_PlyWriteProperties[d+PlyVertex< Real , Dim , RealOnDisk >::PlyWriteNum ] = WriteProps[d];
+			_PlyWriteProperties[d+PlyVertex< Real , Dim , RealOnDisk >::PlyWriteNum ].offset += (int)offsetof( PlyVertexWithData , data );
+		}
+	}
+}
 
 template< class Vertex , class Real , int Dim >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >*  mesh , int file_type , const Point< float , Dim >& translate , float scale , char** comments=NULL , int commentNum=0 , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
@@ -408,7 +261,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >*  mesh , in
 template< class Vertex , class Real , int Dim >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >*  mesh , int file_type , char** comments=NULL , int commentNum=0 , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
 
-inline bool PlyReadHeader( const char* fileName , PlyProperty* properties , int propertyNum , bool* readFlags , int& file_type )
+inline bool PlyReadHeader( char* fileName , const PlyProperty* properties , int propertyNum , bool* readFlags , int& file_type )
 {
 	int nr_elems;
 	char **elist;
@@ -489,7 +342,7 @@ inline bool PlyReadHeader( const char* fileName , PlyProperty* properties , int 
 	ply_close( ply );
 	return true;
 }
-inline bool PlyReadHeader( const char* fileName , PlyProperty* properties , int propertyNum , bool* readFlags )
+inline bool PlyReadHeader( char* fileName , const PlyProperty* properties , int propertyNum , bool* readFlags )
 {
 	int file_type;
 	return PlyReadHeader( fileName , properties , propertyNum , readFlags , file_type );
@@ -499,21 +352,21 @@ inline bool PlyReadHeader( const char* fileName , PlyProperty* properties , int 
 template<class Vertex>
 int PlyReadPolygons( const char* fileName,
 					std::vector<Vertex>& vertices,std::vector<std::vector<int> >& polygons,
-					PlyProperty* properties,int propertyNum,
+					const PlyProperty* properties,int propertyNum,
 					int& file_type,
 					char*** comments=NULL,int* commentNum=NULL , bool* readFlags=NULL );
 
 template<class Vertex>
 int PlyWritePolygons( const char* fileName,
 					 const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons ,
-					 PlyProperty* properties,int propertyNum,
+					 const PlyProperty* properties,int propertyNum,
 					 int file_type,
 					 char** comments=NULL,const int& commentNum=0);
 
 template<class Vertex>
 int PlyWritePolygons( const char* fileName,
 					 const std::vector<Vertex>& vertices , const std::vector< std::vector< int > >& polygons,
-					 PlyProperty* properties,int propertyNum,
+					 const PlyProperty* properties,int propertyNum,
 					 int file_type,
 					 char** comments,const int& commentNum)
 {
@@ -574,7 +427,7 @@ int PlyWritePolygons( const char* fileName,
 template<class Vertex>
 int PlyReadPolygons( const char* fileName,
 					std::vector<Vertex>& vertices , std::vector<std::vector<int> >& polygons ,
-					 PlyProperty* properties , int propertyNum ,
+					const PlyProperty* properties , int propertyNum ,
 					int& file_type ,
 					char*** comments , int* commentNum , bool* readFlags )
 {
@@ -762,8 +615,10 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	// describe vertex and face properties
 	//
 	ply_element_count( ply , "vertex" , nr_vertices );
-	for( int i=0 ; i<Vertex::WriteComponents ; i++ ) ply_describe_property( ply , "vertex" , &Vertex::Properties()[i] );
-	
+	typename Vertex::Transform _xForm( xForm );
+	const PlyProperty* PlyWriteProperties = Vertex::PlyWriteProperties();
+	for( int i=0 ; i<Vertex::PlyWriteNum ; i++ ) ply_describe_property( ply , "vertex" , &PlyWriteProperties[i] );
+
 	ply_element_count( ply , "face" , nr_faces );
 	ply_describe_property( ply , "face" , &face_props[0] );
 	
@@ -776,14 +631,14 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	ply_put_element_setup( ply , "vertex" );
 	for( i=0 ; i<int( mesh->inCorePoints.size() ) ; i++ )
 	{
-		Vertex vertex = xForm * mesh->inCorePoints[i];
+		Vertex vertex = _xForm( mesh->inCorePoints[i] );
 		ply_put_element(ply, (void *) &vertex);
 	}
 	for( i=0; i<mesh->outOfCorePointCount() ; i++ )
 	{
 		Vertex vertex;
 		mesh->nextOutOfCorePoint( vertex );
-		vertex = xForm * ( vertex );
+		vertex = _xForm( vertex );
 		ply_put_element(ply, (void *) &vertex);		
 	}  // for, write vertices
 	

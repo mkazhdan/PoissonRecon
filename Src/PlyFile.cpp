@@ -36,7 +36,7 @@ WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
-#include "Ply.h"
+#include "PlyFile.h"
 
 const char *type_names[] = {
 	"invalid",
@@ -127,7 +127,7 @@ void add_comment(PlyFile *, char *);
 void add_obj_info(PlyFile *, char *);
 
 /* copy a property */
-void copy_property(PlyProperty *, PlyProperty *);
+void copy_property(PlyProperty *, const PlyProperty *);
 
 /* store a value into where a pointer and a type specify */
 void store_item(char *, int, int, unsigned int, double);
@@ -339,7 +339,7 @@ prop      - the new property
 void ply_describe_property(
 	PlyFile *plyfile,
 	const char *elem_name,
-	PlyProperty *prop
+	const PlyProperty *prop
 )
 {
 	PlyElement *elem;
@@ -1010,7 +1010,7 @@ prop      - property to add to those that will be returned
 int ply_get_property(
 	PlyFile *plyfile,
 	char *elem_name,
-	PlyProperty *prop
+	const PlyProperty *prop
 )
 {
 	PlyElement *elem;
@@ -2690,7 +2690,7 @@ void add_obj_info (PlyFile *plyfile, char *line)
 Copy a property.
 ******************************************************************************/
 
-void copy_property(PlyProperty *dest, PlyProperty *src)
+void copy_property(PlyProperty *dest, const PlyProperty *src)
 {
 	dest->name = _strdup (src->name);
 	dest->external_type = src->external_type;

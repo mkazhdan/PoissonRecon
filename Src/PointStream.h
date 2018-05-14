@@ -218,9 +218,9 @@ template< class Real , int Dim , class Data >
 class ASCIIInputPointStreamWithData : public InputPointStreamWithData< Real , Dim , Data >
 {
 	FILE* _fp;
-	Data (*_readData)( FILE* );
+	void (*_ReadData)( FILE* , Data& );
 public:
-	ASCIIInputPointStreamWithData( const char* fileName , Data (*readData)( FILE* ) );
+	ASCIIInputPointStreamWithData( const char* fileName , void (*ReadData)( FILE* , Data& ) );
 	~ASCIIInputPointStreamWithData( void );
 	void reset( void );
 	bool nextPoint( Point< Real , Dim >& p , Data& d );
@@ -230,9 +230,9 @@ template< class Real , int Dim , class Data >
 class ASCIIOutputPointStreamWithData : public OutputPointStreamWithData< Real , Dim , Data >
 {
 	FILE* _fp;
-	void (*_writeData)( FILE* , const Data& );
+	void (*_WriteData)( FILE* , const Data& );
 public:
-	ASCIIOutputPointStreamWithData( const char* fileName , void (*writeData)( FILE* , const Data& ) );
+	ASCIIOutputPointStreamWithData( const char* fileName , void (*WriteData)( FILE* , const Data& ) );
 	~ASCIIOutputPointStreamWithData( void );
 	void nextPoint( const Point< Real , Dim >& p , const Data& d );
 };
@@ -241,50 +241,44 @@ template< class Real , int Dim >
 class BinaryInputPointStream : public InputPointStream< Real , Dim >
 {
 	FILE* _fp;
-	bool (*_readPoint)( FILE* , Point< Real , Dim >& );
-	static bool _DefaultReadPoint( FILE* fp , Point< Real , Dim >& d ){ return fread( &d , sizeof(Point< Real , Dim >) , 1 , fp )==1; }
 public:
-	BinaryInputPointStream( const char* filename , bool (*readPoint)( FILE* , Point< Real , Dim >& )=NULL );
+	BinaryInputPointStream( const char* filename );
 	~BinaryInputPointStream( void ){ fclose( _fp ) , _fp=NULL; }
 	void reset( void ){ fseek( _fp , SEEK_SET , 0 ); }
-	bool nextPoint( Point< Real , Dim >& p ){ return _readPoint( _fp , p ); }
+	bool nextPoint( Point< Real , Dim >& p );
 };
 template< class Real , int Dim >
 class BinaryOutputPointStream : public OutputPointStream< Real , Dim >
 {
 	FILE* _fp;
-	void (*_writePoint)( FILE* , const Point< Real , Dim >& );
-	static void _DefaultWritePoint( FILE* fp , const Point< Real , Dim >& d ){ fwrite( &d , sizeof(Point< Real , Dim >) , 1 , fp ); }
 public:
-	BinaryOutputPointStream( const char* filename , void (*writePoint)( FILE* , const Point< Real , Dim >& )=NULL );
+	BinaryOutputPointStream( const char* filename );
 	~BinaryOutputPointStream( void ){ fclose( _fp ) , _fp=NULL; }
 	void reset( void ){ fseek( _fp , SEEK_SET , 0 ); }
-	void nextPoint( const Point< Real , Dim >& p ){ return _writePoint( _fp , p ); }
+	void nextPoint( const Point< Real , Dim >& p );
 };
 
 template< class Real , int Dim , class Data >
 class BinaryInputPointStreamWithData : public InputPointStreamWithData< Real , Dim , Data >
 {
 	FILE* _fp;
-	bool (*_readPointAndData)( FILE* , Point< Real , Dim >& , Data& );
-	static bool _DefaultReadPointAndData( FILE* fp , Point< Real , Dim >& p , Data& d ){ return fread( &p , sizeof( Point< Real , Dim > ) , 1 , fp )==1 && fread( &d , sizeof( Data ) , 1 , fp )==1; }
+	void (*_ReadData)( FILE* , Data& );
 public:
-	BinaryInputPointStreamWithData( const char* filename , bool (*readPointAndData)( FILE* , Point< Real , Dim >& , Data& ) = NULL );
+	BinaryInputPointStreamWithData( const char* filename , void (*ReadData)( FILE* , Data& ) );
 	~BinaryInputPointStreamWithData( void ){ fclose( _fp ) , _fp=NULL; }
 	void reset( void ){ fseek( _fp , SEEK_SET , 0 ); }
-	bool nextPoint( Point< Real , Dim >& p , Data& d ){ return _readPointAndData( _fp , p , d ); }
+	bool nextPoint( Point< Real , Dim >& p , Data& d );
 };
 template< class Real , int Dim , class Data >
 class BinaryOutputPointStreamWithData : public OutputPointStreamWithData< Real , Dim , Data >
 {
 	FILE* _fp;
-	void (*_writePointAndData)( FILE* , const Point< Real , Dim >& , const Data& );
-	static void _DefaultWritePointAndData( FILE* fp , const Point< Real , Dim >& p , const Data& d ){ fwrite( &p , sizeof( Point< Real , Dim > ) , 1 , fp ) ; fwrite( &d , sizeof( Data ) , 1 , fp ); }
+	void (*_WriteData)( FILE* , const Data& );
 public:
-	BinaryOutputPointStreamWithData( const char* filename , void (*writePointAndData)( FILE* , const Point< Real , Dim >& , const Data& ) = NULL );
+	BinaryOutputPointStreamWithData( const char* filename , void (*WriteData)( FILE* , const Data& ) );
 	~BinaryOutputPointStreamWithData( void ){ fclose( _fp ) , _fp=NULL; }
 	void reset( void ){ fseek( _fp , SEEK_SET , 0 ); }
-	void nextPoint( const Point< Real , Dim >& p , const Data& d ){ return _writePointAndData( _fp , p , d ); }
+	void nextPoint( const Point< Real , Dim >& p , const Data& d );
 };
 
 template< class Real , int Dim >

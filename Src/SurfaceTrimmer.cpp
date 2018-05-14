@@ -39,6 +39,7 @@ DAMAGE.
 #include "MAT.h"
 #include "Geometry.h"
 #include "Ply.h"
+#include "PointStreamData.h"
 
 MessageWriter messageWriter;
 
@@ -80,16 +81,15 @@ long long EdgeKey( int key1 , int key2 )
 	else            return ( ( (long long)key2 )<<32 ) | ( (long long)key1 );
 }
 
-template< class Real , class Vertex >
-Vertex InterpolateVertices( const Vertex& v1 , const Vertex& v2 , Real value )
+template< typename Real , typename ... VertexData >
+PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > InterpolateVertices( const PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > >& v1 , const PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > >& v2 , Real value )
 {
-	typename Vertex::Wrapper _v1(v1) , _v2(v2);
-	if( _v1.value()==_v2.value() ) return (_v1+_v2)/Real(2.);
-	Real dx = ( _v1.value()-value ) / ( _v1.value()-_v2.value() );
-	return _v1*(1.f-dx) + _v2*dx;
+	if( std::get<0>( v1.data.data ).data==std::get<0>( v2.data.data ).data ) return (v1+v2)/Real(2.);
+	Real dx = ( std::get<0>( v1.data.data ).data-value ) / ( std::get<0>( v1.data.data ).data-std::get<0>( v2.data.data ).data );
+	return v1*(1.f-dx) + v2*dx;
 }
-template< class Real , class Vertex >
-void SmoothValues( std::vector< Vertex >& vertices , const std::vector< std::vector< int > >& polygons )
+template< typename Real , typename ... VertexData >
+void SmoothValues( std::vector< PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > >& vertices , const std::vector< std::vector< int > >& polygons )
 {
 	std::vector< int > count( vertices.size() );
 	std::vector< Real > sums( vertices.size() , 0 );
@@ -101,16 +101,16 @@ void SmoothValues( std::vector< Vertex >& vertices , const std::vector< std::vec
 			int j1 = j , j2 = (j+1)%sz;
 			int v1 = polygons[i][j1] , v2 = polygons[i][j2];
 			count[v1]++ , count[v2]++;
-			sums[v1] += vertices[v2].value() , sums[v2] += vertices[v1].value();
+			sums[v1] += std::get< 0 >( vertices[v2].data.data ).data , sums[v2] += std::get< 0 >( vertices[v1].data.data ).data;
 		}
 	}
-	for( size_t i=0 ; i<vertices.size() ; i++ ) vertices[i].value() = ( sums[i] + vertices[i].value() ) / ( count[i] + 1 );
+	for( size_t i=0 ; i<vertices.size() ; i++ ) std::get< 0 >( vertices[i].data.data ).data = ( sums[i] + std::get< 0 >( vertices[i].data.data ).data ) / ( count[i] + 1 );
 }
-template< class Real , class Vertex >
+template< class Real , typename ... VertexData >
 void SplitPolygon
 	(
 	const std::vector< int >& polygon ,
-	std::vector< Vertex >& vertices , 
+	std::vector< PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > >& vertices ,
 	std::vector< std::vector< int > >* ltPolygons , std::vector< std::vector< int > >* gtPolygons ,
 	std::vector< bool >* ltFlags , std::vector< bool >* gtFlags ,
 	std::unordered_map< long long, int >& vertexTable,
@@ -122,7 +122,7 @@ void SplitPolygon
 	int gtCount = 0;
 	for( int j=0 ; j<sz ; j++ )
 	{
-		gt[j] = ( vertices[ polygon[j] ].value()>trimValue );
+		gt[j] = ( std::get<0>( vertices[ polygon[j] ].data.data ).data>trimValue );
 		if( gt[j] ) gtCount++;
 	}
 	if     ( gtCount==sz ){ if( gtPolygons ) gtPolygons->push_back( polygon ) ; if( gtFlags ) gtFlags->push_back( false ); }
@@ -273,9 +273,10 @@ void SetConnectedComponents( const std::vector< std::vector< int > >& polygons ,
 	components.resize( cCount );
 	for( int i=0 ; i<int(polygonRoots.size()) ; i++ ) components[ vMap[ polygonRoots[i] ] ].push_back(i);
 }
-template< class Vertex >
+template< typename ... VertexData >
 int Execute( void )
 {
+	typedef PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > Vertex;
 	float min , max;
 	std::vector< Vertex > vertices;
 	std::vector< std::vector< int > > polygons;
@@ -283,11 +284,11 @@ int Execute( void )
 	int ft , commentNum = 0;
 	std::vector< char* > comments;
 	char** _comments;
-	PlyReadPolygons< Vertex >( In.value , vertices , polygons , Vertex::Properties() , Vertex::ReadComponents , ft , &_comments , &commentNum );
+	PlyReadPolygons< Vertex >( In.value , vertices , polygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , &_comments , &commentNum );
 	for( int i=0 ; i<commentNum ; i++ ) comments.push_back( _comments[i] );
-	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< float , Vertex >( vertices , polygons );
-	min = max = vertices[0].value();
-	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , vertices[i].value() ) , max = std::max< float >( max , vertices[i].value() );
+	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< float >( vertices , polygons );
+	min = max = std::get< 0 >( vertices[0].data.data ).data;
+	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , std::get< 0 >( vertices[0].data.data ).data ) , max = std::max< float >( max , std::get< 0 >( vertices[0].data.data ).data );
 	if( Verbose.set ) printf( "Value Range: [%f,%f]\n" , min , max );
 
 	std::unordered_map< long long, int > vertexTable;
@@ -363,7 +364,7 @@ int Execute( void )
 
 	RemoveHangingVertices( vertices , gtPolygons );
 	sprintf( comments[commentNum++] , "#Trimmed In: %9.1f (s)" , Time()-t );
-	if( Out.set ) PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::Properties() , Vertex::WriteComponents , ft , &comments[0] , (int)comments.size() );
+	if( Out.set ) PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , &comments[0] , (int)comments.size() );
 
 	return EXIT_SUCCESS;
 }
@@ -377,13 +378,21 @@ int main( int argc , char* argv[] )
 		ShowUsage( argv[0] );
 		return EXIT_FAILURE;
 	}
-	bool readFlags[ PlyColorAndValueVertex< float , DIMENSION >::ReadComponents ];
-	if( !PlyReadHeader( In.value , PlyColorAndValueVertex< float , DIMENSION >::Properties() , PlyColorAndValueVertex< float , DIMENSION >::ReadComponents , readFlags ) ) fprintf( stderr , "[ERROR] Failed to read ply header: %s\n" , In.value ) , exit( 0 );
+	typedef MultiPointStreamData< float , PointStreamValue< float > , PointStreamNormal< float , DIMENSION > , PointStreamColor< float > > VertexData;
+	typedef PlyVertexWithData< float , DIMENSION , VertexData > Vertex;
+	bool readFlags[ Vertex::PlyReadNum ];
+	if( !PlyReadHeader( In.value , Vertex::PlyReadProperties() , Vertex::PlyReadNum , readFlags ) ) fprintf( stderr , "[ERROR] Failed to read ply header: %s\n" , In.value ) , exit( 0 );
 
-	bool hasValue = readFlags[DIMENSION];
-	bool hasColor = ( readFlags[DIMENSION+1] || readFlags[DIMENSION+4] ) && ( readFlags[DIMENSION+2] || readFlags[DIMENSION+5] ) && ( readFlags[DIMENSION+3] || readFlags[DIMENSION+6] );
+	bool hasValue  = VertexData::ValidPlyReadProperties< 0 >( readFlags + DIMENSION );
+	bool hasNormal = VertexData::ValidPlyReadProperties< 1 >( readFlags + DIMENSION );
+	bool hasColor  = VertexData::ValidPlyReadProperties< 2 >( readFlags + DIMENSION );
 
 	if( !hasValue ) fprintf( stderr , "[ERROR] Ply file does not contain values\n" ) , exit( 0 );
-	if( hasColor ) return Execute< PlyColorAndValueVertex< float , DIMENSION > >();
-	else           return Execute< PlyValueVertex< float , DIMENSION > >();
+
+	if( hasColor )
+		if( hasNormal ) return Execute< PointStreamNormal< float , DIMENSION > , PointStreamColor< float > >();
+		else            return Execute<                                          PointStreamColor< float > >();
+	else
+		if( hasNormal ) return Execute< PointStreamNormal< float , DIMENSION >                             >();
+		else            return Execute<                                                                    >();
 }

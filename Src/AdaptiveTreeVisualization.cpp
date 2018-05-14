@@ -37,6 +37,7 @@ DAMAGE.
 #include "PPolynomial.h"
 #include "FEMTree.h"
 #include "Ply.h"
+#include "PointStreamData.h"
 
 cmdLineParameter< char* >
 	In( "in" ) ,
@@ -137,15 +138,16 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 	// Output the mesh
 	if( OutMesh.set )
 	{
-		CoredFileMeshData< PlyVertex< float , Dim > > mesh;
 		double t = Time();
-		IsoSurfaceExtractor< Dim , Real , PlyVertex< float , Dim > >::template Extract< Point< Real , 3 > >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , []( PlyVertex< float , Dim >& , Real ){;} , []( PlyVertex< float , Dim >& , Point< Real , 3 > ){;} , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		typedef PlyVertex< Real , Dim > Vertex;
+		CoredFileMeshData< Vertex > mesh;
+		std::function< void ( Vertex& , Point< Real , Dim > , Real , Real ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real , Real ){ v.point = p; };
+		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
 		if( Verbose.set ) printf( "Vertices / Polygons: %d / %d\n" , (int)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (int)mesh.polygonCount() );
 
-		if( ASCII.set ) PlyWritePolygons< PlyVertex< float , Dim > , Real , Dim >( OutMesh.value , &mesh , PLY_ASCII         , NULL , 0 , XForm< Real , Dim+1 >::Identity() );
-		else            PlyWritePolygons< PlyVertex< float , Dim > , Real , Dim >( OutMesh.value , &mesh , PLY_BINARY_NATIVE , NULL , 0 , XForm< Real , Dim+1 >::Identity() );
+		PlyWritePolygons< Vertex , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NULL , 0 , XForm< Real , Dim+1 >::Identity() );
 	}
 }
 

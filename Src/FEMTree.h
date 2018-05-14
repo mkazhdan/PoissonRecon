@@ -42,7 +42,7 @@ DAMAGE.
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED
 
-#define VERSION "10.00"
+#define VERSION "10.01"
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
 
 #define NEW_CODE
@@ -2549,8 +2549,7 @@ struct IsoSurfaceExtractor
 		const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients ,								// The coefficients of the function
 		Real isoValue ,																						// The value at which to extract the level-set
 		CoredMeshData< Vertex >& mesh ,																		// The mesh in which to store the output
-		std::function< void ( Vertex& , Real ) > SetVertexDepth ,											// A function for setting the depth of a vertex
-		std::function< void ( Vertex& , Data ) > SetVertexData ,											// A function for setting the auxiliary data of a vertex
+		std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex ,					// A function for setting the depth and data of a vertex
 		bool nonLinearFit ,																					// Should a linear interpolant be used
 		bool addBarycenter ,																				// Should we triangulate polygons by adding a mid-point
 		bool polygonMesh ,																					// Should we output triangles or polygons

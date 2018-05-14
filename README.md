@@ -738,12 +738,18 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <li> Added a parameter for specifying the temporary directory.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/">Version 10.00</a>:
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/">Version 10.00</a>:
 <ol>
 <li> The code has been reworked to support arbitrary dimensions, finite elements of arbitrary degree, generally SPD systems in the evaluated/integrated values and derivatives of the functions, etc.</LI>
 <LI> For the reconstruction code, added the <B>--width</B> flag which allows the system to compute the depth of the octree given a target depth for the finest resolution nodes.</LI>
 <LI> For the reconstruction code, fixed a bug in the handling of the confidence encoded in the lengths of the normals. In addition, added the flags <B>--confidence</B> and <B>--confidenceBias</B> which allow the user more control of how confidence is used to affect the contribution of a sample.</LI>
 </ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">Version 10.01</a>:
+<ol>
+<li> Modified the reconstruction code to facilitate interpolation of other input-sample quantities, in addition to color.</LI>
+</ol>
+
 </DETAILS>
 
 

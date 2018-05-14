@@ -338,7 +338,7 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
 		if( sample.weight>0 )
 		{
-			Point< Real , Dim > p = sample.data / sample.weight , n = normalData[i].normal;
+			Point< Real , Dim > p = sample.data / sample.weight , n = std::get< 0 >( normalData[i].data ).data;
 			Real l = (Real)Length( n );
 			Real confidence = l / sample.weight;
 			n *= sample.weight / l;

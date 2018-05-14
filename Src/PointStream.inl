@@ -97,23 +97,25 @@ void ASCIIOutputPointStream< Real , Dim >::nextPoint( const Point< Real , Dim >&
 // BinaryInputPointStream //
 ////////////////////////////
 template< class Real , int Dim >
-BinaryInputPointStream< Real , Dim >::BinaryInputPointStream( const char* fileName , bool (*readPoint)( FILE* , Point< Real , Dim >& ) )
+BinaryInputPointStream< Real , Dim >::BinaryInputPointStream( const char* fileName )
 {
-	_readPoint = readPoint!=NULL ? readPoint : _DefaultReadPoint;
 	_fp = fopen( fileName , "rb" );
 	if( !_fp ) fprintf( stderr , "Failed to open file for reading: %s\n" , fileName ) , exit( 0 );
 }
+template< class Real , int Dim >
+bool BinaryInputPointStream< Real , Dim >::nextPoint( Point< Real , Dim >& p ){ return fread( &p , sizeof(Point< Real , Dim >) , 1 , _fp )==1; }
 
 /////////////////////////////
 // BinaryOutputPointStream //
 /////////////////////////////
 template< class Real , int Dim >
-BinaryOutputPointStream< Real , Dim >::BinaryOutputPointStream( const char* fileName , void (*writePoint)( FILE* , const Point< Real , Dim >& ) )
+BinaryOutputPointStream< Real , Dim >::BinaryOutputPointStream( const char* fileName )
 {
-	_writePoint = writePoint!=NULL ? writePoint : _DefaultWritePoint;
 	_fp = fopen( fileName , "wb" );
 	if( !_fp ) fprintf( stderr , "Failed to open file for writing: %s\n" , fileName ) , exit( 0 );
 }
+template< class Real , int Dim >
+void BinaryOutputPointStream< Real , Dim >::nextPoint( const Point< Real , Dim >& p ){ fwrite( &p , sizeof(Point< Real , Dim >) , 1 , _fp )==1; }
 
 /////////////////////////
 // PLYInputPointStream //
@@ -230,7 +232,7 @@ bool MemoryInputPointStreamWithData< Real , Dim , Data >::nextPoint( Point< Real
 // ASCIIInputPointStreamWithData //
 ///////////////////////////////////
 template< class Real , int Dim , class Data >
-ASCIIInputPointStreamWithData< Real , Dim , Data >::ASCIIInputPointStreamWithData( const char* fileName , Data (*readData)( FILE* ) ) : _readData( readData )
+ASCIIInputPointStreamWithData< Real , Dim , Data >::ASCIIInputPointStreamWithData( const char* fileName , void (*ReadData)( FILE* , Data& ) ) : _ReadData( ReadData )
 {
 	_fp = fopen( fileName , "r" );
 	if( !_fp ) fprintf( stderr , "Failed to open file for reading: %s\n" , fileName ) , exit( 0 );
@@ -250,7 +252,7 @@ bool ASCIIInputPointStreamWithData< Real , Dim , Data >::nextPoint( Point< Real 
 	for( int dd=0 ; dd<Dim ; dd++ ) 
 		if( fscanf( _fp , " %f " , &c )!=1 ) return false;
 		else p[dd] = c;
-	d = _readData( _fp );
+	_ReadData( _fp , d );
 	return true;
 }
 
@@ -258,7 +260,7 @@ bool ASCIIInputPointStreamWithData< Real , Dim , Data >::nextPoint( Point< Real 
 // ASCIIOutputPointStreamWithData //
 ////////////////////////////////////
 template< class Real , int Dim , class Data >
-ASCIIOutputPointStreamWithData< Real , Dim , Data >::ASCIIOutputPointStreamWithData( const char* fileName , void (*writeData)( FILE* , const Data& ) ) : _writeData( writeData )
+ASCIIOutputPointStreamWithData< Real , Dim , Data >::ASCIIOutputPointStreamWithData( const char* fileName , void (*WriteData)( FILE* , const Data& ) ) : _WriteData( WriteData )
 {
 	_fp = fopen( fileName , "w" );
 	if( !_fp ) fprintf( stderr , "Failed to open file for writing: %s\n" , fileName ) , exit( 0 );
@@ -274,7 +276,7 @@ void ASCIIOutputPointStreamWithData< Real , Dim , Data >::nextPoint( const Point
 {
 	for( int d=0 ; d<Dim ; d++ )  fprintf( _fp , " %f" , (float)p[d] );
 	fprintf( _fp , " " );
-	_writeData( _fp , d );
+	_WriteData( _fp , d );
 	fprintf( _fp , "\n" );
 }
 
@@ -282,22 +284,36 @@ void ASCIIOutputPointStreamWithData< Real , Dim , Data >::nextPoint( const Point
 // BinaryInputPointStreamWithData //
 ////////////////////////////////////
 template< class Real , int Dim , class Data >
-BinaryInputPointStreamWithData< Real , Dim , Data >::BinaryInputPointStreamWithData( const char* fileName , bool (*readPointAndData)( FILE* , Point< Real , Dim >& , Data& ) )
+BinaryInputPointStreamWithData< Real , Dim , Data >::BinaryInputPointStreamWithData( const char* fileName , void (*ReadData)( FILE* , Data& ) ) : _ReadData(ReadData)
 {
-	_readPointAndData = readPointAndData!=NULL ? readPointAndData : _DefaultReadPointAndData;
 	_fp = fopen( fileName , "rb" );
 	if( !_fp ) fprintf( stderr , "Failed to open file for reading: %s\n" , fileName ) , exit( 0 );
+}
+template< class Real , int Dim , class Data >
+bool BinaryInputPointStreamWithData< Real , Dim , Data >::nextPoint( Point< Real , Dim >& p , Data& d )
+{
+	if( fread( &p , sizeof(Point< Real , Dim >) , 1 , _fp )==1 )
+	{
+		_ReadData( _fp , d );
+		return true;
+	}
+	else return false;
 }
 
 /////////////////////////////////////
 // BinaryOutputPointStreamWithData //
 /////////////////////////////////////
 template< class Real , int Dim , class Data >
-BinaryOutputPointStreamWithData< Real , Dim , Data >::BinaryOutputPointStreamWithData( const char* fileName , void (*writePointAndData)( FILE* , const Point< Real , Dim >& , const Data& ) )
+BinaryOutputPointStreamWithData< Real , Dim , Data >::BinaryOutputPointStreamWithData( const char* fileName , void (*WriteData)( FILE* , const Data& ) ) : _WriteData(WriteData)
 {
-	_writePointAndData = writePointAndData!=NULL ? writePointAndData : _DefaultWritePointAndData;
 	_fp = fopen( fileName , "wb" );
 	if( !_fp ) fprintf( stderr , "Failed to open file for writing: %s\n" , fileName ) , exit( 0 );
+}
+template< class Real , int Dim , class Data >
+void BinaryOutputPointStreamWithData< Real , Dim , Data >::nextPoint( const Point< Real , Dim >& p , const Data& d )
+{
+	fwrite( &p , sizeof(Point< Real , Dim >) , 1 , _fp );
+	_WriteData( _fp , d );
 }
 
 /////////////////////////////////
@@ -337,9 +353,10 @@ void PLYInputPointStreamWithData< Real , Dim , Data >::reset( void )
 		{
 			foundVertices = true;
 			_pCount = num_elems , _pIdx = 0;
-			for( int i=0 ; i<PlyVertex< Real , Dim >::ReadComponents ; i++ ) 
-				if( !ply_get_property( _ply , elem_name , &(PlyVertex< Real , Dim >::Properties()[i]) ) )
-					fprintf( stderr , "[ERROR] Failed to find property in ply file: %s\n" , PlyVertex< Real , Dim >::Properties()[i].name ) , exit( 0 );
+			const PlyProperty* PlyReadProperties = PlyVertex< Real , Dim >::PlyReadProperties();
+			for( int i=0 ; i<PlyVertex< Real , Dim >::PlyReadNum ; i++ ) 
+				if( !ply_get_property( _ply , elem_name , &(PlyReadProperties[i]) ) )
+					fprintf( stderr , "[ERROR] Failed to find property in ply file: %s\n" , PlyReadProperties[i].name ) , exit( 0 );
 			if( _validationFunction )
 			{
 				bool* properties = new bool[_dataPropertiesCount];
