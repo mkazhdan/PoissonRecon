@@ -23,7 +23,7 @@ else
 	CFLAGS += -Wno-deprecated -Wno-write-strings -std=c++11 -Wno-invalid-offsetof
 	LFLAGS += -lstdc++
 endif
-LFLAGS += -lz -lpng -ljpeg
+#LFLAGS += -lz -lpng -ljpeg
 
 CFLAGS_DEBUG = -DDEBUG -g3
 LFLAGS_DEBUG =
@@ -58,7 +58,7 @@ AV_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(AV_SOURCE))))
 
 all: CFLAGS += $(CFLAGS_RELEASE)
 all: LFLAGS += $(LFLAGS_RELEASE)
-all: $(BIN)
+all: make_dir
 all: $(BIN)$(PR_TARGET)
 all: $(BIN)$(SR_TARGET)
 all: $(BIN)$(ST_TARGET)
@@ -68,7 +68,7 @@ all: $(BIN)$(AV_TARGET)
 
 debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: LFLAGS += $(LFLAGS_DEBUG)
-debug: $(BIN)
+debug: make_dir
 debug: $(BIN)$(PR_TARGET)
 debug: $(BIN)$(SR_TARGET)
 debug: $(BIN)$(ST_TARGET)
@@ -78,32 +78,32 @@ debug: $(BIN)$(AV_TARGET)
 
 poissonrecon: CFLAGS += $(CFLAGS_RELEASE)
 poissonrecon: LFLAGS += $(LFLAGS_RELEASE)
-poissonrecon: $(BIN)
+poissonrecon: make_dir
 poissonrecon: $(BIN)$(PR_TARGET)
 
 ssdrecon: CFLAGS += $(CFLAGS_RELEASE)
 ssdrecon: LFLAGS += $(LFLAGS_RELEASE)
-ssdrecon: $(BIN)
+ssdrecon: make_dir
 ssdrecon: $(BIN)$(SR_TARGET)
 
 surfacetrimmer: CFLAGS += $(CFLAGS_RELEASE)
 surfacetrimmer: LFLAGS += $(LFLAGS_RELEASE)
-surfacetrimmer: $(BIN)
+surfacetrimmer: make_dir
 surfacetrimmer: $(BIN)$(ST_TARGET)
 
 edtinheat: CFLAGS += $(CFLAGS_RELEASE)
 edtinheat: LFLAGS += $(LFLAGS_RELEASE)
-edtinheat: $(BIN)
+edtinheat: make_dir
 edtinheat: $(BIN)$(EH_TARGET)
 
 imagestitching: CFLAGS += $(CFLAGS_RELEASE)
-imagestitching: LFLAGS += $(LFLAGS_RELEASE) -lz -lpng -ljpeg
-imagestitching: $(BIN)
+imagestitching: LFLAGS += $(LFLAGS_RELEASE)
+imagestitching: make_dir
 imagestitching: $(BIN)$(IS_TARGET)
 
 octreevisualization: CFLAGS += $(CFLAGS_RELEASE)
 octreevisualization: LFLAGS += $(LFLAGS_RELEASE)
-octreevisualization: $(BIN)
+octreevisualization: make_dir
 octreevisualization: $(BIN)$(AV_TARGET)
 
 clean:
@@ -119,8 +119,10 @@ clean:
 	rm -rf $(EH_OBJECTS)
 	rm -rf $(IS_OBJECTS)
 	rm -rf $(AV_OBJECTS)
+	cd PNG  && make clean
 
-$(BIN):
+
+make_dir:
 	$(MD) -p $(BIN)
 
 $(BIN)$(PR_TARGET): $(PR_OBJECTS)
@@ -136,16 +138,15 @@ $(BIN)$(EH_TARGET): $(EH_OBJECTS)
 	$(CXX) -o $@ $(EH_OBJECTS) $(LFLAGS)
 
 $(BIN)$(IS_TARGET): $(IS_OBJECTS)
-	$(CXX) -o $@ $(IS_OBJECTS) $(LFLAGS)
+	cd PNG  && make
+	$(CXX) -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(AV_TARGET): $(AV_OBJECTS)
 	$(CXX) -o $@ $(AV_OBJECTS) $(LFLAGS)
 
 $(BIN)%.o: $(SRC)%.c
-	mkdir -p $(BIN)
-	$(CC) -c -o $@ $(CFLAGS) -I$(INCLUDE) $<
+	$(CC) -c -o $@ -I$(INCLUDE) $<
 
 $(BIN)%.o: $(SRC)%.cpp
-	mkdir -p $(BIN)
 	$(CXX) -c -o $@ $(CFLAGS) -I$(INCLUDE) $<
 

@@ -1,11 +1,7 @@
 #ifndef PNG_INCLUDED
 #define PNG_INCLUDED
 
-#ifdef _WIN32
 #include "PNG/png.h"
-#else // !_WIN32
-#include <png.h>
-#endif // _WIN32
 
 struct PNGReader : public ImageReader
 {
