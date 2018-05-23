@@ -2,37 +2,63 @@ cmake_minimum_required(VERSION 3.7)
 project(PoissonRecon)
 
 set(PROJECT_SRCS
-${PROJECT_SOURCE_DIR}/src/CmdLineParser.cpp
-${PROJECT_SOURCE_DIR}/src/Factor.cpp
-${PROJECT_SOURCE_DIR}/src/Geometry.cpp
-${PROJECT_SOURCE_DIR}/src/MarchingCubes.cpp
 ${PROJECT_SOURCE_DIR}/src/PlyFile.cpp
-${PROJECT_SOURCE_DIR}/src/PoissonRecon.cpp
-${PROJECT_SOURCE_DIR}/src/SurfaceTrimming.cpp
 )
 
 set(PROJECT_INCS
+
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Allocator.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Array.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Array.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/BinaryNode.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/BMPStream.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/BSplineData.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/BSplineData.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/CmdLineParser.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/CmdLineParser.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Factor.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.Evaluation.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.Initialize.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.IsoSurface.specialized.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.SortedTreeNodes.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.System.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.WeightedSamples.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FunctionData.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FunctionData.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Geometry.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Geometry.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Image.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/JPEG.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/JPEG.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/LinearSolvers.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MarchingCubes.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MAT.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MemoryUsage.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MultiGridOctreeData.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MyTime.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Octree.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MAT.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MyMiscellany.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Ply.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PlyFile.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PNG.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PNG.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PointStream.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PointStream.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PointStreamData.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Polynomial.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Polynomial.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PPolynomial.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PPolynomial.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/RegularTree.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/RegularTree.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrix.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrix.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrixInterface.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrixInterface.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Window.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Window.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PoissonRecon.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SurfaceTrimming.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SurfaceTrimmer.h
+
 )
 
 source_group("include" FILES ${PROJECT_INCS})
@@ -73,6 +99,8 @@ endif()
 
 add_library(${PROJECT_NAME} ${PROJECT_SRCS} ${PROJECT_INCS})
 
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_11)
+
 target_include_directories(${PROJECT_NAME} PUBLIC
                           $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
                           $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>)
@@ -93,40 +121,53 @@ ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Allocator.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Array.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Array.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/BinaryNode.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/BMPStream.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/BSplineData.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/BSplineData.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/CmdLineParser.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/CmdLineParser.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Factor.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.Evaluation.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.Initialize.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.IsoSurface.specialized.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.SortedTreeNodes.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.System.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FEMTree.WeightedSamples.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FunctionData.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/FunctionData.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Geometry.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Geometry.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Image.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/JPEG.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/JPEG.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/LinearSolvers.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MarchingCubes.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MAT.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MAT.inl
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MemoryUsage.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MultiGridOctreeData.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MultiGridOctreeData.inl
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MultiGridOctreeData.Evaluation.inl
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MultiGridOctreeData.IsoSurface.inl
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MultiGridOctreeData.SortedTreeNodes.inl
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MultiGridOctreeData.System.inl
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MultiGridOctreeData.WeightedSamples.inl
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MyTime.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Octree.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Octree.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/MyMiscellany.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Ply.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PlyFile.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PNG.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PNG.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PointStream.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PointStream.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PointStreamData.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Polynomial.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Polynomial.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PPolynomial.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PPolynomial.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/RegularTree.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/RegularTree.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrix.h
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrix.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrixInterface.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SparseMatrixInterface.inl
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Window.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/Window.inl
 ${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/PoissonRecon.h
-${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SurfaceTrimming.h
+${PROJECT_SOURCE_DIR}/include/Mesh/PoissonRecon/SurfaceTrimmer.h
         DESTINATION include/Mesh/PoissonRecon)
 
 export(TARGETS ${PROJECT_NAME}

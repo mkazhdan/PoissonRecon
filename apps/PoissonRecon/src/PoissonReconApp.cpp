@@ -6,53 +6,51 @@ Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
 
 Redistributions of source code must retain the above copyright notice, this list
-of
-conditions and the following disclaimer. Redistributions in binary form must
-reproduce
-the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution.
+of conditions and the following disclaimer. Redistributions in binary form must
+reproduce the above copyright notice, this list of conditions and the following
+disclaimer in the documentation and/or other materials provided with the
+distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its
-contributors
-may be used to endorse or promote products derived from this software without
-specific
-prior written permission.
+contributors may be used to endorse or promote products derived from this
+software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED
-WARRANTIES
-OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
-EVENT
-SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED
-TO, PROCUREMENT OF SUBSTITUTE  GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-OR
-BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN
-ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-SUCH
-DAMAGE.
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE  GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#undef FAST_COMPILE
-#undef ARRAY_DEBUG
-#define BRUNO_LEVY_FIX
-#define FOR_RELEASE
-
 #include <tinyxml2.h>
+#include <iostream>
 #include <string>
 #include "boost/format.hpp"
 
 #include "Mesh/PoissonRecon/PoissonRecon.h"
 
-std::string ParsePath(std::string path, const int index)
+template <typename... Int>
+std::string ParsePath(std::string path, Int... index)
 {
   if (path.find('%') != std::string::npos)
   {
-    return boost::str(boost::format(path) % index);
+    std::vector<int> indices{{index...}};
+
+    boost::format f(path);
+
+    for (std::vector<int>::const_iterator it = indices.begin();
+         it != indices.end();
+         it++)
+    {
+      f % *it;
+    }
+
+    return boost::str(f);
   }
   else
   {
@@ -63,7 +61,7 @@ std::string ParsePath(std::string path, const int index)
 void usage()
 {
   std::cerr << " Usage: ./exec <path/to/xml> <start_frame_number> "
-               "<end_frame_number> <calculate_normal>"
+               "<end_frame_number> "
             << std::endl;
 }
 
@@ -76,14 +74,10 @@ void ReadXML(tinyxml2::XMLDocument &doc_xml,
              std::string &scale,
              std::string &samples_per_node,
              std::string &point_weight,
-             std::string &confidence,
-             std::string &n_weights,
              std::string &iters,
-             std::string &cg_depth,
-             std::string &full_depth,
-             std::string &voxel_depth,
              std::string &primal_voxel,
-             std::string &color,
+             std::string &colors,
+             std::string &data,
              std::string &density,
              std::string &linear_fit,
              std::string &polygon_mesh,
@@ -163,23 +157,6 @@ void ReadXML(tinyxml2::XMLDocument &doc_xml,
     std::cout << "read point_weight" << std::endl;
   }
 
-  tinyxml2::XMLHandle confidence_xml =
-      input_xml.FirstChildElement("CONFIDENCE");
-
-  if (confidence_xml.ToElement())
-  {
-    confidence = confidence_xml.ToElement()->GetText();
-    std::cout << "read confidence" << std::endl;
-  }
-
-  tinyxml2::XMLHandle n_weights_xml = input_xml.FirstChildElement("N_WEIGHTS");
-
-  if (n_weights_xml.ToElement())
-  {
-    n_weights = n_weights_xml.ToElement()->GetText();
-    std::cout << "read n_weights" << std::endl;
-  }
-
   tinyxml2::XMLHandle iters_xml = input_xml.FirstChildElement("ITERS");
 
   if (iters_xml.ToElement())
@@ -187,35 +164,6 @@ void ReadXML(tinyxml2::XMLDocument &doc_xml,
     iters = iters_xml.ToElement()->GetText();
 
     std::cout << "read iters" << std::endl;
-  }
-
-  tinyxml2::XMLHandle cg_depth_xml = input_xml.FirstChildElement("CG_DEPTH");
-
-  if (cg_depth_xml.ToElement())
-  {
-    cg_depth = cg_depth_xml.ToElement()->GetText();
-
-    std::cout << "read cg_depth" << std::endl;
-  }
-
-  tinyxml2::XMLHandle full_depth_xml =
-      input_xml.FirstChildElement("FULL_DEPTH");
-
-  if (full_depth_xml.ToElement())
-  {
-    full_depth = full_depth_xml.ToElement()->GetText();
-
-    std::cout << "read full_depth" << std::endl;
-  }
-
-  tinyxml2::XMLHandle voxel_depth_xml =
-      input_xml.FirstChildElement("VOXEL_DEPTH");
-
-  if (voxel_depth_xml.ToElement())
-  {
-    voxel_depth = voxel_depth_xml.ToElement()->GetText();
-
-    std::cout << "read voxel_depth" << std::endl;
   }
 
   tinyxml2::XMLHandle primal_voxel_xml =
@@ -228,13 +176,22 @@ void ReadXML(tinyxml2::XMLDocument &doc_xml,
     std::cout << "primal_voxel_read" << std::endl;
   }
 
-  tinyxml2::XMLHandle color_xml = input_xml.FirstChildElement("COLOR");
+  tinyxml2::XMLHandle colors_xml = input_xml.FirstChildElement("COLORS");
 
-  if (color_xml.ToElement())
+  if (colors_xml.ToElement())
   {
-    color = color_xml.ToElement()->GetText();
+    colors = colors_xml.ToElement()->GetText();
 
-    std::cout << "read color" << std::endl;
+    std::cout << "read colors" << std::endl;
+  }
+
+  tinyxml2::XMLHandle data_xml = input_xml.FirstChildElement("DATA");
+
+  if (data_xml.ToElement())
+  {
+    data = data_xml.ToElement()->GetText();
+
+    std::cout << "read data" << std::endl;
   }
 
   tinyxml2::XMLHandle density_xml = input_xml.FirstChildElement("DENSITY");
@@ -303,13 +260,14 @@ void ReadXML(tinyxml2::XMLDocument &doc_xml,
   }
 }
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
   if (argc != 4)
   {
     usage();
     return -1;
   }
+
   std::string input_path;
   std::string output_path;
   std::string degree;
@@ -318,20 +276,16 @@ int main(int argc, char **argv)
   std::string scale;
   std::string samples_per_node;
   std::string point_weight;
-  std::string confidence;
-  std::string n_weights;
   std::string iters;
-  std::string cg_depth;
-  std::string full_depth;
-  std::string voxel_depth;
   std::string primal_voxel;
-  std::string color;
+  std::string colors;
+  std::string data;
   std::string density;
   std::string linear_fit;
   std::string polygon_mesh;
   std::string threads;
   std::string verbose;
-  std::string temp = "/home/hypevr/PoissonRecon/";
+  std::string temp = "/home/hypevr/Poisson/PoissonRecon/";
 
   tinyxml2::XMLDocument doc_xml;
   if (doc_xml.LoadFile(argv[1]))
@@ -350,21 +304,16 @@ int main(int argc, char **argv)
             scale,
             samples_per_node,
             point_weight,
-            confidence,
-            n_weights,
             iters,
-            cg_depth,
-            full_depth,
-            voxel_depth,
             primal_voxel,
-            color,
+            colors,
+            data,
             density,
             linear_fit,
             polygon_mesh,
             threads,
             verbose);
   }
-
   const std::size_t start_frm = std::atoi(argv[2]);
   const std::size_t end_frm   = std::atoi(argv[3]);
   for (size_t k = start_frm; k <= end_frm; k++)
@@ -375,7 +324,8 @@ int main(int argc, char **argv)
     std::cout << temp_in << std::endl;
     std::cout << temp_out << std::endl;
 
-    char *options[] = {const_cast<char *>("--in"),
+    char *options[] = {const_cast<char *>("PoissonRecon"),
+                       const_cast<char *>("--in"),
                        const_cast<char *>(temp_in.c_str()),
                        const_cast<char *>("--out"),
                        const_cast<char *>(temp_out.c_str()),
@@ -391,19 +341,12 @@ int main(int argc, char **argv)
                        const_cast<char *>(samples_per_node.c_str()),
                        const_cast<char *>("--pointWeight"),
                        const_cast<char *>(point_weight.c_str()),
-                       const_cast<char *>(confidence.c_str()),
-                       const_cast<char *>(n_weights.c_str()),
                        const_cast<char *>("--iters"),
                        const_cast<char *>(iters.c_str()),
-                       const_cast<char *>("--cgDepth"),
-                       const_cast<char *>(cg_depth.c_str()),
-                       const_cast<char *>("--fullDepth"),
-                       const_cast<char *>(full_depth.c_str()),
-                       const_cast<char *>("--voxelDepth"),
-                       const_cast<char *>(voxel_depth.c_str()),
                        const_cast<char *>(primal_voxel.c_str()),
-                       const_cast<char *>("--color"),
-                       const_cast<char *>(color.c_str()),
+                       const_cast<char *>(colors.c_str()),
+                       const_cast<char *>("--data"),
+                       const_cast<char *>(data.c_str()),
                        const_cast<char *>(density.c_str()),
                        const_cast<char *>(linear_fit.c_str()),
                        const_cast<char *>(polygon_mesh.c_str()),
@@ -411,12 +354,12 @@ int main(int argc, char **argv)
                        const_cast<char *>(threads.c_str()),
                        const_cast<char *>("--tempDir"),
                        const_cast<char *>(temp.c_str()),
-                       const_cast<char *>(verbose.c_str())};
+                       const_cast<char *>(verbose.c_str()),
+                       const_cast<char *>("--ascii")};
 
     int nOptions = sizeof(options) / sizeof(char *);
 
     PoissonRecon poisson;
-
     poisson.reconstruct(nOptions, options);
   }
 }

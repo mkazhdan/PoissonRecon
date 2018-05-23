@@ -1,42 +1,34 @@
 /*
 
- The interface routines for reading and writing PLY polygon files.
+The interface routines for reading and writing PLY polygon files.
 
-  Greg Turk, February 1994
+Greg Turk, February 1994
 
-   ---------------------------------------------------------------
+---------------------------------------------------------------
 
-        A PLY file contains a single polygonal _object_.
+A PLY file contains a single polygonal _object_.
 
-         An object is composed of lists of _elements_.  Typical elements are
-         vertices, faces, edges and materials.
+An object is composed of lists of _elements_.  Typical elements are
+vertices, faces, edges and materials.
 
-          Each type of element for a given object has one or more _properties_
-          associated with the element type.  For instance, a vertex element may
-          have as properties the floating-point values x,y,z and the three
- unsigned
-          chars representing red, green and blue.
+Each type of element for a given object has one or more _properties_
+associated with the element type.  For instance, a vertex element may
+have as properties the floating-point values x,y,z and the three unsigned
+chars representing red, green and blue.
 
-           ---------------------------------------------------------------
+---------------------------------------------------------------
 
-                Copyright (c) 1994 The Board of Trustees of The Leland Stanford
-                Junior University.  All rights reserved.
+Copyright (c) 1994 The Board of Trustees of The Leland Stanford
+Junior University.  All rights reserved.
 
-                 Permission to use, copy, modify and distribute this software
- and its
-                 documentation for any purpose is hereby granted without fee,
- provided
-                 that the above copyright notice and this permission notice
- appear in
-                 all copies of this software and that you do not sell the
- software.
+Permission to use, copy, modify and distribute this software and its
+documentation for any purpose is hereby granted without fee, provided
+that the above copyright notice and this permission notice appear in
+all copies of this software and that you do not sell the software.
 
-                  THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY
- KIND,
-                  EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION,
- ANY
-                  WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR
- PURPOSE.
+THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND,
+EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY
+WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 
 */
 
@@ -44,7 +36,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "Mesh/PoissonRecon/Ply.h"
+
+#include "Mesh/PoissonRecon/PlyFile.h"
 
 const char *type_names[] = {
     "invalid",
@@ -114,7 +107,7 @@ void add_comment(PlyFile *, char *);
 void add_obj_info(PlyFile *, char *);
 
 /* copy a property */
-void copy_property(PlyProperty *, PlyProperty *);
+void copy_property(PlyProperty *, const PlyProperty *);
 
 /* store a value into where a pointer and a type specify */
 void store_item(char *, int, int, unsigned int, double);
@@ -149,14 +142,14 @@ void check_types();
 /******************************************************************************
 Given a file pointer, get ready to write PLY data to the file.
 
- Entry:
- fp         - the given file pointer
- nelems     - number of elements in object
- elem_names - list of element names
- file_type  - file type, either ascii or binary
+Entry:
+fp         - the given file pointer
+nelems     - number of elements in object
+elem_names - list of element names
+file_type  - file type, either ascii or binary
 
-  Exit:
-  returns a pointer to a PlyFile, used to refer to this file, or NULL if error
+Exit:
+returns a pointer to a PlyFile, used to refer to this file, or NULL if error
 ******************************************************************************/
 
 PlyFile *ply_write(FILE *fp, int nelems, const char **elem_names, int file_type)
@@ -177,7 +170,7 @@ PlyFile *ply_write(FILE *fp, int nelems, const char **elem_names, int file_type)
   if (file_type == PLY_BINARY_NATIVE)
     plyfile->file_type = native_binary_type;
   else
-    plyfile->file_type  = file_type;
+    plyfile->file_type = file_type;
   plyfile->num_comments = 0;
   plyfile->num_obj_info = 0;
   plyfile->nelems       = nelems;
@@ -204,18 +197,18 @@ PlyFile *ply_write(FILE *fp, int nelems, const char **elem_names, int file_type)
 /******************************************************************************
 Open a polygon file for writing.
 
- Entry:
- filename   - name of file to read from
- nelems     - number of elements in object
- elem_names - list of element names
- file_type  - file type, either ascii or binary
+Entry:
+filename   - name of file to read from
+nelems     - number of elements in object
+elem_names - list of element names
+file_type  - file type, either ascii or binary
 
-  Exit:
-  version - version number of PLY file
-  returns a file identifier, used to refer to this file, or NULL if error
+Exit:
+version - version number of PLY file
+returns a file identifier, used to refer to this file, or NULL if error
 ******************************************************************************/
 
-PlyFile *ply_open_for_writing(char *filename,
+PlyFile *ply_open_for_writing(const char *filename,
                               int nelems,
                               const char **elem_names,
                               int file_type,
@@ -257,12 +250,12 @@ PlyFile *ply_open_for_writing(char *filename,
 Describe an element, including its properties and how many will be written
 to the file.
 
- Entry:
- plyfile   - file identifier
- elem_name - name of element that information is being specified about
- nelems    - number of elements of this type to be written
- nprops    - number of properties contained in the element
- prop_list - list of properties
+Entry:
+plyfile   - file identifier
+elem_name - name of element that information is being specified about
+nelems    - number of elements of this type to be written
+nprops    - number of properties contained in the element
+prop_list - list of properties
 ******************************************************************************/
 
 void ply_describe_element(PlyFile *plyfile,
@@ -304,15 +297,15 @@ void ply_describe_element(PlyFile *plyfile,
 /******************************************************************************
 Describe a property of an element.
 
- Entry:
- plyfile   - file identifier
- elem_name - name of element that information is being specified about
- prop      - the new property
+Entry:
+plyfile   - file identifier
+elem_name - name of element that information is being specified about
+prop      - the new property
 ******************************************************************************/
 
 void ply_describe_property(PlyFile *plyfile,
                            const char *elem_name,
-                           PlyProperty *prop)
+                           const PlyProperty *prop)
 {
   PlyElement *elem;
   PlyProperty *elem_prop;
@@ -412,10 +405,10 @@ void ply_describe_other_properties(PlyFile *plyfile,
 /******************************************************************************
 State how many of a given element will be written.
 
- Entry:
- plyfile   - file identifier
- elem_name - name of element that information is being specified about
- nelems    - number of elements of this type to be written
+Entry:
+plyfile   - file identifier
+elem_name - name of element that information is being specified about
+nelems    - number of elements of this type to be written
 ******************************************************************************/
 
 void ply_element_count(PlyFile *plyfile, const char *elem_name, int nelems)
@@ -437,8 +430,8 @@ void ply_element_count(PlyFile *plyfile, const char *elem_name, int nelems)
 Signal that we've described everything a PLY file's header and that the
 header should be written to the file.
 
- Entry:
- plyfile - file identifier
+Entry:
+plyfile - file identifier
 ******************************************************************************/
 
 void ply_header_complete(PlyFile *plyfile)
@@ -507,9 +500,9 @@ void ply_header_complete(PlyFile *plyfile)
 Specify which elements are going to be written.  This should be called
 before a call to the routine ply_put_element().
 
- Entry:
- plyfile   - file identifier
- elem_name - name of element we're talking about
+Entry:
+plyfile   - file identifier
+elem_name - name of element we're talking about
 ******************************************************************************/
 
 void ply_put_element_setup(PlyFile *plyfile, const char *elem_name)
@@ -531,9 +524,9 @@ Write an element to the file.  This routine assumes that we're
 writing the type of element specified in the last call to the routine
 ply_put_element_setup().
 
- Entry:
- plyfile  - file identifier
- elem_ptr - pointer to the element
+Entry:
+plyfile  - file identifier
+elem_ptr - pointer to the element
 ******************************************************************************/
 
 void ply_put_element(PlyFile *plyfile, void *elem_ptr)
@@ -680,10 +673,10 @@ void ply_put_element(PlyFile *plyfile, void *elem_ptr)
 /******************************************************************************
 Specify a comment that will be written in the header.
 
- Entry:
- plyfile - file identifier
- comment - the comment to be written
- ******************************************************************************/
+Entry:
+plyfile - file identifier
+comment - the comment to be written
+******************************************************************************/
 
 void ply_put_comment(PlyFile *plyfile, char *comment)
 {
@@ -703,9 +696,9 @@ void ply_put_comment(PlyFile *plyfile, char *comment)
 Specify a piece of object information (arbitrary text) that will be written
 in the header.
 
- Entry:
- plyfile  - file identifier
- obj_info - the text information to be written
+Entry:
+plyfile  - file identifier
+obj_info - the text information to be written
 ******************************************************************************/
 
 void ply_put_obj_info(PlyFile *plyfile, char *obj_info)
@@ -729,13 +722,13 @@ void ply_put_obj_info(PlyFile *plyfile, char *obj_info)
 /******************************************************************************
 Given a file pointer, get ready to read PLY data from the file.
 
- Entry:
- fp - the given file pointer
+Entry:
+fp - the given file pointer
 
-  Exit:
-  nelems     - number of elements in object
-  elem_names - list of element names
-  returns a pointer to a PlyFile, used to refer to this file, or NULL if error
+Exit:
+nelems     - number of elements in object
+elem_names - list of element names
+returns a pointer to a PlyFile, used to refer to this file, or NULL if error
 ******************************************************************************/
 
 PlyFile *ply_read(FILE *fp, int *nelems, char ***elem_names)
@@ -829,7 +822,7 @@ PlyFile *ply_read(FILE *fp, int *nelems, char ***elem_names)
   /* set return values about the elements */
 
   elist = (char **)myalloc(sizeof(char *) * plyfile->nelems);
-  for (i     = 0; i < plyfile->nelems; i++)
+  for (i = 0; i < plyfile->nelems; i++)
     elist[i] = _strdup(plyfile->elems[i]->name);
 
   *elem_names = elist;
@@ -843,18 +836,18 @@ PlyFile *ply_read(FILE *fp, int *nelems, char ***elem_names)
 /******************************************************************************
 Open a polygon file for reading.
 
- Entry:
- filename - name of file to read from
+Entry:
+filename - name of file to read from
 
-  Exit:
-  nelems     - number of elements in object
-  elem_names - list of element names
-  file_type  - file type, either ascii or binary
-  version    - version number of PLY file
-  returns a file identifier, used to refer to this file, or NULL if error
-  ******************************************************************************/
+Exit:
+nelems     - number of elements in object
+elem_names - list of element names
+file_type  - file type, either ascii or binary
+version    - version number of PLY file
+returns a file identifier, used to refer to this file, or NULL if error
+******************************************************************************/
 
-PlyFile *ply_open_for_reading(char *filename,
+PlyFile *ply_open_for_reading(const char *filename,
                               int *nelems,
                               char ***elem_names,
                               int *file_type,
@@ -894,15 +887,14 @@ PlyFile *ply_open_for_reading(char *filename,
 /******************************************************************************
 Get information about a particular element.
 
- Entry:
- plyfile   - file identifier
- elem_name - name of element to get information about
+Entry:
+plyfile   - file identifier
+elem_name - name of element to get information about
 
-      Exit:
-      nelems   - number of elements of this type in the file
-      nprops   - number of properties
-      returns a list of properties, or NULL if the file doesn't contain that
-elem
+Exit:
+nelems   - number of elements of this type in the file
+nprops   - number of properties
+returns a list of properties, or NULL if the file doesn't contain that elem
 ******************************************************************************/
 
 PlyProperty **ply_get_element_description(PlyFile *plyfile,
@@ -939,11 +931,11 @@ PlyProperty **ply_get_element_description(PlyFile *plyfile,
 Specify which properties of an element are to be returned.  This should be
 called before a call to the routine ply_get_element().
 
- Entry:
- plyfile   - file identifier
- elem_name - which element we're talking about
- nprops    - number of properties
- prop_list - list of properties
+Entry:
+plyfile   - file identifier
+elem_name - which element we're talking about
+nprops    - number of properties
+prop_list - list of properties
 ******************************************************************************/
 
 void ply_get_element_setup(PlyFile *plyfile,
@@ -991,13 +983,13 @@ called (usually multiple times) before a call to the routine ply_get_element().
 This routine should be used in preference to the less flexible old routine
 called ply_get_element_setup().
 
- Entry:
- plyfile   - file identifier
- elem_name - which element we're talking about
- prop      - property to add to those that will be returned
+Entry:
+plyfile   - file identifier
+elem_name - which element we're talking about
+prop      - property to add to those that will be returned
 ******************************************************************************/
 
-int ply_get_property(PlyFile *plyfile, char *elem_name, PlyProperty *prop)
+int ply_get_property(PlyFile *plyfile, char *elem_name, const PlyProperty *prop)
 {
   PlyElement *elem;
   PlyProperty *prop_ptr;
@@ -1012,11 +1004,9 @@ int ply_get_property(PlyFile *plyfile, char *elem_name, PlyProperty *prop)
   prop_ptr = find_property(elem, prop->name, &index);
   if (prop_ptr == NULL)
   {
-    //      fprintf (stderr, "Warning:  Can't find property '%s' in
-    // element
-    //'%s'\n",
-    //        prop->name, elem_name);
-    //      return;
+    //		  fprintf (stderr, "Warning:  Can't find property '%s' in
+    //element
+    //'%s'\n", 			  prop->name, elem_name); return;
     return 0;
   }
   prop_ptr->internal_type  = prop->internal_type;
@@ -1034,9 +1024,9 @@ Read one element from the file.  This routine assumes that we're reading
 the type of element specified in the last call to the routine
 ply_get_element_setup().
 
- Entry:
- plyfile  - file identifier
- elem_ptr - pointer to location where the element information should be put
+Entry:
+plyfile  - file identifier
+elem_ptr - pointer to location where the element information should be put
 ******************************************************************************/
 
 void ply_get_element(PlyFile *plyfile, void *elem_ptr)
@@ -1050,12 +1040,12 @@ void ply_get_element(PlyFile *plyfile, void *elem_ptr)
 /******************************************************************************
 Extract the comments from the header information of a PLY file.
 
- Entry:
- plyfile - file identifier
+Entry:
+plyfile - file identifier
 
-      Exit:
-      num_comments - number of comments returned
-      returns a pointer to a list of comments
+Exit:
+num_comments - number of comments returned
+returns a pointer to a list of comments
 ******************************************************************************/
 
 char **ply_get_comments(PlyFile *plyfile, int *num_comments)
@@ -1068,12 +1058,12 @@ char **ply_get_comments(PlyFile *plyfile, int *num_comments)
 Extract the object information (arbitrary text) from the header information
 of a PLY file.
 
- Entry:
- plyfile - file identifier
+Entry:
+plyfile - file identifier
 
-      Exit:
-      num_obj_info - number of lines of text information returned
-      returns a pointer to a list of object info lines
+Exit:
+num_obj_info - number of lines of text information returned
+returns a pointer to a list of object info lines
 ******************************************************************************/
 
 char **ply_get_obj_info(PlyFile *plyfile, int *num_obj_info)
@@ -1088,9 +1078,9 @@ the user has not explicitly asked for, but that are to be stashed away
 in a special structure to be carried along with the element's other
 information.
 
- Entry:
- plyfile - file identifier
- elem    - element for which we want to save away other properties
+Entry:
+plyfile - file identifier
+elem    - element for which we want to save away other properties
 ******************************************************************************/
 
 void setup_other_props(PlyElement *elem)
@@ -1155,13 +1145,13 @@ Specify that we want the "other" properties of an element to be tucked
 away within the user's structure.  The user needn't be concerned for how
 these properties are stored.
 
- Entry:
- plyfile   - file identifier
- elem_name - name of element that we want to store other_props in
- offset    - offset to where other_props will be stored inside user's structure
+Entry:
+plyfile   - file identifier
+elem_name - name of element that we want to store other_props in
+offset    - offset to where other_props will be stored inside user's structure
 
-      Exit:
-      returns pointer to structure containing description of other_props
+Exit:
+returns pointer to structure containing description of other_props
 ******************************************************************************/
 
 PlyOtherProp *ply_get_other_properties(PlyFile *plyfile,
@@ -1229,13 +1219,13 @@ PlyOtherProp *ply_get_other_properties(PlyFile *plyfile,
 Grab all the data for an element that a user does not want to explicitly
 read in.
 
- Entry:
- plyfile    - pointer to file
- elem_name  - name of element whose data is to be read in
- elem_count - number of instances of this element stored in the file
+Entry:
+plyfile    - pointer to file
+elem_name  - name of element whose data is to be read in
+elem_count - number of instances of this element stored in the file
 
-      Exit:
-      returns pointer to ALL the "other" element data for this PLY file
+Exit:
+returns pointer to ALL the "other" element data for this PLY file
 ******************************************************************************/
 
 PlyOtherElems *ply_get_other_element(PlyFile *plyfile,
@@ -1307,9 +1297,9 @@ PlyOtherElems *ply_get_other_element(PlyFile *plyfile,
 Pass along a pointer to "other" elements that we want to save in a given
 PLY file.  These other elements were presumably read from another PLY file.
 
- Entry:
- plyfile     - file pointer in which to store this other element info
- other_elems - info about other elements that we want to store
+Entry:
+plyfile     - file pointer in which to store this other element info
+other_elems - info about other elements that we want to store
 ******************************************************************************/
 
 void ply_describe_other_elements(PlyFile *plyfile, PlyOtherElems *other_elems)
@@ -1348,8 +1338,8 @@ void ply_describe_other_elements(PlyFile *plyfile, PlyOtherElems *other_elems)
 /******************************************************************************
 Write out the "other" elements specified for this PLY file.
 
- Entry:
- plyfile - pointer to PLY file to write out other elements for
+Entry:
+plyfile - pointer to PLY file to write out other elements for
 ******************************************************************************/
 
 void ply_put_other_elements(PlyFile *plyfile)
@@ -1376,8 +1366,8 @@ void ply_put_other_elements(PlyFile *plyfile)
 /******************************************************************************
 Free up storage used by an "other" elements data structure.
 
- Entry:
- other_elems - data structure to free up
+Entry:
+other_elems - data structure to free up
 ******************************************************************************/
 
 void ply_free_other_elements(PlyOtherElems *other_elems)
@@ -1392,8 +1382,8 @@ void ply_free_other_elements(PlyOtherElems *other_elems)
 /******************************************************************************
 Close a PLY file.
 
- Entry:
- plyfile - identifier of file to close
+Entry:
+plyfile - identifier of file to close
 ******************************************************************************/
 
 void ply_close(PlyFile *plyfile)
@@ -1407,12 +1397,12 @@ void ply_close(PlyFile *plyfile)
 /******************************************************************************
 Get version number and file type of a PlyFile.
 
- Entry:
- ply - pointer to PLY file
+Entry:
+ply - pointer to PLY file
 
-      Exit:
-      version - version of the file
-      file_type - PLY_ASCII, PLY_BINARY_BE, or PLY_BINARY_LE
+Exit:
+version - version of the file
+file_type - PLY_ASCII, PLY_BINARY_BE, or PLY_BINARY_LE
 ******************************************************************************/
 
 void ply_get_info(PlyFile *ply, float *version, int *file_type)
@@ -1441,12 +1431,12 @@ int equal_strings(const char *s1, const char *s2)
 /******************************************************************************
 Find an element from the element list of a given PLY object.
 
- Entry:
- plyfile - file id for PLY file
- element - name of element we're looking for
+Entry:
+plyfile - file id for PLY file
+element - name of element we're looking for
 
-      Exit:
-      returns the element, or NULL if not found
+Exit:
+returns the element, or NULL if not found
 ******************************************************************************/
 
 PlyElement *find_element(PlyFile *plyfile, const char *element)
@@ -1463,13 +1453,13 @@ PlyElement *find_element(PlyFile *plyfile, const char *element)
 /******************************************************************************
 Find a property in the list of properties of a given element.
 
- Entry:
- elem      - pointer to element in which we want to find the property
- prop_name - name of property to find
+Entry:
+elem      - pointer to element in which we want to find the property
+prop_name - name of property to find
 
-      Exit:
-      index - index to position in list
-      returns a pointer to the property, or NULL if not found
+Exit:
+index - index to position in list
+returns a pointer to the property, or NULL if not found
 ******************************************************************************/
 
 PlyProperty *find_property(PlyElement *elem, const char *prop_name, int *index)
@@ -1490,9 +1480,9 @@ PlyProperty *find_property(PlyElement *elem, const char *prop_name, int *index)
 /******************************************************************************
 Read an element from an ascii file.
 
- Entry:
- plyfile  - file identifier
- elem_ptr - pointer to element
+Entry:
+plyfile  - file identifier
+elem_ptr - pointer to element
 ******************************************************************************/
 
 void ascii_get_element(PlyFile *plyfile, char *elem_ptr)
@@ -1627,10 +1617,10 @@ void ascii_get_element(PlyFile *plyfile, char *elem_ptr)
 /******************************************************************************
 Read an element from a binary file.
 
- Entry:
- plyfile  - file identifier
- elem_ptr - pointer to an element
- ******************************************************************************/
+Entry:
+plyfile  - file identifier
+elem_ptr - pointer to an element
+******************************************************************************/
 
 void binary_get_element(PlyFile *plyfile, char *elem_ptr)
 {
@@ -1752,10 +1742,10 @@ void binary_get_element(PlyFile *plyfile, char *elem_ptr)
 /******************************************************************************
 Write to a file the word that represents a PLY data type.
 
- Entry:
- fp   - file pointer
- code - code for type
- ******************************************************************************/
+Entry:
+fp   - file pointer
+code - code for type
+******************************************************************************/
 
 void write_scalar_type(FILE *fp, int code)
 {
@@ -1776,9 +1766,9 @@ void write_scalar_type(FILE *fp, int code)
 Reverse the order in an array of bytes.  This is the conversion from big
 endian to little endian and vice versa
 
- Entry:
- bytes     - array of bytes to reverse (in place)
- num_bytes - number of bytes in array
+Entry:
+bytes     - array of bytes to reverse (in place)
+num_bytes - number of bytes in array
 ******************************************************************************/
 
 void swap_bytes(char *bytes, int num_bytes)
@@ -1797,9 +1787,9 @@ void swap_bytes(char *bytes, int num_bytes)
 /******************************************************************************
 Find out if this machine is big endian or little endian
 
- Exit:
- set global variable, native_binary_type =
- either PLY_BINARY_BE or PLY_BINARY_LE
+Exit:
+set global variable, native_binary_type =
+either PLY_BINARY_BE or PLY_BINARY_LE
 
 ******************************************************************************/
 
@@ -1849,16 +1839,16 @@ void check_types()
 /******************************************************************************
 Get a text line from a file and break it up into words.
 
- IMPORTANT: The calling routine call "free" on the returned pointer once
- finished with it.
+IMPORTANT: The calling routine call "free" on the returned pointer once
+finished with it.
 
-      Entry:
-      fp - file to read from
+Entry:
+fp - file to read from
 
-       Exit:
-       nwords    - number of words returned
-       orig_line - the original line of characters
-       returns a list of words from the line, or NULL if end-of-file
+Exit:
+nwords    - number of words returned
+orig_line - the original line of characters
+returns a list of words from the line, or NULL if end-of-file
 ******************************************************************************/
 
 char **get_words(FILE *fp, int *nwords, char **orig_line)
@@ -1942,12 +1932,12 @@ char **get_words(FILE *fp, int *nwords, char **orig_line)
 /******************************************************************************
 Return the value of an item, given a pointer to it and its type.
 
- Entry:
- item - pointer to item
- type - data type that "item" points to
+Entry:
+item - pointer to item
+type - data type that "item" points to
 
-      Exit:
-      returns a double-precision float that contains the value of the item
+Exit:
+returns a double-precision float that contains the value of the item
 ******************************************************************************/
 
 double get_item_value(char *item, int type)
@@ -2013,12 +2003,12 @@ double get_item_value(char *item, int type)
 /******************************************************************************
 Write out an item to a file as raw binary bytes.
 
- Entry:
- fp         - file to write to
- int_val    - integer version of item
- uint_val   - unsigned integer version of item
- double_val - double-precision float version of item
- type       - data type to write out
+Entry:
+fp         - file to write to
+int_val    - integer version of item
+uint_val   - unsigned integer version of item
+double_val - double-precision float version of item
+type       - data type to write out
 ******************************************************************************/
 
 void write_binary_item(FILE *fp,
@@ -2086,12 +2076,12 @@ void write_binary_item(FILE *fp,
 /******************************************************************************
 Write out an item to a file as ascii characters.
 
- Entry:
- fp         - file to write to
- int_val    - integer version of item
- uint_val   - unsigned integer version of item
- double_val - double-precision float version of item
- type       - data type to write out
+Entry:
+fp         - file to write to
+int_val    - integer version of item
+uint_val   - unsigned integer version of item
+double_val - double-precision float version of item
+type       - data type to write out
 ******************************************************************************/
 
 void write_ascii_item(
@@ -2143,14 +2133,13 @@ void write_ascii_item(
 /******************************************************************************
 Write out an item to a file as ascii characters.
 
- Entry:
- fp   - file to write to
- item - pointer to item to write
- type - data type that "item" points to
+Entry:
+fp   - file to write to
+item - pointer to item to write
+type - data type that "item" points to
 
-      Exit:
-      returns a double-precision float that contains the value of the written
-item
+Exit:
+returns a double-precision float that contains the value of the written item
 ******************************************************************************/
 
 double old_write_ascii_item(FILE *fp, char *item, int type)
@@ -2227,14 +2216,14 @@ double old_write_ascii_item(FILE *fp, char *item, int type)
 Get the value of an item that is in memory, and place the result
 into an integer, an unsigned integer and a double.
 
- Entry:
- ptr  - pointer to the item
- type - data type supposedly in the item
+Entry:
+ptr  - pointer to the item
+type - data type supposedly in the item
 
-      Exit:
-      int_val    - integer value
-      uint_val   - unsigned integer value
-      double_val - double-precision floating point value
+Exit:
+int_val    - integer value
+uint_val   - unsigned integer value
+double_val - double-precision floating point value
 ******************************************************************************/
 
 void get_stored_item(void *ptr,
@@ -2303,14 +2292,14 @@ void get_stored_item(void *ptr,
 Get the value of an item from a binary file, and place the result
 into an integer, an unsigned integer and a double.
 
- Entry:
- fp   - file to get item from
- type - data type supposedly in the word
+Entry:
+fp   - file to get item from
+type - data type supposedly in the word
 
-      Exit:
-      int_val    - integer value
-      uint_val   - unsigned integer value
-      double_val - double-precision floating point value
+Exit:
+int_val    - integer value
+uint_val   - unsigned integer value
+double_val - double-precision floating point value
 ******************************************************************************/
 
 void get_binary_item(FILE *fp,
@@ -2330,7 +2319,6 @@ void get_binary_item(FILE *fp,
     fprintf(stderr, "PLY ERROR: fread() failed -- aborting.\n");
     exit(1);
   }
-
   if ((file_type != native_binary_type) && (ply_type_size[type] > 1))
     swap_bytes((char *)ptr, ply_type_size[type]);
 
@@ -2394,14 +2382,14 @@ void get_binary_item(FILE *fp,
 Extract the value of an item from an ascii word, and place the result
 into an integer, an unsigned integer and a double.
 
- Entry:
- word - word to extract value from
- type - data type supposedly in the word
+Entry:
+word - word to extract value from
+type - data type supposedly in the word
 
-      Exit:
-      int_val    - integer value
-      uint_val   - unsigned integer value
-      double_val - double-precision floating point value
+Exit:
+int_val    - integer value
+uint_val   - unsigned integer value
+double_val - double-precision floating point value
 ******************************************************************************/
 
 void get_ascii_item(char *word,
@@ -2450,15 +2438,15 @@ void get_ascii_item(char *word,
 /******************************************************************************
 Store a value into a place being pointed to, guided by a data type.
 
- Entry:
- item       - place to store value
- type       - data type
- int_val    - integer version of value
- uint_val   - unsigned integer version of value
- double_val - double version of value
+Entry:
+item       - place to store value
+type       - data type
+int_val    - integer version of value
+uint_val   - unsigned integer version of value
+double_val - double version of value
 
-      Exit:
-      item - pointer to stored value
+Exit:
+item - pointer to stored value
 ******************************************************************************/
 
 void store_item(
@@ -2518,10 +2506,10 @@ void store_item(
 /******************************************************************************
 Add an element to a PLY file descriptor.
 
- Entry:
- plyfile - PLY file descriptor
- words   - list of words describing the element
- nwords  - number of words in the list
+Entry:
+plyfile - PLY file descriptor
+words   - list of words describing the element
+nwords  - number of words in the list
 ******************************************************************************/
 
 void add_element(PlyFile *plyfile, char **words)
@@ -2549,11 +2537,11 @@ void add_element(PlyFile *plyfile, char **words)
 /******************************************************************************
 Return the type of a property, given the name of the property.
 
- Entry:
- name - name of property type
+Entry:
+name - name of property type
 
-      Exit:
-      returns integer code for property, or 0 if not found
+Exit:
+returns integer code for property, or 0 if not found
 ******************************************************************************/
 
 int get_prop_type(char *type_name)
@@ -2570,10 +2558,10 @@ int get_prop_type(char *type_name)
 /******************************************************************************
 Add a property to a PLY file descriptor.
 
- Entry:
- plyfile - PLY file descriptor
- words   - list of words describing the property
- nwords  - number of words in the list
+Entry:
+plyfile - PLY file descriptor
+words   - list of words describing the property
+nwords  - number of words in the list
 ******************************************************************************/
 
 void add_property(PlyFile *plyfile, char **words)
@@ -2616,9 +2604,9 @@ void add_property(PlyFile *plyfile, char **words)
 /******************************************************************************
 Add a comment to a PLY file descriptor.
 
- Entry:
- plyfile - PLY file descriptor
- line    - line containing comment
+Entry:
+plyfile - PLY file descriptor
+line    - line containing comment
 ******************************************************************************/
 
 void add_comment(PlyFile *plyfile, char *line)
@@ -2635,9 +2623,9 @@ void add_comment(PlyFile *plyfile, char *line)
 /******************************************************************************
 Add a some object information to a PLY file descriptor.
 
- Entry:
- plyfile - PLY file descriptor
- line    - line containing text info
+Entry:
+plyfile - PLY file descriptor
+line    - line containing text info
 ******************************************************************************/
 
 void add_obj_info(PlyFile *plyfile, char *line)
@@ -2655,7 +2643,7 @@ void add_obj_info(PlyFile *plyfile, char *line)
 Copy a property.
 ******************************************************************************/
 
-void copy_property(PlyProperty *dest, PlyProperty *src)
+void copy_property(PlyProperty *dest, const PlyProperty *src)
 {
   dest->name          = _strdup(src->name);
   dest->external_type = src->external_type;
@@ -2671,10 +2659,10 @@ void copy_property(PlyProperty *dest, PlyProperty *src)
 /******************************************************************************
 Allocate some memory.
 
- Entry:
- size  - amount of memory requested (in bytes)
- lnum  - line number from which memory was requested
- fname - file name from which memory was requested
+Entry:
+size  - amount of memory requested (in bytes)
+lnum  - line number from which memory was requested
+fname - file name from which memory was requested
 ******************************************************************************/
 
 char *my_alloc(int size, int lnum, const char *fname)

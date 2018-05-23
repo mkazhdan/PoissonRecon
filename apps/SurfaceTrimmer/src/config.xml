@@ -1,12 +1,12 @@
 <CONFIG>
 	<INPUT>
-		<INPUT_PATH>/home/hypevr/PoissonRecon/clouds/Demo%03d.ply</INPUT_PATH>
+		<INPUT_PATH>/home/hypevr/PoissonNew/PoissonRecon/build/apps/PoissonRecon/out.ply</INPUT_PATH>
 		<TRIM>9</TRIM>
 		<SMOOTH>5</SMOOTH>
 		<A_RATIO>0.001</A_RATIO>
 		<!--<POLYGON_MESH></POLYGON_MESH>-->
 	</INPUT>
 	<OUTPUT>
-		<OUTPUT_PATH>/home/hypevr/PoissonRecon/clouds/DemoOut%03d.ply</OUTPUT_PATH>
+		<OUTPUT_PATH>/home/hypevr/PoissonNew/PoissonRecon/build/apps/SurfaceTrimmer/trim.ply</OUTPUT_PATH>
 	</OUTPUT>
 </CONFIG>

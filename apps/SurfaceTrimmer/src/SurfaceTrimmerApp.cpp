@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2006, Michael Kazhdan and Matthew Bolitho
+Copyright (c) 2013, Michael Kazhdan
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -37,14 +37,13 @@ SUCH
 DAMAGE.
 */
 
-#undef ARRAY_DEBUG
-
 #include <tinyxml2.h>
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include "boost/format.hpp"
 
-#include "Mesh/PoissonRecon/SurfaceTrimming.h"
+#include "Mesh/PoissonRecon/SurfaceTrimmer.h"
 
 std::string ParsePath(std::string path, const int index)
 {
@@ -139,7 +138,7 @@ void ReadXML(tinyxml2::XMLDocument &doc_xml,
   }
 }
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
   if (argc != 4)
   {
@@ -174,7 +173,8 @@ int main(int argc, char **argv)
 
     std::cout << temp_in << std::endl;
     std::cout << temp_out << std::endl;
-    char *options[] = {const_cast<char *>("--in"),
+    char *options[] = {const_cast<char *>("SurfaceTrimmer"),
+                       const_cast<char *>("--in"),
                        const_cast<char *>(temp_in.c_str()),
                        const_cast<char *>("--out"),
                        const_cast<char *>(temp_out.c_str()),
@@ -187,9 +187,21 @@ int main(int argc, char **argv)
                        const_cast<char *>(polygon_mesh.c_str())};
 
     int nOptions = sizeof(options) / sizeof(char *);
+    std::vector<double> vertz_iuv;
+    std::vector<double> clrz_iuv;
+    std::vector<int> tri_indices;
+    std::vector<double> nomrlas_iuv;
+    std::vector<double> roughness_iuv;
+    std::vector<double> metallic_iuv;
 
-    SurfaceTrimming trim;
-    std::vector<double> vertz_iuv; std::vector<double> clrz_iuv; std::vector<double> tri_indices;
-    trim.trim(nOptions, options,vertz_iuv,clrz_iuv,tri_indices);
+    SurfaceTrimmer trimmer;
+    trimmer.trim(nOptions,
+                 options,
+                 vertz_iuv,
+                 nomrlas_iuv,
+                 clrz_iuv,
+                 roughness_iuv,
+                 metallic_iuv,
+                 tri_indices);
   }
 }
