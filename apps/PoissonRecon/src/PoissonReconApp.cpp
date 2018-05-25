@@ -39,7 +39,7 @@ std::string ParsePath(std::string path, Int... index)
 {
   if (path.find('%') != std::string::npos)
   {
-    std::vector<int> indices{{index...}};
+    std::vector<int> indices{{static_cast<int>(index)...}};
 
     boost::format f(path);
 
