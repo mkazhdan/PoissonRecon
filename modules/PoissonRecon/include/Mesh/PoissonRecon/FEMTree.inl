@@ -439,7 +439,10 @@ FEMTree<Dim, Real>::setNormalField(
       Point<Real, Dim> p = sample.data / sample.weight,
                        n = std::get<0>(normalData[i].data).data;
       Real l             = (Real)Length(n);
-      Real confidence    = l / sample.weight;
+      // It is possible that the samples have non-zero normals but there are two
+      // co-located samples with negative normals...
+      if (!l) continue;
+      Real confidence = l / sample.weight;
       n *= sample.weight / l;
       Real depthBias = BiasFunction(confidence);
       weightSum += sample.weight;
