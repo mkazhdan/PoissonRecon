@@ -1,9 +1,12 @@
-<center><h2>Adaptive Multigrid Solvers (Version 10.00)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 10.02)</h2></center>
 <center>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html#LINKS">links</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html#EXECUTABLES">executables</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html#USAGE">usage</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/index.html#CHANGES">changes</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#LINKS">links</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#EXECUTABLES">executables</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#USAGE">usage</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#CHANGES">changes</a>
+<!--
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#SUPPORT">support</a>
+-->
 </center>
 <hr>
 This code-base was born from the Poisson Surface Reconstruction code. It has evolved to support more general adaptive finite-elements systems:
@@ -24,10 +27,12 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">V10.01</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/">V10.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.011/">V9.011</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/">V9.01</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">V9.0</a>,
@@ -52,13 +57,15 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</a>
 </ul>
 <hr>
-<a name="EXECUTABLES"><b>EXECUTABLES</b></a>
+<a name="EXECUTABLES"><b>EXECUTABLES</b></a><br>
 <ul>
 <dl>
 <DETAILS>
-<summary><font size="+1"><b>PoissonRecon</b></font></summary>
+<SUMMARY>
+<font size="+1"><b>PoissonRecon</b></font>:
 Reconstructs a triangle mesh from a set of oriented 3D points by solving a Poisson system (solving a 3D Laplacian system with positional value constraints) <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
+</SUMMARY>
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
 </dt><dd> This string is the name of the file from which the point set will be read.<br>
 If the file extension is <i>.ply</i>, the file should be in
@@ -189,9 +196,10 @@ The default value for this parameter is equal to the numer of (virtual) processo
 <ul>
 <dl>
 <DETAILS>
-<SUMMARY><font size="+1"><b>SSDRecon</b></font></SUMMARY>
-Reconstructs a surface mesh from a set of oriented 3D points by solving for a Smooth Signed Distance function (solving a 3D bi-Laplacian operator with positional value and gradient constraints) <a href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>,
-
+<SUMMARY>
+<font size="+1"><b>SSDRecon</b></font>:
+Reconstructs a surface mesh from a set of oriented 3D points by solving for a Smooth Signed Distance function (solving a 3D bi-Laplacian system with positional value and gradient constraints) <a href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>
+</SUMMARY>
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
 </dt><dd> This string is the name of the file from which the point set will be read.<br>
 If the file extension is <i>.ply</i>, the file should be in
@@ -323,9 +331,10 @@ individual components of the surface reconstructor.
 <ul>
 <dl>
 <DETAILS>
-<SUMMARY><font size="+1"><b>SurfaceTrimmer</b></font></SUMMARY>
+<SUMMARY>
+<font size="+1"><b>SurfaceTrimmer</b></font>:
 Trims off parts of a triangle mesh with a per-vertex signal whose value falls below a threshold (used for removing parts of a reconstructed surface that are generated in low-sampling-density regions)
-
+</SUMMARY>
 <dt><b>--in</b> &lt;<i>input triangle mesh</i>&gt;
 </dt><dd> This string is the name of the file from which the triangle mesh will be read. 
 The file is read in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format and it is assumed that the vertices have a <i>value</i> field which stores the signal's value. (When run with <b>--density</b> flag, the reconstructor will output this field with the mesh vertices.)
@@ -360,9 +369,10 @@ The default value 0.001.
 <ul>
 <dl>
 <DETAILS>
-<SUMMARY><font size="+1"><b>ImageStitching</b></font><BR></SUMMARY>
+<SUMMARY>
+<font size="+1"><b>ImageStitching</b></font>:
 Stitches together a composite of image tiles into a seamless panorama by solving for the correction term (solving a 2D Laplacian system) <a href="http://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
-
+</SUMMARY>
 <dt><b>--in</b> &lt;<i>input composite image</i>&gt; &lt;<i>input label image</i>&gt;
 </dt><dd> This pair of strings give the name of the composite image file and the associated label file.<BR>
 All pixels in the composite that come from the same source should be assigned the same color in the label file.<BR>
@@ -412,8 +422,10 @@ individual components of the image stitcher.
 <ul>
 <dl>
 <DETAILS>
-<SUMMARY><font size="+1"><b>EDTInHeat</b></font></SUMMARY>
+<SUMMARY>
+<font size="+1"><b>EDTInHeat</b></font>:
 Computes the unsigned Euclidean Distance Transform of a triangle mesh (solving two 3D Laplacian systems) <A HREF="https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/">[Crane, Weischedel, and Wardetzky, 2013]</A>
+</SUMMARY>
 <dt><b>--in</b> &lt;<i>input mesh</i>&gt;
 </dt><dd> This string is the name of the file from which the triangle mesh will be read. 
 The file is assumed to be in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
@@ -479,8 +491,10 @@ The default value for this parameter is equal to the numer of (virtual) processo
 <ul>
 <dl>
 <DETAILS>
-<SUMMARY><font size="+1"><b>AdaptiveTreeVisualization</b></font></SUMMARY>
+<SUMMARY>
+<font size="+1"><b>AdaptiveTreeVisualization</b></font>:
 Extracts iso-surfaces and a sampling on a regular grid from an implicit function represented over an adapted tree
+</SUMMARY>
 <dt><b>--in</b> &lt;<i>input tree and coefficients</i>&gt;
 </dt><dd> This string is the name of the file from which the tree and implicit functions coefficients are to be read. 
 
@@ -525,13 +539,14 @@ individual components of the visualizer.
 </ul>
 
 <hr>
-<a name="USAGE"><b>USAGE EXAMPLES (WITH SAMPLE DATA)</b></a>
+<a name="USAGE"><b>USAGE EXAMPLES (WITH SAMPLE DATA)</b></a><br>
 
 <ul>
 <dl>
 <DETAILS>
-<SUMMARY><font size="+1"><b>PoissonRecon / SSDRecon / SurfaceTrimmer</b></font></SUMMARY>
-
+<SUMMARY>
+<font size="+1"><b>PoissonRecon / SSDRecon / SurfaceTrimmer</b></font>
+</SUMMARY>
 For testing purposes, three point sets are provided:
 <ol>
 
@@ -567,6 +582,7 @@ to remove all subsets of the surface where the sampling density corresponds to a
 </li>
 
 </ol>
+
 </DETAILS>
 </dl>
 </ul>
@@ -575,12 +591,14 @@ to remove all subsets of the surface where the sampling density corresponds to a
 <ul>
 <dl>
 <DETAILS>
-<SUMMARY><font size="+1"><b>ImageStitching</b></font></SUMMARY>
-
+<SUMMARY>
+<font size="+1"><b>ImageStitching</b></font>
+</SUMMARY>
 For testing purposes, two panoramas are provided: <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Jaffa.zip"><b>Jaffa</b></a> (23794 x 9492 pixels) and <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/OldRag.zip"><b>OldRag</b></a> (87722 x 12501 pixels).
 
 A seamless panorama can be obtained by running:
 <blockquote><code>% ImageSitching --in pixels.png labels.png --out out.png</code></blockquote>
+
 </DETAILS>
 </dl>
 </ul>
@@ -589,8 +607,9 @@ A seamless panorama can be obtained by running:
 <ul>
 <dl>
 <DETAILS>
-<SUMMARY><font size="+1"><b>EDTInHeat / AdaptiveTreeVisualization</b></font></SUMMARY>
-<div id="usage_edt_in_heat" style="display: none;">
+<SUMMARY>
+<font size="+1"><b>EDTInHeat / AdaptiveTreeVisualization</b></font>
+</SUMMARY>
 The Euclidean Distance Tranform of the reconstructed horse can be obtained by running:
 <blockquote><code>% EDTInHeat --in horse.ply --out horse.edt --depth 9</code></blockquote>
 Then, the visualization code can be used to extract iso-surfaces from the implicit function.<BR>
@@ -602,6 +621,7 @@ To obtain a visualization closer to the boundary of the bounding box, use an iso
 (Since the default <CODE>--scale</CODE> is 2, a value of 0.25 should still give a surface that is contained within the bounding box.)<BR>
 To obtain a sampling of the implicit function over a regular grid:
 <blockquote><code>% AdaptiveTreeVisualization.exe --in horse.edt --grid horse.grid</code></blockquote>
+
 </DETAILS>
 </dl>
 </ul>
@@ -609,8 +629,9 @@ To obtain a sampling of the implicit function over a regular grid:
 
 <hr>
 <DETAILS>
-<SUMMARY><font size="+1"><b><B>HISTORY OF CHANGES</B></b></font></SUMMARY>
-<div id="changes" style="display: none;">
+<SUMMARY>
+<font size="+1"><b><B>HISTORY OF CHANGES</B></b></font>
+</SUMMARY>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">Version 3</a>:
 <ol>
 <li> The implementation of the <b>--samplesPerNode</b> parameter has been modified so that a value of "1" more closely corresponds to a distribution with one sample per leaf node.
@@ -750,6 +771,10 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <li> Modified the reconstruction code to facilitate interpolation of other input-sample quantities, in addition to color.</LI>
 </ol>
 
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">Version 10.02</a>:
+<ol>
+<li> Set the default FEM degree for PoissonRecon to 1 and set the default data dgree for PoissonRecon and SSDRecon to 0.</LI>
+</ol>
 </DETAILS>
 
 
