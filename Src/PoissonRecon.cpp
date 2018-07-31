@@ -715,12 +715,12 @@ int main( int argc , char* argv[] )
 	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
 	fprintf( stderr , "[WARNING] Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
 	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier*Degree;
-	if( Colors.set ) Execute< DefaultFloatType , PointStreamColor< DefaultFloatType > >( argc , argv , FEMSigs() );
-	else             Execute< DefaultFloatType >( argc , argv , FEMSigs() );
+	if( Colors.set ) Execute< Real , PointStreamColor< DefaultFloatType > >( argc , argv , FEMSigs() );
+	else             Execute< Real >( argc , argv , FEMSigs() );
 #else // !FAST_COMPILE
 	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier*Degree.value;
-	if( Colors.set ) Execute< DIMENSION , float , PointStreamColor< float > >( argc , argv );
-	else             Execute< DIMENSION , float >( argc , argv );
+	if( Colors.set ) Execute< DIMENSION , Real , PointStreamColor< float > >( argc , argv );
+	else             Execute< DIMENSION , Real >( argc , argv );
 #endif // FAST_COMPILE
 	if( Performance.set )
 	{
