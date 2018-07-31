@@ -26,7 +26,7 @@
     <ProjectGuid>{477765F8-C16A-406B-807F-1302DAE74EBA}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>SSDRecon</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
     <ProjectName>SSDRecon</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
