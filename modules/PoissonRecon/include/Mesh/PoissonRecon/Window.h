@@ -774,10 +774,20 @@ template <class Data, unsigned int... Ress>
 struct StaticWindow<Data, UIntPack<Ress...> >
 {
   typedef UIntPack<Ress...> Pack;
+
+#if defined(__GNUC__) && defined(DEBUG)
+#pragma message "you've got me gcc"
+  static const unsigned int Size;
+#else  // !( __GNUC__ && DEBUG )
+
   static const unsigned int Size = WindowSize<Pack>::Size;
+
+#endif  // ( __GNUC__ && DEBUG )
+
   typedef ConstWindowSlice<Data, Pack> const_window_slice_type;
   typedef WindowSlice<Data, Pack> window_slice_type;
   typedef Data data_type;
+
   WindowSlice<Data, typename Pack::Rest> operator[](int idx)
   {
     return WindowSlice<Data, typename Pack::Rest>(
@@ -813,11 +823,27 @@ struct StaticWindow<Data, UIntPack<Ress...> >
   }
   Data data[WindowSize<Pack>::Size];
 };
+
+#if defined(__GNUC__) && defined(DEBUG)
+template <class Data, unsigned int... Ress>
+const unsigned int StaticWindow<Data, UIntPack<Ress...> >::Size =
+    WindowSize<UIntPack<Ress...> >::Size;
+#endif  // ( __GNUC__ && DEBUG )
+
 template <class Data, unsigned int Res>
 struct StaticWindow<Data, UIntPack<Res> >
 {
   typedef UIntPack<Res> Pack;
+
+#if defined(__GNUC__) && defined(DEBUG)
+#pragma message "you've got me gcc"
+  static const unsigned int Size;
+#else  // !( __GNUC__ && DEBUG )
+
   static const unsigned int Size = Res;
+
+#endif  // ( __GNUC__ && DEBUG )
+
   typedef Data data_type;
   Data& operator[](int idx)
   {
@@ -850,6 +876,11 @@ struct StaticWindow<Data, UIntPack<Res> >
   }
   Data data[Res];
 };
+
+#if defined(__GNUC__) && defined(DEBUG)
+template <class Data, unsigned int Res>
+const unsigned int StaticWindow<Data, UIntPack<Res> >::Size = Res;
+#endif  // ( __GNUC__ && DEBUG )
 
 template <class Data, unsigned int... Ress>
 struct DynamicWindow<Data, UIntPack<Ress...> >

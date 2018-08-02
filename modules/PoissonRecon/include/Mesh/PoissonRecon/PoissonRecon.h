@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
                       // code is compiled
 #undef ARRAY_DEBUG    // If enabled, array access is tested for validity
 #define DATA_DEGREE \
-  0  // The order of the B-Spline used to splat in data for color interpolation
+  1  // The order of the B-Spline used to splat in data for color interpolation
      // This can be changed to zero if more interpolatory performance is
      // desired.
 #define WEIGHT_DEGREE \
@@ -1293,23 +1293,23 @@ class PoissonRecon
     if (Colors.set)
     {
       if (!Roughness.set && !Metallic.set)
-        Execute<DefaultFloatType, PointStreamColor<DefaultFloatType> >(
+        Execute<Real, PointStreamColor<DefaultFloatType> >(
             numOptions, options, FEMSigs());
 
       if (Roughness.set && !Metallic.set)
-        Execute<DefaultFloatType,
+        Execute<Real,
                 PointStreamColor<DefaultFloatType>,
                 PointStreamRoughness<DefaultFloatType> >(
             numOptions, options, FEMSigs());
 
       if (!Roughness.set && Metallic.set)
-        Execute<DefaultFloatType,
+        Execute<Real,
                 PointStreamColor<DefaultFloatType>,
                 PointStreamMetal<DefaultFloatType> >(
             numOptions, options, FEMSigs());
 
       if (Roughness.set && Metallic.set)
-        Execute<DefaultFloatType,
+        Execute<Real,
                 PointStreamColor<DefaultFloatType>,
                 PointStreamRoughness<DefaultFloatType>,
                 PointStreamMetal<DefaultFloatType> >(
