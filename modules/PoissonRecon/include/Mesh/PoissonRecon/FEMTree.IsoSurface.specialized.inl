@@ -2703,8 +2703,8 @@ struct IsoSurfaceExtractor<3, Real, Vertex>
     }
     if (averageRoot <= 0 || averageRoot >= 1)
     {
-      fprintf(stderr, "[WARNING] Bad average root: %f\n", averageRoot);
-      fprintf(stderr, "\t(%f %f) (%f)\n", x0, x1, isoValue);
+      // fprintf(stderr, "[WARNING] Bad average root: %f\n", averageRoot);
+      // fprintf(stderr, "\t(%f %f) (%f)\n", x0, x1, isoValue);
       if (averageRoot < 0) averageRoot = 0;
       if (averageRoot > 1) averageRoot = 1;
     }
