@@ -182,6 +182,16 @@ void PLYInputPointStream< Real , Dim >::reset( void )
 template< class Real , int Dim >
 void PLYInputPointStream< Real , Dim >::_free( void )
 {
+	if( _ply->comments )
+	{
+		for( int i=0 ; i<_ply->num_comments ; i++ ) free( _ply->comments[i] );
+		free( _ply->comments );
+	}
+	if( _ply->obj_info )
+	{
+		for( int i=0 ; i<_ply->num_obj_info ; i++ ) free( _ply->obj_info[i] );
+		free( _ply->obj_info );
+	}
 	if( _ply ) ply_close( _ply ) , _ply = NULL;
 	if( _elist )
 	{
@@ -391,6 +401,32 @@ void PLYInputPointStreamWithData< Real , Dim , Data >::reset( void )
 template< class Real , int Dim , class Data >
 void PLYInputPointStreamWithData< Real , Dim , Data >::_free( void )
 {
+	if( _ply->comments )
+	{
+		for( int i=0 ; i<_ply->num_comments ; i++ ) free( _ply->comments[i] );
+		free( _ply->comments );
+	}
+	if( _ply->obj_info )
+	{
+		for( int i=0 ; i<_ply->num_obj_info ; i++ ) free( _ply->obj_info[i] );
+		free( _ply->obj_info );
+	}
+	if( _ply->elems )
+	{
+		for( int i=0 ; i<_ply->nelems ; i++ )
+		{
+			free( _ply->elems[i]->name );
+			if( _ply->elems[i]->store_prop ) free( _ply->elems[i]->store_prop );
+			for( int j=0 ; j<_ply->elems[i]->nprops ; j++ )
+			{
+				free( _ply->elems[i]->props[j]->name );
+				free( _ply->elems[i]->props[j] );
+			}
+			free( _ply->elems[i]->props );
+			free( _ply->elems[i] );
+		}
+		free( _ply->elems );
+	}
 	if( _ply ) ply_close( _ply ) , _ply = NULL;
 	if( _elist )
 	{

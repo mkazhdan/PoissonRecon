@@ -194,6 +194,7 @@ inline void ImageReader::GetInfo( const char* fileName , unsigned int& width , u
 	else if( !strcasecmp( ext , "png" ) )                            PNGReader::GetInfo( fileName , width , height , channels );
 	else if( !strcasecmp( ext , "iGrid" ) )                   TiledImageReader::GetInfo( fileName , width , height , channels );
 #endif // WIN32
+	delete[] ext;
 }
 inline ImageWriter* ImageWriter::Get( const char* fileName , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params )
 {

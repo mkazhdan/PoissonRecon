@@ -214,6 +214,9 @@ public:
 		ConstNeighborKey( void );
 		ConstNeighborKey( const ConstNeighborKey& key );
 		~ConstNeighborKey( void );
+#if 1
+		ConstNeighborKey& operator = ( const ConstNeighborKey& key );
+#endif
 
 		int depth( void ) const { return _depth; }
 		void set( int depth );

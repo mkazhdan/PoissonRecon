@@ -1872,7 +1872,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::supportWe
 	for( int d=0 ; d<=_maxDepth ; d++ )
 	{
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
-		( ( BaseSystem& )F ).init( d );
+		F.init( d );
 		F.template setStencil< false >( stencil );
 #pragma omp parallel for
 		for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )

@@ -318,6 +318,7 @@ int _Execute( int argc , char* argv[] )
 		for( int i=0 ; i<geometrySamples.size() ; i++ ) nodes[i] = geometrySamples[i].node;
 		tree.template thicken< Degree >( nodes , (int)geometrySamples.size() );
 		profiler.dumpOutput2( comments , "#       Thickened tree:" );
+		delete[] nodes;
 	}
 
 	// Finalize the topology of the tree
@@ -529,6 +530,8 @@ int _Execute( int argc , char* argv[] )
 		}
 	}
 
+	for( int i=0 ; i<comments.size() ; i++ ) if( comments[i] ) delete[] comments[i];
+
 	return 1;
 }
 
@@ -566,7 +569,11 @@ int main( int argc , char* argv[] )
 #ifdef FAST_COMPILE
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = BOUNDARY_FREE;
+#if 1
+	fprintf( stderr , "[WARNING] Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
+#else
 	fprintf( stderr , "[WARNING] Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
+#endif
 	if( BaseDepth.value>FullDepth.value )
 	{
 		if( BaseDepth.set ) fprintf( stderr , "[WARNING] Base depth must be smaller than full depth: %d <= %d\n" , BaseDepth.value , FullDepth.value );

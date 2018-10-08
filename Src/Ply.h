@@ -421,6 +421,27 @@ int PlyWritePolygons( const char* fileName,
 	}
 
 	delete[] ply_face.vertices;
+	if( ply->nelems )
+	{
+		for( int i=0 ; i<ply->nelems ; i++ )
+		{
+			free( ply->elems[i]->name );
+			if( ply->elems[i]->store_prop ) free( ply->elems[i]->store_prop );
+			for( int j=0 ; j<ply->elems[i]->nprops ; j++ )
+			{
+				free( ply->elems[i]->props[j]->name );
+				free( ply->elems[i]->props[j] );
+			}
+			free( ply->elems[i]->props );
+			free( ply->elems[i] );
+		}
+		free( ply->elems );
+	}
+	if( ply->num_comments )
+	{
+		for( int i=0 ; i<ply->num_comments ; i++ ) free( ply->comments[i] );
+		free( ply->comments );
+	}
 	ply_close(ply);
 	return 1;
 }
@@ -498,7 +519,7 @@ int PlyReadPolygons( const char* fileName,
 				ply_get_element (ply, (void *) &ply_face);
 				polygons[j].resize(ply_face.nr_vertices);
 				for(k=0;k<ply_face.nr_vertices;k++)	polygons[j][k]=ply_face.vertices[k];
-				delete[] ply_face.vertices;
+				free( ply_face.vertices );
 			}  // for, read faces
 		}  // if face
 		else{ply_get_other_element (ply, elem_name, num_elems);}
@@ -661,6 +682,27 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		delete[] ply_face.vertices;
 	}  // for, write faces
 	
+	if( ply->nelems )
+	{
+		for( int i=0 ; i<ply->nelems ; i++ )
+		{
+			free( ply->elems[i]->name );
+			if( ply->elems[i]->store_prop ) free( ply->elems[i]->store_prop );
+			for( int j=0 ; j<ply->elems[i]->nprops ; j++ )
+			{
+				free( ply->elems[i]->props[j]->name );
+				free( ply->elems[i]->props[j] );
+			}
+			free( ply->elems[i]->props );
+			free( ply->elems[i] );
+		}
+		free( ply->elems );
+	}
+	if( ply->num_comments )
+	{
+		for( int i=0 ; i<ply->num_comments ; i++ ) free( ply->comments[i] );
+		free( ply->comments );
+	}
 	ply_close( ply );
 	return 1;
 }

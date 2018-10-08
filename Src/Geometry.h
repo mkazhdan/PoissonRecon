@@ -539,7 +539,7 @@ public:
 	bool write( const void* data , size_t size )
 	{
 		if( !size ) return true;
-		char* _data = (char*) data;
+		const char* _data = (char*) data;
 		size_t sz = _bufferSize - _bufferIndex;
 		while( sz<=size )
 		{

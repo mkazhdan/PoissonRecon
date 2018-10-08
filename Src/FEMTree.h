@@ -42,7 +42,7 @@ DAMAGE.
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED
 
-#define VERSION "10.02"
+#define VERSION "10.03"
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
 
 #define NEW_CODE
@@ -865,7 +865,7 @@ public:
 	{
 		typedef  Constraint< UIntPack< TDegrees ... > , UIntPack< TDegrees ... > , 1 > Base;
 		SystemConstraint( System< UIntPack< TDegrees ... > >& sys ) : _sys( sys ){;}
-		void init( void ){ _sys.init( Base::highDepth() ) ; _sys.init();	}
+		void init( void ){ _sys.init( Base::highDepth() ) ; _sys.init(); }
 		Point< double , 1 > ccIntegrate( const int off1[] , const int off2[] ) const{ return Point< double , 1 >( _sys.ccIntegrate( off1 , off2 ) ); }
 		Point< double , 1 > pcIntegrate( const int off1[] , const int off2[] ) const{ return Point< double , 1 >( _sys.pcIntegrate( off1 , off2 ) ); }
 		Point< double , 1 > cpIntegrate( const int off1[] , const int off2[] ) const{ return Point< double , 1 >( _sys.pcIntegrate( off2 , off1 ) ); }

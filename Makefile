@@ -15,7 +15,7 @@ COMPILER = gcc
 #COMPILER = clang
 
 ifeq ($(COMPILER),gcc)
-	CFLAGS += -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11
+	CFLAGS += -fopenmp -Wno-deprecated -Wno-write-strings -std=c++11 -Wno-invalid-offsetof
 	LFLAGS += -lgomp -lstdc++
 else
 # 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++11 -Wno-invalid-offsetof

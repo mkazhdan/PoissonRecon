@@ -366,6 +366,9 @@ int Execute( void )
 	sprintf( comments[commentNum++] , "#Trimmed In: %9.1f (s)" , Time()-t );
 	if( Out.set ) PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , &comments[0] , (int)comments.size() );
 
+	for( int i=0 ; i<comments.size() ; i++ ) delete[] comments[i];
+	delete[] _comments;
+
 	return EXIT_SUCCESS;
 }
 int main( int argc , char* argv[] )

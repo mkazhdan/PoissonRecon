@@ -1,11 +1,11 @@
-<center><h2>Adaptive Multigrid Solvers (Version 10.02)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 10.03)</h2></center>
 <center>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#LINKS">links</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#EXECUTABLES">executables</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#USAGE">usage</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#CHANGES">changes</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#LINKS">links</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#EXECUTABLES">executables</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#USAGE">usage</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#CHANGES">changes</a>
 <!--
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#SUPPORT">support</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#SUPPORT">support</a>
 -->
 </center>
 <hr>
@@ -27,10 +27,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">V10.02</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">V10.01</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/">V10.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.011/">V9.011</a>,
@@ -773,8 +774,15 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">Version 10.02</a>:
 <ol>
-<li> Set the default FEM degree for PoissonRecon to 1 and set the default data dgree for PoissonRecon and SSDRecon to 0.</LI>
+<li> Set the default value for <b>--degree</B> in PoissonRecon to 1 and change the definitiion of <I>DATA_DEGREE</I> to 0 for sharper color interpolation.</LI>
 </ol>
+
+</DETAILS>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">Version 10.03</a>:
+<ol>
+<li> Cleaned up memory leaks.
+</ol>
+
 </DETAILS>
 
 

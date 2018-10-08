@@ -459,7 +459,7 @@ void _Execute( void )
 						c += outBlock[ii] - average;
 						_outRows[ii] = RGBPixel( c[0] , c[1] , c[2] );
 					}
-					FreePointer( outBlock );
+					DeletePointer( outBlock );
 				}
 			}
 		}
@@ -475,6 +475,9 @@ void _Execute( void )
 		delete out;
 	}
 }
+
+#ifdef FAST_COMPILE
+#else // !FAST_COMPILE
 template< typename Real >
 void _Execute( void )
 {
@@ -487,6 +490,8 @@ void _Execute( void )
 	default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 2 are supported" ) ; exit( 0 );
 	}
 }
+#endif // FAST_COMPILE
+
 int main( int argc , char* argv[] )
 {
 	Timer timer;

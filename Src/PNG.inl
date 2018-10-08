@@ -67,6 +67,7 @@ PNGReader::~PNGReader( void )
 {
 	if( _scratchRow ) delete[] _scratchRow;
 	_scratchRow = NULL;
+	png_destroy_read_struct( &_png_ptr , &_info_ptr , &_end_info );
 }
 
 inline bool PNGReader::GetInfo( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels )

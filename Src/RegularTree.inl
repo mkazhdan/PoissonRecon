@@ -624,6 +624,15 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPa
 	if( neighbors ) delete[] neighbors;
 	neighbors=NULL;
 }
+#if 1
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::operator = ( const ConstNeighborKey& key )
+{
+	set( key._depth );
+	for( int d=0 ; d<=_depth ; d++ ) memcpy( &neighbors[d] , &key.neighbors[d] , sizeof( ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > ) );
+}
+#endif
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::set( int d )
