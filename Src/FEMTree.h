@@ -47,8 +47,6 @@ DAMAGE.
 
 #define NEW_CODE
 
-// SOR=0.125 sorPower=6
-
 #include <atomic>
 #include "MyMiscellany.h"
 #include "BSplineData.h"

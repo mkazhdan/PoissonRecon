@@ -777,10 +777,9 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <li> Set the default value for <b>--degree</B> in PoissonRecon to 1 and change the definitiion of <I>DATA_DEGREE</I> to 0 for sharper color interpolation.</LI>
 </ol>
 
-</DETAILS>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">Version 10.03</a>:
 <ol>
-<li> Cleaned up memory leaks.
+<li> Cleaned up memory leaks and fixed a bug causing ImageStitching and EDTInHeat to SEGFAULT on Linux.
 </ol>
 
 </DETAILS>
