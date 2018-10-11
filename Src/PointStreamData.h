@@ -119,44 +119,44 @@ protected:
 template<>
 const PlyProperty PointStreamPosition< float , 2 >::_PlyProperties[] =
 {
-	{ "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamPosition< double , 2 >::_PlyProperties[] =
 {
-	{ "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamPosition< float , 3 >::_PlyProperties[] =
 {
-	{ "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "z" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "z" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamPosition< double , 3 >::_PlyProperties[] =
 {
-	{ "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "z" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "z" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamPosition< float , 4 >::_PlyProperties[] =
 {
-	{ "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "z" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-{ "w" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[3] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "z" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "w" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , data.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamPosition< double , 4 >::_PlyProperties[] =
 {
-	{ "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "z" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-{ "w" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[3] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "z" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "w" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 
 template< class Real , unsigned int Dim >
@@ -214,44 +214,44 @@ protected:
 template<>
 const PlyProperty PointStreamNormal< float , 2 >::_PlyProperties[] =
 {
-	{ "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "ny" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamNormal< double , 2 >::_PlyProperties[] =
 {
-	{ "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "ny" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamNormal< float , 3 >::_PlyProperties[] =
 {
-	{ "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "ny" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "nz" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nz" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamNormal< double , 3 >::_PlyProperties[] =
 {
-	{ "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "ny" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "nz" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nz" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamNormal< float , 4 >::_PlyProperties[] =
 {
-	{ "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "ny" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "nz" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-{ "nw" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[3] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nz" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nw" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , data.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamNormal< double , 4 >::_PlyProperties[] =
 {
-	{ "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "ny" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "nz" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-{ "nw" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[3] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nz" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nw" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 
 template< class Real >
@@ -298,22 +298,22 @@ protected:
 template<>
 const PlyProperty PointStreamColor< float >::_PlyProperties[] =
 {
-	{ "red"   , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "green" , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "blue"  , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-{ "r"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
-{ "g"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "b"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "red"   , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "green" , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "blue"  , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "r"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "g"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "b"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamColor< double >::_PlyProperties[] =
 {
-	{ "red"   , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[0] ) ) , 0 , 0 , 0 , 0 } , 
-{ "green" , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "blue"  , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
-{ "r"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[0] ) ) , 0 , 0 , 0 , 0 } , 
-{ "g"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
-{ "b"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	PlyProperty( "red"   , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) , 
+	PlyProperty( "green" , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "blue"  , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "r"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[0] ) ) , 0 , 0 , 0 , 0 ) , 
+	PlyProperty( "g"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "b"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 
 template< class Real >
@@ -340,13 +340,14 @@ public:
 template<>
 const PlyProperty PointStreamValue< float >::_PlyProperties[] =
 {
-	{ "value" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamValue , data ) ) , 0 , 0 , 0 , 0 } , 
+	PlyProperty( "value" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamValue , data ) ) , 0 , 0 , 0 , 0 ) , 
 };
 template<>
 const PlyProperty PointStreamValue< double >::_PlyProperties[] =
 {
-	{ "value" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamValue , data ) ) , 0 , 0 , 0 , 0 } , 
+	PlyProperty( "value" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamValue , data ) ) , 0 , 0 , 0 , 0 ) , 
 };
+
 template< class Real >
 struct PointStreamRoughness : public PointStreamData< Real , Real >
 {
@@ -371,12 +372,12 @@ public:
 template<>
 const PlyProperty PointStreamRoughness< float >::_PlyProperties[] =
 {
-	{ "rg" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamRoughness , data ) ) , 0 , 0 , 0 , 0 } , 
+	PlyProperty( "rg" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamRoughness , data ) ) , 0 , 0 , 0 , 0 ) , 
 };
 template<>
 const PlyProperty PointStreamRoughness< double >::_PlyProperties[] =
 {
-	{ "rg" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamRoughness , data ) ) , 0 , 0 , 0 , 0 } , 
+	PlyProperty( "rg" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamRoughness , data ) ) , 0 , 0 , 0 , 0 ) , 
 };
 
 template< typename Real , typename ... Data >
@@ -438,13 +439,14 @@ public:
 	static PlyProperty* PlyWriteProperties( void ){ _SetPlyWriteProperties<0>( _PlyWriteProperties ) ; return _PlyWriteProperties; }
 
 	static bool ValidPlyReadProperties( const bool* flags ){ return _ValidPlyReadProperties<0>( flags ) ; }
-	template< unsigned int I > static bool ValidPlyReadProperties( const bool* flags ){ return DataType< I >::ValidPlyReadProperties( flags + _PlyReadNum< I >() ); }
+	template< unsigned int I > static bool ValidPlyReadProperties( const bool* flags ){ return DataType< I >::ValidPlyReadProperties( flags + _PlyReadOffset< I >() ); }
 protected:
 	static PlyProperty _PlyReadProperties[];
 	static PlyProperty _PlyWriteProperties[];
 private:
-	template< unsigned int I , unsigned int _I=0 > static typename std::enable_if< I==_I , unsigned int >::type _PlyReadNum( void ){ return 0; }
-	template< unsigned int I , unsigned int _I=0 > static typename std::enable_if< I!=_I , unsigned int >::type _PlyReadNum( void ){ return DataType< I >::PlyReadNum + _PlyReadNum< I , _I+1 >(); }
+	// Gives the offset to the I-th element
+	template< unsigned int I > static typename std::enable_if< I==0 , unsigned int >::type _PlyReadOffset( void ){ return 0; }
+	template< unsigned int I > static typename std::enable_if< I!=0 , unsigned int >::type _PlyReadOffset( void ){ return DataType< I-1 >::PlyReadNum + _PlyReadOffset< I-1 >(); }
 
 	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type  _readASCII ( FILE* fp )       { DataType< I >:: ReadASCII ( fp , std::get< I >( data ) ) ;  _readASCII < I+1 >( fp ); }
 	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type  _readASCII ( FILE* fp )       { }

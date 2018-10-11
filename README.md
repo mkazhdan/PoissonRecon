@@ -1,11 +1,11 @@
-<center><h2>Adaptive Multigrid Solvers (Version 10.03)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 10.04)</h2></center>
 <center>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#LINKS">links</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#EXECUTABLES">executables</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#USAGE">usage</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#CHANGES">changes</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#LINKS">links</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#EXECUTABLES">executables</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#USAGE">usage</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#CHANGES">changes</a>
 <!--
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/index.html#SUPPORT">support</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#SUPPORT">support</a>
 -->
 </center>
 <hr>
@@ -27,10 +27,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">V10.03</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">V10.02</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">V10.01</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/">V10.00</a>,
@@ -780,6 +781,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">Version 10.03</a>:
 <ol>
 <li> Cleaned up memory leaks and fixed a bug causing ImageStitching and EDTInHeat to SEGFAULT on Linux.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">Version 10.04</a>:
+<ol>
+<li> Replaced the ply I/O code with an object-oriented implementation.
 </ol>
 
 </DETAILS>

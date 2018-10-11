@@ -281,15 +281,13 @@ int Execute( void )
 	std::vector< Vertex > vertices;
 	std::vector< std::vector< int > > polygons;
 
-	int ft , commentNum = 0;
-	std::vector< char* > comments;
-	char** _comments;
-	PlyReadPolygons< Vertex >( In.value , vertices , polygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , &_comments , &commentNum );
-	for( int i=0 ; i<commentNum ; i++ ) comments.push_back( _comments[i] );
+	int ft;
+	std::vector< std::string > comments;
+	PlyReadPolygons< Vertex >( In.value , vertices , polygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , comments );
+
 	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< float >( vertices , polygons );
 	min = max = std::get< 0 >( vertices[0].data.data ).data;
-	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , std::get< 0 >( vertices[0].data.data ).data ) , max = std::max< float >( max , std::get< 0 >( vertices[0].data.data ).data );
-	if( Verbose.set ) printf( "Value Range: [%f,%f]\n" , min , max );
+	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , std::get< 0 >( vertices[i].data.data ).data ) , max = std::max< float >( max , std::get< 0 >( vertices[i].data.data ).data );
 
 	std::unordered_map< long long, int > vertexTable;
 	std::vector< std::vector< int > > ltPolygons , gtPolygons;
@@ -308,6 +306,7 @@ int Execute( void )
 			if( strlen( str ) ) messageWriter( comments , "\t--%s %s\n" , params[i]->name , str );
 			else                messageWriter( comments , "\t--%s\n" , params[i]->name );
 		}
+	if( Verbose.set ) printf( "Value Range: [%f,%f]\n" , min , max );
 
 	double t=Time();
 	for( size_t i=0 ; i<polygons.size() ; i++ ) SplitPolygon( polygons[i] , vertices , &ltPolygons , &gtPolygons , &ltFlags , &gtFlags , vertexTable , Trim.value );
@@ -363,11 +362,10 @@ int Execute( void )
 	}
 
 	RemoveHangingVertices( vertices , gtPolygons );
-	sprintf( comments[commentNum++] , "#Trimmed In: %9.1f (s)" , Time()-t );
-	if( Out.set ) PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , &comments[0] , (int)comments.size() );
-
-	for( int i=0 ; i<comments.size() ; i++ ) delete[] comments[i];
-	delete[] _comments;
+	char comment[1024];
+	sprintf( comment , "#Trimmed In: %9.1f (s)" , Time()-t );
+	comments.push_back( comment );
+	if( Out.set ) PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments );
 
 	return EXIT_SUCCESS;
 }

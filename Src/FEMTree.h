@@ -42,7 +42,7 @@ DAMAGE.
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED
 
-#define VERSION "10.03"
+#define VERSION "10.04"
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
 
 #define NEW_CODE
@@ -440,9 +440,9 @@ void ReadFEMTreeParameter( FILE* fp , FEMTreeRealType& realType , int &dimension
 	if( fread( &realType , sizeof(FEMTreeRealType) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadFEMTreeParameter: Failed to read real type\n" ) , exit( 0 );
 	if( fread( &dimension , sizeof(int) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadFEMTreeParameter: Failed to read dimension\n" ) , exit( 0 );
 }
-unsigned int* ReadDenseNodeDataSignatures( FILE* fp , unsigned int& dim )
+unsigned int* ReadDenseNodeDataSignatures( FILE* fp , unsigned int &dim )
 {
-	if( fread( &dim , sizeof(int) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadDenseNodeDataSignatures: Failed to read dimension\n" ) , exit( 0 );
+	if( fread( &dim , sizeof(unsigned int) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadDenseNodeDataSignatures: Failed to read dimension\n" ) , exit( 0 );
 	unsigned int* femSigs = new unsigned int[dim];
 	if( fread( femSigs , sizeof(unsigned int) , dim , fp )!=dim ) fprintf( stderr , "[ERROR] ReadDenseNodeDataSignatures: Failed to read signatures\n" ) , exit( 0 );
 	return femSigs;

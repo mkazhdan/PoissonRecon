@@ -286,8 +286,7 @@ class PLYInputPointStream : public InputPointStream< Real , Dim >
 {
 	char* _fileName;
 	PlyFile* _ply;
-	int _nr_elems;
-	char **_elist;
+	std::vector< std::string > _elist;
 
 	int _pCount , _pIdx;
 	void _free( void );
@@ -304,8 +303,7 @@ class PLYInputPointStreamWithData : public InputPointStreamWithData< Real , Dim 
 	struct _PlyVertexWithData : public PlyVertex< Real , Dim > { Data data; };
 	char* _fileName;
 	PlyFile* _ply;
-	int _nr_elems;
-	char **_elist;
+	std::vector< std::string > _elist;
 	PlyProperty* _dataProperties;
 	int _dataPropertiesCount;
 	bool (*_validationFunction)( const bool* );

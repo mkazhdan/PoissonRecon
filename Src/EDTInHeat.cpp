@@ -146,7 +146,7 @@ struct FEMTreeProfiler
 		if( header ) messageWriter( "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %9.1f (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
 		else         messageWriter(    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %9.1f (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
 	}
-	void dumpOutput2( std::vector< char* >& comments , const char* header ) const
+	void dumpOutput2( std::vector< std::string >& comments , const char* header ) const
 	{
 		FEMTree< Dim , Real >::MemoryUsage();
 		if( header ) messageWriter( comments , "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %9.1f (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
@@ -208,7 +208,7 @@ int _Execute( int argc , char* argv[] )
 {
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 0 > InterpolationInfo;
-	std::vector< char* > comments;
+	std::vector< std::string > comments;
 	messageWriter( comments , "*****************************************\n" );
 	messageWriter( comments , "*****************************************\n" );
 	messageWriter( comments , "** Running EDT in Heat (Version %s) **\n" , VERSION );
@@ -271,7 +271,8 @@ int _Execute( int argc , char* argv[] )
 			int file_type;
 			std::vector< PlyVertex< float , Dim > > _vertices;
 			std::vector< std::vector< int > > _polygons;
-			PlyReadPolygons( In.value , _vertices , _polygons , PlyVertex< float , Dim >::PlyReadProperties() , PlyVertex< float , Dim >::PlyReadNum , file_type );
+			std::vector< std::string > comments;
+			PlyReadPolygons( In.value , _vertices , _polygons , PlyVertex< float , Dim >::PlyReadProperties() , PlyVertex< float , Dim >::PlyReadNum , file_type , comments );
 			vertices.resize( _vertices.size() );
 			for( int i=0 ; i<vertices.size() ; i++ ) for( int d=0 ; d<Dim ; d++ ) vertices[i][d] = _vertices[i].point[d];
 			triangles.resize( _polygons.size() );
@@ -529,8 +530,6 @@ int _Execute( int argc , char* argv[] )
 			fclose( fp );
 		}
 	}
-
-	for( int i=0 ; i<comments.size() ; i++ ) if( comments[i] ) delete[] comments[i];
 
 	return 1;
 }

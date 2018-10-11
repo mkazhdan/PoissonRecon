@@ -177,7 +177,7 @@ namespace HyperCube
 
 		// Returns the marching-cubes index for the set of values
 		template< typename Real >
-		static unsigned int MCIndex( const Real values[ ElementNum< 0 >() ] , Real iso );
+		static unsigned int MCIndex( const Real values[ Cube::ElementNum< 0 >() ] , Real iso );
 
 		// Extracts the marching-cubes sub-index for the associated element
 		template< unsigned int K >
@@ -586,7 +586,7 @@ namespace HyperCube
 	}
 
 	template< unsigned int D > template< typename Real >
-	unsigned int Cube< D >::MCIndex( const Real values[ ElementNum< 0 >() ] , Real iso )
+	unsigned int Cube< D >::MCIndex( const Real values[ Cube< D >::ElementNum< 0 >() ] , Real iso )
 	{
 		unsigned int mcIdx = 0;
 		for( unsigned int c=0 ; c<ElementNum< 0 >() ; c++ ) if( values[c]<iso ) mcIdx |= (1<<c);

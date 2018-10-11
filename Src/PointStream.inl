@@ -133,44 +133,38 @@ void PLYInputPointStream< Real , Dim >::reset( void )
 {
 	int fileType;
 	float version;
-	PlyProperty** plist;
+	std::vector< PlyProperty * > plist;
 	if( _ply ) _free();
-	_ply = ply_open_for_reading( _fileName, &_nr_elems, &_elist, &fileType, &version );
+	_ply = PlyFile::Read( _fileName, _elist, fileType, version );
 	if( !_ply )
 	{
 		fprintf( stderr, "[ERROR] Failed to open ply file for reading: %s\n" , _fileName );
 		exit( 0 );
 	}
 	bool foundVertices = false;
-	for( int i=0 ; i<_nr_elems ; i++ )
+	for( int i=0 ; i<_elist.size() ; i++ )
 	{
 		int num_elems;
-		int nr_props;
-		char* elem_name = _elist[i];
-		plist = ply_get_element_description( _ply , elem_name , &num_elems , &nr_props );
-		if( !plist )
+		std::string &elem_name = _elist[i];
+		plist = _ply->get_element_description( elem_name , num_elems );
+		if( !plist.size() )
 		{
 			fprintf( stderr , "[ERROR] Failed to get element description: %s\n" , elem_name );
 			exit( 0 );
 		}	
 
-		if( equal_strings( "vertex" , elem_name ) )
+		if( elem_name=="vertex" , elem_name )
 		{
 			foundVertices = true;
 			_pCount = num_elems , _pIdx = 0;
 			for( int i=0 ; i<PlyVertex< Real , Dim >::ReadComponents ; i++ ) 
-				if( !ply_get_property( _ply , elem_name , &(PlyVertex< Real , Dim >::Properties()[i]) ) )
+				if( !_ply->get_property( elem_name , &(PlyVertex< Real , Dim >::Properties()[i]) ) )
 				{
 					fprintf( stderr , "[ERROR] Failed to find property in ply file: %s\n" , PlyVertex< Real , Dim >::Properties()[i].name );
 					exit( 0 );
 				}
 		}
-		for( int j=0 ; j<nr_props ; j++ )
-		{
-			free( plist[j]->name );
-			free( plist[j] );
-		}
-		free( plist );
+		for( int j=0 ; j<plist.size() ; j++ ) delete plist[j];
 		if( foundVertices ) break;
 	}
 	if( !foundVertices )
@@ -180,25 +174,8 @@ void PLYInputPointStream< Real , Dim >::reset( void )
 	}
 }
 template< class Real , int Dim >
-void PLYInputPointStream< Real , Dim >::_free( void )
-{
-	if( _ply->comments )
-	{
-		for( int i=0 ; i<_ply->num_comments ; i++ ) free( _ply->comments[i] );
-		free( _ply->comments );
-	}
-	if( _ply->obj_info )
-	{
-		for( int i=0 ; i<_ply->num_obj_info ; i++ ) free( _ply->obj_info[i] );
-		free( _ply->obj_info );
-	}
-	if( _ply ) ply_close( _ply ) , _ply = NULL;
-	if( _elist )
-	{
-		for( int i=0 ; i<_nr_elems ; i++ ) free( _elist[i] );
-		free( _elist );
-	}
-}
+void PLYInputPointStream< Real , Dim >::_free( void ){ delete _ply; }
+
 template< class Real , int Dim >
 PLYInputPointStream< Real , Dim >::~PLYInputPointStream( void )
 {
@@ -211,7 +188,7 @@ bool PLYInputPointStream< Real , Dim >::nextPoint( Point< Real , Dim >& p )
 	if( _pIdx<_pCount )
 	{
 		PlyVertex< Real , Dim > v;
-		ply_get_element( _ply, (void *)&v );
+		_ply->get_element( (void *)&v );
 		p = v.point;
 		_pIdx++;
 		return true;
@@ -333,7 +310,7 @@ template< class Real , int Dim , class Data >
 PLYInputPointStreamWithData< Real , Dim , Data >::PLYInputPointStreamWithData( const char* fileName , const PlyProperty* dataProperties , int dataPropertiesCount , bool (*validationFunction)( const bool* ) ) : _dataPropertiesCount( dataPropertiesCount ) , _validationFunction( validationFunction )
 {
 	_dataProperties = new PlyProperty[ _dataPropertiesCount ];
-	memcpy( _dataProperties , dataProperties , sizeof(PlyProperty) * _dataPropertiesCount );
+	for( int i=0 ; i<dataPropertiesCount ; i++ ) _dataProperties[i] = dataProperties[i];
 	for( int i=0 ; i<_dataPropertiesCount ; i++ ) _dataProperties[i].offset += sizeof( PlyVertex< Real , Dim > );
 	_fileName = new char[ strlen( fileName )+1 ];
 	strcpy( _fileName , fileName );
@@ -345,34 +322,34 @@ void PLYInputPointStreamWithData< Real , Dim , Data >::reset( void )
 {
 	int fileType;
 	float version;
-	PlyProperty** plist;
+	std::vector< PlyProperty * > plist;
 	if( _ply ) _free();
-	_ply = ply_open_for_reading( _fileName , &_nr_elems , &_elist , &fileType , &version );
+	_ply = PlyFile::Read( _fileName , _elist , fileType , version );
 	if( !_ply ) fprintf( stderr, "[ERROR] Failed to open ply file for reading: %s\n" , _fileName ) , exit( 0 );
 
 	bool foundVertices = false;
-	for( int i=0 ; i<_nr_elems ; i++ )
+	for( int i=0 ; i<_elist.size() ; i++ )
 	{
 		int num_elems;
-		int nr_props;
-		char* elem_name = _elist[i];
-		plist = ply_get_element_description( _ply , elem_name , &num_elems , &nr_props );
-		if( !plist ) fprintf( stderr , "[ERROR] Failed to get element description: %s\n" , elem_name ) , exit( 0 );
+		std::string &elem_name = _elist[i];
+		plist = _ply->get_element_description( elem_name , num_elems );
+		if( !plist.size() ) fprintf( stderr , "[ERROR] Failed to get element description: %s\n" , elem_name.c_str() ) , exit( 0 );
 
-		if( equal_strings( "vertex" , elem_name ) )
+		if( elem_name=="vertex" )
 		{
 			foundVertices = true;
 			_pCount = num_elems , _pIdx = 0;
 			const PlyProperty* PlyReadProperties = PlyVertex< Real , Dim >::PlyReadProperties();
 			for( int i=0 ; i<PlyVertex< Real , Dim >::PlyReadNum ; i++ ) 
-				if( !ply_get_property( _ply , elem_name , &(PlyReadProperties[i]) ) )
-					fprintf( stderr , "[ERROR] Failed to find property in ply file: %s\n" , PlyReadProperties[i].name ) , exit( 0 );
+				if( !_ply->get_property( elem_name , &(PlyReadProperties[i]) ) )
+					fprintf( stderr , "[ERROR] Failed to find property in ply file: %s\n" , PlyReadProperties[i].name.c_str() ) , exit( 0 );
+
 			if( _validationFunction )
 			{
 				bool* properties = new bool[_dataPropertiesCount];
 				for( int i=0 ; i<_dataPropertiesCount ; i++ )
-					if( !ply_get_property( _ply , elem_name , &(_dataProperties[i]) ) ) properties[i] = false;
-					else                                                                properties[i] = true;
+					if( !_ply->get_property( elem_name , &(_dataProperties[i]) ) ) properties[i] = false;
+					else                                                           properties[i] = true;
 				bool valid = _validationFunction( properties );
 				delete[] properties;
 				if( !valid ) fprintf( stderr , "[ERROR] Failed to validate properties in file\n" ) , exit( 0 );
@@ -380,16 +357,11 @@ void PLYInputPointStreamWithData< Real , Dim , Data >::reset( void )
 			else
 			{
 				for( int i=0 ; i<_dataPropertiesCount ; i++ )
-					if( !ply_get_property( _ply , elem_name , &(_dataProperties[i]) ) )
-						fprintf( stderr , "[WARNING] Failed to find property in ply file: %s\n" , _dataProperties[i].name );
+					if( !_ply->get_property( elem_name , &(_dataProperties[i]) ) )
+						fprintf( stderr , "[WARNING] Failed to find property in ply file: %s\n" , _dataProperties[i].name.c_str() );
 			}
 		}
-		for( int j=0 ; j<nr_props ; j++ )
-		{
-			free( plist[j]->name );
-			free( plist[j] );
-		}
-		free( plist );
+		for( int j=0 ; j<plist.size() ; j++ ) delete plist[j];
 		if( foundVertices ) break;
 	}
 	if( !foundVertices )
@@ -399,41 +371,8 @@ void PLYInputPointStreamWithData< Real , Dim , Data >::reset( void )
 	}
 }
 template< class Real , int Dim , class Data >
-void PLYInputPointStreamWithData< Real , Dim , Data >::_free( void )
-{
-	if( _ply->comments )
-	{
-		for( int i=0 ; i<_ply->num_comments ; i++ ) free( _ply->comments[i] );
-		free( _ply->comments );
-	}
-	if( _ply->obj_info )
-	{
-		for( int i=0 ; i<_ply->num_obj_info ; i++ ) free( _ply->obj_info[i] );
-		free( _ply->obj_info );
-	}
-	if( _ply->elems )
-	{
-		for( int i=0 ; i<_ply->nelems ; i++ )
-		{
-			free( _ply->elems[i]->name );
-			if( _ply->elems[i]->store_prop ) free( _ply->elems[i]->store_prop );
-			for( int j=0 ; j<_ply->elems[i]->nprops ; j++ )
-			{
-				free( _ply->elems[i]->props[j]->name );
-				free( _ply->elems[i]->props[j] );
-			}
-			free( _ply->elems[i]->props );
-			free( _ply->elems[i] );
-		}
-		free( _ply->elems );
-	}
-	if( _ply ) ply_close( _ply ) , _ply = NULL;
-	if( _elist )
-	{
-		for( int i=0 ; i<_nr_elems ; i++ ) free( _elist[i] );
-		free( _elist );
-	}
-}
+void PLYInputPointStreamWithData< Real , Dim , Data >::_free( void ){ delete _ply; }
+
 template< class Real , int Dim , class Data >
 PLYInputPointStreamWithData< Real , Dim , Data >::~PLYInputPointStreamWithData( void )
 {
@@ -447,7 +386,7 @@ bool PLYInputPointStreamWithData< Real , Dim , Data >::nextPoint( Point< Real , 
 	if( _pIdx<_pCount )
 	{
 		_PlyVertexWithData v;
-		ply_get_element( _ply, (void *)&v );
+		_ply->get_element( (void*) &v );
 		p = v.point;
 		d = v.data;
 		_pIdx++;
@@ -462,12 +401,9 @@ bool PLYInputPointStreamWithData< Real , Dim , Data >::nextPoint( Point< Real , 
 template< class Real , int Dim >
 PLYOutputPointStream< Real , Dim >::PLYOutputPointStream( const char* fileName , size_t count , int fileType )
 {
-	static const char *elem_names[] = { "vertex" };
 	float version;
-	char* _fileName = new char[ strlen(fileName)+1];
-	strcpy( _fileName , fileName );
-	_ply = ply_open_for_writing( fileName , 1 , elem_names , fileType , &version );
-	delete[] _fileName;
+	std::vector< std::string > elem_names = { std::string( "vertex" ) };
+	_ply = PlyFile::Write( fileName , elem_names , fileType , version );
 	if( !_ply )
 	{
 		fprintf( stderr, "[ERROR] Failed to open ply file for writing: %s\n" , fileName );
@@ -476,11 +412,10 @@ PLYOutputPointStream< Real , Dim >::PLYOutputPointStream( const char* fileName ,
 
 	_pIdx = 0;
 	_pCount = count;
-	ply_element_count( _ply, "vertex" , _pCount );
-	for( int i=0 ; i<PlyVertex< Real , Dim >::WriteComponents ; i++ ) ply_describe_property( _ply , "vertex" , &PlyVertex< Real , Dim >::WriteProperties()[i] );
-
-	ply_header_complete( _ply );
-	ply_put_element_setup( _ply , "vertex" );
+	_ply->element_count( "vertex" , _pCount );
+	for( int i=0 ; i<PlyVertex< Real , Dim >::WriteComponents ; i++ ) _ply->describe_property( "vertex" , &PlyVertex< Real , Dim >::WriteProperties()[i] );
+	_ply->header_complete();
+	_ply->put_element_setup( "vertex" );
 }
 template< class Real , int Dim >
 PLYOutputPointStream< Real , Dim >::~PLYOutputPointStream( void )
@@ -490,8 +425,7 @@ PLYOutputPointStream< Real , Dim >::~PLYOutputPointStream( void )
 		fprintf( stderr , "[ERROR] Streamed points not equal to total count: %d!=%d\n" , _pIdx , _pCount );
 		exit( 0 );
 	}
-	ply_close( _ply );
-	_ply = NULL;
+	delete _ply;
 }
 template< class Real , int Dim >
 void PLYOutputPointStream< Real , Dim >::nextPoint( const Point< Real , Dim >& p )
@@ -503,7 +437,7 @@ void PLYOutputPointStream< Real , Dim >::nextPoint( const Point< Real , Dim >& p
 	}
 	PlyVertex< Real , Dim > op;
 	op.point = p;
-	ply_put_element( _ply , (void *) &op );
+	_ply->put_element( (void *)&op );
 	_pIdx++;
 }
 
@@ -513,12 +447,9 @@ void PLYOutputPointStream< Real , Dim >::nextPoint( const Point< Real , Dim >& p
 template< class Real , int Dim , class Data >
 PLYOutputPointStreamWithData< Real , Dim , Data >::PLYOutputPointStreamWithData( const char* fileName , size_t count , int fileType , const PlyProperty* dataProperties , int dataPropertiesCount )
 {
-	static const char *elem_names[] = { "vertex" };
 	float version;
-	char* _fileName = new char[ strlen(fileName)+1];
-	strcpy( _fileName , fileName );
-	_ply = ply_open_for_writing( _fileName , 1 , &elem_names[0] , fileType , &version );
-	delete[] _fileName;
+	std::vector< std::string > elem_names = { std::string( "vertex" ) };
+	_ply = PlyFile::Write( fileName , elem_names , fileType , version );
 	if( !_ply )
 	{
 		fprintf( stderr, "[ERROR] Failed to open ply file for writing: %s\n" , fileName );
@@ -527,17 +458,17 @@ PLYOutputPointStreamWithData< Real , Dim , Data >::PLYOutputPointStreamWithData(
 
 	_pIdx = 0;
 	_pCount = (int)count;
-	ply_element_count( _ply, "vertex" , _pCount );
-	for( int i=0 ; i<PlyVertex< Real , Dim >::WriteComponents ; i++ ) ply_describe_property( _ply , "vertex" , &PlyVertex< Real , Dim >::Properties()[i] );
+	_ply->element_count( "vertex" , _pCount );
+	for( int i=0 ; i<PlyVertex< Real , Dim >::WriteComponents ; i++ ) _ply->describe_property( "vertex" , &PlyVertex< Real , Dim >::Properties()[i] );
 	for( int i=0 ; i<dataPropertiesCount ; i++ )
 	{
 		PlyProperty prop = dataProperties[i];
 		prop.offset += sizeof( PlyVertex< Real , Dim > );
-		ply_describe_property( _ply , "vertex" , &prop );
+		_ply->describe_property( "vertex" , &prop );
 	}
 
-	ply_header_complete( _ply );
-	ply_put_element_setup( _ply , "vertex" );
+	_ply->header_complete();
+	_ply->put_element_setup( "vertex" );
 }
 template< class Real , int Dim , class Data >
 PLYOutputPointStreamWithData< Real , Dim , Data >::~PLYOutputPointStreamWithData( void )
@@ -547,8 +478,7 @@ PLYOutputPointStreamWithData< Real , Dim , Data >::~PLYOutputPointStreamWithData
 		fprintf( stderr , "[ERROR] Streamed points not equal to total count: %d!=%d\n" , _pIdx , _pCount );
 		exit( 0 );
 	}
-	ply_close( _ply );
-	_ply = NULL;
+	delete _ply;
 }
 template< class Real , int Dim , class Data >
 void PLYOutputPointStreamWithData< Real , Dim , Data >::nextPoint( const Point< Real , Dim >& p , const Data& d )
@@ -561,6 +491,6 @@ void PLYOutputPointStreamWithData< Real , Dim , Data >::nextPoint( const Point< 
 	_PlyVertexWithData op;
 	op.point = p;
 	op.data = d;
-	ply_put_element( _ply , (void *) &op );
+	_ply->put_element( (void *)&op );
 	_pIdx++;
 }

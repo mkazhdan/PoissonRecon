@@ -147,7 +147,8 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
 		if( Verbose.set ) printf( "Vertices / Polygons: %d / %d\n" , (int)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (int)mesh.polygonCount() );
 
-		PlyWritePolygons< Vertex , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NULL , 0 , XForm< Real , Dim+1 >::Identity() );
+		std::vector< std::string > comments;
+		PlyWritePolygons< Vertex , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() );
 	}
 }
 
@@ -229,7 +230,7 @@ int main( int argc , char* argv[] )
 	int dimension;
 	ReadFEMTreeParameter( fp , realType , dimension );
 	{
-		unsigned int dim;
+		unsigned int dim = dimension;
 		unsigned int* sigs = ReadDenseNodeDataSignatures( fp , dim );
 		if( dimension!=dim ) fprintf( stderr , "[ERROR] Octree and node data dimensions don't math: %d != %d\n" , dimension , dim ) , exit( 0 );
 		for( unsigned int d=1 ; d<dim ; d++ ) if( sigs[0]!=sigs[d] )

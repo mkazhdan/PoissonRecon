@@ -100,6 +100,7 @@ const char FileSeparator = '/';
 
 #include <stdarg.h>
 #include <vector>
+#include <string>
 struct MessageWriter
 {
 	char* outputFile;
@@ -150,6 +151,33 @@ struct MessageWriter
 		vsprintf( str , format , args );
 		va_end( args );
 		if( str[strlen(str)-1]=='\n' ) str[strlen(str)-1] = 0;
+	}
+	void operator() ( std::vector< std::string >& messages  , const char* format , ... )
+	{
+		if( outputFile )
+		{
+			FILE* fp = fopen( outputFile , "a" );
+			va_list args;
+			va_start( args , format );
+			vfprintf( fp , format , args );
+			fclose( fp );
+			va_end( args );
+		}
+		if( echoSTDOUT )
+		{
+			va_list args;
+			va_start( args , format );
+			vprintf( format , args );
+			va_end( args );
+		}
+		// [WARNING] We are not checking the string is small enough to fit in 1024 characters
+		char message[1024];
+		va_list args;
+		va_start( args , format );
+		vsprintf( message , format , args );
+		va_end( args );
+		if( message[strlen(message)-1]=='\n' ) message[strlen(message)-1] = 0;
+		messages.push_back( std::string( message ) );
 	}
 };
 
