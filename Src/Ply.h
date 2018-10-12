@@ -1,40 +1,39 @@
 /*
 
- Header for PLY polygon files.
- 
-  - Greg Turk, March 1994
-  
-   A PLY file contains a single polygonal _object_.
-   
-	An object is composed of lists of _elements_.  Typical elements are
-	vertices, faces, edges and materials.
-	
-	 Each type of element for a given object has one or more _properties_
-	 associated with the element type.  For instance, a vertex element may
-	 have as properties three floating-point values x,y,z and three unsigned
-	 chars for red, green and blue.
-	 
-	  ---------------------------------------------------------------
-	  
-	   Copyright (c) 1994 The Board of Trustees of The Leland Stanford
-	   Junior University.  All rights reserved.   
-	   
-		Permission to use, copy, modify and distribute this software and its   
-		documentation for any purpose is hereby granted without fee, provided   
-		that the above copyright notice and this permission notice appear in   
-		all copies of this software and that you do not sell the software.   
-		
-		 THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND,   
-		 EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY   
-		 WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.   
-		 
+Header for PLY polygon files.
+
+- Greg Turk, March 1994
+
+A PLY file contains a single polygonal _object_.
+
+An object is composed of lists of _elements_.  Typical elements are
+vertices, faces, edges and materials.
+
+Each type of element for a given object has one or more _properties_
+associated with the element type.  For instance, a vertex element may
+have as properties three floating-point values x,y,z and three unsigned
+chars for red, green and blue.
+
+---------------------------------------------------------------
+
+Copyright (c) 1994 The Board of Trustees of The Leland Stanford
+Junior University.  All rights reserved.   
+
+Permission to use, copy, modify and distribute this software and its   
+documentation for any purpose is hereby granted without fee, provided   
+that the above copyright notice and this permission notice appear in   
+all copies of this software and that you do not sell the software.   
+
+THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND,   
+EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY   
+WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.   
+
 */
 
 
 #ifndef __PLY_H__
 #define __PLY_H__
 
-#define NEW_PLY_CODE
 #include <vector>
 #include "PlyFile.h"
 #include "Geometry.h"
@@ -283,24 +282,24 @@ inline bool PlyReadHeader( char* fileName , const PlyProperty* properties , int 
 
 template< class Vertex >
 int PlyReadPolygons( const char* fileName,
-					std::vector< Vertex >& vertices , std::vector<std::vector<int> >& polygons ,
-					const PlyProperty* properties , int propertyNum ,
-					int& file_type ,
-					std::vector< std::string > &comments , bool* readFlags=NULL );
+	std::vector< Vertex >& vertices , std::vector<std::vector<int> >& polygons ,
+	const PlyProperty* properties , int propertyNum ,
+	int& file_type ,
+	std::vector< std::string > &comments , bool* readFlags=NULL );
 
 template<class Vertex>
 int PlyWritePolygons( const char* fileName ,
-					 const std::vector< Vertex > &vertices , const std::vector< std::vector< int > > &polygons ,
-					 const PlyProperty* properties , int propertyNum ,
-					 int file_type ,
-					 const std::vector< std::string > &comments );
+	const std::vector< Vertex > &vertices , const std::vector< std::vector< int > > &polygons ,
+	const PlyProperty* properties , int propertyNum ,
+	int file_type ,
+	const std::vector< std::string > &comments );
 
 template< class Vertex >
 int PlyWritePolygons( const char* fileName ,
-					 const std::vector< Vertex > &vertices , const std::vector< std::vector< int > > &polygons ,
-					 const PlyProperty *properties , int propertyNum ,
-					 int file_type ,
-					 const std::vector< std::string > &comments )
+	const std::vector< Vertex > &vertices , const std::vector< std::vector< int > > &polygons ,
+	const PlyProperty *properties , int propertyNum ,
+	int file_type ,
+	const std::vector< std::string > &comments )
 {
 	int nr_vertices=int(vertices.size());
 	int nr_faces=int(polygons.size());
@@ -308,7 +307,7 @@ int PlyWritePolygons( const char* fileName ,
 	std::vector< std::string > elem_names = { std::string( "vertex" ) , std::string( "face" ) };
 	PlyFile *ply = PlyFile::Write( fileName , elem_names , file_type , version );
 	if (!ply){return 0;}
-	
+
 	//
 	// describe vertex and face properties
 	//
@@ -320,7 +319,7 @@ int PlyWritePolygons( const char* fileName ,
 	// Write in the comments
 	for( int i=0 ; i<comments.size() ; i++ ) ply->put_comment( comments[i] );
 	ply->header_complete();
-	
+
 	// write vertices
 	ply->put_element_setup( elem_names[0] );
 	for( int i=0 ; i<(int)vertices.size() ; i++ ) ply->put_element( (void *)&vertices[i] );
@@ -352,10 +351,10 @@ int PlyWritePolygons( const char* fileName ,
 }
 template< class Vertex >
 int PlyReadPolygons( const char *fileName ,
-					std::vector< Vertex > &vertices , std::vector< std::vector< int > > &polygons ,
-					const PlyProperty *properties , int propertyNum ,
-					int &file_type ,
-					std::vector< std::string > &comments , bool *readFlags )
+	std::vector< Vertex > &vertices , std::vector< std::vector< int > > &polygons ,
+	const PlyProperty *properties , int propertyNum ,
+	int &file_type ,
+	std::vector< std::string > &comments , bool *readFlags )
 {
 	std::vector< std::string > elist;
 	float version;
@@ -419,7 +418,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	if( !ply ) return 0;
 
 	mesh->resetIterator();
-	
+
 	//
 	// describe vertex and face properties
 	//
@@ -431,7 +430,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	// Write in the comments
 	for( int i=0 ; i<comments.size() ; i++ ) ply->put_comment( comments[i] );
 	ply->header_complete();
-	
+
 	// write vertices
 	ply->put_element_setup( "vertex" );
 	for( int i=0 ; i<int( mesh->inCorePoints.size() ) ; i++ )
@@ -446,8 +445,8 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		vertex = xForm * ( vertex * scale + translate );
 		ply->put_element( (void *)&vertex );
 	}  // for, write vertices
-	
-	// write faces
+
+	   // write faces
 	std::vector< CoredVertexIndex > polygon;
 	ply->put_element_setup( "face" );
 	for( int i=0 ; i<nr_faces ; i++ )
@@ -462,8 +461,8 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		for( int j=0 ; j<int(polygon.size()) ; j++ )
 			if( polygon[j].inCore ) ply_face.vertices[j] = polygon[j].idx;
 			else                    ply_face.vertices[j] = polygon[j].idx + int( mesh->inCorePoints.size() );
-		ply->put_element( (void *)&ply_face );
-		delete[] ply_face.vertices;
+			ply->put_element( (void *)&ply_face );
+			delete[] ply_face.vertices;
 	}  // for, write faces
 
 	delete ply;

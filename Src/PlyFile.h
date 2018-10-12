@@ -189,8 +189,8 @@ struct PlyFile
 	void get_info( float & , int & );
 	PlyOtherElems *get_other_element( std::string & , int );
 protected:
-	void _ascii_get_element ( char * );
-	void _binary_get_element( char * );
+	void _ascii_get_element ( void * );
+	void _binary_get_element( void * );
 	static PlyFile *_Write( FILE * , const std::vector< std::string > & , int );
 	static PlyFile *_Read ( FILE * ,       std::vector< std::string > & );
 };
