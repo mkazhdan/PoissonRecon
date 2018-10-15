@@ -305,7 +305,7 @@ struct StaticWindow< Data , UIntPack< Ress ... > >
 {
 	typedef UIntPack< Ress ... > Pack;
 #if defined( __GNUC__ ) && defined( DEBUG )
-#pragma message "you've got me gcc"
+#warning "you've got me gcc"
 	static const unsigned int Size;
 #else // !( __GNUC__ && DEBUG )
 	static const unsigned int Size = WindowSize< Pack >::Size;
@@ -331,7 +331,7 @@ struct StaticWindow< Data , UIntPack< Res > >
 {
 	typedef UIntPack< Res > Pack;
 #if defined( __GNUC__ ) && defined( DEBUG )
-#pragma message "you've got me gcc"
+#warning "you've got me gcc"
 	static const unsigned int Size;
 #else // !( __GNUC__ && DEBUG )
 	static const unsigned int Size = Res;

@@ -327,7 +327,12 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 		}
 		isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , &_sampleData , solution , isoValue , mesh , SetVertex , !LinearFit.set , !NonManifold.set , PolygonMesh.set , false );
 	}
+#if defined( __GNUC__ ) && __GNUC__ < 5
+	#warning "you've got me gcc version<5"
+	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , (SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , mesh , SetVertex , !LinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+#else // !__GNUC__ || __GNUC__ >=5
 	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , mesh , SetVertex , !LinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+#endif // __GNUC__ || __GNUC__ < 4
 	messageWriter( "Vertices / Polygons: %d / %d\n" , mesh.outOfCorePointCount()+mesh.inCorePoints.size() , mesh.polygonCount() );
 	messageWriter( "Corners / Vertices / Edges / Surface / Set Table / Copy Finer: %.1f / %.1f / %.1f / %.1f / %.1f / %.1f (s)\n" , isoStats.cornersTime , isoStats.verticesTime , isoStats.edgesTime , isoStats.surfaceTime , isoStats.setTableTime , isoStats.copyFinerTime );
 	if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );

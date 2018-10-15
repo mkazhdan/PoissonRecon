@@ -142,7 +142,13 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 		typedef PlyVertex< Real , Dim > Vertex;
 		CoredFileMeshData< Vertex > mesh;
 		std::function< void ( Vertex& , Point< Real , Dim > , Real , Real ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real , Real ){ v.point = p; };
+#if defined( __GNUC__ ) && __GNUC__ < 5
+		#warning "you've got me gcc version<5"
+			static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
+		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+#else // !__GNUC__ || __GNUC__ >=5
 		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+#endif // __GNUC__ || __GNUC__ < 4
 
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
 		if( Verbose.set ) printf( "Vertices / Polygons: %d / %d\n" , (int)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (int)mesh.polygonCount() );

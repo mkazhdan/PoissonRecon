@@ -353,11 +353,21 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 				fprintf( stderr , "\n" );
 				continue;
 			}
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
+			if( density ) _pointWeightSum += _splatPointData< true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+#else // !__GNUC__ || __GNUC__ >=5
 			if( density ) _pointWeightSum += _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+#endif // __GNUC__ || __GNUC__ < 4
 			else
 			{
 				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
+				_splatPointData< true , Point< Real , Dim > >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !__GNUC__ || __GNUC__ >=5
 				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // __GNUC__ || __GNUC__ < 4
 				_pointWeightSum += sample.weight;
 			}
 		}
