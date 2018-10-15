@@ -786,6 +786,7 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">Version 10.04</a>:
 <ol>
 <li> Replaced the ply I/O code with an object-oriented implementation.
+<LI> Updated the code to support compilation under gcc version 4.8.
 </ol>
 
 </DETAILS>
