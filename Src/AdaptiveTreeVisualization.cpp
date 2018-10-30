@@ -154,7 +154,8 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 		if( Verbose.set ) printf( "Vertices / Polygons: %d / %d\n" , (int)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (int)mesh.polygonCount() );
 
 		std::vector< std::string > comments;
-		PlyWritePolygons< Vertex , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() );
+		if( !PlyWritePolygons< Vertex , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() ) )
+			fprintf( stderr , "[ERROR] Could not write mesh to: %s\n" , OutMesh.value ) , exit( 0 );
 	}
 }
 

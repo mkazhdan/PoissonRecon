@@ -41,7 +41,6 @@ DAMAGE.
 #include "CmdLineParser.h"
 #include "PPolynomial.h"
 #include "FEMTree.h"
-#include "Ply.h"
 
 MessageWriter messageWriter;
 

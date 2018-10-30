@@ -365,7 +365,9 @@ int Execute( void )
 	char comment[1024];
 	sprintf( comment , "#Trimmed In: %9.1f (s)" , Time()-t );
 	comments.push_back( comment );
-	if( Out.set ) PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments );
+	if( Out.set )
+		if( !PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) )
+			fprintf( stderr , "[ERROR] Could not write mesh to: %s\n" , Out.value ) , exit( 0 );
 
 	return EXIT_SUCCESS;
 }
