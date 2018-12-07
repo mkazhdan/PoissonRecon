@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 10.04)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 10.05)</h2></center>
 <center>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#LINKS">links</a>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#EXECUTABLES">executables</a>
@@ -31,6 +31,7 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <b>Source Code:</b>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">V10.04</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">V10.03</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">V10.02</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">V10.01</a>,
@@ -787,6 +788,12 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <ol>
 <li> Replaced the ply I/O code with an object-oriented implementation.
 <LI> Updated the code to support compilation under gcc version 4.8.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">Version 10.05</a>:
+<ol>
+<li> Added some clean suppoirt for warning and error handling.
+<LI> Minor bug fixes.
 </ol>
 
 </DETAILS>
