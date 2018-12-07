@@ -153,7 +153,7 @@ void PLYInputPointStream< Real , Dim >::reset( void )
 			exit( 0 );
 		}	
 
-		if( elem_name=="vertex" , elem_name )
+		if( elem_name=="vertex" )
 		{
 			foundVertices = true;
 			_pCount = num_elems , _pIdx = 0;
