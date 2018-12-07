@@ -367,8 +367,8 @@ int Execute( void )
 	comments.push_back( comment );
 	if( Out.set )
 		if( !PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) )
-			fprintf( stderr , "[ERROR] Could not write mesh to: %s\n" , Out.value ) , exit( 0 );
-
+			ERROR_OUT( "Could not write mesh to: %s" , Out.value );
+	
 	return EXIT_SUCCESS;
 }
 int main( int argc , char* argv[] )
@@ -384,13 +384,13 @@ int main( int argc , char* argv[] )
 	typedef MultiPointStreamData< float , PointStreamValue< float > , PointStreamNormal< float , DIMENSION > , PointStreamColor< float > > VertexData;
 	typedef PlyVertexWithData< float , DIMENSION , VertexData > Vertex;
 	bool readFlags[ Vertex::PlyReadNum ];
-	if( !PlyReadHeader( In.value , Vertex::PlyReadProperties() , Vertex::PlyReadNum , readFlags ) ) fprintf( stderr , "[ERROR] Failed to read ply header: %s\n" , In.value ) , exit( 0 );
+	if( !PlyReadHeader( In.value , Vertex::PlyReadProperties() , Vertex::PlyReadNum , readFlags ) ) ERROR_OUT( "Failed to read ply header: %s" , In.value );
 
 	bool hasValue  = VertexData::ValidPlyReadProperties< 0 >( readFlags + DIMENSION );
 	bool hasNormal = VertexData::ValidPlyReadProperties< 1 >( readFlags + DIMENSION );
 	bool hasColor  = VertexData::ValidPlyReadProperties< 2 >( readFlags + DIMENSION );
 
-	if( !hasValue ) fprintf( stderr , "[ERROR] Ply file does not contain values\n" ) , exit( 0 );
+	if( !hasValue ) ERROR_OUT( "Ply file does not contain values" );
 
 	if( hasColor )
 		if( hasNormal ) return Execute< PointStreamNormal< float , DIMENSION > , PointStreamColor< float > >();

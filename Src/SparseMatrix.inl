@@ -175,7 +175,7 @@ void SparseMatrix< T , IndexType >::setRowSize( size_t row , size_t count )
 		}
 		rowSizes[row] = count;
 	}
-	else fprintf( stderr , "[ERROR] SparseMatrix::setRowSize: Row is out of bounds: 0 <= %d < %d\n" , (int)row , (int)rowNum ) , exit( 0 );
+	else ERROR_OUT( "Row is out of bounds: 0 <= %d < %d" , (int)row , (int)rowNum );
 }
 template< class T , class IndexType >
 void SparseMatrix< T , IndexType >::resetRowSize( size_t row , size_t count )
@@ -187,7 +187,7 @@ void SparseMatrix< T , IndexType >::resetRowSize( size_t row , size_t count )
 		if( count>oldCount ) memset( _entries[row]+oldCount , 0 , sizeof( MatrixEntry< T , IndexType > ) * ( count - oldCount ) );
 		rowSizes[row] = count;
 	}
-	else fprintf( stderr , "[ERROR] SparseMatrix::ResetRowSize: Row is out of bounds: 0 <= %d < %d\n" , (int)row , (int)rowNum ) , exit( 0 );
+	else ERROR_OUT( "Row is out of bounds: 0 <= %d < %d" , (int)row , (int)rowNum );
 }
 
 template< class T , class IndexType >
@@ -252,7 +252,7 @@ SparseMatrix< T , IndexType > SparseMatrix< T , IndexType >::operator * ( const 
 	size_t bCols = 0 , bRows = B.rowNum;
 	for( int i=0 ; i<A.rowNum ; i++ ) for( int j=0 ; j<A.rowSizes[i] ; j++ ) if( aCols<=A[i][j].N ) aCols = A[i][j].N+1;
 	for( int i=0 ; i<B.rowNum ; i++ ) for( int j=0 ; j<B.rowSizes[i] ; j++ ) if( bCols<=B[i][j].N ) bCols = B[i][j].N+1;
-	if( bRows<aCols ) fprintf( stderr , "[Error] SparseMatrix::operator *: Matrix sizes do not support multiplication %lld x %lld * %lld x %lld\n" , (unsigned long long)aRows , (unsigned long long)aCols , (unsigned long long)bRows , (unsigned long long)bCols ) , exit( 0 );
+	if( bRows<aCols ) ERROR_OUT( "Matrix sizes do not support multiplication %lld x %lld * %lld x %lld" , (unsigned long long)aRows , (unsigned long long)aCols , (unsigned long long)bRows , (unsigned long long)bCols );
 
 	out.resize( (int)aRows );
 #pragma omp parallel for
@@ -388,11 +388,7 @@ SparseMatrix< T , IndexType > SparseMatrix< T , IndexType >::transpose( size_t a
 	const SparseMatrix& At = *this;
 	size_t _aRows = 0 , aCols = At.rowNum;
 	for( int i=0 ; i<At.rowNum ; i++ ) for( int j=0 ; j<At.rowSizes[i] ; j++ ) if( aCols<=At[i][j].N ) _aRows = At[i][j].N+1;
-	if( _aRows>aRows )
-	{
-		fprintf( stderr , "[Error] SparseMatrix::transpose: prescribed output dimension too low: %d < %zu\n" , (int)aRows , _aRows );
-		return false;
-	}
+	if( _aRows>aRows ) ERROR_OUT( "Prescribed output dimension too low: %d < %zu" , (int)aRows , _aRows );
 
 	A.resize( aRows );
 	for( int i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
@@ -432,11 +428,7 @@ SparseMatrix< T , IndexType > SparseMatrix< T , IndexType >::Multiply( const Spa
 	size_t bCols = 0 , bRows = B.rows();
 	for( int i=0 ; i<A.rows() ; i++ ) for( A_const_iterator iter=A.begin(i) ; iter!=A.end(i) ; iter++ ) if( aCols<=iter->N ) aCols = iter->N+1;
 	for( int i=0 ; i<B.rows() ; i++ ) for( B_const_iterator iter=B.begin(i) ; iter!=B.end(i) ; iter++ ) if( bCols<=iter->N ) bCols = iter->N+1;
-	if( bRows<aCols )
-	{
-		fprintf( stderr , "[ERROR] Multiply: Matrix sizes do not support multiplication %lld x %lld * %lld x %lld\n" , (unsigned long long)aRows , (unsigned long long)aCols , (unsigned long long)bRows , (unsigned long long)bCols );
-		exit( 0 );
-	}
+	if( bRows<aCols ) ERROR_OUT( "Matrix sizes do not support multiplication %lld x %lld * %lld x %lld" , (unsigned long long)aRows , (unsigned long long)aCols , (unsigned long long)bRows , (unsigned long long)bCols );
 
 	M.resize( (int)aRows );
 #pragma omp parallel for
@@ -503,7 +495,7 @@ SparseMatrix< T , IndexType > SparseMatrix< T , IndexType >::Transpose( const Sp
 	SparseMatrix< T , IndexType > A;
 	size_t _aRows = 0 , aCols = At.rows() , aRows = outRows;
 	for( size_t i=0 ; i<At.rows() ; i++ ) for( const_iterator iter=At.begin(i) ; iter!=At.end(i) ; iter++ ) if( aCols<=iter->N ) _aRows = iter->N+1;
-	if( _aRows>aRows ) fprintf( stderr , "[ERROR] Transpose: prescribed output dimension too low: %d < %zu\n" , aRows , _aRows ) , exit( 0 );
+	if( _aRows>aRows ) ERROR_OUT( "Prescribed output dimension too low: %d < %zu" , aRows , _aRows );
 
 	A.resize( aRows );
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;

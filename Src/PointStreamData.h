@@ -88,14 +88,14 @@ struct PointStreamPosition : public PointStreamData< Real , Point< Real , Dim > 
 	{
 		float f;
 		for( int i=0 ; i<Dim ; i++ )
-			if( fscanf( fp , " %f " , &f )!=1 ) fprintf( stderr , "[ERROR] PointStreamPosition::readASCII: Failed to read color\n" ) , exit( 0 );
+			if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read color" );
 			else p.data[i] = (Real)f;
 	};
 	static void ReadBinary( FILE* fp , PointStreamPosition& p )
 	{
 		float f;
 		for( int i=0 ; i<Dim ; i++ )
-			if( fread( &f , sizeof(float) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] PointStreamPosition::readBINARY: Failed to read color\n" ) , exit( 0 );
+			if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read color" );
 			else p.data[i] = (Real)f;
 	}
 	static void WriteASCII( FILE* fp , const PointStreamPosition& p ){ for( int i=0 ; i<Dim ; i++ ) fprintf( fp , " %f" , (float)p.data[i] ); };
@@ -184,14 +184,14 @@ struct PointStreamNormal : public PointStreamData< Real , Point< Real , Dim > >
 	{
 		float f;
 		for( int i=0 ; i<Dim ; i++ )
-			if( fscanf( fp , " %f " , &f )!=1 ) fprintf( stderr , "[ERROR] PointStreamNormal::readASCII: Failed to read normal\n" ) , exit( 0 );
+			if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read normal" );
 			else p.data[i] = (Real)f;
 	};
 	static void ReadBinary( FILE* fp , PointStreamNormal& p )
 	{
 		float f;
 		for( int i=0 ; i<Dim ; i++ )
-			if( fread( &f , sizeof(float) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] PointStreamNormal::readBINARY: Failed to read normal\n" ) , exit( 0 );
+			if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read normal" );
 			else p.data[i] = (Real)f;
 	}
 	static void WriteASCII( FILE* fp , const PointStreamNormal& p ){ for( int i=0 ; i<Dim ; i++ ) fprintf( fp , " %f" , (float)p.data[i] ); };
@@ -266,13 +266,13 @@ struct PointStreamColor : public PointStreamData< Real , Color< Real > >
 	static void ReadASCII( FILE* fp , PointStreamColor& p )
 	{
 		unsigned char c[3];
-		if( fscanf( fp , " %c %c %c " , &c[0] , &c[1] , &c[2] )!=3 ) fprintf( stderr , "[ERROR] PointStreamColor::readASCII: Failed to read color\n" ) , exit( 0 );
+		if( fscanf( fp , " %c %c %c " , &c[0] , &c[1] , &c[2] )!=3 ) ERROR_OUT( "Failed to read color" );
 		p.data[0] = (Real)c[0] , p.data[1] = (Real)c[1] , p.data[2] = (Real)c[2];
 	};
 	static void ReadBinary( FILE* fp , PointStreamColor& p )
 	{
 		unsigned char c[3];
-		if( fread( c , sizeof(unsigned char) , 3 , fp )!=3 ) fprintf( stderr , "[ERROR] PointStreamColor::readBinary: Failed to read color\n" ) , exit( 0 );
+		if( fread( c , sizeof(unsigned char) , 3 , fp )!=3 ) ERROR_OUT( "Failed to read color" );
 		p.data[0] = (Real)c[0] , p.data[1] = (Real)c[1] , p.data[2] = (Real)c[2];
 	}
 	static void WriteASCII( FILE* fp , const PointStreamColor& p )
@@ -325,8 +325,8 @@ struct PointStreamValue : public PointStreamData< Real , Real >
 		template< typename X > Transform( const X& ){}
 		PointStreamValue operator() ( const PointStreamValue& r ) const { return r; }
 	};
-	static void  ReadASCII ( FILE* fp , PointStreamValue& p ){ float f ; if( fscanf( fp , " %f " , &f )!=1 ) fprintf( stderr , "[ERROR] PointStreamValue::readASCII: Failed to read color\n" ) , exit( 0 ) ; p.data = (Real)f; }
-	static void  ReadBinary( FILE* fp , PointStreamValue& p ){ float f ; if( fread( &f , sizeof(float) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] PointStreamValue::readBinary: Failed to read color\n" ) , exit( 0 ) ; p.data = (Real)f; }
+	static void  ReadASCII ( FILE* fp , PointStreamValue& p ){ float f ; if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.data = (Real)f; }
+	static void  ReadBinary( FILE* fp , PointStreamValue& p ){ float f ; if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.data = (Real)f; }
 	static void WriteASCII ( FILE* fp , const PointStreamValue& p ){ float f = (float)p.data ; fprintf( fp , " %f " , f ); }
 	static void WriteBinary( FILE* fp , const PointStreamValue& p ){ float f = (float)p.data ; fwrite( &f , sizeof(Real) , 1 , fp ); }
 	static const int PlyReadNum = 1;
@@ -357,8 +357,8 @@ struct PointStreamRoughness : public PointStreamData< Real , Real >
 		template< typename X > Transform( const X& ){}
 		PointStreamRoughness operator() ( const PointStreamRoughness& r ) const { return r; }
 	};
-	static void  ReadASCII ( FILE* fp , PointStreamRoughness& p ){ float f ; if( fscanf( fp , " %f " , &f )!=1 ) fprintf( stderr , "[ERROR] PointStreamRoughness::readASCII: Failed to read color\n" ) , exit( 0 ) ; p.data = (Real)f; }
-	static void  ReadBinary( FILE* fp , PointStreamRoughness& p ){ float f ; if( fread( &f , sizeof(float) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] PointStreamRoughness::readBinary: Failed to read color\n" ) , exit( 0 ) ; p.data = (Real)f; }
+	static void  ReadASCII ( FILE* fp , PointStreamRoughness& p ){ float f ; if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.data = (Real)f; }
+	static void  ReadBinary( FILE* fp , PointStreamRoughness& p ){ float f ; if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.data = (Real)f; }
 	static void WriteASCII ( FILE* fp , const PointStreamRoughness& p ){ float f = (float)p.data ; fprintf( fp , " %f " , f ); }
 	static void WriteBinary( FILE* fp , const PointStreamRoughness& p ){ float f = (float)p.data ; fwrite( &f , sizeof(Real) , 1 , fp ); }
 	static const int PlyReadNum = 1;

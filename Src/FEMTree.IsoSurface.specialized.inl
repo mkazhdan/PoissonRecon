@@ -1070,7 +1070,7 @@ protected:
 						typename HyperCube::Cube< Dim >::template Element< 1 > e( zDir , _e.index );
 						const typename HyperCube::Cube< Dim >::template Element< 0 > *c = SliceData::template HyperCubeTables< Dim , 1 , 0 >::OverlapElements[e.index];
 						// [SANITY CHECK]
-						//						if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) fprintf( stderr , "[WARNING] Finer edges should both be valid or invalid\n" ) , exit( 0 );
+						//						if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) ERROR_OUT( "Finer edges should both be valid or invalid" );
 						if( !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index ) || !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) continue;
 
 						int cIndex1 = cSliceData.edgeIndices( tree._sNodes.treeNodes[i]->children + c[0].index )[_e.index];
@@ -1125,7 +1125,7 @@ protected:
 						typename HyperCube::Cube< Dim >::template Element< 0 > c0( HyperCube::BACK , _c.index ) , c1( HyperCube::FRONT , _c.index );
 
 						// [SANITY CHECK]
-						//					if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c0 )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c1 ) ) fprintf( stderr , "[ERROR] Finer edges should both be valid or invalid\n" ) , exit( 0 );
+						//					if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c0 )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c1 ) ) ERROR_OUT( "Finer edges should both be valid or invalid" );
 						if( !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c0.index ) || !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c1.index ) ) continue;
 
 						int cIndex0 = cSliceData0.edgeIndices( tree._sNodes.treeNodes[i]->children + c0.index )[_c.index];
@@ -1190,7 +1190,7 @@ protected:
 						fe.count = HyperCube::MarchingSquares::AddEdgeIndices( mcIndex , isoEdges );
 						for( int j=0 ; j<fe.count ; j++ ) for( int k=0 ; k<2 ; k++ )
 						{
-							if( !sValues.edgeSet[ eIndices[ isoEdges[2*j+k] ] ] ) fprintf( stderr , "[ERROR] Edge not set 1: %d / %d\n" , slice , 1<<depth ) , exit( 0 );
+							if( !sValues.edgeSet[ eIndices[ isoEdges[2*j+k] ] ] ) ERROR_OUT( "Edge not set: %d / %d" , slice , 1<<depth );
 							fe.edges[j][k] = sValues.edgeKeys[ eIndices[ isoEdges[2*j+k] ] ];
 						}
 						sValues.faceSet[ fIndices[0] ] = 1;
@@ -1256,14 +1256,14 @@ protected:
 								if( dir==HyperCube::CROSS ) // Cross-edge
 								{
 									int idx = cIndices[ coIndex ];
-									if( !xValues.edgeSet[ idx ] ) fprintf( stderr , "[ERROR] Edge not set 3: %d / %d\n" , slab , 1<<depth ) , exit( 0 );
+									if( !xValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: %d / %d" , slab , 1<<depth );
 									fe.edges[j][k] = xValues.edgeKeys[ idx ];
 								}
 								else
 								{
 									const _SliceValues& sValues = dir==HyperCube::BACK ? bValues : fValues;
 									int idx = sValues.sliceData.edgeIndices(i)[ coIndex ];
-									if( !sValues.edgeSet[ idx ] ) fprintf( stderr , "[ERROR] Edge not set 5: %d / %d\n" , slab , 1<<depth ) , exit( 0 );
+									if( !sValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: %d / %d" , slab , 1<<depth );
 									fe.edges[j][k] = sValues.edgeKeys[ idx ];
 								}
 							}
@@ -1332,7 +1332,7 @@ protected:
 									const std::vector< _IsoEdge >& _edges = iter->second;
 									for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( _IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
 								}
-								else fprintf( stderr , "[ERROR] Invalid faces 1: %d  %s\n" , i , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) ) , exit( 0 );
+								else ERROR_OUT( "Invalid faces: %d  %d" , i , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
 							}
 						}
 						else
@@ -1352,7 +1352,7 @@ protected:
 									const std::vector< _IsoEdge >& _edges = iter->second;
 									for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( _IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
 								}
-								else fprintf( stderr , "[ERROR] Invalid faces 2: %d  %s\n" , i , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) ) , exit( 0 );
+								else ERROR_OUT( "Invalid faces: %d  %s" , i , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
 							}
 						}
 					}
@@ -1378,8 +1378,7 @@ protected:
 								{
 									LocalDepth d ; LocalOffset off;
 									tree._localDepthAndOffset( leaf , d , off );
-									fprintf( stderr , "[ERROR] Failed to close loop [%d: %d %d %d] | (%d): %lld\n" , d-1 , off[0] , off[1] , off[2] , i , current );
-									exit( 0 );
+									ERROR_OUT( "Failed to close loop [%d: %d %d %d] | (%d): %lld" , d-1 , off[0] , off[1] , off[2] , i , current );
 								}
 							}
 							else
@@ -1403,7 +1402,7 @@ protected:
 							if     ( ( iter=bValues.edgeVertexMap.find( key ) )!=bValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
 							else if( ( iter=fValues.edgeVertexMap.find( key ) )!=fValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
 							else if( ( iter=xValues.edgeVertexMap.find( key ) )!=xValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
-							else fprintf( stderr , "[ERROR] Couldn't find vertex in edge map\n" ) , exit( 0 );
+							else ERROR_OUT( "Couldn't find vertex in edge map" );
 						}
 						_AddIsoPolygons( mesh , polygon , polygonMesh , addBarycenter , vOffset );
 					}
@@ -1467,13 +1466,12 @@ protected:
 			// We have a linear function L, with L(0) = x0 and L(1) = x1
 			// => L(t) = x0 + t * (x1-x0)
 			// => L(t) = isoValue <=> t = ( isoValue - x0 ) / ( x1 - x0 )
-			if( x0==x1 ) fprintf( stderr , "[ERROR] Not a zero-crossing root: %g %g\n" , x0 , x1 ) , exit( 0 );
+			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: %g %g" , x0 , x1 );
 			averageRoot = ( isoValue - x0 ) / ( x1 - x0 );
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
 		{
-			fprintf( stderr , "[WARNING] Bad average root: %f\n" , averageRoot );
-			fprintf( stderr , "\t(%f %f) (%f)\n" , x0 , x1 , isoValue );
+			WARN( "Bad average root: %f\t(%f %f) (%f)" , averageRoot , x0 , x1 , isoValue );
 			if( averageRoot<0 ) averageRoot = 0;
 			if( averageRoot>1 ) averageRoot = 1;
 		}
@@ -1548,13 +1546,12 @@ protected:
 			// We have a linear function L, with L(0) = x0 and L(1) = x1
 			// => L(t) = x0 + t * (x1-x0)
 			// => L(t) = isoValue <=> t = ( isoValue - x0 ) / ( x1 - x0 )
-			if( x0==x1 ) fprintf( stderr , "[ERROR] Not a zero-crossing root: %g %g\n" , x0 , x1 ) , exit( 0 );
+			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: %g %g" , x0 , x1 );
 			averageRoot = ( isoValue - x0 ) / ( x1 - x0 );
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
 		{
-			fprintf( stderr , "[WARNING] Bad average root: %f\n" , averageRoot );
-			fprintf( stderr , "\t(%f %f) (%f)\n" , x0 , x1 , isoValue );
+			WARN( "Bad average root: %f\t(%f %f) (%f)" , averageRoot , x0 , x1 , isoValue );
 			if( averageRoot<0 ) averageRoot = 0;
 			if( averageRoot>1 ) averageRoot = 1;
 		}
@@ -1627,7 +1624,7 @@ protected:
 				std::vector< Point< Real , Dim > > vertices( polygon.size() );
 				for( int i=0 ; i<(int)polygon.size() ; i++ ) vertices[i] = polygon[i].second.point;
 				std::vector< TriangleIndex > triangles = MinimalAreaTriangulation< Real , Dim >( ( ConstPointer( Point< Real , Dim > ) )GetPointer( vertices ) , vertices.size() );
-				if( triangles.size()!=polygon.size()-2 ) fprintf( stderr , "[ERROR] Minimal area triangulation failed: %d != %d\n" , (int)triangles.size() , (int)polygon.size()-2 ) , exit( 0 );
+				if( triangles.size()!=polygon.size()-2 ) ERROR_OUT( "Minimal area triangulation failed: %d != %d" , (int)triangles.size() , (int)polygon.size()-2 );
 				for( int i=0 ; i<(int)triangles.size() ; i++ )
 				{
 					for( int j=0 ; j<3 ; j++ ) triangle[2-j] = polygon[ triangles[i].idx[j] ].first;
@@ -1658,7 +1655,7 @@ public:
 		tree._setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		static const int FEMDegrees[] = { FEMSignature< FEMSigs >::Degree ... };
-		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 && nonLinearFit ) fprintf( stderr , "[WARNING] Constant B-Splines do not support non-linear interpolation\n" ) , nonLinearFit = false;
+		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 && nonLinearFit ) WARN( "Constant B-Splines do not support non-linear interpolation" ) , nonLinearFit = false;
 
 		SliceData::SetHyperCubeTables();
 

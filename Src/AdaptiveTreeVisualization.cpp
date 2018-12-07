@@ -101,7 +101,7 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 	if( OutGrid.set )
 	{
 		FILE* _fp = fopen( OutGrid.value , "wb" );
-		if( !_fp ) fprintf( stderr , "Failed to open grid file for writing: %s\n" , OutGrid.value );
+		if( !_fp ) WARN( "Failed to open grid file for writing: %s" , OutGrid.value );
 		else
 		{
 			int res = 0;
@@ -155,13 +155,13 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 
 		std::vector< std::string > comments;
 		if( !PlyWritePolygons< Vertex , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() ) )
-			fprintf( stderr , "[ERROR] Could not write mesh to: %s\n" , OutMesh.value ) , exit( 0 );
+			ERROR_OUT( "Could not write mesh to: %s" , OutMesh.value );
 	}
 }
 
 
 template< unsigned int Dim , class Real >
-int Execute( FILE* fp , int degree , BoundaryType bType )
+void Execute( FILE* fp , int degree , BoundaryType bType )
 {
 	FEMTree< Dim , Real > tree( fp , MEMORY_ALLOCATOR_BLOCK_SIZE );
 
@@ -177,7 +177,7 @@ int Execute( FILE* fp , int degree , BoundaryType bType )
 			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >( &tree , fp ) ; break;
 			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >( &tree , fp ) ; break;
 			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >( &tree , fp ) ; break;
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) , exit( 0 );
+			default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 		}
 	}
 	break;
@@ -189,7 +189,7 @@ int Execute( FILE* fp , int degree , BoundaryType bType )
 			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >( &tree , fp ) ; break;
 			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >( &tree , fp ) ; break;
 			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >( &tree , fp ) ; break;
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) , exit( 0 );
+			default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 		}
 	}
 	break;
@@ -201,19 +201,18 @@ int Execute( FILE* fp , int degree , BoundaryType bType )
 			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >( &tree , fp ) ; break;
 			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >( &tree , fp ) ; break;
 			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >( &tree , fp ) ; break;
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) , exit( 0 );
+			default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 		}
 	}
 	break;
-	default: fprintf( stderr , "[ERROR] Not a valid boundary type: %d\n" , bType ) , exit( 0 );
+	default: ERROR_OUT( "Not a valid boundary type: %d" , bType );
 	}
-	return EXIT_SUCCESS;
 }
 
 int main( int argc , char* argv[] )
 {
 #ifdef ARRAY_DEBUG
-	fprintf( stderr , "[WARNING] Array debugging enabled\n" );
+	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
@@ -232,20 +231,15 @@ int main( int argc , char* argv[] )
 		return EXIT_FAILURE;
 	}
 	FILE* fp = fopen( In.value , "rb" );
-	if( !fp ) fprintf( stderr , "[ERROR] Failed to open file for reading: %s\n" , In.value ) , exit( 0 );
+	if( !fp ) ERROR_OUT( "Failed to open file for reading: %s" , In.value );
 	FEMTreeRealType realType ; int degree ; BoundaryType bType;
 	int dimension;
 	ReadFEMTreeParameter( fp , realType , dimension );
 	{
 		unsigned int dim = dimension;
 		unsigned int* sigs = ReadDenseNodeDataSignatures( fp , dim );
-		if( dimension!=dim ) fprintf( stderr , "[ERROR] Octree and node data dimensions don't math: %d != %d\n" , dimension , dim ) , exit( 0 );
-		for( unsigned int d=1 ; d<dim ; d++ ) if( sigs[0]!=sigs[d] )
-		{
-			fprintf( stderr , "[ERROR] Anisotropic signatures:\n" );
-			for( unsigned int dd=0 ; dd<dim ; dd++ ) printf( "\t%d] %d %s\n" , dd , FEMSignatureDegree( sigs[dd] ) , BoundaryNames[ FEMSignatureBType( sigs[dd] ) ] );
-			exit( 0 );
-		}
+		if( dimension!=dim ) ERROR_OUT( "Octree and node data dimensions don't math: %d != %d" , dimension , dim );
+		for( unsigned int d=1 ; d<dim ; d++ ) if( sigs[0]!=sigs[d] ) ERROR_OUT( "Anisotropic signatures" );
 		degree = FEMSignatureDegree( sigs[0] );
 		bType = FEMSignatureBType( sigs[0] );
 		delete[] sigs;
@@ -259,7 +253,7 @@ int main( int argc , char* argv[] )
 		{
 			case FEM_TREE_REAL_FLOAT:  Execute< 2 , float  >( fp , degree , bType ) ; break;
 			case FEM_TREE_REAL_DOUBLE: Execute< 2 , double >( fp , degree , bType ) ; break;
-			default: fprintf( stderr , "[ERROR] Unrecognized real type: %d\n" , realType ) , exit( 0 );
+			default: ERROR_OUT( "Unrecognized real type: %d" , realType );
 		}
 		break;
 	case 3:
@@ -267,10 +261,10 @@ int main( int argc , char* argv[] )
 		{
 			case FEM_TREE_REAL_FLOAT:  Execute< 3 , float  >( fp , degree , bType ) ; break;
 			case FEM_TREE_REAL_DOUBLE: Execute< 3 , double >( fp , degree , bType ) ; break;
-			default: fprintf( stderr , "[ERROR] Unrecognized real type: %d\n" , realType ) , exit( 0 );
+			default: ERROR_OUT( "Unrecognized real type: %d" , realType );
 		}
 		break;
-	default: fprintf( stderr , "[ERROR] Only dimensions 1-4 supported\n" ) , exit( 0 );
+	default: ERROR_OUT( "Only dimensions 1-4 supported" );
 	}
 
 	fclose( fp );

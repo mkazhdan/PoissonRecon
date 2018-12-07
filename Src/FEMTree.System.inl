@@ -816,15 +816,7 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 	typedef UIntPack< ( -BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::SupportStart ) ... > RightPointSupportRadii;
 	typedef UIntPack<    BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::SupportSize    ... > SupportSizes;
 
-	if( !( FEMDegrees() >= IsotropicUIntPack< Dim , PointD >() ) )
-	{
-		fprintf( stderr , "[ERROR] FEMTree::_addPointValues: Insufficient derivatives: " );
-		IsotropicUIntPack< Dim , PointD >::Print( stderr );
-		fprintf( stderr , " > " );
-		FEMDegrees::Print( stderr );
-		fprintf( stderr , "\n" );
-		exit( 0 );
-	}
+	if( !( FEMDegrees() >= IsotropicUIntPack< Dim , PointD >() ) ) ERROR_OUT( "Insufficient derivatives" );
 	if( !interpolationInfo ) return;
 	const InterpolationInfo< T , PointD >& iInfo = *interpolationInfo;
 
@@ -962,7 +954,7 @@ void FEMTree< Dim , Real >::_addProlongedPointValues( UIntPack< FEMSigs ... > , 
 #pragma message( "[WARNING] This code is broken" )
 #endif // SHOW_WARNINGS
 #if 1
-	fprintf( stderr , "[ERROR] Broken code\n" ) , exit( 0 );
+	ERROR_OUT( "Broken code" );
 #else
 	if( !interpolationInfo ) return;
 	const InterpolationInfo< T , PointD >& iInfo = *interpolationInfo;
@@ -1559,7 +1551,7 @@ SparseMatrix< Real > FEMTree< Dim , Real >::systemMatrix( UIntPack< FEMSigs ... 
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	typedef typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > > BaseSystem;
-	if( depth<0 || depth>_maxDepth ) fprintf( stderr , "[ERROR] System depth out of bounds: %d <= %d <= %d\n" , 0 , depth , _maxDepth ) , exit( 0 );
+	if( depth<0 || depth>_maxDepth ) ERROR_OUT( "System depth out of bounds: %d <= %d <= %d" , 0 , depth , _maxDepth );
 	SparseMatrix< Real > matrix;
 	F.init( depth );
 	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( depth );
@@ -1599,7 +1591,7 @@ template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
 SparseMatrix< Real > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack<FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
-	if( highDepth<=0 || highDepth>_maxDepth ) fprintf( stderr , "[ERROR] System depth out of bounds: %d < %d <= %d\n" , 0 , highDepth , _maxDepth ) , exit( 0 );
+	if( highDepth<=0 || highDepth>_maxDepth ) ERROR_OUT( "System depth out of bounds: %d < %d <= %d" , 0 , highDepth , _maxDepth );
 
 	LocalDepth lowDepth = highDepth-1;
 	SparseMatrix< Real > matrix;
@@ -2380,7 +2372,7 @@ template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int 
 void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
 	int baseDepth = solverInfo.baseDepth;
-	if( baseDepth>getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) ) fprintf( stderr , "[ERROR] Base depth cannot excceed full depth: %d <= %d\n" , baseDepth , getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) ) , exit( 0 );
+	if( baseDepth>getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) ) ERROR_OUT( "Base depth cannot excceed full depth: %d <= %d" , baseDepth , getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) );
 
 	static_assert( Dim==sizeof ... ( FEMSigs ) , "[ERROR] FEMTree:solveSystem: Dimensions and number of signatures don't match" );
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );

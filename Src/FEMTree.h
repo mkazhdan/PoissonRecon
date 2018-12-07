@@ -261,9 +261,9 @@ struct BlockedVector
 		if( size<=_size )
 		{
 #ifdef _MSC_VER
-			fprintf( stderr , "[WARNING] BlockedVector::resize: new size must be greater than old size: %llu > %llu\n" , size , _size );
+			WARN( "BlockedVector::resize: new size must be greater than old size: %llu > %llu" , size , _size );
 #else // !MSC_VER
-			fprintf( stderr , "[WARNING] BlockedVector::resize: new size must be greater than old size: %lu > %lu\n" , size , _size );
+			WARN( "BlockedVector::resize: new size must be greater than old size: %lu > %lu" , size , _size );
 #endif // _MSC_VER
 			return _size;
 		}
@@ -395,11 +395,11 @@ struct DenseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseNo
 		fwrite( femSigs , sizeof(unsigned int) , dim , fp );
 	}
 	void write( FILE* fp ) const { fwrite( &_sz , sizeof(size_t) , 1 , fp ) ; fwrite( _data , sizeof(Data) , _sz  , fp ); }
-	void read ( FILE* fp )
+	void read( FILE* fp )
 	{
-		if( fread( &_sz , sizeof(size_t) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] DenseNodeData::read: Failed to read size\n" ) , exit( 0 );
+		if( fread( &_sz , sizeof(size_t) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read size" );
 		_data = NewPointer< Data >( _sz );
-		if( fread ( _data , sizeof(Data) , _sz  , fp )!=_sz ) fprintf( stderr , "[ERROR] DenseNodeData::read failed to read data\n" ) , exit( 0 );
+		if( fread ( _data , sizeof(Data) , _sz  , fp )!=_sz ) ERROR_OUT( "failed to read data" );
 	}
 
 	Data& operator[] ( int idx ) { return _data[idx]; }
@@ -437,14 +437,14 @@ const char* FEMTreeRealNames[] = { "float" , "double" };
 
 void ReadFEMTreeParameter( FILE* fp , FEMTreeRealType& realType , int &dimension )
 {
-	if( fread( &realType , sizeof(FEMTreeRealType) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadFEMTreeParameter: Failed to read real type\n" ) , exit( 0 );
-	if( fread( &dimension , sizeof(int) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadFEMTreeParameter: Failed to read dimension\n" ) , exit( 0 );
+	if( fread( &realType , sizeof(FEMTreeRealType) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read real type" );
+	if( fread( &dimension , sizeof(int) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read dimension" );
 }
 unsigned int* ReadDenseNodeDataSignatures( FILE* fp , unsigned int &dim )
 {
-	if( fread( &dim , sizeof(unsigned int) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadDenseNodeDataSignatures: Failed to read dimension\n" ) , exit( 0 );
+	if( fread( &dim , sizeof(unsigned int) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read dimension" );
 	unsigned int* femSigs = new unsigned int[dim];
-	if( fread( femSigs , sizeof(unsigned int) , dim , fp )!=dim ) fprintf( stderr , "[ERROR] ReadDenseNodeDataSignatures: Failed to read signatures\n" ) , exit( 0 );
+	if( fread( femSigs , sizeof(unsigned int) , dim , fp )!=dim ) ERROR_OUT( "Failed to read signatures" );
 	return femSigs;
 }
 
@@ -496,7 +496,7 @@ struct CumulativeDerivatives
 	{
 		int dCount = 0;
 		for( int d=0 ; d<Dim ; d++ ) dCount += derivatives[d];
-		if( dCount>=D ) fprintf( stderr , "[ERROR] CumulativeDerivatives::Index: more derivatives than allowed\n" ) , exit( 0 );
+		if( dCount>=D ) ERROR_OUT( "More derivatives than allowed" );
 		else if( dCount<D ) return _CumulativeDerivatives::Index( derivatives );
 		else                return _CumulativeDerivatives::Size + _Index( derivatives );
 	}
@@ -516,7 +516,7 @@ protected:
 			_d[i]--;
 			return _CumulativeDerivatives::Index( _d ) * Dim + i;
 		}
-		fprintf( stderr , "[ERROR] CumulativeDerivatives::_Index: no derivatives specified\n" ) , exit( 0 );
+		ERROR_OUT( "No derivatives specified" );
 		return -1;
 	}
 	friend CumulativeDerivatives< Dim , D+1 >;
@@ -1144,8 +1144,9 @@ public:
 			case INTEGRATE_CHILD_CHILD:  return std::get< D >( _integrators ).ccIntegrator.dot( off1[D] , off2[D] , d1[D] , d2[D] ) * remainingIntegral;
 			case INTEGRATE_PARENT_CHILD: return std::get< D >( _integrators ).pcIntegrator.dot( off1[D] , off2[D] , d1[D] , d2[D] ) * remainingIntegral;
 			case INTEGRATE_CHILD_PARENT: return std::get< D >( _integrators ).cpIntegrator.dot( off2[D] , off1[D] , d2[D] , d1[D] ) * remainingIntegral;
-			default: fprintf( stderr , "[ERORR] FEMIntegrator::Test::Constraint::_integral: Undefined integration type\n" ) , exit( 0 );
+			default: ERROR_OUT( "Undefined integration type" );
 			}
+			return 0;
 		}
 		Point< double , CDim > _integrate( IntegrationType iType , const int off1[] , const int off[] ) const;
 	};
@@ -2231,7 +2232,7 @@ public:
 		FEMTreeRealType realType;
 		if     ( typeid( Real )==typeid( float  ) ) realType=FEM_TREE_REAL_FLOAT;
 		else if( typeid( Real )==typeid( double ) ) realType=FEM_TREE_REAL_DOUBLE;
-		else fprintf( stderr , "[ERROR] FEMTree::WriteParameter: Unrecognized real type\n" ) , exit( 0 );
+		else ERROR_OUT( "Unrecognized real type" );
 		fwrite( &realType , sizeof(FEMTreeRealType) , 1 , fp );
 		int dim = Dim;
 		fwrite( &dim , sizeof(int) , 1 , fp );
@@ -2561,7 +2562,7 @@ struct IsoSurfaceExtractor
 	)
 	{
 		// The unspecialized implementation is not supported
-		fprintf( stderr , "[WARNING] Iso-surface extraction not supported for dimension %d\n" , Dim );
+		WARN( "Iso-surface extraction not supported for dimension %d" , Dim );
 		return IsoStats();
 	}
 };

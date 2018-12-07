@@ -140,13 +140,13 @@ public:
 	{
 		T* mem;
 		if( !elements ) return NULL;
-		if( elements>blockSize ) fprintf( stderr , "[ERROR] Allocator: elements bigger than block-size: %d>%d\n" , elements , blockSize ) , exit( 0 );
+		if( elements>blockSize ) ERROR_OUT( "elements bigger than block-size: %d>%d" , elements , blockSize );
 		if( remains<elements )
 		{
 			if( index==memory.size()-1 )
 			{
 				mem = new T[blockSize];
-				if( !mem ) fprintf( stderr , "[ERROR] Failed to allocate memory\n" ) , exit(0);
+				if( !mem ) ERROR_OUT( "Failed to allocate memory" );
 				memory.push_back( mem );
 			}
 			index++;

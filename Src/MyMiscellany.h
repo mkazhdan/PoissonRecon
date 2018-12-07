@@ -28,6 +28,8 @@ DAMAGE.
 #ifndef MY_MISCELLANY_INCLUDED
 #define MY_MISCELLANY_INCLUDED
 
+#undef VERBOSE_MESSAGING
+
 //////////////////
 // OpenMP Stuff //
 //////////////////
@@ -181,6 +183,189 @@ struct MessageWriter
 	}
 };
 
+/////////////////////////////////////
+// Exception, Warnings, and Errors //
+/////////////////////////////////////
+#include <exception>
+#include <string>
+namespace MKExceptions
+{
+#ifdef VERBOSE_MESSAGING
+	inline char *_MakeMessageString( const char *header , const char *fileName , int line , const char *functionName , const char *format , ... )
+	{
+		va_list args;
+		va_start( args , format );
+
+		// Formatting is:
+		// <header> <filename> (Line <line>)
+		// <header size> <function name>
+		// <header size> <format message>
+		char lineBuffer[25];
+		sprintf( lineBuffer , "(Line %d)" , line );
+		size_t _size , size=0;
+
+		// Line 1
+		size += strlen(header)+1;
+		size += strlen(fileName)+1;
+		size += strlen(lineBuffer)+1;
+
+		// Line 2
+		size += strlen(header)+1;
+		size += strlen(functionName)+1;
+
+		// Line 3
+		size += strlen(header)+1;
+		size += vsnprintf( NULL , 0 , format , args );
+
+		char *_buffer , *buffer = new char[ size+1 ];
+		_size = size , _buffer = buffer;
+
+		// Line 1
+		sprintf( _buffer , "%s " , header );
+		_buffer += strlen(header)+1;
+		_size -= strlen(header)+1;
+
+		sprintf( _buffer , "%s " , fileName );
+		_buffer += strlen(fileName)+1;
+		_size -= strlen(fileName)+1;
+
+		sprintf( _buffer , "%s\n" , lineBuffer );
+		_buffer += strlen(lineBuffer)+1;
+		_size -= strlen(lineBuffer)+1;
+
+		// Line 2
+		for( int i=0 ; i<strlen(header)+1 ; i++ ) _buffer[i] = ' ';
+		_buffer += strlen(header)+1;
+		_size -= strlen(header)+1;
+
+		sprintf( _buffer , "%s\n" , functionName );
+		_buffer += strlen(functionName)+1;
+		_size -= strlen(functionName)+1;
+
+		// Line 3
+		for( int i=0 ; i<strlen(header)+1 ; i++ ) _buffer[i] = ' ';
+		_buffer += strlen(header)+1;
+		_size -= strlen(header)+1;
+
+		vsnprintf( _buffer , _size+1 , format , args );
+
+		return buffer;
+	}
+
+	struct Exception : public std::exception
+	{
+		const char *what( void ) const noexcept { return _message.c_str(); }
+		template< typename ... Args >
+		Exception( const char *fileName , int line , const char *functionName , const char *format , Args ... args )
+		{
+			char *buffer = _MakeMessageString( "[EXCEPTION]" , fileName , line , functionName , format , args ... );
+			_message = std::string( buffer );
+			delete[] buffer;
+		}
+	protected:
+		std::string _message;
+	};
+
+	template< typename ... Args > void Throw( const char *fileName , int line , const char *functionName , const char *format , Args ... args ){ throw Exception( fileName , line , functionName , format , args ... ); }
+	template< typename ... Args >
+	void Warn( const char *fileName , int line , const char *functionName , const char *format , Args ... args )
+	{
+		char *buffer = _MakeMessageString( "[WARNING]" , fileName , line , functionName , format , args ... );
+		fprintf( stderr , "%s\n" , buffer );
+		delete[] buffer;
+	}
+	template< typename ... Args >
+	void ErrorOut( const char *fileName , int line , const char *functionName , const char *format , Args ... args )
+	{
+		char *buffer = _MakeMessageString( "[ERROR]" , fileName , line , functionName , format , args ... );
+		fprintf( stderr , "%s\n" , buffer );
+		delete[] buffer;
+		exit(0);
+	}
+#else // !VERBOSE_MESSAGING
+	inline char *_MakeMessageString( const char *header , const char *functionName , const char *format , ... )
+	{
+		va_list args;
+		va_start( args , format );
+
+		size_t _size , size = vsnprintf( NULL , 0 , format , args );
+		size += strlen(header)+1;
+		size += strlen(functionName)+2;
+
+		char *_buffer , *buffer = new char[ size+1 ];
+		_size = size , _buffer = buffer;
+
+		sprintf( _buffer , "%s " , header );
+		_buffer += strlen(header)+1;
+		_size -= strlen(header)+1;
+
+		sprintf( _buffer , "%s: " , functionName );
+		_buffer += strlen(functionName)+2;
+		_size -= strlen(functionName)+2;
+
+		vsnprintf( _buffer , _size+1 , format , args );
+
+		return buffer;
+	}
+	struct Exception : public std::exception
+	{
+		const char *what( void ) const noexcept { return _message.c_str(); }
+		template< typename ... Args >
+		Exception( const char *functionName , const char *format , Args ... args )
+		{
+			char *buffer = _MakeMessageString( "[EXCEPTION]" , functionName , format , args ... );
+			_message = std::string( buffer );
+			delete[] buffer;
+			exit(0);
+		}
+	protected:
+		std::string _message;
+	};
+	template< typename ... Args > void Throw( const char *functionName , const char *format , Args ... args ){ throw Exception( functionName , format , args ... ); }
+	template< typename ... Args >
+	void Warn( const char *functionName , const char *format , Args ... args )
+	{
+		char *buffer = _MakeMessageString( "[WARNING]" , functionName , format , args ... );
+		fprintf( stderr , "%s\n" , buffer );
+		delete[] buffer;
+	}
+	template< typename ... Args >
+	void ErrorOut( const char *functionName , const char *format , Args ... args )
+	{
+		char *buffer = _MakeMessageString( "[ERROR]" , functionName , format , args ... );
+		fprintf( stderr , "%s\n" , buffer );
+		delete[] buffer;
+	}
+#endif // VERBOSE_MESSAGING
+}
+#ifdef VERBOSE_MESSAGING
+#ifndef WARN
+#define WARN( ... ) MKExceptions::Warn( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
+#endif // WARN
+#ifndef WARN_ONCE
+#define WARN_ONCE( ... ) { static bool firstTime = true ; if( firstTime ) MKExceptions::Warn( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ ) ; firstTime = false; }
+#endif // WARN_ONCE
+#ifndef THROW
+#define THROW( ... ) MKExceptions::Throw( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
+#endif // THROW
+#ifndef ERROR_OUT
+#define ERROR_OUT( ... ) MKExceptions::ErrorOut( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
+#endif // ERROR_OUT
+#else // !VERBOSE_MESSAGING
+#ifndef WARN
+#define WARN( ... ) MKExceptions::Warn( __FUNCTION__ , __VA_ARGS__ )
+#endif // WARN
+#ifndef WARN_ONCE
+#define WARN_ONCE( ... ) { static bool firstTime = true ; if( firstTime ) MKExceptions::Warn( __FUNCTION__ , __VA_ARGS__ ) ; firstTime = false; }
+#endif // WARN_ONCE
+#ifndef THROW
+#define THROW( ... ) MKExceptions::Throw( __FUNCTION__ , __VA_ARGS__ )
+#endif // THROW
+#ifndef ERROR_OUT
+#define ERROR_OUT( ... ) MKExceptions::ErrorOut( __FUNCTION__ , __VA_ARGS__ )
+#endif // ERROR_OUT
+#endif // VERBOSE_MESSAGING
+
 //////////////////
 // Memory Stuff //
 //////////////////
@@ -205,7 +390,7 @@ inline void SetPeakMemoryMB( size_t sz )
 	JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = { 0 };
 	jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_JOB_MEMORY;
 	jeli.JobMemoryLimit = peakMemory;
-	if( !SetInformationJobObject( h , JobObjectExtendedLimitInformation , &jeli , sizeof( jeli ) ) ) fprintf( stderr , "Failed to set memory limit\n" );
+	if( !SetInformationJobObject( h , JobObjectExtendedLimitInformation , &jeli , sizeof( jeli ) ) ) WARN( "Failed to set memory limit" );
 }
 #else // !_WIN32 && !_WIN64
 #include <sys/time.h> 

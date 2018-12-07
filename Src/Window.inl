@@ -356,23 +356,23 @@ protected:
 	friend struct _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration+1 >;
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
-	static void Run( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ fprintf( stderr , "[ERROR] _WindowLoop::Run: shouldn't be here\n" ) , exit( 0 ); }
+	static void Run( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
-	static void Run( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ fprintf( stderr , "[ERROR] _WindowLoop::Run: shouldn't be here\n" ) , exit( 0 ); }
+	static void Run( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
-	static void Run( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ fprintf( stderr , "[ERROR] _WindowLoop::Run: shouldn't be here\n" ) , exit( 0 ); }
+	static void Run( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
-	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ fprintf( stderr , "[ERROR] _WindowLoop::RunParallel: shouldn't be here\n" ) , exit( 0 ); }
+	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
-	static void RunParallel( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ fprintf( stderr , "[ERROR] _WindowLoop::RunParallel: shouldn't be here\n" ) , exit( 0 ); }
+	static void RunParallel( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
-	static void RunParallel( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ fprintf( stderr , "[ERROR] _WindowLoop::RunParallel: shouldn't be here\n" ) , exit( 0 ); }
+	static void RunParallel( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
-	static void RunThread( int begin , int end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ fprintf( stderr , "[ERROR] _WindowLoop::RunThread: shouldn't be here\n" ) , exit( 0 ); }
+	static void RunThread( int begin , int end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
-	static void RunThread( const int* begin , const int* end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ fprintf( stderr , "[ERROR] _WindowLoop::RunThread: shouldn't be here\n" ) , exit( 0 ); }
+	static void RunThread( const int* begin , const int* end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
-	static void RunThread( UIntPack< Begin ... > begin , UIntPack< End ... > end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ fprintf( stderr , "[ERROR] _WindowLoop::RunThread: shouldn't be here\n" ) , exit( 0 ); }
+	static void RunThread( UIntPack< Begin ... > begin , UIntPack< End ... > end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 };

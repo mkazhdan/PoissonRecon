@@ -134,7 +134,7 @@ int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Alloca
 		if( children ) delete[] children;
 		children = new RegularTreeNode[ 1<<Dim ];
 	}
-	if( !children ) fprintf( stderr , "[ERROR] RegularTreeNode::initChildren: Failed to initialize children in RegularTreeNode::initChildren\n" ) , exit(0);
+	if( !children ) ERROR_OUT( "Failed to initialize children in RegularTreeNode::initChildren" );
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 	{
 		children[idx].parent = this;
@@ -377,7 +377,7 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( const char* f
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( FILE* fp , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 {
-	if( fread( this , sizeof( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] RegularTreeNode::read: Failed to read node\n" ) , exit( 0 );
+	if( fread( this , sizeof( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read node" );
 	parent = NULL;
 	if( children )
 	{
@@ -624,15 +624,13 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPa
 	if( neighbors ) delete[] neighbors;
 	neighbors=NULL;
 }
-#if 1
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::operator = ( const ConstNeighborKey& key )
+typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::operator = ( const ConstNeighborKey& key )
 {
 	set( key._depth );
 	for( int d=0 ; d<=_depth ; d++ ) memcpy( &neighbors[d] , &key.neighbors[d] , sizeof( ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > ) );
 }
-#endif
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::set( int d )

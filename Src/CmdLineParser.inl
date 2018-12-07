@@ -252,11 +252,11 @@ inline void cmdLineParse( int argc , char **argv , cmdLineReadable** params )
 			}
 			else
 			{
-				fprintf( stderr , "[WARNING] Invalid option: %s\n" , argv[0] );
-				for( int i=0 ; params[i]!=NULL ; i++ ) printf( "\t--%s\n" , params[i]->name );
+				WARN( "Invalid option: %s" , argv[0] );
+				for( int i=0 ; params[i]!=NULL ; i++ ) fprintf( stderr , "\t--%s\n" , params[i]->name );
 			}
 		}
-		else fprintf( stderr , "[WARNING] Parameter name should be of the form --<name>: %s\n" , argv[0] );
+		else WARN( "Parameter name should be of the form --<name>: %s" , argv[0] );
 		++argv , --argc;
 	}
 }

@@ -337,7 +337,7 @@ namespace HyperCube
 			case BACK:  index = coIndex ; break;
 			case CROSS: index = coIndex + HyperCube::ElementNum< D-1 , K >::Value ; break;
 			case FRONT: index = coIndex + HyperCube::ElementNum< D-1 , K >::Value + HyperCube::ElementNum< D-1 , K-1 >::Value ; break;
-			default: fprintf( stderr , "[ERROR] Element::Element: bad direction: %d\n" , dir ) , exit( 0 );
+			default: ERROR_OUT( "Bad direction: %d" , dir );
 		}
 	}
 	template< unsigned int D > template< unsigned int K > template< unsigned int _D , unsigned int _K >
@@ -347,7 +347,7 @@ namespace HyperCube
 		{
 			case BACK:  index = coIndex ; break;
 			case FRONT: index = coIndex + HyperCube::ElementNum< D-1 , K >::Value ; break;
-			default: fprintf( stderr , "[ERROR] Element::Element: bad direction: %d\n" , dir ) , exit( 0 );
+			default: ERROR_OUT( "Bad direction: %d" , dir );
 		}
 	}
 	template< unsigned int D > template< unsigned int K > template< unsigned int _D , unsigned int _K >

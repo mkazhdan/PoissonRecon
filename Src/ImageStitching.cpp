@@ -139,8 +139,7 @@ struct RGBPixel
 void WriteImage( char* fileName , RGBPixel* pixels , int w , int h )
 {
 	unsigned int _w = w , _h = h , _c = 3;
-	if( !ImageWriter::Write( fileName , (const unsigned char*)pixels , _w , _h , _c ) )
-		fprintf( stderr , "[ERROR] Could not write image to: %s\n" , fileName ) , exit( 0 );
+	if( !ImageWriter::Write( fileName , (const unsigned char*)pixels , _w , _h , _c ) ) ERROR_OUT( "Could not write image to: %s" , fileName );
 }
 
 struct Profiler
@@ -183,8 +182,8 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 			_labelRows[i] = new RGBPixel[ _resolution[0] ];
 			_maskRows [i] = new      int[ _resolution[0] ];
 		}
-		if( pixels->channels()!=3 && pixels->channels()!=1 ) fprintf( stderr , "[ERROR] Pixel input must have 1 or 3 channels: %d\n" , pixels->channels() ) , exit( 0 );
-		if( labels->channels()!=3 && labels->channels()!=1 ) fprintf( stderr , "[ERROR] Label input must have 1 or 3 channels: %d\n" , labels->channels() ) , exit( 0 );
+		if( pixels->channels()!=3 && pixels->channels()!=1 ) ERROR_OUT( "Pixel input must have 1 or 3 channels: %d" , pixels->channels() );
+		if( labels->channels()!=3 && labels->channels()!=1 ) ERROR_OUT( "Label input must have 1 or 3 channels: %d" , labels->channels() );
 		__pixelRow = pixels->channels()==3 ? NULL : new unsigned char[ _resolution[0] ];
 		__labelRow = labels->channels()==3 ? NULL : new unsigned char[ _resolution[0] ];
 		_r = -2 ; prefetch();
@@ -278,7 +277,7 @@ void _Execute( void )
 		ImageReader::GetInfo( In.values[0] , _w , _h , _c );
 		w = _w , h = _h;
 		ImageReader::GetInfo( In.values[1] , _w , _h , _c );
-		if( w!=_w || h!=_h ) fprintf( stderr , "[ERROR] Pixel and label dimensions don't match: %d x %d != %d x %d\n" , _w , _h , w , h ) , exit( 0 );
+		if( w!=_w || h!=_h ) ERROR_OUT( "Pixel and label dimensions don't match: %d x %d != %d x %d" , _w , _h , w , h );
 	}
 	if( Verbose.set ) printf( "Resolution: %d x %d\n" , w , h );
 
@@ -488,7 +487,7 @@ void _Execute( void )
 	case 2: _Execute< Real , 2 >() ; break;
 //	case 3: _Execute< Real , 3 >() ; break;
 //	case 4: _Execute< Real , 4 >() ; break;
-	default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 2 are supported" ) ; exit( 0 );
+	default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
 	}
 }
 #endif // FAST_COMPILE
@@ -515,7 +514,7 @@ int main( int argc , char* argv[] )
 	}
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) fprintf( stderr , "[WARNING] Base depth must be smaller than full depth: %d <= %d\n" , BaseDepth.value , FullDepth.value );
+		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 
@@ -527,7 +526,7 @@ int main( int argc , char* argv[] )
 
 #ifdef FAST_COMPILE
 	static const int Degree = DEFAULT_FEM_DEGREE;
-	fprintf( stderr , "[WARNING] Compiled for degree-%d, %s-precision _only_\n" , Degree , sizeof(DefaultFloatType)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-%d, %s-precision _only_" , Degree , sizeof(DefaultFloatType)==4 ? "single" : "double" );
 	_Execute< Real , Degree >();
 #else // !FAST_COMPILE
 	_Execute< Real >();

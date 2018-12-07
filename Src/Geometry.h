@@ -49,7 +49,7 @@ struct Point
 	void _init( int d )
 	{
 		if( !d ) memset( coords , 0 , sizeof(Real)*Dim );
-		else fprintf( stderr , "[ERROR] Point::_init: Should never be called\n" ) , exit( 0 );
+		else ERROR_OUT( "Should never be called" );
 	}
 	template< class _Real , class ... _Reals > void _init( int d , _Real v , _Reals ... values )
 	{
@@ -355,7 +355,7 @@ protected:
 	void _init( int k )
 	{
 		if( !k ) memset( idx , 0 , sizeof(idx) );
-		else fprintf( stderr , "[ERROR] SimplexIndex::_init: Should never be called\n" ) , exit( 0 );
+		else ERROR_OUT( "Should never be called" );
 	}
 	template< class ... Ints > void _init( int k , int v , Ints ... values )
 	{
@@ -527,7 +527,7 @@ public:
 #endif // _WIN32
 			tempFile = true;
 		}
-		if( !_fp ) fprintf( stderr , "[ERROR] Failed to open file: %s\n" , _fileName ) , exit( 0 );
+		if( !_fp ) ERROR_OUT( "Failed to open file: %s" , _fileName );
 		_buffer = (char*) malloc( _bufferSize );
 	}
 	~BufferedReadWriteFile( void )

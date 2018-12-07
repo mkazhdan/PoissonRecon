@@ -80,7 +80,7 @@ FEMTree< Dim , Real >::FEMTree( FILE* fp , int blockSize )
 	else nodeAllocator = NULL;
 	if( fp )
 	{
-		if( fread( &_depthOffset , sizeof( int ) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] FEMTree::FEMTree: failed to read depth offset\n" ) , exit( 0 );
+		if( fread( &_depthOffset , sizeof( int ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read depth offset" );
 		_tree = FEMTreeNode::NewBrood( nodeAllocator , _NodeInitializer( *this ) );
 		_tree->read( fp , nodeAllocator , _NodeInitializer( *this ) );
 		_maxDepth = _tree->maxDepth() - _depthOffset;
@@ -91,7 +91,7 @@ FEMTree< Dim , Real >::FEMTree( FILE* fp , int blockSize )
 		{
 			_spaceRoot = _tree->children + (1<<Dim)-1;
 			for( int d=1 ; d<_depthOffset ; d++ )
-				if( !_spaceRoot->children ) fprintf( stderr , "[ERROR] FEMTree::FEMTree expected children\n" ) , exit( 0 );
+				if( !_spaceRoot->children ) ERROR_OUT( "Expected children" );
 				else _spaceRoot = _spaceRoot->children;
 		}
 		_sNodes.set( *_tree , NULL );
@@ -348,9 +348,7 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 			weightSum += sample.weight;
 			if( !_InBounds(p) )
 			{
-				fprintf( stderr , "[WARNING] FEMTree:setNormalField: Point sample is out of bounds:" );
-				for( int d=0 ; d<Dim ; d++ ) fprintf( stderr , " %g" , p[d] );
-				fprintf( stderr , "\n" );
+				WARN( "Point sample is out of bounds" );
 				continue;
 			}
 #if defined( __GNUC__ ) && __GNUC__ < 5
@@ -393,11 +391,7 @@ SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real 
 		Point< Real , Dim > p = sample.weight==0 ? sample.data : sample.data / sample.weight;
 		if( !_InBounds(p) )
 		{
-			fprintf( stderr , "[WARNING] Point is out of bounds:" );
-			for( int d=0 ; d<Dim ; d++ ) fprintf( stderr , " %f" , p[d] );
-			fprintf( stderr , " <-" );
-			for( int d=0 ; d<Dim ; d++ ) fprintf( stderr , " %f" , sample.data[d] );
-			fprintf( stderr , " [%f]\n" , sample.weight );
+			WARN( "Point is out of bounds" );
 			continue;
 		}
 		if( density ) _splatPointData< CreateNodes , DensityDegree , DataSig >( *density             , p , data * sample.weight , dataField , densityKey , dataKey , 0 , maxDepth , Dim );
@@ -423,11 +417,7 @@ SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig
 		Point< Real , Dim > p = sample.weight==0 ? sample.data : sample.data / sample.weight;
 		if( !_InBounds(p) )
 		{
-			fprintf( stderr , "[WARNING] Point is out of bounds:" );
-			for( int d=0 ; d<Dim ; d++ ) fprintf( stderr , " %f" , p[d] );
-			fprintf( stderr , " <-" );
-			for( int d=0 ; d<Dim ; d++ ) fprintf( stderr , " %f" , sample.data[d] );
-			fprintf( stderr , " [%f]\n" , sample.weight );
+			WARN( "Point is out of bounds" );
 			continue;
 		}
 		if( nearest ) _nearestMultiSplatPointData< DensityDegree >( density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , 2 );
@@ -1006,7 +996,7 @@ template< unsigned int Dim , class Real >
 std::vector< int > FEMTree< Dim , Real >::merge( FEMTree* tree )
 {
 	std::vector< int > map;
-	if( _depthOffset!=tree->_depthOffset ) fprintf( stderr , "[ERROR] FEMTree::merge: depthOffsets don't match: %d != %d\n" , _depthOffset , tree->_depthOffset ) , exit( 0 );
+	if( _depthOffset!=tree->_depthOffset ) ERROR_OUT( "depthOffsets don't match: %d != %d" , _depthOffset , tree->_depthOffset );
 
 	// Compute the next available index
 	int nextIndex = 0;

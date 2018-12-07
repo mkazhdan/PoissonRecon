@@ -340,11 +340,11 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 
 	std::vector< std::string > noComments;
 	if( !PlyWritePolygons< Vertex , Real , Dim >( Out.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , iXForm ) )
-		fprintf( stderr , "[ERROR] Could not write mesh to: %s\n" , Out.value ) , exit( 0 );
+		ERROR_OUT( "Could not write mesh to: %s" , Out.value );
 }
 
 template< class Real , typename ... SampleData , unsigned int ... FEMSigs >
-int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
+void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 {
 	static const int Dim = sizeof ... ( FEMSigs );
 	typedef UIntPack< FEMSigs ... > Sigs;
@@ -371,7 +371,7 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		FILE* fp = fopen( Transform.value , "r" );
 		if( !fp )
 		{
-			fprintf( stderr , "[WARNING] Could not read x-form from: %s\n" , Transform.value );
+			WARN( "Could not read x-form from: %s" , Transform.value );
 			xForm = XForm< Real , Dim+1 >::Identity();
 		}
 		else
@@ -379,7 +379,7 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			for( int i=0 ; i<Dim+1 ; i++ ) for( int j=0 ; j<Dim+1 ; j++ )
 			{
 				float f;
-				if( fscanf( fp , " %f " , &f )!=1 ) fprintf( stderr , "[ERROR] Execute: Failed to read xform\n" ) , exit( 0 );
+				if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read xform" );
 				xForm(i,j) = (Real)f;
 			}
 			fclose( fp );
@@ -404,7 +404,7 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 	if( Depth.set && Width.value>0 )
 	{
-		fprintf( stderr , "[WARNING] Both --%s and --%s set, ignoring --%s\n" , Depth.name , Width.name , Width.name );
+		WARN( "Both --%s and --%s set, ignoring --%s" , Depth.name , Width.name , Width.name );
 		Width.value = 0;
 	}
 
@@ -459,7 +459,7 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;
 	if( kernelDepth>Depth.value )
 	{
-		fprintf( stderr,"[WARNING] %s can't be greater than %s: %d <= %d\n" , KernelDepth.name , Depth.name , KernelDepth.value , Depth.value );
+		WARN( "%s can't be greater than %s: %d <= %d" , KernelDepth.name , Depth.name , KernelDepth.value , Depth.value );
 		kernelDepth = Depth.value;
 	}
 
@@ -567,7 +567,7 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
-		if( !fp ) fprintf( stderr , "[ERROR] Failed to open file for writing: %s\n" , Tree.value ) , exit( 0 );
+		if( !fp ) ERROR_OUT( "Failed to open file for writing: %s" , Tree.value );
 		FEMTree< Dim , Real >::WriteParameter( fp );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fp );
 		tree.write( fp );
@@ -578,7 +578,7 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	if( VoxelGrid.set )
 	{
 		FILE* fp = fopen( VoxelGrid.value , "wb" );
-		if( !fp ) fprintf( stderr , "Failed to open voxel file for writing: %s\n" , VoxelGrid.value );
+		if( !fp ) WARN( "Failed to open voxel file for writing: %s" , VoxelGrid.value );
 		else
 		{
 			int res = 0;
@@ -637,13 +637,11 @@ int Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	}
 	if( density ) delete density , density = NULL;
 	messageWriter( comments , "#          Total Solve: %9.1f (s), %9.1f (MB)\n" , Time()-startTime , FEMTree< Dim , Real >::MaxMemoryUsage() );
-
-	return 1;
 }
 
 #ifndef FAST_COMPILE
 template< unsigned int Dim , class Real , typename ... SampleData >
-int Execute( int argc , char* argv[] )
+void Execute( int argc , char* argv[] )
 {
 	switch( BType.value )
 	{
@@ -655,7 +653,7 @@ int Execute( int argc , char* argv[] )
 				case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >() );
 //				case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >() );
 //				case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >() );
-				default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 2 are supported" ) ; return EXIT_FAILURE;
+				default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
 			}
 		}
 		case BOUNDARY_NEUMANN+1:
@@ -666,7 +664,7 @@ int Execute( int argc , char* argv[] )
 				case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >() );
 //				case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >() );
 //				case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >() );
-				default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 2 are supported" ) ; return EXIT_FAILURE;
+				default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
 			}
 		}
 		case BOUNDARY_DIRICHLET+1:
@@ -677,10 +675,10 @@ int Execute( int argc , char* argv[] )
 			case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >() );
 //			case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >() );
 //			case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >() );
-			default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 2 are supported" ) ; return EXIT_FAILURE;
+			default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
 			}
 		}
-		default: fprintf( stderr , "[ERROR] Not a valid boundary type: %d\n" , BType.value ) ; return EXIT_FAILURE;
+		default: ERROR_OUT( "Not a valid boundary type: %d" , BType.value );
 	}
 }
 #endif // !FAST_COMPILE
@@ -689,7 +687,7 @@ int main( int argc , char* argv[] )
 {
 	Timer timer;
 #ifdef ARRAY_DEBUG
-	fprintf( stderr , "[WARNING] Array debugging enabled\n" );
+	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 
 	cmdLineParse( argc-1 , &argv[1] , params );
@@ -705,7 +703,7 @@ int main( int argc , char* argv[] )
 	if( DataX.value<=0 ) Normals.set = Colors.set = false;
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) fprintf( stderr , "[WARNING] Base depth must be smaller than full depth: %d <= %d\n" , BaseDepth.value , FullDepth.value );
+		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 
@@ -719,7 +717,7 @@ int main( int argc , char* argv[] )
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
 	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
-	fprintf( stderr , "[WARNING] Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
 	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier*Degree;
 	if( Colors.set ) Execute< Real , PointStreamColor< DefaultFloatType > >( argc , argv , FEMSigs() );
 	else             Execute< Real >( argc , argv , FEMSigs() );

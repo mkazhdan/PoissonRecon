@@ -44,7 +44,7 @@ template<> inline int PLYType<          char >( void ){ return PLY_CHAR  ; }
 template<> inline int PLYType< unsigned char >( void ){ return PLY_UCHAR ; }
 template<> inline int PLYType<        float  >( void ){ return PLY_FLOAT ; }
 template<> inline int PLYType<        double >( void ){ return PLY_DOUBLE; }
-template< class Real > inline int PLYType( void ){ fprintf( stderr , "[ERROR] Unrecognized type\n" ) , exit( 0 ); }
+template< class Real > inline int PLYType( void ){ ERROR_OUT( "Unrecognized type" ); }
 
 typedef struct PlyFace
 {

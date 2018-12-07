@@ -362,7 +362,7 @@ int CoredFileMeshData< Vertex >::nextPolygon( std::vector< CoredVertexIndex >& v
 						else               vertices[i].idx =  polygon[i]   , vertices[i].inCore = true;
 						return 1;
 				}
-				fprintf( stderr , "[ERROR] Failed to read polygon from file\n" ) , exit( 0 );
+				ERROR_OUT( "Failed to read polygon from file" );
 			}
 			else threadIndex++;
 		}

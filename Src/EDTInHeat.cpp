@@ -203,7 +203,7 @@ struct SystemDual< Dim , double >
 };
 
 template< unsigned int Dim , class Real , unsigned int FEMSig >
-int _Execute( int argc , char* argv[] )
+void _Execute( int argc , char* argv[] )
 {
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 0 > InterpolationInfo;
@@ -221,7 +221,7 @@ int _Execute( int argc , char* argv[] )
 		FILE* fp = fopen( InXForm.value , "r" );
 		if( !fp )
 		{
-			fprintf( stderr , "[WARNING] Could not open file for reading x-form: %s\n" , InXForm.value );
+			WARN( "Could not open file for reading x-form: %s" , InXForm.value );
 			xForm = XForm< Real , Dim+1 >::Identity();
 		}
 		else
@@ -229,7 +229,7 @@ int _Execute( int argc , char* argv[] )
 			for( int i=0 ; i<4 ; i++ ) for( int j=0 ; j<4 ; j++ )
 			{
 				float f;
-				if( fscanf( fp , " %f " , &f )!=1 ) fprintf( stderr , "[ERROR] Execute: Failed to read xform\n" ) , exit( 0 );
+				if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read xform" );
 				xForm(i,j) = (Real)f;
 			}
 			fclose( fp );
@@ -253,7 +253,7 @@ int _Execute( int argc , char* argv[] )
 	if( !In.set )
 	{
 		ShowUsage( argv[0] );
-		return 0;
+		return;
 	}
 	
 	std::vector< NodeAndPointSample< Dim , Real > > geometrySamples;
@@ -271,7 +271,8 @@ int _Execute( int argc , char* argv[] )
 			std::vector< PlyVertex< float , Dim > > _vertices;
 			std::vector< std::vector< int > > _polygons;
 			std::vector< std::string > comments;
-			PlyReadPolygons( In.value , _vertices , _polygons , PlyVertex< float , Dim >::PlyReadProperties() , PlyVertex< float , Dim >::PlyReadNum , file_type , comments );
+			if( !PlyReadPolygons( In.value , _vertices , _polygons , PlyVertex< float , Dim >::PlyReadProperties() , PlyVertex< float , Dim >::PlyReadNum , file_type , comments ) )
+				ERROR_OUT( "Failed to read ply file: %s\n" , In.value );
 			vertices.resize( _vertices.size() );
 			for( int i=0 ; i<vertices.size() ; i++ ) for( int d=0 ; d<Dim ; d++ ) vertices[i][d] = _vertices[i].point[d];
 			triangles.resize( _polygons.size() );
@@ -286,7 +287,7 @@ int _Execute( int argc , char* argv[] )
 		if( OutXForm.set )
 		{
 			FILE* fp = fopen( OutXForm.value , "w" );
-			if( !fp ) fprintf( stderr , "[WARNING] Could not open file for writing x-form: %s\n" , OutXForm.value );
+			if( !fp ) WARN( "Could not open file for writing x-form: %s" , OutXForm.value );
 			else
 			{
 				for( int i=0 ; i<Dim+1 ; i++ )
@@ -438,7 +439,7 @@ int _Execute( int argc , char* argv[] )
 			if( len>GradientCutOff ) g /= len;
 			Point< Real , Dim+1 >* leafValue = leafValues(leaf);
 			if( leafValue ) for( int d=0 ; d<Dim ; d++ ) (*leafValue)[d+1] = -g[d];
-			else fprintf( stderr , "[ERROR] Leaf value doesn't exist\n" ) , exit( 0 );
+			else ERROR_OUT( "Leaf value doesn't exist" );
 		}
 		profiler.dumpOutput2( comments , "#  Evaluated gradients:" );
 	}
@@ -521,7 +522,7 @@ int _Execute( int argc , char* argv[] )
 		if( Out.set )
 		{
 			FILE* fp = fopen( Out.value , "wb" );
-			if( !fp ) fprintf( stderr , "[ERROR] Failed to open file for writing: %s\n" , Out.value ) , exit( 0 );
+			if( !fp ) ERROR_OUT( "Failed to open file for writing: %s" , Out.value );
 			FEMTree< Dim , Real >::WriteParameter( fp );
 			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fp );
 			tree.write( fp );
@@ -529,13 +530,11 @@ int _Execute( int argc , char* argv[] )
 			fclose( fp );
 		}
 	}
-
-	return 1;
 }
 
 #ifndef FAST_COMPILE
 template< unsigned int Dim , class Real >
-int Execute( int argc , char* argv[] )
+void Execute( int argc , char* argv[] )
 {
 	switch( Degree.value )
 	{
@@ -543,7 +542,7 @@ int Execute( int argc , char* argv[] )
 		case 2: return _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >( argc , argv );
 		case 3: return _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >( argc , argv );
 		case 4: return _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >( argc , argv );
-		default: fprintf( stderr , "[ERROR] Only B-Splines of degree 1 - 4 are supported" ) ; return EXIT_FAILURE;
+		default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 	}
 }
 #endif // !FAST_COMPILE
@@ -551,7 +550,7 @@ int main( int argc , char* argv[] )
 {
 	Timer timer;
 #ifdef ARRAY_DEBUG
-	fprintf( stderr , "[WARNING] Array debugging enabled\n" );
+	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
@@ -567,14 +566,16 @@ int main( int argc , char* argv[] )
 #ifdef FAST_COMPILE
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = BOUNDARY_FREE;
+
+	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
 #if 1
-	fprintf( stderr , "[WARNING] Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
 #else
-	fprintf( stderr , "[WARNING] Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
 #endif
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) fprintf( stderr , "[WARNING] Base depth must be smaller than full depth: %d <= %d\n" , BaseDepth.value , FullDepth.value );
+		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 	_Execute< DIMENSION , Real , FEMDegreeAndBType< Degree , BType >::Signature >( argc , argv );
