@@ -792,8 +792,9 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">Version 10.05</a>:
 <ol>
-<li> Added some clean suppoirt for warning and error handling.
+<LI> Added cleaner support for warning and error handling.
 <LI> Minor bug fixes.
+<LI> Added a <B>--inCore</B> flag that enables keeping the pointset in memory instead of streaming it in from disk.
 </ol>
 
 </DETAILS>
