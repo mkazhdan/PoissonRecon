@@ -440,6 +440,7 @@ template< class Vertex >
 class CoredMeshData
 {
 public:
+	virtual ~CoredMeshData( void ){}
 	std::vector< Vertex > inCorePoints;
 	virtual void resetIterator( void ) = 0;
 
