@@ -91,10 +91,10 @@ The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/p
 </dd><dt>[<b>--tree</b> &lt;<i>output octree and coefficients</i>&gt;]
 </dt><dd> This string is the name of the file to which the the octree and solution coefficients are to be written.
 
-</dd><dt>[<b>--voxel</b> &lt;<i>output voxel grid</i>&gt;]
+</dd><dt>[<b>--grid</b> &lt;<i>output grid</i>&gt;]
 </dt><dd> This string is the name of the file to which the sampled implicit function will be written.
 The file is written out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
-and the next 4 x 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> bytes corresponding to the (single precision) floating point values
+and the next 4 x 2^<i>d</i> x 2^<i>d</i> x ... bytes corresponding to the (single precision) floating point values
 of the implicit function.
 
 </dd><dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]
@@ -113,8 +113,8 @@ The default value for this parameter is 3 (Neumann).
 
 </dd><dt>[<b>--depth</b> &lt;<i>reconstruction depth</i>&gt;]
 </dt><dd> This integer is the maximum depth of the tree that will be used for surface reconstruction.
-Running at depth <i>d</i> corresponds to solving on a voxel grid whose resolution is no larger than
-2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>. Note that since the reconstructor adapts the octree to the
+Running at depth <i>d</i> corresponds to solving on a grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x ... Note that since the reconstructor adapts the octree to the
 sampling density, the specified reconstruction depth is only an upper bound.<br>
 The default value for this parameter is 8.
 
@@ -166,8 +166,8 @@ The default value for this parameter is 0.
 </dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to bias the resolution at which the sample contributes to the linear system. (Points with lower confidence are biased to contribute at coarser resolutions.)<BR>
 The default value for this parameter is 0.
 
-</dd><dt>[<b>--primalVoxel</b>]
-</dt><dd> Enabling this flag when outputing to a voxel file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
+</dd><dt>[<b>--primalGrid</b>]
+</dt><dd> Enabling this flag when outputing to a grid file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
 
 </dd><dt>[<b>--linearFit</b>]
 </dt><dd> Enabling this flag has the reconstructor use linear interpolation to estimate the positions of iso-vertices.
@@ -225,10 +225,10 @@ The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/p
 </dd><dt>[<b>--tree</b> &lt;<i>output octree and coefficients</i>&gt;]
 </dt><dd> This string is the name of the file to which the the octree and solution coefficients are to be written.
 
-</dd><dt>[<b>--voxel</b> &lt;<i>output voxel grid</i>&gt;]
+</dd><dt>[<b>--grid</b> &lt;<i>output grid</i>&gt;]
 </dt><dd> This string is the name of the file to which the sampled implicit function will be written.
 The file is wrtten out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
-and the next 4 x 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> bytes corresponding to the (single precision) floating point values
+and the next 4 x 2^<i>d</i> x 2^<i>d</i> x ... bytes corresponding to the (single precision) floating point values
 of the implicit function.
 
 </dd><dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]
@@ -238,8 +238,8 @@ The default value for this parameter is 2.
 
 </dd><dt>[<b>--depth</b> &lt;<i>reconstruction depth</i>&gt;]
 </dt><dd> This integer is the maximum depth of the tree that will be used for surface reconstruction.
-Running at depth <i>d</i> corresponds to solving on a voxel grid whose resolution is no larger than
-2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>. Note that since the reconstructor adapts the octree to the
+Running at depth <i>d</i> corresponds to solving on a grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x ... Note that since the reconstructor adapts the octree to the
 sampling density, the specified reconstruction depth is only an upper bound.<br>
 The default value for this parameter is 8.
 
@@ -300,8 +300,8 @@ The default value for this parameter is 0.
 </dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to bias the resolution at which the sample contributes to the linear system. (Points with lower confidence are biased to contribute at coarser resolutions.)<BR>
 The default value for this parameter is 0.
 
-</dd><dt>[<b>--primalVoxel</b>]
-</dt><dd> Enabling this flag when outputing to a voxel file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
+</dd><dt>[<b>--primalGrid</b>]
+</dt><dd> Enabling this flag when outputing to a grid file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
 
 </dd><dt>[<b>--nonLinearFit</b>]
 </dt><dd> Enabling this flag has the reconstructor use quadratic interpolation to estimate the positions of iso-vertices.
@@ -444,8 +444,8 @@ The default value for this parameter is 1.
 
 </dd><dt>[<b>--depth</b> &lt;<i>edt depth</i>&gt;]
 </dt><dd> This integer is the maximum depth of the tree that will be used for computing the Euclidean Distance Transform.
-Running at depth <i>d</i> corresponds to solving on a voxel grid whose resolution is no larger than
-2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>.<br>
+Running at depth <i>d</i> corresponds to solving on a grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x ...<br>
 The default value for this parameter is 8.
 
 </dd><dt>[<b>--scale</b> &lt;<i>scale factor</i>&gt;]
@@ -503,7 +503,7 @@ Extracts iso-surfaces and a sampling on a regular grid from an implicit function
 </dt><dd> This string is the name of the file from which the tree and implicit functions coefficients are to be read. 
 
 </dd><dt>[<b>--grid</b> &lt;<i>output value grid</i>&gt;]
-</dt><dd> This string is the name of the file to which the sampling of the implicit along a regular voxel grid will be written.<BR>
+</dt><dd> This string is the name of the file to which the sampling of the implicit along a regular grid will be written.<BR>
 The file is written out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, <i>R</i>,
 and the next 4 x <I>R</I>^<i>D</i> bytes corresponding to the (single precision) floating point values of the implicit function. (Here, <i>D</I> is the dimension.)
 
@@ -742,8 +742,8 @@ To obtain a sampling of the implicit function over a regular grid:
 (Note that as the B-spline degree is a template parameter, only degree 1 through 4 are supported.
 If higher order degrees are desired, additional template parameters can be easily added in the body of the <u>Execute</u> function inside of <i>PoissonRecon.cpp</i>.
 Similarly, to reduce compilation times, support for specific degrees can be removed.)
-</li><li> Added the <b>--primalVoxel</b> flag to support to extraction of a voxel grid using primal sampling.
-</li><li> Changed the implementation of the voxel sampling so that computation is now linear, rather than log-linear, in the number of samples.
+</li><li> Added the <b>--primalGrid</b> flag to support to extraction of a grid using primal sampling.
+</li><li> Changed the implementation of the grid sampling so that computation is now linear, rather than log-linear, in the number of samples.
 </li></ol>
 
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">Version 9.0</a>:

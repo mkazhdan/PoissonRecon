@@ -58,7 +58,7 @@ cmdLineParameter< char* >
 	In( "in" ) ,
 	Out( "out" ) ,
 	TempDir( "tempDir" ) ,
-	VoxelGrid( "voxel" ) ,	
+	Grid( "grid" ) ,	
 	Tree( "tree" ) ,
 	Transform( "xForm" );
 
@@ -71,7 +71,7 @@ cmdLineReadable
 	ASCII( "ascii" ) ,
 	Density( "density" ) ,
 	NonLinearFit( "nonLinearFit" ) ,
-	PrimalVoxel( "primalVoxel" ) ,
+	PrimalGrid( "primalGrid" ) ,
 	ExactInterpolation( "exact" ) ,
 	Normals( "normals" ) ,
 	Colors( "colors" ) ,
@@ -118,7 +118,7 @@ cmdLineReadable* params[] =
 	&KernelDepth , &SamplesPerNode , &Confidence , &NonManifold , &PolygonMesh , &ASCII , &ShowResidual ,
 	&ConfidenceBias ,
 	&ValueWeight , &GradientWeight , &BiLapWeight ,
-	&VoxelGrid , &Threads ,
+	&Grid , &Threads ,
 	&Tree ,
 	&Density ,
 	&FullDepth ,
@@ -128,7 +128,7 @@ cmdLineReadable* params[] =
 	&Colors ,
 	&Normals ,
 	&NonLinearFit ,
-	&PrimalVoxel ,
+	&PrimalGrid ,
 	&TempDir ,
 	&ExactInterpolation ,
 	&Performance ,
@@ -142,7 +142,7 @@ void ShowUsage(char* ex)
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input points>\n" , In.name );
 	printf( "\t[--%s <ouput triangle mesh>]\n" , Out.name );
-	printf( "\t[--%s <ouput voxel grid>]\n" , VoxelGrid.name );
+	printf( "\t[--%s <ouput grid>]\n" , Grid.name );
 	printf( "\t[--%s <ouput fem tree>]\n" , Tree.name );
 #ifndef FAST_COMPILE
 	printf( "\t[--%s <b-spline degree>=%d]\n" , Degree.name , Degree.value );
@@ -150,7 +150,7 @@ void ShowUsage(char* ex)
 	for( int i=0 ; i<BOUNDARY_COUNT ; i++ ) printf( "\t\t%d] %s\n" , i+1 , BoundaryNames[i] );
 #endif // !FAST_COMPILE
 	printf( "\t[--%s <maximum reconstruction depth>=%d]\n" , Depth.name , Depth.value );
-	printf( "\t[--%s <voxel width>]\n" , Width.name );
+	printf( "\t[--%s <grid width>]\n" , Width.name );
 	printf( "\t[--%s <full depth>=%d]\n" , FullDepth.name , FullDepth.value );
 	printf( "\t[--%s <coarse MG solver depth>=%d]\n" , BaseDepth.name , BaseDepth.value );
 	printf( "\t[--%s <coarse MG solver v-cycles>=%d]\n" , BaseVCycles.name , BaseVCycles.value );
@@ -176,7 +176,7 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s]\n" , Performance.name );
 	printf( "\t[--%s]\n" , Density.name );
 	printf( "\t[--%s]\n" , NonLinearFit.name );
-	printf( "\t[--%s]\n" , PrimalVoxel.name );
+	printf( "\t[--%s]\n" , PrimalGrid.name );
 	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , NoComments.name );
 	printf( "\t[--%s]\n" , TempDir.name );
@@ -404,7 +404,9 @@ bool WriteImage( const Real *values , int res , const char *fileName , bool verb
 		unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
 		for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
 	}
-	bool success = ImageWriter::Write( fileName , pixels , res , res , 3 );
+	bool success = true;
+	try{ ImageWriter::Write( fileName , pixels , res , res , 3 ); }
+	catch( MKExceptions::Exception & ){ success = false; }
 	delete[] pixels;
 	return success;
 }
@@ -415,9 +417,8 @@ void WriteGrid( const Real *values , int res , const char *fileName )
 	int resolution = 1;
 	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 
-	char *ext = GetFileExtension( fileName );
 	FILE *fp = fopen( fileName , "wb" );
-	if( !fp ) ERROR_OUT( "Failed to open voxel file for writing: %s" , fileName );
+	if( !fp ) ERROR_OUT( "Failed to open grid file for writing: %s" , fileName );
 	else
 	{
 		fwrite( &res , sizeof(int) , 1 , fp );
@@ -430,9 +431,7 @@ void WriteGrid( const Real *values , int res , const char *fileName )
 			delete[] fValues;
 		}
 		fclose( fp );
-		DeletePointer( values );
 	}
-	delete[] ext;
 }
 
 template< class Real , typename ... SampleData , unsigned int ... FEMSigs >
@@ -665,18 +664,28 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		fclose( fp );
 	}
 
-	if( VoxelGrid.set )
+	if( Grid.set )
 	{
 		int res = 0;
 		profiler.start();
-		Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , PrimalVoxel.set );
+		Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , PrimalGrid.set );
 		int resolution = 1;
 		for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ ) values[i] -= isoValue;
-		profiler.dumpOutput( "Got voxel grid:" );
-		if( !WriteImage< Real , DIMENSION >( values , res , VoxelGrid.value , Verbose.set ) ) WriteGrid< Real , DIMENSION >( values , res , VoxelGrid.value );
+		profiler.dumpOutput( "Got grid:" );
+		if( !WriteImage< Real , DIMENSION >( values , res , Grid.value , Verbose.set ) ) WriteGrid< Real , DIMENSION >( values , res , Grid.value );
 		DeletePointer( values );
+		if( Verbose.set )
+		{
+			printf( "Transform:\n" );
+			for( int i=0 ; i<Dim+1 ; i++ )
+			{
+				printf( "\t" );
+				for( int j=0 ; j<Dim+1 ; j++ ) printf( " %f" , iXForm(j,i) );
+				printf( "\n" );
+			}
+		}
 	}
 
 	if( Out.set )

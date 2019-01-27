@@ -118,7 +118,9 @@ bool WriteImage( const Real *values , int res , const char *fileName , bool verb
 		unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
 		for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
 	}
-	bool success = ImageWriter::Write( fileName , pixels , res , res , 3 );
+	bool success = true;
+	try{ ImageWriter::Write( fileName , pixels , res , res , 3 ); }
+	catch( MKExceptions::Exception & ){ success = false; }
 	delete[] pixels;
 	return success;
 }
@@ -129,9 +131,8 @@ void WriteGrid( const Real *values , int res , const char *fileName )
 	int resolution = 1;
 	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 
-	char *ext = GetFileExtension( fileName );
 	FILE *fp = fopen( fileName , "wb" );
-	if( !fp ) ERROR_OUT( "Failed to open voxel file for writing: %s" , fileName );
+	if( !fp ) ERROR_OUT( "Failed to open grid file for writing: %s" , fileName );
 	else
 	{
 		fwrite( &res , sizeof(int) , 1 , fp );
@@ -144,9 +145,7 @@ void WriteGrid( const Real *values , int res , const char *fileName )
 			delete[] fValues;
 		}
 		fclose( fp );
-		DeletePointer( values );
 	}
-	delete[] ext;
 }
 
 template< unsigned int Dim , class Real , unsigned int FEMSig >

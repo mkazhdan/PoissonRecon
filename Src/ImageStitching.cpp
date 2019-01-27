@@ -139,7 +139,7 @@ struct RGBPixel
 void WriteImage( char* fileName , RGBPixel* pixels , int w , int h )
 {
 	unsigned int _w = w , _h = h , _c = 3;
-	if( !ImageWriter::Write( fileName , (const unsigned char*)pixels , _w , _h , _c ) ) ERROR_OUT( "Could not write image to: %s" , fileName );
+	ImageWriter::Write( fileName , (const unsigned char*)pixels , _w , _h , _c );
 }
 
 struct Profiler

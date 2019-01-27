@@ -64,13 +64,11 @@ struct ImageWriter
 {
 	virtual unsigned int nextRow( const unsigned char* row ) = 0;
 	virtual unsigned int nextRows( const unsigned char* rows , unsigned int rowNum ){ unsigned int row ; for( unsigned int r=0 ; r<rowNum ; r++ ) row = nextRow( rows + _width * _channels * r ) ; return row; }
-	static bool Write( const char* fileName , const unsigned char* pixels , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params=ImageWriterParams() )
+	static void Write( const char* fileName , const unsigned char* pixels , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params=ImageWriterParams() )
 	{
 		ImageWriter* writer = Get( fileName , width , height , channels , params );
-		if( !writer ) return false;
 		for( unsigned int j=0 ; j<height ; j++ ) writer->nextRow( pixels + j*width*channels );
 		delete writer;
-		return true;
 	}
 	static ImageWriter* Get( const char* fileName , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params=ImageWriterParams() );
 	virtual ~ImageWriter( void ){ }
@@ -176,6 +174,11 @@ inline ImageReader* ImageReader::Get( const char* fileName )
 	else if( !strcasecmp( ext , "png" )                           ) reader = new        PNGReader( fileName , width , height , channels );
 	else if( !strcasecmp( ext , "iGrid" )                         ) reader = new TiledImageReader( fileName , width , height , channels );
 #endif // WIN32
+	else
+	{
+		delete[] ext;
+		THROW( "failed to get image reader for: %s" , fileName );
+	}
 	reader->_width = width;
 	reader->_height = height;
 	reader->_channels = channels;
@@ -214,7 +217,11 @@ inline ImageWriter* ImageWriter::Get( const char* fileName , unsigned int width 
 	else if( !strcasecmp( ext , "iGrid" ) ) writer = new TiledImageWriter( fileName , width , height , channels , params );
 #endif // SUPPORT_TILES
 #endif // WIN32
-	else ERROR_OUT( "Unrecognized file extension: %s" , ext );
+	else
+	{
+		delete[] ext;
+		THROW( "failed to get image writer for: %s" , fileName );
+	}
 	writer->_width = width;
 	writer->_height = height;
 	writer->_channels = channels;
