@@ -482,7 +482,8 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 	for( LocalDepth d=_maxDepth-1 ; d>=0 ; d-- )
 	{
 		std::vector< FEMTreeNode* > nodes;
-		for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) if( _localDepth( node )==d && IsActiveNode< Dim >( node->children ) ) nodes.push_back( node );
+		auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==d; };
+		for( FEMTreeNode* node=_tree->nextNode( NodeTerminationLambda , NULL ) ; node ; node=_tree->nextNode( NodeTerminationLambda , node ) ) if( _localDepth( node )==d && IsActiveNode< Dim >( node->children ) ) nodes.push_back( node );
 #pragma omp parallel for
 		for( int i=0 ; i<nodes.size() ; i++ )
 		{
@@ -505,6 +506,7 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 template< unsigned int Dim , class Real >
 void FEMTree< Dim , Real >::_setSpaceValidityFlags( void ) const
 {
+#pragma omp parallel for
 	for( int i=0 ; i<_sNodes.size() ; i++ )
 	{
 		const unsigned char MASK = ~( FEMTreeNodeData::SPACE_FLAG );
@@ -606,12 +608,17 @@ template< unsigned int Dim , class Real >
 template< class HasDataFunctor >
 void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth fullDepth )
 {
-	for( FEMTreeNode* temp=_tree->nextNode() ; temp ; temp=_tree->nextNode(temp) ) if( temp->children && _localDepth( temp )>=fullDepth )
-	{
-		bool hasData = false;
-		for( int c=0 ; c<(1<<Dim) && !hasData ; c++ ) hasData |= f( temp->children + c );
-		for( int c=0 ; c<(1<<Dim) ; c++ ) SetGhostFlag< Dim >( temp->children+c , !hasData );
-	}
+	std::vector< FEMTreeNode * > nodes;
+	auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==fullDepth; };
+	for( FEMTreeNode* temp=_tree->nextNode( NodeTerminationLambda , NULL ) ; temp ; temp=_tree->nextNode( NodeTerminationLambda , temp ) ) if( _localDepth( temp )==fullDepth ) nodes.push_back( temp );
+#pragma omp parallel for
+	for( int i=0 ; i<nodes.size() ; i++ )
+		for( FEMTreeNode* node=nodes[i]->nextNode() ; node ; node=nodes[i]->nextNode(node) ) if( node->children )
+		{
+			bool hasData = false;
+			for( int c=0 ; c<(1<<Dim) && !hasData ; c++ ) hasData |= f( node->children + c );
+			for( int c=0 ; c<(1<<Dim) ; c++ ) SetGhostFlag< Dim >( node->children+c , !hasData );
+		}
 }
 
 template< unsigned int Dim , class Real >

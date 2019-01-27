@@ -126,10 +126,12 @@ make_dir:
 	$(MD) -p $(BIN)
 
 $(BIN)$(PR_TARGET): $(PR_OBJECTS)
-	$(CXX) -o $@ $(PR_OBJECTS) $(LFLAGS)
+	cd PNG  && make
+	$(CXX) -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(SR_TARGET): $(SR_OBJECTS)
-	$(CXX) -o $@ $(SR_OBJECTS) $(LFLAGS)
+	cd PNG  && make
+	$(CXX) -o $@ $(SR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(ST_TARGET): $(ST_OBJECTS)
 	$(CXX) -o $@ $(ST_OBJECTS) $(LFLAGS)
@@ -142,7 +144,8 @@ $(BIN)$(IS_TARGET): $(IS_OBJECTS)
 	$(CXX) -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(AV_TARGET): $(AV_OBJECTS)
-	$(CXX) -o $@ $(AV_OBJECTS) $(LFLAGS)
+	cd PNG  && make
+	$(CXX) -o $@ $(AV_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)%.o: $(SRC)%.c
 	$(CC) -c -o $@ -I$(INCLUDE) $<

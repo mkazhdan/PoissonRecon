@@ -26,6 +26,8 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
+#include <sstream>
+#include <iomanip>
 #include <unordered_map>
 #include "MyMiscellany.h"
 #include "MarchingCubes.h"
@@ -1646,6 +1648,14 @@ public:
 		double cornersTime , verticesTime , edgesTime , surfaceTime;
 		double copyFinerTime , setTableTime;
 		IsoStats( void ) : cornersTime(0) , verticesTime(0) , edgesTime(0) , surfaceTime(0) , copyFinerTime(0) , setTableTime(0) {;}
+		std::string toString( void ) const
+		{
+			std::stringstream stream;
+			stream << "Corners / Vertices / Edges / Surface / Set Table / Copy Finer: ";
+			stream << std::fixed << std::setprecision(1) << cornersTime << " / " << verticesTime << " / " << edgesTime << " / " << surfaceTime << " / " << setTableTime << " / " << copyFinerTime;
+			stream << " (s)";
+			return stream.str();
+		}
 	};
 	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
 	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )

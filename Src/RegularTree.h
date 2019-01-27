@@ -78,6 +78,13 @@ public:
 
 	const RegularTreeNode* nextLeaf( const RegularTreeNode* currentLeaf=NULL ) const;
 	RegularTreeNode* nextLeaf( RegularTreeNode* currentLeaf=NULL );
+
+	// This lambda takes a RegularTreeNode* as an argument and returns true if we do not need to traverse the tree beyond the specified node.
+	template< typename NodeTerminationLambda >
+	const RegularTreeNode* nextNode( NodeTerminationLambda &ntl , const RegularTreeNode* currentNode ) const;
+	template< typename NodeTerminationLambda >
+	RegularTreeNode* nextNode( NodeTerminationLambda &ntl , RegularTreeNode* currentNode );
+
 	const RegularTreeNode* nextNode( const RegularTreeNode* currentNode=NULL ) const;
 	RegularTreeNode* nextNode( RegularTreeNode* currentNode=NULL );
 	const RegularTreeNode* nextBranch( const RegularTreeNode* current ) const;

@@ -42,7 +42,7 @@ DAMAGE.
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED
 
-#define VERSION "10.05"
+#define VERSION "10.06"
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
 
 #define NEW_CODE
@@ -55,6 +55,7 @@ DAMAGE.
 #include "RegularTree.h"
 #include "SparseMatrix.h"
 #include <functional>
+#include <string>
 
 
 template< unsigned int Dim , class Real > class FEMTree;
@@ -1941,6 +1942,8 @@ protected:
 	int _getMatrixRowSize( const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors ) const;
 #endif // __GNUC__ || __GNUC__ < 4
 	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
+	T _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , size_t idx , SparseMatrix< Real , int , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > &M , int offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
 	T _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , Pointer( MatrixEntry< Real > ) row , int offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
 	int _setProlongedMatrixRow( const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , Pointer( MatrixEntry< Real > ) row , int offset , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
@@ -1974,7 +1977,7 @@ protected:
 	CumulativeDerivativeValues< T , Dim , PointD >   _finerFunctionValues( UIntPack< FEMSigs ... > , Point< Real , Dim > p , const ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey , const FEMTreeNode* node , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) coefficients ) const;
 
 	template< unsigned int ... FEMSigs , typename T , unsigned int ... PointDs >
-	int _getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , int nBegin , int nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil < UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	int _getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real , int , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , int nBegin , int nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil < UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 
 	// Down samples constraints @(depth) to constraints @(depth-1)
 	template< class C , unsigned ... Degrees , unsigned int ... FEMSigs > void _downSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& RP , LocalDepth highDepth , Pointer( C ) constraints ) const;
@@ -2422,14 +2425,14 @@ public:
 	}
 
 	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-	SparseMatrix< Real > systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	SparseMatrix< Real , int > systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-	SparseMatrix< Real > prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	SparseMatrix< Real , int > prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 	template< unsigned int ... FEMSigs >
-	SparseMatrix< Real > downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const;
+	SparseMatrix< Real , int > downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const;
 
 	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-	SparseMatrix< Real > fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , bool nonRefinableOnly , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	SparseMatrix< Real , int > fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , bool nonRefinableOnly , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 
 	struct SolverInfo
 	{
@@ -2543,7 +2546,10 @@ template< unsigned int Dim , class Real > double FEMTree< Dim , Real >::_LocalMe
 template< unsigned int Dim , class Real , class Vertex >
 struct IsoSurfaceExtractor
 {
-	struct IsoStats{};
+	struct IsoStats
+	{
+		std::string toString( void ) const { return std::string( "Iso-surface extraction not supported for dimension %d" , Dim ); }
+	};
 	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
 	static IsoStats Extract
 	(

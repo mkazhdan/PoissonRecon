@@ -567,12 +567,7 @@ int main( int argc , char* argv[] )
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = BOUNDARY_FREE;
 
-	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
-#if 1
 	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
-#else
-	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
-#endif
 	if( BaseDepth.value>FullDepth.value )
 	{
 		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );

@@ -38,6 +38,7 @@ DAMAGE.
 #include "FEMTree.h"
 #include "Ply.h"
 #include "PointStreamData.h"
+#include "Image.h"
 
 cmdLineParameter< char* >
 	In( "in" ) ,
@@ -89,6 +90,65 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s]\n" , Verbose.name );
 }
 
+template< typename Real , unsigned int Dim >
+bool WriteImage( const Real *values , int res , const char *fileName , bool verbose )
+{
+	if( Dim!=2 ) return false;
+	int resolution = 1;
+	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
+
+	Real avg = 0;
+#pragma omp parallel for reduction( + : avg )
+	for( int i=0 ; i<resolution ; i++ ) avg += values[i];
+	avg /= (Real)resolution;
+
+	Real std = 0;
+#pragma omp parallel for reduction( + : std )
+	for( int i=0 ; i<resolution ; i++ ) std += ( values[i] - avg ) * ( values[i] - avg );
+	std = (Real)sqrt( std / resolution );
+
+	if( verbose ) printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
+
+	unsigned char *pixels = new unsigned char[ resolution*3 ];
+#pragma omp parallel for
+	for( int i=0 ; i<resolution ; i++ )
+	{
+		Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
+		v = (Real)( ( v + 1. ) / 2. * 256. );
+		unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
+		for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
+	}
+	bool success = ImageWriter::Write( fileName , pixels , res , res , 3 );
+	delete[] pixels;
+	return success;
+}
+
+template< typename Real , unsigned int Dim >
+void WriteGrid( const Real *values , int res , const char *fileName )
+{
+	int resolution = 1;
+	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
+
+	char *ext = GetFileExtension( fileName );
+	FILE *fp = fopen( fileName , "wb" );
+	if( !fp ) ERROR_OUT( "Failed to open voxel file for writing: %s" , fileName );
+	else
+	{
+		fwrite( &res , sizeof(int) , 1 , fp );
+		if( typeid(Real)==typeid(float) ) fwrite( values , sizeof(float) , resolution , fp );
+		else
+		{
+			float *fValues = new float[resolution];
+			for( int i=0 ; i<resolution ; i++ ) fValues[i] = float( values[i] );
+			fwrite( fValues , sizeof(float) , resolution , fp );
+			delete[] fValues;
+		}
+		fclose( fp );
+		DeletePointer( values );
+	}
+	delete[] ext;
+}
+
 template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 {
@@ -100,39 +160,12 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 	// Output the grid
 	if( OutGrid.set )
 	{
-		FILE* _fp = fopen( OutGrid.value , "wb" );
-		if( !_fp ) WARN( "Failed to open grid file for writing: %s" , OutGrid.value );
-		else
-		{
-			int res = 0;
-			double t = Time();
-			Pointer( Real ) values = tree->template regularGridEvaluate< true >( coefficients , res , -1 , PrimalGrid.set );
-			if( Verbose.set ) printf( "Got grid: %.2f(s)\n" , Time()-t );
-
-			int cells = 1;
-			for( int d=0 ; d<Dim ; d++ ) cells *= res;
-			Pointer( float ) fValues = AllocPointer< float >( cells );
-
-			Real min , max;
-			min = max = values[0];
-			for( int i=0 ; i<cells ; i++ ) min = std::min< Real >( min , values[i] ) , max = std::max< Real >( max , values[i] );
-
-			int strides[Dim] , _strides[Dim] ; strides[0] = _strides[0] = 1;
-			int idx[Dim+1] , _idx[Dim+1] ; idx[0] = _idx[0] = 0;
-			for( int d=1 ; d<Dim ; d++ ) strides[d] = strides[d-1] * res , _strides[d] = _strides[d-1] * res;
-			WindowLoop< Dim >::Run
-			(
-				0 , res ,
-				[&]( int d , int i ){ _idx[d+1] = _idx[d] + _strides[d] * i , idx[d+1] = idx[d] + strides[d] * i; } ,
-				[&]( void ){ fValues[ _idx[Dim] ] = (float)values[ idx[Dim] ]; }
-			);
-			DeletePointer( values );
-
-			fwrite( &res , sizeof(int) , 1 , _fp );
-			fwrite( fValues , sizeof(float) , cells , _fp );
-			fclose( _fp );
-			FreePointer( fValues );
-		}
+		int res = 0;
+		double t = Time();
+		Pointer( Real ) values = tree->template regularGridEvaluate< true >( coefficients , res , -1 , PrimalGrid.set );
+		if( Verbose.set ) printf( "Got grid: %.2f(s)\n" , Time()-t );
+		if( !WriteImage< Real , Dim >( values , res , OutGrid.value , Verbose.set ) ) WriteGrid< Real , Dim >( values , res , OutGrid.value );
+		DeletePointer( values );
 	}
 
 	// Output the mesh

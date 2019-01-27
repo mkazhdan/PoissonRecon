@@ -99,7 +99,6 @@ inline bool PNGReader::GetInfo( const char* fileName , unsigned int& width , uns
 	return true;
 }
 
-#if 1
 PNGWriter::PNGWriter( const char* fileName , unsigned int width , unsigned int height , unsigned int channels , unsigned int quality )
 {
 	_currentRow = 0;
@@ -148,52 +147,3 @@ unsigned int PNGWriter::nextRows( const unsigned char* rows , unsigned int rowNu
 	for( unsigned int r=0 ; r<rowNum ; r++ ) png_write_row( _png_ptr , (png_bytep)( rows + r * 3 * sizeof( unsigned char ) * _png_ptr->width ) );
 	return _currentRow += rowNum;
 }
-#else
-
-void PNGWriteColor( const char* fileName , const unsigned char* pixels , int width , int height )
-{
-	FILE* fp = fopen( fileName , "wb" );
-	if( !fp ) ERROR_OUT( "Failed to open file for writing: %s" , fileName );
-	png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,0,0,0);
-	if(!png_ptr)	return;
-	png_infop info_ptr = png_create_info_struct(png_ptr);
-	if(!info_ptr)	return;
-	png_init_io(png_ptr, fp);
-	// turn off compression or set another filter
-	// png_set_filter(png_ptr, 0, PNG_FILTER_NONE);
-	png_set_IHDR(png_ptr, info_ptr, width , height ,
-		8,PNG_COLOR_TYPE_RGB,
-		PNG_INTERLACE_NONE,
-		PNG_COMPRESSION_TYPE_DEFAULT,
-		PNG_FILTER_TYPE_DEFAULT);
-	if (0) {                    // high-level write
-		std::vector<unsigned char> matrix( width * height * 3 );
-		std::vector<png_bytep> row_pointers( height );
-		for(int y=0;y<height;y++)
-		{
-			row_pointers[y]=&matrix[y*width*3];
-			unsigned char* buf=&matrix[y*width*3];
-			for(int x=0;x<width;x++)
-				for(int z=0;z<3;z++)
-					*buf++ = pixels[ (y*width+x)*3 + z ];
-		}
-		png_set_rows(png_ptr, info_ptr, &row_pointers[0]);
-		int png_transforms=0;
-		png_write_png(png_ptr, info_ptr, png_transforms, NULL);
-	} else {                    // low-level write
-		png_write_info(png_ptr, info_ptr);
-		// png_set_filler(png_ptr, 0, PNG_FILLER_AFTER);
-		//  but no way to provide GRAY data with RGBA fill, so pack each row
-		std::vector<unsigned char> buffer(width*3);
-		for(int y=0;y<height;y++)
-		{
-			unsigned char* buf=&buffer[0];
-			for(int x=0;x<width;x++)
-				for(int z=0;z<3;z++)
-					*buf++ = pixels[ (y*width+x)*3+z ];
-			png_bytep row_pointer=&buffer[0];
-			png_write_row(png_ptr, row_pointer);
-		}
-	}
-}
-#endif

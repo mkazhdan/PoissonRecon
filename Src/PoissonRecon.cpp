@@ -48,6 +48,7 @@ DAMAGE.
 #include "FEMTree.h"
 #include "Ply.h"
 #include "PointStreamData.h"
+#include "Image.h"
 
 MessageWriter messageWriter;
 
@@ -339,7 +340,8 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , *mesh , SetVertex , !LinearFit.set , !NonManifold.set , PolygonMesh.set , false );
 #endif // __GNUC__ || __GNUC__ < 4
 	messageWriter( "Vertices / Polygons: %d / %d\n" , mesh->outOfCorePointCount()+mesh->inCorePoints.size() , mesh->polygonCount() );
-	messageWriter( "Corners / Vertices / Edges / Surface / Set Table / Copy Finer: %.1f / %.1f / %.1f / %.1f / %.1f / %.1f (s)\n" , isoStats.cornersTime , isoStats.verticesTime , isoStats.edgesTime , isoStats.surfaceTime , isoStats.setTableTime , isoStats.copyFinerTime );
+	std::string isoStatsString = isoStats.toString() + std::string( "\n" );
+	messageWriter( isoStatsString.c_str() );
 	if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
 	else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
 
@@ -348,6 +350,65 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 		ERROR_OUT( "Could not write mesh to: %s" , Out.value );
 
 	delete mesh;
+}
+
+template< typename Real , unsigned int Dim >
+bool WriteImage( const Real *values , int res , const char *fileName , bool verbose )
+{
+	if( Dim!=2 ) return false;
+	int resolution = 1;
+	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
+
+	Real avg = 0;
+#pragma omp parallel for reduction( + : avg )
+	for( int i=0 ; i<resolution ; i++ ) avg += values[i];
+	avg /= (Real)resolution;
+
+	Real std = 0;
+#pragma omp parallel for reduction( + : std )
+	for( int i=0 ; i<resolution ; i++ ) std += ( values[i] - avg ) * ( values[i] - avg );
+	std = (Real)sqrt( std / resolution );
+
+	if( verbose ) printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
+
+	unsigned char *pixels = new unsigned char[ resolution*3 ];
+#pragma omp parallel for
+	for( int i=0 ; i<resolution ; i++ )
+	{
+		Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
+		v = (Real)( ( v + 1. ) / 2. * 256. );
+		unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
+		for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
+	}
+	bool success = ImageWriter::Write( fileName , pixels , res , res , 3 );
+	delete[] pixels;
+	return success;
+}
+
+template< typename Real , unsigned int Dim >
+void WriteGrid( const Real *values , int res , const char *fileName )
+{
+	int resolution = 1;
+	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
+
+	char *ext = GetFileExtension( fileName );
+	FILE *fp = fopen( fileName , "wb" );
+	if( !fp ) ERROR_OUT( "Failed to open voxel file for writing: %s" , fileName );
+	else
+	{
+		fwrite( &res , sizeof(int) , 1 , fp );
+		if( typeid(Real)==typeid(float) ) fwrite( values , sizeof(float) , resolution , fp );
+		else
+		{
+			float *fValues = new float[resolution];
+			for( int i=0 ; i<resolution ; i++ ) fValues[i] = float( values[i] );
+			fwrite( fValues , sizeof(float) , resolution , fp );
+			delete[] fValues;
+		}
+		fclose( fp );
+		DeletePointer( values );
+	}
+	delete[] ext;
 }
 
 template< class Real , typename ... SampleData , unsigned int ... FEMSigs >
@@ -601,28 +662,16 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 	if( VoxelGrid.set )
 	{
-		FILE* fp = fopen( VoxelGrid.value , "wb" );
-		if( !fp ) WARN( "Failed to open voxel file for writing: %s" , VoxelGrid.value );
-		else
-		{
-			int res = 0;
-			profiler.start();
-			Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , PrimalVoxel.set );
+		int res = 0;
+		profiler.start();
+		Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , PrimalVoxel.set );
+		int resolution = 1;
+		for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 #pragma omp parallel for
-			for( int i=0 ; i<res*res*res ; i++ ) values[i] -= isoValue;
-			profiler.dumpOutput( "Got voxel grid:" );
-			fwrite( &res , sizeof(int) , 1 , fp );
-			if( typeid(Real)==typeid(float) ) fwrite( values , sizeof(float) , res*res*res , fp );
-			else
-			{
-				float *fValues = new float[res*res*res];
-				for( int i=0 ; i<res*res*res ; i++ ) fValues[i] = float( values[i] );
-				fwrite( fValues , sizeof(float) , res*res*res , fp );
-				delete[] fValues;
-			}
-			fclose( fp );
-			DeletePointer( values );
-		}
+		for( int i=0 ; i<resolution ; i++ ) values[i] -= isoValue;
+		profiler.dumpOutput( "Got voxel grid:" );
+		if( !WriteImage< Real , DIMENSION >( values , res , VoxelGrid.value , Verbose.set ) ) WriteGrid< Real , DIMENSION >( values , res , VoxelGrid.value );
+		DeletePointer( values );
 	}
 
 	if( Out.set )

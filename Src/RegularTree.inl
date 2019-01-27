@@ -312,6 +312,23 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , N
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename NodeTerminationLambda >
+const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( NodeTerminationLambda &ntl , const RegularTreeNode *current ) const
+{
+	if( !current ) return this;
+	else if( current->children && !ntl(current) ) return current->children;
+	else return nextBranch( current );
+}
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename NodeTerminationLambda >
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( NodeTerminationLambda &ntl , RegularTreeNode* current )
+{
+	if( !current ) return this;
+	else if( current->children && !ntl(current) ) return current->children;
+	else return nextBranch( current );
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( const RegularTreeNode* current ) const
 {
 	if( !current ) return this;
