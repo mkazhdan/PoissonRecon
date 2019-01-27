@@ -1,11 +1,11 @@
-<center><h2>Adaptive Multigrid Solvers (Version 10.05)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 10.06)</h2></center>
 <center>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#LINKS">links</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#EXECUTABLES">executables</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#USAGE">usage</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#CHANGES">changes</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#LINKS">links</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#EXECUTABLES">executables</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#USAGE">usage</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#CHANGES">changes</a>
 <!--
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/index.html#SUPPORT">support</a>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#SUPPORT">support</a>
 -->
 </center>
 <hr>
@@ -27,11 +27,12 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">V10.04</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">V10.05</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">V10.04</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">V10.03</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">V10.02</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">V10.01</a>,
@@ -797,6 +798,13 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Added a <B>--inCore</B> flag that enables keeping the pointset in memory instead of streaming it in from disk.
 </ol>
 
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">Version 10.06</a>:
+<ol>
+<LI> Improved performance.
+<LI> Modified <CODE>PoissonRecon</CODE> and <CODE>SSDRecon</CODE> to support processing of 2D point sets.
+<LI> Modified the 2D implementations of <CODE>PoissonRecon</CODE>, <CODE>SSDRecon</CODE>, and <CODE>AdaptiveTreeVisualization</CODE> to support ouput to <CODE>.jpg</CODE> and <CODE>.png</CODE> image files.
+</ol>
+
 </DETAILS>
 
 
@@ -806,3 +814,4 @@ This work genersouly supported by NSF grants #0746039 and #1422325.
 
 <hr>
 <a href="http://www.cs.jhu.edu/~misha">HOME</a>
+
