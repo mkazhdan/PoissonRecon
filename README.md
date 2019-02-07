@@ -806,7 +806,7 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Modified the 2D implementations of <CODE>PoissonRecon</CODE>, <CODE>SSDRecon</CODE>, and <CODE>AdaptiveTreeVisualization</CODE> to support ouput to <CODE>.jpg</CODE> and <CODE>.png</CODE> image files.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">Version 10.06</a>:
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">Version 10.07</a>:
 <ol>
 <LI> Removed a bug that would cause memory access errors when some slices were empty.
 g</CODE> image files.
