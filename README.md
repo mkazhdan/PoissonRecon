@@ -809,7 +809,6 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">Version 10.07</a>:
 <ol>
 <LI> Removed a bug that would cause memory access errors when some slices were empty.
-g</CODE> image files.
 </ol>
 
 </DETAILS>
