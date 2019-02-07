@@ -37,6 +37,7 @@ struct ImageReader
 		return pixels;
 	}
 
+	static bool ValidExtension( const char *ext );
 	static ImageReader* Get( const char* fileName );
 	static void GetInfo( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels );
 	virtual ~ImageReader( void ){ }
@@ -70,6 +71,8 @@ struct ImageWriter
 		for( unsigned int j=0 ; j<height ; j++ ) writer->nextRow( pixels + j*width*channels );
 		delete writer;
 	}
+
+	static bool ValidExtension( const char *ext );
 	static ImageWriter* Get( const char* fileName , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params=ImageWriterParams() );
 	virtual ~ImageWriter( void ){ }
 	unsigned int width( void ) const { return _width; }
@@ -160,6 +163,20 @@ protected:
 	}
 };
 
+inline bool ImageReader::ValidExtension( const char *ext )
+{
+#ifdef WIN32
+	if     ( !_stricmp( ext , "jpeg" ) || !_stricmp( ext , "jpg" ) ) return true;
+	else if( !_stricmp( ext , "png" )                              ) return true;
+	else if( !_stricmp( ext , "iGrid" )                            ) return true;
+#else // !WIN32
+	if( !strcasecmp( ext , "jpeg" ) || !strcasecmp( ext , "jpg" ) ) return true;
+	else if( !strcasecmp( ext , "png" )                           ) return true;
+	else if( !strcasecmp( ext , "iGrid" )                         ) return true;
+#endif // WIN32
+	return false;
+}
+
 inline ImageReader* ImageReader::Get( const char* fileName )
 {
 	unsigned int width , height , channels;
@@ -200,6 +217,25 @@ inline void ImageReader::GetInfo( const char* fileName , unsigned int& width , u
 #endif // WIN32
 	delete[] ext;
 }
+
+inline bool ImageWriter::ValidExtension( const char *ext )
+{
+#ifdef WIN32
+	if( !_stricmp( ext , "jpeg" ) || !_stricmp( ext , "jpg" ) ) return true;
+	else if( !_stricmp( ext , "png" ) )                         return true;
+#ifdef SUPPORT_TILES
+	else if( !_stricmp( ext , "iGrid" ) )                       return true;
+#endif // SUPPORT_TILES
+#else // !WIN32
+	if( !strcasecmp( ext , "jpeg" ) || !strcasecmp( ext , "jpg" ) ) return true;
+	else if( !strcasecmp( ext , "png" ) )                           return true;
+#ifdef SUPPORT_TILES
+	else if( !strcasecmp( ext , "iGrid" ) )                         return true;
+#endif // SUPPORT_TILES
+#endif // WIN32
+	return false;
+}
+
 inline ImageWriter* ImageWriter::Get( const char* fileName , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params )
 {
 	ImageWriter* writer = NULL;

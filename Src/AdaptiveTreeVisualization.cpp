@@ -91,61 +91,59 @@ void ShowUsage( char* ex )
 }
 
 template< typename Real , unsigned int Dim >
-bool WriteImage( const Real *values , int res , const char *fileName , bool verbose )
+void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 {
-	if( Dim!=2 ) return false;
 	int resolution = 1;
 	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 
-	Real avg = 0;
-#pragma omp parallel for reduction( + : avg )
-	for( int i=0 ; i<resolution ; i++ ) avg += values[i];
-	avg /= (Real)resolution;
+	char *ext = GetFileExtension( fileName );
 
-	Real std = 0;
-#pragma omp parallel for reduction( + : std )
-	for( int i=0 ; i<resolution ; i++ ) std += ( values[i] - avg ) * ( values[i] - avg );
-	std = (Real)sqrt( std / resolution );
-
-	if( verbose ) printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
-
-	unsigned char *pixels = new unsigned char[ resolution*3 ];
-#pragma omp parallel for
-	for( int i=0 ; i<resolution ; i++ )
+	if( Dim==2 && ImageWriter::ValidExtension( ext ) )
 	{
-		Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
-		v = (Real)( ( v + 1. ) / 2. * 256. );
-		unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
-		for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
+		Real avg = 0;
+#pragma omp parallel for reduction( + : avg )
+		for( int i=0 ; i<resolution ; i++ ) avg += values[i];
+		avg /= (Real)resolution;
+
+		Real std = 0;
+#pragma omp parallel for reduction( + : std )
+		for( int i=0 ; i<resolution ; i++ ) std += ( values[i] - avg ) * ( values[i] - avg );
+		std = (Real)sqrt( std / resolution );
+
+		if( Verbose.set ) printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
+
+		unsigned char *pixels = new unsigned char[ resolution*3 ];
+#pragma omp parallel for
+		for( int i=0 ; i<resolution ; i++ )
+		{
+			Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
+			v = (Real)( ( v + 1. ) / 2. * 256. );
+			unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
+			for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
+		}
+		ImageWriter::Write( fileName , pixels , res , res , 3 );
+		delete[] pixels;
 	}
-	bool success = true;
-	try{ ImageWriter::Write( fileName , pixels , res , res , 3 ); }
-	catch( MKExceptions::Exception & ){ success = false; }
-	delete[] pixels;
-	return success;
-}
-
-template< typename Real , unsigned int Dim >
-void WriteGrid( const Real *values , int res , const char *fileName )
-{
-	int resolution = 1;
-	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
-
-	FILE *fp = fopen( fileName , "wb" );
-	if( !fp ) ERROR_OUT( "Failed to open grid file for writing: %s" , fileName );
 	else
 	{
-		fwrite( &res , sizeof(int) , 1 , fp );
-		if( typeid(Real)==typeid(float) ) fwrite( values , sizeof(float) , resolution , fp );
+
+		FILE *fp = fopen( fileName , "wb" );
+		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: %s" , fileName );
 		else
 		{
-			float *fValues = new float[resolution];
-			for( int i=0 ; i<resolution ; i++ ) fValues[i] = float( values[i] );
-			fwrite( fValues , sizeof(float) , resolution , fp );
-			delete[] fValues;
+			fwrite( &res , sizeof(int) , 1 , fp );
+			if( typeid(Real)==typeid(float) ) fwrite( values , sizeof(float) , resolution , fp );
+			else
+			{
+				float *fValues = new float[resolution];
+				for( int i=0 ; i<resolution ; i++ ) fValues[i] = float( values[i] );
+				fwrite( fValues , sizeof(float) , resolution , fp );
+				delete[] fValues;
+			}
+			fclose( fp );
 		}
-		fclose( fp );
 	}
+	delete[] ext;
 }
 
 template< unsigned int Dim , class Real , unsigned int FEMSig >
@@ -163,7 +161,7 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 		double t = Time();
 		Pointer( Real ) values = tree->template regularGridEvaluate< true >( coefficients , res , -1 , PrimalGrid.set );
 		if( Verbose.set ) printf( "Got grid: %.2f(s)\n" , Time()-t );
-		if( !WriteImage< Real , Dim >( values , res , OutGrid.value , Verbose.set ) ) WriteGrid< Real , Dim >( values , res , OutGrid.value );
+		WriteGrid< Real , Dim >( values , res , OutGrid.value );
 		DeletePointer( values );
 	}
 

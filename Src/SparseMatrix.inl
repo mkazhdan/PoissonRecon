@@ -598,13 +598,18 @@ template< class T , class IndexType , size_t MaxRowSize >
 template< class T2 >
 void SparseMatrix< T , IndexType , MaxRowSize >::operator() ( const T2* in , T2* out ) const { Interface::multiply( in , out ); }
 
-template< class T , class IndexType , size_t MaxRowSize > SparseMatrix< T , IndexType , MaxRowSize >::~SparseMatrix( void ) { resize( 0 ); }
+template< class T , class IndexType , size_t MaxRowSize >
+SparseMatrix< T , IndexType , MaxRowSize >::~SparseMatrix( void )
+{
+	FreePointer( _rowSizes );
+	FreePointer( _entries );
+}
 
 template< class T , class IndexType , size_t MaxRowSize >
 void SparseMatrix< T , IndexType , MaxRowSize >::resize( size_t rowNum )
 {
 	_rowNum = rowNum;
-	if( !rowNum || rowNum>_maxRows )
+	if( rowNum>_maxRows )
 	{
 		FreePointer( _rowSizes );
 		FreePointer( _entries );

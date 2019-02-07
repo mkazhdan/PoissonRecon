@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 10.06)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 10.07)</h2></center>
 <center>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#LINKS">links</a>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#EXECUTABLES">executables</a>
@@ -27,10 +27,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">V10.06</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">V10.05</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">V10.04</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">V10.03</a>,
@@ -803,6 +804,12 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Improved performance.
 <LI> Modified <CODE>PoissonRecon</CODE> and <CODE>SSDRecon</CODE> to support processing of 2D point sets.
 <LI> Modified the 2D implementations of <CODE>PoissonRecon</CODE>, <CODE>SSDRecon</CODE>, and <CODE>AdaptiveTreeVisualization</CODE> to support ouput to <CODE>.jpg</CODE> and <CODE>.png</CODE> image files.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">Version 10.06</a>:
+<ol>
+<LI> Removed a bug that would cause memory access errors when some slices were empty.
+g</CODE> image files.
 </ol>
 
 </DETAILS>
