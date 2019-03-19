@@ -19,7 +19,7 @@ my_error_exit (j_common_ptr cinfo)
 inline bool JPEGReader::GetInfo( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels )
 {
 	FILE* fp = fopen( fileName , "rb" );
-	if( !fp ) ERROR_OUT( "Failed to open: %s" , fileName );
+	if( !fp ) ERROR_OUT( "Failed to open: " , fileName );
 
 	struct jpeg_decompress_struct cInfo;
 	struct my_error_mgr jErr;
@@ -50,7 +50,7 @@ inline JPEGReader::JPEGReader( const char* fileName , unsigned int& width , unsi
 {
 	_currentRow = 0;
 	_fp = fopen( fileName , "rb" );
-	if( !_fp ) ERROR_OUT( "Failed to open: %s" , fileName );
+	if( !_fp ) ERROR_OUT( "Failed to open: " , fileName );
 
 	_cInfo.err = jpeg_std_error( &_jErr.pub );
 	_jErr.pub.error_exit = my_error_exit;
@@ -88,7 +88,7 @@ inline JPEGWriter::JPEGWriter( const char* fileName , unsigned int width , unsig
 {
 	_currentRow = 0;
 	_fp = fopen( fileName , "wb" );
-	if( !_fp ) ERROR_OUT( "Failed to open: %s" , fileName );
+	if( !_fp ) ERROR_OUT( "Failed to open: " , fileName );
 
 	_cInfo.err = jpeg_std_error( &_jErr.pub );
 	jpeg_create_compress( &_cInfo );

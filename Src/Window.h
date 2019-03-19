@@ -30,6 +30,7 @@ DAMAGE.
 #define WINDOW_INCLUDED
 
 #include <functional>
+#include "MyMiscellany.h"
 #include "Allocator.h"
 #include "Array.h"
 

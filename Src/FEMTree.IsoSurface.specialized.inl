@@ -27,6 +27,7 @@ DAMAGE.
 */
 
 #include <sstream>
+#include <sstream>
 #include <iomanip>
 #include <unordered_map>
 #include "MyMiscellany.h"
@@ -43,20 +44,65 @@ struct IsoSurfaceExtractor< 3 , Real , Vertex >
 	typedef typename FEMTree< Dim , Real >::LocalOffset LocalOffset;
 	typedef typename FEMTree< Dim , Real >::ConstOneRingNeighborKey ConstOneRingNeighborKey;
 	typedef typename FEMTree< Dim , Real >::ConstOneRingNeighbors ConstOneRingNeighbors;
-	typedef RegularTreeNode< Dim , FEMTreeNodeData > TreeNode;
+	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > TreeNode;
 	template< unsigned int WeightDegree > using DensityEstimator = typename FEMTree< Dim , Real >::template DensityEstimator< WeightDegree >;
 	template< typename FEMSigPack , unsigned int PointD > using _Evaluator = typename FEMTree< Dim , Real >::template _Evaluator< FEMSigPack , PointD >;
 protected:
+	static std::mutex _pointInsertionMutex;
+	static std::atomic< size_t > _BadRootCount;
+	//////////
+	// _Key //
+	//////////
+	struct _Key
+	{
+		int idx[Dim];
+
+		_Key( void ){ for( unsigned int d=0 ; d<Dim ; d++ ) idx[d] = 0; }
+
+		int &operator[]( int i ){ return idx[i]; }
+		const int &operator[]( int i ) const { return idx[i]; }
+
+		bool operator == ( const _Key &key ) const
+		{
+			for( unsigned int d=0 ; d<Dim ; d++ ) if( idx[d]!=key[d] ) return false;
+			return true;
+		}
+		bool operator != ( const _Key &key ) const { return !operator==( key ); }
+
+		std::string to_string( void ) const
+		{
+			std::stringstream stream;
+			stream << "(";
+			for( unsigned int d=0 ; d<Dim ; d++ )
+			{
+				if( d ) stream << ",";
+				stream << idx[d];
+			}
+			stream << ")";
+			return stream.str();
+		}
+
+		struct Hasher
+		{
+			size_t operator()( const _Key &i ) const
+			{
+				size_t hash = 0;
+				for( unsigned int d=0 ; d<Dim ; d++ ) hash ^= i.idx[d];
+				return hash;
+			}
+		};
+	};
+
 	//////////////
 	// _IsoEdge //
 	//////////////
 	struct _IsoEdge
 	{
-		long long edges[2];
-		_IsoEdge( void ){ edges[0] = edges[1] = 0; }
-		_IsoEdge( long long v1 , long long v2 ){ edges[0] = v1 , edges[1] = v2; }
-		long long& operator[]( int idx ){ return edges[idx]; }
-		const long long& operator[]( int idx ) const { return edges[idx]; }
+		_Key vertices[2];
+		_IsoEdge( void ) {}
+		_IsoEdge( _Key v1 , _Key v2 ){ vertices[0] = v1 , vertices[1] = v2; }
+		_Key &operator[]( int idx ){ return vertices[idx]; }
+		const _Key &operator[]( int idx ) const { return vertices[idx]; }
 	};
 
 	////////////////
@@ -69,15 +115,15 @@ protected:
 	///////////////
 	class SliceData
 	{
-		typedef RegularTreeNode< Dim , FEMTreeNodeData > TreeOctNode;
+		typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > TreeOctNode;
 	public:
 		template< unsigned int Indices >
 		struct  _Indices
 		{
-			int idx[Indices];
-			_Indices( void ){ memset( idx , -1 , sizeof( int ) * Indices ); }
-			int& operator[] ( int i ) { return idx[i]; }
-			const int& operator[] ( int i ) const { return idx[i]; }
+			node_index_type idx[Indices];
+			_Indices( void ){ for( unsigned int i=0 ; i<Indices ; i++ ) idx[i] = -1; }
+			node_index_type& operator[] ( int i ) { return idx[i]; }
+			const node_index_type& operator[] ( int i ) const { return idx[i]; }
 		};
 		typedef _Indices< HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() > SquareCornerIndices;
 		typedef _Indices< HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() > SquareEdgeIndices;
@@ -88,53 +134,57 @@ protected:
 			Pointer( SquareCornerIndices ) cTable;
 			Pointer( SquareEdgeIndices   ) eTable;
 			Pointer( SquareFaceIndices   ) fTable;
-			int cCount , eCount , fCount , nodeOffset , nodeCount;
-			SliceTableData( void ){ fCount = eCount = cCount = _oldNodeCount = 0 , cTable = NullPointer( SquareCornerIndices ) , eTable = NullPointer( SquareEdgeIndices ) , fTable = NullPointer( SquareFaceIndices ) , _cMap = _eMap = _fMap = NullPointer( int ) , _processed = NullPointer( char ); }
+			node_index_type nodeOffset;
+			node_index_type cCount , eCount , fCount;
+			node_index_type nodeCount;
+			SliceTableData( void ){ fCount = eCount = cCount = 0 , _oldNodeCount = 0 , cTable = NullPointer( SquareCornerIndices ) , eTable = NullPointer( SquareEdgeIndices ) , fTable = NullPointer( SquareFaceIndices ) , _cMap = _eMap = _fMap = NullPointer( node_index_type ) , _processed = NullPointer( char ); }
 			void clear( void ){ DeletePointer( cTable ) ; DeletePointer( eTable ) ; DeletePointer( fTable ) ; DeletePointer( _cMap ) ; DeletePointer( _eMap ) ; DeletePointer( _fMap ) ; DeletePointer( _processed ) ; fCount = eCount = cCount = 0; }
 			~SliceTableData( void ){ clear(); }
 
-			SquareCornerIndices& cornerIndices( const TreeOctNode* node ) { return cTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			SquareCornerIndices& cornerIndices( int idx ) { return cTable[ idx - nodeOffset ]; }
+			SquareCornerIndices& cornerIndices( const TreeOctNode* node )             { return cTable[ node->nodeData.nodeIndex - nodeOffset ]; }
+			SquareCornerIndices& cornerIndices( node_index_type idx )                 { return cTable[ idx - nodeOffset ]; }
 			const SquareCornerIndices& cornerIndices( const TreeOctNode* node ) const { return cTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			const SquareCornerIndices& cornerIndices( int idx ) const { return cTable[ idx - nodeOffset ]; }
-			SquareEdgeIndices& edgeIndices( const TreeOctNode* node ) { return eTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			SquareEdgeIndices& edgeIndices( int idx ) { return eTable[ idx - nodeOffset ]; }
-			const SquareEdgeIndices& edgeIndices( const TreeOctNode* node ) const { return eTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			const SquareEdgeIndices& edgeIndices( int idx ) const { return eTable[ idx - nodeOffset ]; }
-			SquareFaceIndices& faceIndices( const TreeOctNode* node ) { return fTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			SquareFaceIndices& faceIndices( int idx ) { return fTable[ idx - nodeOffset ]; }
-			const SquareFaceIndices& faceIndices( const TreeOctNode* node ) const { return fTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			const SquareFaceIndices& faceIndices( int idx ) const { return fTable[ idx - nodeOffset ]; }
+			const SquareCornerIndices& cornerIndices( node_index_type idx )     const { return cTable[ idx - nodeOffset ]; }
+			SquareEdgeIndices& edgeIndices( const TreeOctNode* node )                 { return eTable[ node->nodeData.nodeIndex - nodeOffset ]; }
+			SquareEdgeIndices& edgeIndices( node_index_type idx )                     { return eTable[ idx - nodeOffset ]; }
+			const SquareEdgeIndices& edgeIndices( const TreeOctNode* node )     const { return eTable[ node->nodeData.nodeIndex - nodeOffset ]; }
+			const SquareEdgeIndices& edgeIndices( node_index_type idx )         const { return eTable[ idx - nodeOffset ]; }
+			SquareFaceIndices& faceIndices( const TreeOctNode* node )                 { return fTable[ node->nodeData.nodeIndex - nodeOffset ]; }
+			SquareFaceIndices& faceIndices( node_index_type idx )                     { return fTable[ idx - nodeOffset ]; }
+			const SquareFaceIndices& faceIndices( const TreeOctNode* node )     const { return fTable[ node->nodeData.nodeIndex - nodeOffset ]; }
+			const SquareFaceIndices& faceIndices( node_index_type idx )         const { return fTable[ idx - nodeOffset ]; }
 
 		protected:
-			Pointer( int ) _cMap;
-			Pointer( int ) _eMap;
-			Pointer( int ) _fMap;
+			Pointer( node_index_type ) _cMap;
+			Pointer( node_index_type ) _eMap;
+			Pointer( node_index_type ) _fMap;
 			Pointer( char ) _processed;
-			int _oldNodeCount;
+			node_index_type _oldNodeCount;
 			friend SliceData;
 		};
 		struct XSliceTableData
 		{
 			Pointer( SquareCornerIndices ) eTable;
 			Pointer( SquareEdgeIndices ) fTable;
-			int fCount , eCount , nodeOffset , nodeCount;
-			XSliceTableData( void ){ fCount = eCount = _oldNodeCount = 0 , eTable = NullPointer( SquareCornerIndices ) , fTable = NullPointer( SquareEdgeIndices ) , _eMap = _fMap = NullPointer( int ); }
+			node_index_type nodeOffset;
+			node_index_type fCount , eCount;
+			node_index_type nodeCount;
+			XSliceTableData( void ){ fCount = eCount = 0 , _oldNodeCount = 0 , eTable = NullPointer( SquareCornerIndices ) , fTable = NullPointer( SquareEdgeIndices ) , _eMap = _fMap = NullPointer( node_index_type ); }
 			~XSliceTableData( void ){ clear(); }
 			void clear( void ) { DeletePointer( fTable ) ; DeletePointer( eTable ) ; DeletePointer( _eMap ) ; DeletePointer( _fMap ) ; fCount = eCount = 0; }
 
-			SquareCornerIndices& edgeIndices( const TreeOctNode* node ) { return eTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			SquareCornerIndices& edgeIndices( int idx ) { return eTable[ idx - nodeOffset ]; }
+			SquareCornerIndices& edgeIndices( const TreeOctNode* node )             { return eTable[ node->nodeData.nodeIndex - nodeOffset ]; }
+			SquareCornerIndices& edgeIndices( node_index_type idx )                 { return eTable[ idx - nodeOffset ]; }
 			const SquareCornerIndices& edgeIndices( const TreeOctNode* node ) const { return eTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			const SquareCornerIndices& edgeIndices( int idx ) const { return eTable[ idx - nodeOffset ]; }
-			SquareEdgeIndices& faceIndices( const TreeOctNode* node ) { return fTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			SquareEdgeIndices& faceIndices( int idx ) { return fTable[ idx - nodeOffset ]; }
-			const SquareEdgeIndices& faceIndices( const TreeOctNode* node ) const { return fTable[ node->nodeData.nodeIndex - nodeOffset ]; }
-			const SquareEdgeIndices& faceIndices( int idx ) const { return fTable[ idx - nodeOffset ]; }
+			const SquareCornerIndices& edgeIndices( node_index_type idx )     const { return eTable[ idx - nodeOffset ]; }
+			SquareEdgeIndices& faceIndices( const TreeOctNode* node )               { return fTable[ node->nodeData.nodeIndex - nodeOffset ]; }
+			SquareEdgeIndices& faceIndices( node_index_type idx )                   { return fTable[ idx - nodeOffset ]; }
+			const SquareEdgeIndices& faceIndices( const TreeOctNode* node )   const { return fTable[ node->nodeData.nodeIndex - nodeOffset ]; }
+			const SquareEdgeIndices& faceIndices( node_index_type idx )       const { return fTable[ idx - nodeOffset ]; }
 		protected:
-			Pointer( int ) _eMap;
-			Pointer( int ) _fMap;
-			int _oldNodeCount;
+			Pointer( node_index_type ) _eMap;
+			Pointer( node_index_type ) _fMap;
+			node_index_type _oldNodeCount;
 			friend SliceData;
 		};
 		template< unsigned int D , unsigned int ... Ks > struct HyperCubeTables{};
@@ -202,17 +252,17 @@ protected:
 			if( offset<0 || offset>((size_t)1<<depth) ) return;
 			if( sData0 )
 			{
-				std::pair< int , int > span( sNodes.begin( depth , offset-1 ) , sNodes.end( depth , offset ) );
+				std::pair< node_index_type , node_index_type > span( sNodes.begin( depth , offset-1 ) , sNodes.end( depth , offset ) );
 				sData0->nodeOffset = span.first , sData0->nodeCount = span.second - span.first;
 			}
 			if( sData1 )
 			{
-				std::pair< int , int > span( sNodes.begin( depth , offset ) , sNodes.end( depth , offset+1 ) );
+				std::pair< node_index_type , node_index_type > span( sNodes.begin( depth , offset ) , sNodes.end( depth , offset+1 ) );
 				sData1->nodeOffset = span.first , sData1->nodeCount = span.second - span.first;
 			}
 			if( xData )
 			{
-				std::pair< int , int > span( sNodes.begin( depth , offset ) , sNodes.end( depth , offset ) );
+				std::pair< node_index_type , node_index_type > span( sNodes.begin( depth , offset ) , sNodes.end( depth , offset ) );
 				xData->nodeOffset = span.first , xData->nodeCount = span.second - span.first;
 			}
 			SliceTableData* sData[] = { sData0 , sData1 };
@@ -223,18 +273,18 @@ protected:
 					DeletePointer( sData[i]->_cMap ) ; DeletePointer( sData[i]->_eMap ) ; DeletePointer( sData[i]->_fMap );
 					DeletePointer( sData[i]->cTable ) ; DeletePointer( sData[i]->eTable ) ; DeletePointer( sData[i]->fTable );
 					DeletePointer( sData[i]->_processed );
-					sData[i]->_cMap = NewPointer< int >( sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() );
-					sData[i]->_eMap = NewPointer< int >( sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() );
-					sData[i]->_fMap = NewPointer< int >( sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() );
+					sData[i]->_cMap = NewPointer< node_index_type >( sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() );
+					sData[i]->_eMap = NewPointer< node_index_type >( sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() );
+					sData[i]->_fMap = NewPointer< node_index_type >( sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() );
 					sData[i]->_processed = NewPointer< char >( sData[i]->nodeCount );
 					sData[i]->cTable = NewPointer< typename SliceData::SquareCornerIndices >( sData[i]->nodeCount );
 					sData[i]->eTable = NewPointer< typename SliceData::SquareEdgeIndices >( sData[i]->nodeCount );
 					sData[i]->fTable = NewPointer< typename SliceData::SquareFaceIndices >( sData[i]->nodeCount );
 					sData[i]->_oldNodeCount = sData[i]->nodeCount;
 				}
-				memset( sData[i]->_cMap , 0 , sizeof(int) * sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() );
-				memset( sData[i]->_eMap , 0 , sizeof(int) * sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() );
-				memset( sData[i]->_fMap , 0 , sizeof(int) * sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() );
+				memset( sData[i]->_cMap , 0 , sizeof(node_index_type) * sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() );
+				memset( sData[i]->_eMap , 0 , sizeof(node_index_type) * sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() );
+				memset( sData[i]->_fMap , 0 , sizeof(node_index_type) * sData[i]->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() );
 				memset( sData[i]->_processed , 0 , sizeof(char) * sData[i]->nodeCount );
 			}
 			if( xData )
@@ -243,16 +293,16 @@ protected:
 				{
 					DeletePointer( xData->_eMap ) ; DeletePointer( xData->_fMap );
 					DeletePointer( xData->eTable ) ; DeletePointer( xData->fTable );
-					xData->_eMap = NewPointer< int >( xData->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() );
-					xData->_fMap = NewPointer< int >( xData->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() );
+					xData->_eMap = NewPointer< node_index_type >( xData->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() );
+					xData->_fMap = NewPointer< node_index_type >( xData->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() );
 					xData->eTable = NewPointer< typename SliceData::SquareCornerIndices >( xData->nodeCount );
 					xData->fTable = NewPointer< typename SliceData::SquareEdgeIndices >( xData->nodeCount );
 					xData->_oldNodeCount = xData->nodeCount;
 				}
-				memset( xData->_eMap , 0 , sizeof(int) * xData->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() );
-				memset( xData->_fMap , 0 , sizeof(int) * xData->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() );
+				memset( xData->_eMap , 0 , sizeof(node_index_type) * xData->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() );
+				memset( xData->_fMap , 0 , sizeof(node_index_type) * xData->nodeCount * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() );
 			}
-			std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 
 			typedef typename FEMTree< Dim , Real >::ConstOneRingNeighbors ConstNeighbors;
@@ -263,7 +313,7 @@ protected:
 			auto ProcessCorners = []( SliceTableData& sData , const ConstNeighbors& neighbors , HyperCube::Direction zDir , int zOff )
 			{
 				const TreeOctNode* node = neighbors.neighbors[1][1][1+zOff];
-				int i = node->nodeData.nodeIndex;
+				node_index_type i = node->nodeData.nodeIndex;
 				// Iterate over the corners in the face
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 				{
@@ -280,7 +330,7 @@ protected:
 					}
 					if( owner )
 					{
-						int myCount = (i - sData.nodeOffset) * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() + _c.index;
+						node_index_type myCount = ( i-sData.nodeOffset ) * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() + _c.index;
 						sData._cMap[ myCount ] = 1;
 						// Set the corner pointer for all cubes incident on the corner
 						for( typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 0 > ic ; ic<HyperCube::Cube< Dim >::template IncidentCubeNum< 0 >() ; ic++ )	// Iterate over the nodes adjacent to the corner
@@ -296,7 +346,7 @@ protected:
 			auto ProcessIEdges = []( SliceTableData& sData , const ConstNeighbors& neighbors , HyperCube::Direction zDir , int zOff )
 			{
 				const TreeOctNode* node = neighbors.neighbors[1][1][1+zOff];
-				int i = node->nodeData.nodeIndex;
+				node_index_type i = node->nodeData.nodeIndex;
 				// Iterate over the edges in the face
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
 				{
@@ -316,7 +366,7 @@ protected:
 					}
 					if( owner )
 					{
-						int myCount = ( i - sData.nodeOffset ) * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() + _e.index;
+						node_index_type myCount = ( i - sData.nodeOffset ) * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() + _e.index;
 						sData._eMap[ myCount ] = 1;
 						// Set all edge indices
 						for( typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 1 > ic ; ic<HyperCube::Cube< Dim >::template IncidentCubeNum< 1 >() ; ic++ )
@@ -332,7 +382,7 @@ protected:
 			auto ProcessXEdges = []( XSliceTableData& xData , const ConstNeighbors& neighbors )
 			{
 				const TreeOctNode* node = neighbors.neighbors[1][1][1];
-				int i = node->nodeData.nodeIndex;
+				node_index_type i = node->nodeData.nodeIndex;
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 				{
 					bool owner = true;
@@ -347,7 +397,7 @@ protected:
 					}
 					if( owner )
 					{
-						int myCount = ( i - xData.nodeOffset ) * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() + _c.index;
+						node_index_type myCount = ( i - xData.nodeOffset ) * HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() + _c.index;
 						xData._eMap[ myCount ] = 1;
 
 						// Set all edge indices
@@ -363,7 +413,7 @@ protected:
 			auto ProcessIFaces = []( SliceTableData& sData , const ConstNeighbors& neighbors , HyperCube::Direction zDir , int zOff )
 			{
 				const TreeOctNode* node = neighbors.neighbors[1][1][1+zOff];
-				int i = node->nodeData.nodeIndex;
+				node_index_type i = node->nodeData.nodeIndex;
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 2 > _f ; _f<HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() ; _f++ )
 				{
 					bool owner = true;
@@ -378,7 +428,7 @@ protected:
 					}
 					if( owner )
 					{
-						int myCount = ( i - sData.nodeOffset ) * HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() + _f.index;
+						node_index_type myCount = ( i - sData.nodeOffset ) * HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() + _f.index;
 						sData._fMap[ myCount ] = 1;
 
 						// Set all the face indices
@@ -395,7 +445,7 @@ protected:
 			auto ProcessXFaces = []( XSliceTableData& xData , const ConstNeighbors& neighbors )
 			{
 				const TreeOctNode* node = neighbors.neighbors[1][1][1];
-				int i = node->nodeData.nodeIndex;
+				node_index_type i = node->nodeData.nodeIndex;
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
 				{
 					bool owner = true;
@@ -410,7 +460,7 @@ protected:
 					}
 					if( owner )
 					{
-						int myCount = ( i - xData.nodeOffset ) * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() + _e.index;
+						node_index_type myCount = ( i - xData.nodeOffset ) * HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() + _e.index;
 						xData._fMap[ myCount ] = 1;
 
 						// Set all the face indices
@@ -423,12 +473,10 @@ protected:
 				}
 			};
 
-
 			// Try and get at the nodes outside of the slab through the neighbor key
-#pragma omp parallel for schedule( guided )
-			for( int i=sNodes.begin(depth,offset) ; i<sNodes.end(depth,offset) ; i++ )
+			ThreadPool::Parallel_for( sNodes.begin(depth,offset) , sNodes.end(depth,offset) , [&]( unsigned int thread , size_t i )
 			{
-				ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
+				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 				const TreeOctNode* node = sNodes.treeNodes[i];
 				ConstNeighbors& neighbors = neighborKey.getNeighbors( node );
 				for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) for( int k=0 ; k<3 ; k++ ) if( !IsActiveNode< Dim >( neighbors.neighbors[i][j][k] ) ) neighbors.neighbors[i][j][k] = NULL;
@@ -455,61 +503,70 @@ protected:
 				}
 				if( xData ) ProcessXEdges( *xData , neighbors ) , ProcessXFaces( *xData , neighbors );
 			}
+			);
 			if( sData0 )
 			{
-				int off = sNodes.begin(depth,offset-1) , size = sNodes.end(depth,offset-1) - sNodes.begin(depth,offset-1);
-#pragma omp parallel for schedule( guided )
-				for( int i=0 ; i<size ; i++ ) if( !sData0->_processed[i] )
+				node_index_type off = sNodes.begin(depth,offset-1);
+				node_index_type size = sNodes.end(depth,offset-1) - sNodes.begin(depth,offset-1);
+				ThreadPool::Parallel_for( 0 , size , [&]( unsigned int thread , size_t i )
 				{
-					ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-					const TreeOctNode* node = sNodes.treeNodes[i+off];
-					ConstNeighbors& neighbors = neighborKey.getNeighbors( node );
-					for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) for( int k=0 ; k<3 ; k++ ) if( !IsActiveNode< Dim >( neighbors.neighbors[i][j][k] ) ) neighbors.neighbors[i][j][k] = NULL;
-					ProcessCorners( *sData0 , neighbors , HyperCube::FRONT , 0 ) , ProcessIEdges( *sData0 , neighbors , HyperCube::FRONT , 0 ) , ProcessIFaces( *sData0 , neighbors , HyperCube::FRONT , 0 );
+					if( !sData0->_processed[i] )
+					{
+						ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
+						const TreeOctNode* node = sNodes.treeNodes[i+off];
+						ConstNeighbors& neighbors = neighborKey.getNeighbors( node );
+						for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) for( int k=0 ; k<3 ; k++ ) if( !IsActiveNode< Dim >( neighbors.neighbors[i][j][k] ) ) neighbors.neighbors[i][j][k] = NULL;
+						ProcessCorners( *sData0 , neighbors , HyperCube::FRONT , 0 ) , ProcessIEdges( *sData0 , neighbors , HyperCube::FRONT , 0 ) , ProcessIFaces( *sData0 , neighbors , HyperCube::FRONT , 0 );
+					}
 				}
+				);
 			}
 			if( sData1 )
 			{
-				int off = sNodes.begin(depth,offset+1) , size = sNodes.end(depth,offset+1) - sNodes.begin(depth,offset+1);
-#pragma omp parallel for schedule( guided )
-				for( int i=0 ; i<size ; i++ ) if( !sData1->_processed[i] )
+				node_index_type off = sNodes.begin(depth,offset+1);
+				node_index_type size = sNodes.end(depth,offset+1) - sNodes.begin(depth,offset+1);
+				ThreadPool::Parallel_for( 0 , size , [&]( unsigned int thread , size_t i )
 				{
-					ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-					const TreeOctNode* node = sNodes.treeNodes[i+off];
-					ConstNeighbors& neighbors = neighborKey.getNeighbors( node );
-					for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) for( int k=0 ; k<3 ; k++ ) if( !IsActiveNode< Dim >( neighbors.neighbors[i][j][k] ) ) neighbors.neighbors[i][j][k] = NULL;
-					ProcessCorners( *sData1 , neighbors , HyperCube::BACK , 0 ) , ProcessIEdges( *sData1 , neighbors , HyperCube::BACK , 0 ) , ProcessIFaces( *sData1 , neighbors , HyperCube::BACK , 0 );
+					if( !sData1->_processed[i] )
+					{
+						ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
+						const TreeOctNode* node = sNodes.treeNodes[i+off];
+						ConstNeighbors& neighbors = neighborKey.getNeighbors( node );
+						for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) for( int k=0 ; k<3 ; k++ ) if( !IsActiveNode< Dim >( neighbors.neighbors[i][j][k] ) ) neighbors.neighbors[i][j][k] = NULL;
+						ProcessCorners( *sData1 , neighbors , HyperCube::BACK , 0 ) , ProcessIEdges( *sData1 , neighbors , HyperCube::BACK , 0 ) , ProcessIFaces( *sData1 , neighbors , HyperCube::BACK , 0 );
+					}
 				}
+				);
 			}
 
 			auto SetICounts = [&]( SliceTableData& sData )
 			{
-				int cCount = 0 , eCount = 0 , fCount = 0;
+				node_index_type cCount = 0 , eCount = 0 , fCount = 0;
 
-				for( int i=0 ; i<sData.nodeCount * (int)HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; i++ ) if( sData._cMap[i] ) sData._cMap[i] = cCount++;
-				for( int i=0 ; i<sData.nodeCount * (int)HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; i++ ) if( sData._eMap[i] ) sData._eMap[i] = eCount++;
-				for( int i=0 ; i<sData.nodeCount * (int)HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() ; i++ ) if( sData._fMap[i] ) sData._fMap[i] = fCount++;
-#pragma omp parallel for
-				for( int i=0 ; i<sData.nodeCount ; i++ )
+				for( node_index_type i=0 ; i<sData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; i++ ) if( sData._cMap[i] ) sData._cMap[i] = cCount++;
+				for( node_index_type i=0 ; i<sData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; i++ ) if( sData._eMap[i] ) sData._eMap[i] = eCount++;
+				for( node_index_type i=0 ; i<sData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() ; i++ ) if( sData._fMap[i] ) sData._fMap[i] = fCount++;
+				ThreadPool::Parallel_for( 0 , sData.nodeCount , [&]( unsigned int  , size_t i )
 				{
 					for( unsigned int j=0 ; j<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; j++ ) sData.cTable[i][j] = sData._cMap[ sData.cTable[i][j] ];
 					for( unsigned int j=0 ; j<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; j++ ) sData.eTable[i][j] = sData._eMap[ sData.eTable[i][j] ];
 					for( unsigned int j=0 ; j<HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() ; j++ ) sData.fTable[i][j] = sData._fMap[ sData.fTable[i][j] ];
 				}
+				);
 				sData.cCount = cCount , sData.eCount = eCount , sData.fCount = fCount;
 			};
 			auto SetXCounts = [&]( XSliceTableData& xData )
 			{
-				int eCount = 0 , fCount = 0;
+				node_index_type eCount = 0 , fCount = 0;
 
-				for( int i=0 ; i<xData.nodeCount * (int)HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; i++ ) if( xData._eMap[i] ) xData._eMap[i] = eCount++;
-				for( int i=0 ; i<xData.nodeCount * (int)HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; i++ ) if( xData._fMap[i] ) xData._fMap[i] = fCount++;
-#pragma omp parallel for
-				for( int i=0 ; i<xData.nodeCount ; i++ )
+				for( node_index_type i=0 ; i<xData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; i++ ) if( xData._eMap[i] ) xData._eMap[i] = eCount++;
+				for( node_index_type i=0 ; i<xData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; i++ ) if( xData._fMap[i] ) xData._fMap[i] = fCount++;
+				ThreadPool::Parallel_for( 0 , xData.nodeCount , [&]( unsigned int , size_t i )
 				{
 					for( unsigned int j=0 ; j<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; j++ ) xData.eTable[i][j] = xData._eMap[ xData.eTable[i][j] ];
 					for( unsigned int j=0 ; j<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; j++ ) xData.fTable[i][j] = xData._fMap[ xData.fTable[i][j] ];
 				}
+				);
 				xData.eCount = eCount , xData.fCount = fCount;
 			};
 
@@ -519,7 +576,6 @@ protected:
 		}
 	};
 
-
 	//////////////////
 	// _SliceValues //
 	//////////////////
@@ -527,30 +583,32 @@ protected:
 	{
 		typename SliceData::SliceTableData sliceData;
 		Pointer( Real ) cornerValues ; Pointer( Point< Real , Dim > ) cornerGradients ; Pointer( char ) cornerSet;
-		Pointer( long long ) edgeKeys ; Pointer( char ) edgeSet;
+		Pointer( _Key ) edgeKeys ; Pointer( char ) edgeSet;
 		Pointer( _FaceEdges ) faceEdges ; Pointer( char ) faceSet;
 		Pointer( char ) mcIndices;
-		std::unordered_map< long long , std::vector< _IsoEdge > > faceEdgeMap;
-		std::unordered_map< long long , std::pair< int, Vertex > > edgeVertexMap;
-		std::unordered_map< long long , long long > vertexPairMap;
-		std::vector< std::vector< std::pair< long long , std::vector< _IsoEdge > > > > faceEdgeKeyValues;
-		std::vector< std::vector< std::pair< long long , std::pair< int , Vertex > > > > edgeVertexKeyValues;
-		std::vector< std::vector< std::pair< long long , long long > > > vertexPairKeyValues;
+		std::unordered_map< _Key , std::vector< _IsoEdge > , typename _Key::Hasher > faceEdgeMap;
+		std::unordered_map< _Key , std::pair< node_index_type, Vertex > , typename _Key::Hasher > edgeVertexMap;
+		std::unordered_map< _Key , _Key , typename _Key::Hasher > vertexPairMap;
+		std::vector< std::vector< std::pair< _Key , std::vector< _IsoEdge > > > > faceEdgeKeyValues;
+		std::vector< std::vector< std::pair< _Key , std::pair< node_index_type , Vertex > > > > edgeVertexKeyValues;
+		std::vector< std::vector< std::pair< _Key , _Key > > > vertexPairKeyValues;
 
 		_SliceValues( void )
 		{
-			_oldCCount = _oldECount = _oldFCount = _oldNCount = 0;
+			_oldCCount = _oldECount = _oldFCount = 0;
+			_oldNCount = 0;
 			cornerValues = NullPointer( Real ) ; cornerGradients = NullPointer( Point< Real , Dim > ) ; cornerSet = NullPointer( char );
-			edgeKeys = NullPointer( long long ) ; edgeSet = NullPointer( char );
+			edgeKeys = NullPointer( _Key ) ; edgeSet = NullPointer( char );
 			faceEdges = NullPointer( _FaceEdges ) ; faceSet = NullPointer( char );
 			mcIndices = NullPointer( char );
-			edgeVertexKeyValues.resize( omp_get_max_threads() );
-			vertexPairKeyValues.resize( omp_get_max_threads() );
-			faceEdgeKeyValues.resize( omp_get_max_threads() );
+			edgeVertexKeyValues.resize( ThreadPool::NumThreads() );
+			vertexPairKeyValues.resize( ThreadPool::NumThreads() );
+			faceEdgeKeyValues.resize( ThreadPool::NumThreads() );
 		}
 		~_SliceValues( void )
 		{
-			_oldCCount = _oldECount = _oldFCount = _oldNCount = 0;
+			_oldCCount = _oldECount = _oldFCount = 0;
+			_oldNCount = 0;
 			FreePointer( cornerValues ) ; FreePointer( cornerGradients ) ; FreePointer( cornerSet );
 			FreePointer( edgeKeys ) ; FreePointer( edgeSet );
 			FreePointer( faceEdges ) ; FreePointer( faceSet );
@@ -558,7 +616,7 @@ protected:
 		}
 		void setEdgeVertexMap( void )
 		{
-			for( int i=0 ; i<edgeVertexKeyValues.size() ; i++ )
+			for( node_index_type i=0 ; i<(node_index_type)edgeVertexKeyValues.size() ; i++ )
 			{
 				for( int j=0 ; j<edgeVertexKeyValues[i].size() ; j++ ) edgeVertexMap[ edgeVertexKeyValues[i][j].first ] = edgeVertexKeyValues[i][j].second;
 				edgeVertexKeyValues[i].clear();
@@ -566,7 +624,7 @@ protected:
 		}
 		void setVertexPairMap( void )
 		{
-			for( int i=0 ; i<vertexPairKeyValues.size() ; i++ )
+			for( node_index_type i=0 ; i<(node_index_type)vertexPairKeyValues.size() ; i++ )
 			{
 				for( int j=0 ; j<vertexPairKeyValues[i].size() ; j++ )
 				{
@@ -578,7 +636,7 @@ protected:
 		}
 		void setFaceEdgeMap( void )
 		{
-			for( int i=0 ; i<faceEdgeKeyValues.size() ; i++ )
+			for( node_index_type i=0 ; i<(node_index_type)faceEdgeKeyValues.size() ; i++ )
 			{
 				for( int j=0 ; j<faceEdgeKeyValues[i].size() ; j++ )
 				{
@@ -592,9 +650,9 @@ protected:
 		void reset( bool nonLinearFit )
 		{
 			faceEdgeMap.clear() , edgeVertexMap.clear() , vertexPairMap.clear();
-			for( int i=0 ; i<edgeVertexKeyValues.size() ; i++ ) edgeVertexKeyValues[i].clear();
-			for( int i=0 ; i<vertexPairKeyValues.size() ; i++ ) vertexPairKeyValues[i].clear();
-			for( int i=0 ; i<faceEdgeKeyValues.size() ; i++ ) faceEdgeKeyValues[i].clear();
+			for( node_index_type i=0 ; i<(node_index_type)edgeVertexKeyValues.size() ; i++ ) edgeVertexKeyValues[i].clear();
+			for( node_index_type i=0 ; i<(node_index_type)vertexPairKeyValues.size() ; i++ ) vertexPairKeyValues[i].clear();
+			for( node_index_type i=0 ; i<(node_index_type)faceEdgeKeyValues.size() ; i++ ) faceEdgeKeyValues[i].clear();
 
 			if( _oldNCount<sliceData.nodeCount )
 			{
@@ -617,7 +675,7 @@ protected:
 			{
 				_oldECount = sliceData.eCount;
 				FreePointer( edgeKeys ) ; FreePointer( edgeSet );
-				edgeKeys = AllocPointer< long long >( _oldECount );
+				edgeKeys = AllocPointer< _Key >( _oldECount );
 				edgeSet = AllocPointer< char >( _oldECount );
 			}
 			if( _oldFCount<sliceData.fCount )
@@ -633,7 +691,8 @@ protected:
 			if( sliceData.fCount>0 ) memset(   faceSet , 0 , sizeof( char ) * sliceData.fCount );
 		}
 	protected:
-		int _oldCCount , _oldECount , _oldFCount , _oldNCount;
+		node_index_type _oldCCount , _oldECount , _oldFCount;
+		node_index_type _oldNCount;
 	};
 
 	///////////////////
@@ -642,23 +701,23 @@ protected:
 	struct _XSliceValues
 	{
 		typename SliceData::XSliceTableData xSliceData;
-		Pointer( long long ) edgeKeys ; Pointer( char ) edgeSet;
+		Pointer( _Key ) edgeKeys ; Pointer( char ) edgeSet;
 		Pointer( _FaceEdges ) faceEdges ; Pointer( char ) faceSet;
-		std::unordered_map< long long , std::vector< _IsoEdge > > faceEdgeMap;
-		std::unordered_map< long long , std::pair< int, Vertex > > edgeVertexMap;
-		std::unordered_map< long long , long long > vertexPairMap;
-		std::vector< std::vector< std::pair< long long , std::pair< int , Vertex > > > > edgeVertexKeyValues;
-		std::vector< std::vector< std::pair< long long , long long > > > vertexPairKeyValues;
-		std::vector< std::vector< std::pair< long long , std::vector< _IsoEdge > > > > faceEdgeKeyValues;
+		std::unordered_map< _Key , std::vector< _IsoEdge > , typename _Key::Hasher > faceEdgeMap;
+		std::unordered_map< _Key , std::pair< node_index_type , Vertex > , typename _Key::Hasher > edgeVertexMap;
+		std::unordered_map< _Key , _Key , typename _Key::Hasher > vertexPairMap;
+		std::vector< std::vector< std::pair< _Key , std::pair< node_index_type , Vertex > > > > edgeVertexKeyValues;
+		std::vector< std::vector< std::pair< _Key , _Key > > > vertexPairKeyValues;
+		std::vector< std::vector< std::pair< _Key , std::vector< _IsoEdge > > > > faceEdgeKeyValues;
 
 		_XSliceValues( void )
 		{
 			_oldECount = _oldFCount = 0;
-			edgeKeys = NullPointer( long long ) ; edgeSet = NullPointer( char );
+			edgeKeys = NullPointer( _Key ) ; edgeSet = NullPointer( char );
 			faceEdges = NullPointer( _FaceEdges ) ; faceSet = NullPointer( char );
-			edgeVertexKeyValues.resize( omp_get_max_threads() );
-			vertexPairKeyValues.resize( omp_get_max_threads() );
-			faceEdgeKeyValues.resize( omp_get_max_threads() );
+			edgeVertexKeyValues.resize( ThreadPool::NumThreads() );
+			vertexPairKeyValues.resize( ThreadPool::NumThreads() );
+			faceEdgeKeyValues.resize( ThreadPool::NumThreads() );
 		}
 		~_XSliceValues( void )
 		{
@@ -668,7 +727,7 @@ protected:
 		}
 		void setEdgeVertexMap( void )
 		{
-			for( int i=0 ; i<edgeVertexKeyValues.size() ; i++ )
+			for( node_index_type i=0 ; i<(node_index_type)edgeVertexKeyValues.size() ; i++ )
 			{
 				for( int j=0 ; j<edgeVertexKeyValues[i].size() ; j++ ) edgeVertexMap[ edgeVertexKeyValues[i][j].first ] = edgeVertexKeyValues[i][j].second;
 				edgeVertexKeyValues[i].clear();
@@ -676,7 +735,7 @@ protected:
 		}
 		void setVertexPairMap( void )
 		{
-			for( int i=0 ; i<vertexPairKeyValues.size() ; i++ )
+			for( node_index_type i=0 ; i<(node_index_type)vertexPairKeyValues.size() ; i++ )
 			{
 				for( int j=0 ; j<vertexPairKeyValues[i].size() ; j++ )
 				{
@@ -688,7 +747,7 @@ protected:
 		}
 		void setFaceEdgeMap( void )
 		{
-			for( int i=0 ; i<faceEdgeKeyValues.size() ; i++ )
+			for( node_index_type i=0 ; i<(node_index_type)faceEdgeKeyValues.size() ; i++ )
 			{
 				for( int j=0 ; j<faceEdgeKeyValues[i].size() ; j++ )
 				{
@@ -702,15 +761,15 @@ protected:
 		void reset( void )
 		{
 			faceEdgeMap.clear() , edgeVertexMap.clear() , vertexPairMap.clear();
-			for( int i=0 ; i<edgeVertexKeyValues.size() ; i++ ) edgeVertexKeyValues[i].clear();
-			for( int i=0 ; i<vertexPairKeyValues.size() ; i++ ) vertexPairKeyValues[i].clear();
-			for( int i=0 ; i<faceEdgeKeyValues.size() ; i++ ) faceEdgeKeyValues[i].clear();
+			for( node_index_type i=0 ; i<(node_index_type)edgeVertexKeyValues.size() ; i++ ) edgeVertexKeyValues[i].clear();
+			for( node_index_type i=0 ; i<(node_index_type)vertexPairKeyValues.size() ; i++ ) vertexPairKeyValues[i].clear();
+			for( node_index_type i=0 ; i<(node_index_type)faceEdgeKeyValues.size() ; i++ ) faceEdgeKeyValues[i].clear();
 
 			if( _oldECount<xSliceData.eCount )
 			{
 				_oldECount = xSliceData.eCount;
 				FreePointer( edgeKeys ) ; FreePointer( edgeSet );
-				edgeKeys = AllocPointer< long long >( _oldECount );
+				edgeKeys = AllocPointer< _Key >( _oldECount );
 				edgeSet = AllocPointer< char >( _oldECount );
 			}
 			if( _oldFCount<xSliceData.fCount )
@@ -725,7 +784,7 @@ protected:
 		}
 
 	protected:
-		int _oldECount , _oldFCount;
+		node_index_type _oldECount , _oldFCount;
 	};
 
 	/////////////////
@@ -756,76 +815,76 @@ protected:
 		_SliceValues& sValues = slabValues[depth].sliceValues( slice );
 		bool useBoundaryEvaluation = false;
 		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 || ( FEMDegrees[d]==1 && sValues.cornerGradients ) ) useBoundaryEvaluation = true;
-		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( omp_get_max_threads() );
-		std::vector< ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > bNeighborKeys( omp_get_max_threads() );
+		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( ThreadPool::NumThreads() );
+		std::vector< ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > bNeighborKeys( ThreadPool::NumThreads() );
 		if( useBoundaryEvaluation ) for( size_t i=0 ; i<neighborKeys.size() ; i++ ) bNeighborKeys[i].set( tree._localToGlobal( depth ) );
 		else                        for( size_t i=0 ; i<neighborKeys.size() ; i++ )  neighborKeys[i].set( tree._localToGlobal( depth ) );
-#pragma omp parallel for
-		for( int i=tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) ; i<tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) ; i++ ) if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 		{
-			Real squareValues[ HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ];
-			ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ omp_get_thread_num() ];
-			ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bNeighborKey = bNeighborKeys[ omp_get_thread_num() ];
-			TreeNode* leaf = tree._sNodes.treeNodes[i];
-			if( !IsActiveNode< Dim >( leaf->children ) )
+			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
-				const typename SliceData::SquareCornerIndices& cIndices = sValues.sliceData.cornerIndices( leaf );
-
-				bool isInterior = tree._isInteriorlySupported( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , leaf->parent );
-				if( useBoundaryEvaluation ) bNeighborKey.getNeighbors( leaf );
-				else                         neighborKey.getNeighbors( leaf );
-
-				for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
+				Real squareValues[ HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ];
+				ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ thread ];
+				ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bNeighborKey = bNeighborKeys[ thread ];
+				TreeNode* leaf = tree._sNodes.treeNodes[i];
+				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
-					typename HyperCube::Cube< Dim >::template Element< 0 > c( zDir , _c.index );
-					int vIndex = cIndices[_c.index];
-					if( !sValues.cornerSet[vIndex] )
+					const typename SliceData::SquareCornerIndices& cIndices = sValues.sliceData.cornerIndices( leaf );
+
+					bool isInterior = tree._isInteriorlySupported( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , leaf->parent );
+					if( useBoundaryEvaluation ) bNeighborKey.getNeighbors( leaf );
+					else                         neighborKey.getNeighbors( leaf );
+
+					for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 					{
-						if( sValues.cornerGradients )
+						typename HyperCube::Cube< Dim >::template Element< 0 > c( zDir , _c.index );
+						node_index_type vIndex = cIndices[_c.index];
+						if( !sValues.cornerSet[vIndex] )
 						{
-							CumulativeDerivativeValues< Real , Dim , 1 > p;
-							if( useBoundaryEvaluation ) p = tree.template _getCornerValues< Real , 1 >( bNeighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior );
-							else                        p = tree.template _getCornerValues< Real , 1 >(  neighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior );
-							sValues.cornerValues[vIndex] = p[0] , sValues.cornerGradients[vIndex] = Point< Real , Dim >( p[1] , p[2] , p[3] );
+							if( sValues.cornerGradients )
+							{
+								CumulativeDerivativeValues< Real , Dim , 1 > p;
+								if( useBoundaryEvaluation ) p = tree.template _getCornerValues< Real , 1 >( bNeighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior );
+								else                        p = tree.template _getCornerValues< Real , 1 >(  neighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior );
+								sValues.cornerValues[vIndex] = p[0] , sValues.cornerGradients[vIndex] = Point< Real , Dim >( p[1] , p[2] , p[3] );
+							}
+							else
+							{
+								if( useBoundaryEvaluation ) sValues.cornerValues[vIndex] = tree.template _getCornerValues< Real , 0 >( bNeighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior )[0];
+								else                        sValues.cornerValues[vIndex] = tree.template _getCornerValues< Real , 0 >(  neighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior )[0];
+							}
+							sValues.cornerSet[vIndex] = 1;
 						}
-						else
+						squareValues[_c.index] = sValues.cornerValues[ vIndex ];
+						TreeNode* node = leaf;
+						LocalDepth _depth = depth;
+						int _slice = slice;
+						while( tree._isValidSpaceNode( node->parent ) && (node-node->parent->children)==c.index )
 						{
-							if( useBoundaryEvaluation ) sValues.cornerValues[vIndex] = tree.template _getCornerValues< Real , 0 >( bNeighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior )[0];
-							else                        sValues.cornerValues[vIndex] = tree.template _getCornerValues< Real , 0 >(  neighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior )[0];
+							node = node->parent , _depth-- , _slice >>= 1;
+							_SliceValues& _sValues = slabValues[_depth].sliceValues( _slice );
+							const typename SliceData::SquareCornerIndices& _cIndices = _sValues.sliceData.cornerIndices( node );
+							node_index_type _vIndex = _cIndices[_c.index];
+							_sValues.cornerValues[_vIndex] = sValues.cornerValues[vIndex];
+							if( _sValues.cornerGradients ) _sValues.cornerGradients[_vIndex] = sValues.cornerGradients[vIndex];
+							_sValues.cornerSet[_vIndex] = 1;
 						}
-						sValues.cornerSet[vIndex] = 1;
 					}
-					squareValues[_c.index] = sValues.cornerValues[ vIndex ];
-					TreeNode* node = leaf;
-					LocalDepth _depth = depth;
-					int _slice = slice;
-					while( tree._isValidSpaceNode( node->parent ) && (node-node->parent->children)==c.index )
-					{
-						node = node->parent , _depth-- , _slice >>= 1;
-						_SliceValues& _sValues = slabValues[_depth].sliceValues( _slice );
-						const typename SliceData::SquareCornerIndices& _cIndices = _sValues.sliceData.cornerIndices( node );
-						int _vIndex = _cIndices[_c.index];
-						_sValues.cornerValues[_vIndex] = sValues.cornerValues[vIndex];
-						if( _sValues.cornerGradients ) _sValues.cornerGradients[_vIndex] = sValues.cornerGradients[vIndex];
-						_sValues.cornerSet[_vIndex] = 1;
-					}
+					sValues.mcIndices[ i - sValues.sliceData.nodeOffset ] = HyperCube::Cube< Dim-1 >::MCIndex( squareValues , isoValue );
 				}
-				sValues.mcIndices[ i - sValues.sliceData.nodeOffset ] = HyperCube::Cube< Dim-1 >::MCIndex( squareValues , isoValue );
 			}
 		}
+		);
 	}
-
 	/////////////////
 	// _VertexData //
 	/////////////////
 	class _VertexData
 	{
 	public:
-		static const int VERTEX_COORDINATE_SHIFT = ( sizeof( long long ) * 8 ) / Dim;
-		static long long Index( const int index[Dim] ){ long long idx=0 ; for( int dd=0 ; dd<Dim ; dd++ ) idx |= ( ( long long )index[dd] )<<(dd*VERTEX_COORDINATE_SHIFT) ; return idx; }
-
-		static long long EdgeIndex( const TreeNode* node , typename HyperCube::Cube< Dim >::template Element< 1 > e , int maxDepth , int idx[Dim] )
+		static _Key EdgeIndex( const TreeNode* node , typename HyperCube::Cube< Dim >::template Element< 1 > e , int maxDepth )
 		{
+			_Key key;
 			const HyperCube::Direction* x = SliceData::template HyperCubeTables< Dim , 1 >::Directions[ e.index ];
 			int d , off[Dim];
 			node->depthAndOffset( d , off );
@@ -833,128 +892,133 @@ protected:
 			{
 				if( x[dd]==HyperCube::CROSS )
 				{
-					idx[(dd+0)%3] = BinaryNode::CornerIndex( maxDepth+1 , d+1 , off[(dd+0)%3]<<1 , 1 );
-					idx[(dd+1)%3] = BinaryNode::CornerIndex( maxDepth+1 , d   , off[(dd+1)%3] , x[(dd+1)%3]==HyperCube::BACK ? 0 : 1 );
-					idx[(dd+2)%3] = BinaryNode::CornerIndex( maxDepth+1 , d   , off[(dd+2)%3] , x[(dd+2)%3]==HyperCube::BACK ? 0 : 1 );
+					key[(dd+0)%3] = (int)BinaryNode::CornerIndex( maxDepth+1 , d+1 , off[(dd+0)%3]<<1 , 1 );
+					key[(dd+1)%3] = (int)BinaryNode::CornerIndex( maxDepth+1 , d   , off[(dd+1)%3] , x[(dd+1)%3]==HyperCube::BACK ? 0 : 1 );
+					key[(dd+2)%3] = (int)BinaryNode::CornerIndex( maxDepth+1 , d   , off[(dd+2)%3] , x[(dd+2)%3]==HyperCube::BACK ? 0 : 1 );
 				}
 			}
-			return Index( idx );
+			return key;
 		}
-		static long long EdgeIndex( const TreeNode* node , typename HyperCube::Cube< Dim >::template Element< 1 > e , int maxDepth ){ int idx[Dim] ; return EdgeIndex( node , e , maxDepth , idx ); }
 
-		static long long FaceIndex( const TreeNode* node , typename HyperCube::Cube< Dim >::template Element< Dim-1 > f , int maxDepth , int idx[Dim] )
+		static _Key FaceIndex( const TreeNode* node , typename HyperCube::Cube< Dim >::template Element< Dim-1 > f , int maxDepth )
 		{
+			_Key key;
 			const HyperCube::Direction* x = SliceData::template HyperCubeTables< Dim , 2 >::Directions[ f.index ];
 			int d , o[Dim];
 			node->depthAndOffset( d , o );
 			for( int dd=0 ; dd<Dim ; dd++ )
-				if( x[dd]==HyperCube::CROSS ) idx[dd] = BinaryNode::CornerIndex( maxDepth+1 , d+1 , o[dd]<<1 , 1 );
-				else                          idx[dd] = BinaryNode::CornerIndex( maxDepth+1 , d   , o[dd]    , x[dd]==HyperCube::BACK ? 0 : 1 );
-			return Index( idx );
+				if( x[dd]==HyperCube::CROSS ) key[dd] = (int)BinaryNode::CornerIndex( maxDepth+1 , d+1 , o[dd]<<1 , 1 );
+				else                          key[dd] = (int)BinaryNode::CornerIndex( maxDepth+1 , d   , o[dd]    , x[dd]==HyperCube::BACK ? 0 : 1 );
+			return key;
 		}
-		static long long FaceIndex( const TreeNode* node , typename HyperCube::Cube< Dim >::template Element< Dim-1 > f , int maxDepth ){ int idx[Dim] ; return FaceIndex( node , f , maxDepth , idx ); }
 	};
 
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
+	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
 	{
 		if( slice>0          ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::FRONT , vOffset , mesh , slabValues , SetVertex );
 		if( slice<(1<<depth) ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::BACK  , vOffset , mesh , slabValues , SetVertex );
 	}
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , HyperCube::Direction zDir , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
+	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , HyperCube::Direction zDir , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
 	{
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		_SliceValues& sValues = slabValues[depth].sliceValues( slice );
 		// [WARNING] In the case Degree=2, these two keys are the same, so we don't have to maintain them separately.
-		std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
-		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( omp_get_max_threads() );
-		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( omp_get_max_threads() );
+		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
+		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( ThreadPool::NumThreads() );
+		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) ) , weightKeys[i].set( tree._localToGlobal( depth ) ) , dataKeys[i].set( tree._localToGlobal( depth ) );
-#pragma omp parallel for
-		for( int i=tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) ; i<tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) ; i++ ) if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 		{
-			ConstOneRingNeighborKey& neighborKey =  neighborKeys[ omp_get_thread_num() ];
-			ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ omp_get_thread_num() ];
-			ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ omp_get_thread_num() ];
-			TreeNode* leaf = tree._sNodes.treeNodes[i];
-			if( !IsActiveNode< Dim >( leaf->children ) )
+			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
-				int idx = i - sValues.sliceData.nodeOffset;
-				const typename SliceData::SquareEdgeIndices& eIndices = sValues.sliceData.edgeIndices( leaf );
-				if( HyperCube::Cube< Dim-1 >::HasMCRoots( sValues.mcIndices[idx] ) )
+				ConstOneRingNeighborKey& neighborKey =  neighborKeys[ thread ];
+				ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ thread ];
+				ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ thread ];
+				TreeNode* leaf = tree._sNodes.treeNodes[i];
+				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
-					neighborKey.getNeighbors( leaf );
-					if( densityWeights ) weightKey.getNeighbors( leaf );
-					if( data ) dataKey.getNeighbors( leaf );
+					node_index_type idx = (node_index_type)i - sValues.sliceData.nodeOffset;
+					const typename SliceData::SquareEdgeIndices& eIndices = sValues.sliceData.edgeIndices( leaf );
+					if( HyperCube::Cube< Dim-1 >::HasMCRoots( sValues.mcIndices[idx] ) )
+					{
+						neighborKey.getNeighbors( leaf );
+						if( densityWeights ) weightKey.getNeighbors( leaf );
+						if( data ) dataKey.getNeighbors( leaf );
 
-					for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
-						if( HyperCube::Cube< 1 >::HasMCRoots( HyperCube::Cube< Dim-1 >::ElementMCIndex( _e , sValues.mcIndices[idx] ) ) )
-						{
-							typename HyperCube::Cube< Dim >::template Element< 1 > e( zDir , _e.index );
-							int vIndex = eIndices[_e.index];
-							if( !sValues.edgeSet[vIndex] )
+						for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
+							if( HyperCube::Cube< 1 >::HasMCRoots( HyperCube::Cube< Dim-1 >::ElementMCIndex( _e , sValues.mcIndices[idx] ) ) )
 							{
-								Vertex vertex;
-								long long key = _VertexData::EdgeIndex( leaf , e , tree._localToGlobal( tree._maxDepth ) );
-								_GetIsoVertex< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _e , zDir , sValues , vertex , SetVertex );
-								bool stillOwner = false;
-								std::pair< int , Vertex > hashed_vertex;
-#pragma omp critical (add_point_access)
-								if( !sValues.edgeSet[vIndex] )
+								typename HyperCube::Cube< Dim >::template Element< 1 > e( zDir , _e.index );
+								node_index_type vIndex = eIndices[_e.index];
+								volatile char &edgeSet = sValues.edgeSet[vIndex];
+								if( !edgeSet )
 								{
-									mesh.addOutOfCorePoint( vertex );
-									sValues.edgeSet[ vIndex ] = 1;
-									hashed_vertex = std::pair< int , Vertex >( vOffset , vertex );
-									sValues.edgeKeys[ vIndex ] = key;
-									vOffset++;
-									stillOwner = true;
-								}
-								if( stillOwner ) sValues.edgeVertexKeyValues[ omp_get_thread_num() ].push_back( std::pair< long long , std::pair< int , Vertex > >( key , hashed_vertex ) );
-								if( stillOwner )
-								{
-									// We only need to pass the iso-vertex down if the edge it lies on is adjacent to a coarser leaf
-									auto IsNeeded = [&]( unsigned int depth )
+									Vertex vertex;
+									_Key key = _VertexData::EdgeIndex( leaf , e , tree._localToGlobal( tree._maxDepth ) );
+									_GetIsoVertex< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _e , zDir , sValues , vertex , SetVertex );
+									bool stillOwner = false;
+									std::pair< node_index_type , Vertex > hashed_vertex;
 									{
-										bool isNeeded = false;
-										typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 1 > my_ic = SliceData::template HyperCubeTables< Dim , 1 >::IncidentCube[e.index];
-										for( typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 1 > ic ; ic<HyperCube::Cube< Dim >::template IncidentCubeNum< 1 >() ; ic++ ) if( ic!=my_ic )
+										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
+										if( !edgeSet )
 										{
-											unsigned int xx = SliceData::template HyperCubeTables< Dim , 1 >::CellOffset[e.index][ic.index];
-											isNeeded |= !tree._isValidSpaceNode( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx] );
+											mesh.addOutOfCorePoint( vertex );
+											edgeSet = 1;
+											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset , vertex );
+											sValues.edgeKeys[ vIndex ] = key;
+											vOffset++;
+											stillOwner = true;
 										}
-										return isNeeded;
-									};
-									if( IsNeeded( depth ) )
+									}
+									if( stillOwner ) sValues.edgeVertexKeyValues[ thread ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
+									if( stillOwner )
 									{
-										const typename HyperCube::Cube< Dim >::template Element< Dim-1 > *f = SliceData::template HyperCubeTables< Dim , 1 , Dim-1 >::OverlapElements[e.index];
-										for( int k=0 ; k<2 ; k++ )
+										// We only need to pass the iso-vertex down if the edge it lies on is adjacent to a coarser leaf
+										auto IsNeeded = [&]( unsigned int depth )
 										{
-											TreeNode* node = leaf;
-											LocalDepth _depth = depth;
-											int _slice = slice;
-											while( tree._isValidSpaceNode( node->parent ) && SliceData::template HyperCubeTables< Dim , 2 , 0 >::Overlap[f[k].index][(unsigned int)(node-node->parent->children) ] )
+											bool isNeeded = false;
+											typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 1 > my_ic = SliceData::template HyperCubeTables< Dim , 1 >::IncidentCube[e.index];
+											for( typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 1 > ic ; ic<HyperCube::Cube< Dim >::template IncidentCubeNum< 1 >() ; ic++ ) if( ic!=my_ic )
 											{
-												node = node->parent , _depth-- , _slice >>= 1;
-												_SliceValues& _sValues = slabValues[_depth].sliceValues( _slice );
-												_sValues.edgeVertexKeyValues[ omp_get_thread_num() ].push_back( std::pair< long long , std::pair< int , Vertex > >( key , hashed_vertex ) );
-												if( !IsNeeded( _depth ) ) break;
+												unsigned int xx = SliceData::template HyperCubeTables< Dim , 1 >::CellOffset[e.index][ic.index];
+												isNeeded |= !tree._isValidSpaceNode( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx] );
+											}
+											return isNeeded;
+										};
+										if( IsNeeded( depth ) )
+										{
+											const typename HyperCube::Cube< Dim >::template Element< Dim-1 > *f = SliceData::template HyperCubeTables< Dim , 1 , Dim-1 >::OverlapElements[e.index];
+											for( int k=0 ; k<2 ; k++ )
+											{
+												TreeNode* node = leaf;
+												LocalDepth _depth = depth;
+												int _slice = slice;
+												while( tree._isValidSpaceNode( node->parent ) && SliceData::template HyperCubeTables< Dim , 2 , 0 >::Overlap[f[k].index][(unsigned int)(node-node->parent->children) ] )
+												{
+													node = node->parent , _depth-- , _slice >>= 1;
+													_SliceValues& _sValues = slabValues[_depth].sliceValues( _slice );
+													_sValues.edgeVertexKeyValues[ thread ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
+													if( !IsNeeded( _depth ) ) break;
+												}
 											}
 										}
 									}
 								}
 							}
-						}
+					}
 				}
 			}
 		}
+		);
 	}
 
 	////////////////////
 	// Iso-Extraction //
 	////////////////////
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void _SetXSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slab , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
+	static void _SetXSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slab , node_index_type &vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
 	{
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		_SliceValues& bValues = slabValues[depth].sliceValues ( slab   );
@@ -962,79 +1026,84 @@ protected:
 		_XSliceValues& xValues = slabValues[depth].xSliceValues( slab   );
 
 		// [WARNING] In the case Degree=2, these two keys are the same, so we don't have to maintain them separately.
-		std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
-		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( omp_get_max_threads() );
-		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( omp_get_max_threads() );
+		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
+		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( ThreadPool::NumThreads() );
+		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) ) , weightKeys[i].set( tree._localToGlobal( depth ) ) , dataKeys[i].set( tree._localToGlobal( depth ) );
-#pragma omp parallel for
-		for( int i=tree._sNodesBegin(depth,slab) ; i<tree._sNodesEnd(depth,slab) ; i++ ) if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 		{
-			ConstOneRingNeighborKey& neighborKey =  neighborKeys[ omp_get_thread_num() ];
-			ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ omp_get_thread_num() ];
-			ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ omp_get_thread_num() ];
-			TreeNode* leaf = tree._sNodes.treeNodes[i];
-			if( !IsActiveNode< Dim >( leaf->children ) )
+			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
-				unsigned char mcIndex = ( bValues.mcIndices[ i - bValues.sliceData.nodeOffset ] ) | ( fValues.mcIndices[ i - fValues.sliceData.nodeOffset ] )<<4;
-				const typename SliceData::SquareCornerIndices& eIndices = xValues.xSliceData.edgeIndices( leaf );
-				if( HyperCube::Cube< Dim >::HasMCRoots( mcIndex ) )
+				ConstOneRingNeighborKey& neighborKey =  neighborKeys[ thread ];
+				ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ thread ];
+				ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ thread ];
+				TreeNode* leaf = tree._sNodes.treeNodes[i];
+				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
-					neighborKey.getNeighbors( leaf );
-					if( densityWeights ) weightKey.getNeighbors( leaf );
-					if( data ) dataKey.getNeighbors( leaf );
-					for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
+					unsigned char mcIndex = ( bValues.mcIndices[ i - bValues.sliceData.nodeOffset ] ) | ( fValues.mcIndices[ i - fValues.sliceData.nodeOffset ] )<<4;
+					const typename SliceData::SquareCornerIndices& eIndices = xValues.xSliceData.edgeIndices( leaf );
+					if( HyperCube::Cube< Dim >::HasMCRoots( mcIndex ) )
 					{
-						typename HyperCube::Cube< Dim >::template Element< 1 > e( HyperCube::CROSS , _c.index );
-						unsigned int _mcIndex = HyperCube::Cube< Dim >::ElementMCIndex( e , mcIndex );
-						if( HyperCube::Cube< 1 >::HasMCRoots( _mcIndex ) )
+						neighborKey.getNeighbors( leaf );
+						if( densityWeights ) weightKey.getNeighbors( leaf );
+						if( data ) dataKey.getNeighbors( leaf );
+						for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 						{
-							int vIndex = eIndices[_c.index];
-							if( !xValues.edgeSet[vIndex] )
+							typename HyperCube::Cube< Dim >::template Element< 1 > e( HyperCube::CROSS , _c.index );
+							unsigned int _mcIndex = HyperCube::Cube< Dim >::ElementMCIndex( e , mcIndex );
+							if( HyperCube::Cube< 1 >::HasMCRoots( _mcIndex ) )
 							{
-								Vertex vertex;
-								long long key = _VertexData::EdgeIndex( leaf , e.index , tree._localToGlobal( tree._maxDepth ) );
-								_GetIsoVertex< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _c , bValues , fValues , vertex , SetVertex );
-								bool stillOwner = false;
-								std::pair< int , Vertex > hashed_vertex;
-#pragma omp critical (add_point_access)
-								if( !xValues.edgeSet[vIndex] )
+								node_index_type vIndex = eIndices[_c.index];
+								volatile char &edgeSet = xValues.edgeSet[vIndex];
+								if( !edgeSet )
 								{
-									mesh.addOutOfCorePoint( vertex );
-									xValues.edgeSet[ vIndex ] = 1;
-									hashed_vertex = std::pair< int , Vertex >( vOffset , vertex );
-									xValues.edgeKeys[ vIndex ] = key;
-									vOffset++;
-									stillOwner = true;
-								}
-								if( stillOwner ) xValues.edgeVertexKeyValues[ omp_get_thread_num() ].push_back( std::pair< long long , std::pair< int , Vertex > >( key , hashed_vertex ) );
-								if( stillOwner )
-								{
-									// We only need to pass the iso-vertex down if the edge it lies on is adjacent to a coarser leaf
-									auto IsNeeded = [&]( unsigned int depth )
+									Vertex vertex;
+									_Key key = _VertexData::EdgeIndex( leaf , e.index , tree._localToGlobal( tree._maxDepth ) );
+									_GetIsoVertex< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _c , bValues , fValues , vertex , SetVertex );
+									bool stillOwner = false;
+									std::pair< node_index_type , Vertex > hashed_vertex;
 									{
-										bool isNeeded = false;
-										typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 1 > my_ic = SliceData::template HyperCubeTables< Dim , 1 >::IncidentCube[e.index];
-										for( typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 1 > ic ; ic<HyperCube::Cube< Dim >::template IncidentCubeNum< 1 >() ; ic++ ) if( ic!=my_ic )
+										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
+										if( !edgeSet )
 										{
-											unsigned int xx = SliceData::template HyperCubeTables< Dim , 1 >::CellOffset[e.index][ic.index];
-											isNeeded |= !tree._isValidSpaceNode( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx] );
+											mesh.addOutOfCorePoint( vertex );
+											edgeSet = 1;
+											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset , vertex );
+											xValues.edgeKeys[ vIndex ] = key;
+											vOffset++;
+											stillOwner = true;
 										}
-										return isNeeded;
-									};
-									if( IsNeeded( depth ) )
+									}
+									if( stillOwner ) xValues.edgeVertexKeyValues[ thread ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
+									if( stillOwner )
 									{
-										const typename HyperCube::Cube< Dim >::template Element< Dim-1 > *f = SliceData::template HyperCubeTables< Dim , 1 , Dim-1 >::OverlapElements[e.index];
-										for( int k=0 ; k<2 ; k++ )
+										// We only need to pass the iso-vertex down if the edge it lies on is adjacent to a coarser leaf
+										auto IsNeeded = [&]( unsigned int depth )
 										{
-											TreeNode* node = leaf;
-											LocalDepth _depth = depth;
-											int _slab = slab;
-											while( tree._isValidSpaceNode( node->parent ) && SliceData::template HyperCubeTables< Dim , 2 , 0 >::Overlap[f[k].index][(unsigned int)(node-node->parent->children) ] )
+											bool isNeeded = false;
+											typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 1 > my_ic = SliceData::template HyperCubeTables< Dim , 1 >::IncidentCube[e.index];
+											for( typename HyperCube::Cube< Dim >::template IncidentCubeIndex< 1 > ic ; ic<HyperCube::Cube< Dim >::template IncidentCubeNum< 1 >() ; ic++ ) if( ic!=my_ic )
 											{
-												node = node->parent , _depth-- , _slab >>= 1;
-												_XSliceValues& _xValues = slabValues[_depth].xSliceValues( _slab );
-												_xValues.edgeVertexKeyValues[ omp_get_thread_num() ].push_back( std::pair< long long , std::pair< int , Vertex > >( key , hashed_vertex ) );
-												if( !IsNeeded( _depth ) ) break;
+												unsigned int xx = SliceData::template HyperCubeTables< Dim , 1 >::CellOffset[e.index][ic.index];
+												isNeeded |= !tree._isValidSpaceNode( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx] );
+											}
+											return isNeeded;
+										};
+										if( IsNeeded( depth ) )
+										{
+											const typename HyperCube::Cube< Dim >::template Element< Dim-1 > *f = SliceData::template HyperCubeTables< Dim , 1 , Dim-1 >::OverlapElements[e.index];
+											for( int k=0 ; k<2 ; k++ )
+											{
+												TreeNode* node = leaf;
+												LocalDepth _depth = depth;
+												int _slab = slab;
+												while( tree._isValidSpaceNode( node->parent ) && SliceData::template HyperCubeTables< Dim , 2 , 0 >::Overlap[f[k].index][(unsigned int)(node-node->parent->children) ] )
+												{
+													node = node->parent , _depth-- , _slab >>= 1;
+													_XSliceValues& _xValues = slabValues[_depth].xSliceValues( _slab );
+													_xValues.edgeVertexKeyValues[ thread ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
+													if( !IsNeeded( _depth ) ) break;
+												}
 											}
 										}
 									}
@@ -1045,6 +1114,7 @@ protected:
 				}
 			}
 		}
+		);
 	}
 	static void _CopyFinerSliceIsoEdgeKeys( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , std::vector< _SlabValues >& slabValues )
 	{
@@ -1057,16 +1127,15 @@ protected:
 		_SliceValues& cSliceValues = slabValues[depth+1].sliceValues(slice<<1);
 		typename SliceData::SliceTableData& pSliceData = pSliceValues.sliceData;
 		typename SliceData::SliceTableData& cSliceData = cSliceValues.sliceData;
-#pragma omp parallel for
-		for( int i=tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) ; i<tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) ; i++ ) if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
-			if( IsActiveNode< Dim >( tree._sNodes.treeNodes[i]->children ) )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		{
+			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) ) if( IsActiveNode< Dim >( tree._sNodes.treeNodes[i]->children ) )
 			{
-				int thread = omp_get_thread_num();
-				typename SliceData::SquareEdgeIndices& pIndices = pSliceData.edgeIndices( i );
+				typename SliceData::SquareEdgeIndices& pIndices = pSliceData.edgeIndices( (node_index_type)i );
 				// Copy the edges that overlap the coarser edges
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
 				{
-					int pIndex = pIndices[_e.index];
+					node_index_type pIndex = pIndices[_e.index];
 					if( !pSliceValues.edgeSet[ pIndex ] )
 					{
 						typename HyperCube::Cube< Dim >::template Element< 1 > e( zDir , _e.index );
@@ -1075,11 +1144,11 @@ protected:
 						//						if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) ERROR_OUT( "Finer edges should both be valid or invalid" );
 						if( !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index ) || !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) continue;
 
-						int cIndex1 = cSliceData.edgeIndices( tree._sNodes.treeNodes[i]->children + c[0].index )[_e.index];
-						int cIndex2 = cSliceData.edgeIndices( tree._sNodes.treeNodes[i]->children + c[1].index )[_e.index];
+						node_index_type cIndex1 = cSliceData.edgeIndices( tree._sNodes.treeNodes[i]->children + c[0].index )[_e.index];
+						node_index_type cIndex2 = cSliceData.edgeIndices( tree._sNodes.treeNodes[i]->children + c[1].index )[_e.index];
 						if( cSliceValues.edgeSet[cIndex1] != cSliceValues.edgeSet[cIndex2] )
 						{
-							long long key;
+							_Key key;
 							if( cSliceValues.edgeSet[cIndex1] ) key = cSliceValues.edgeKeys[cIndex1];
 							else                                key = cSliceValues.edgeKeys[cIndex2];
 							pSliceValues.edgeKeys[pIndex] = key;
@@ -1087,8 +1156,8 @@ protected:
 						}
 						else if( cSliceValues.edgeSet[cIndex1] && cSliceValues.edgeSet[cIndex2] )
 						{
-							long long key1 = cSliceValues.edgeKeys[cIndex1] , key2 = cSliceValues.edgeKeys[cIndex2];
-							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key1 , key2 ) );
+							_Key key1 = cSliceValues.edgeKeys[cIndex1] , key2 = cSliceValues.edgeKeys[cIndex2];
+							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
 
 							const TreeNode* node = tree._sNodes.treeNodes[i];
 							LocalDepth _depth = depth;
@@ -1097,12 +1166,14 @@ protected:
 							{
 								node = node->parent , _depth-- , _slice >>= 1;
 								_SliceValues& _pSliceValues = slabValues[_depth].sliceValues(_slice);
-								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key1 , key2 ) );
+								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
 							}
 						}
 					}
 				}
 			}
+		}
+		);
 	}
 	static void _CopyFinerXSliceIsoEdgeKeys( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slab , std::vector< _SlabValues>& slabValues )
 	{
@@ -1112,16 +1183,15 @@ protected:
 		typename SliceData::XSliceTableData& pSliceData  = pSliceValues.xSliceData;
 		typename SliceData::XSliceTableData& cSliceData0 = cSliceValues0.xSliceData;
 		typename SliceData::XSliceTableData& cSliceData1 = cSliceValues1.xSliceData;
-#pragma omp parallel for
-		for( int i=tree._sNodesBegin(depth,slab) ; i<tree._sNodesEnd(depth,slab) ; i++ ) if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
-			if( IsActiveNode< Dim >( tree._sNodes.treeNodes[i]->children ) )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
+		{
+			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) ) if( IsActiveNode< Dim >( tree._sNodes.treeNodes[i]->children ) )
 			{
-				int thread = omp_get_thread_num();
-				typename SliceData::SquareCornerIndices& pIndices = pSliceData.edgeIndices( i );
+				typename SliceData::SquareCornerIndices& pIndices = pSliceData.edgeIndices( (node_index_type)i );
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 				{
 					typename HyperCube::Cube< Dim >::template Element< 1 > e( HyperCube::CROSS , _c.index );
-					int pIndex = pIndices[ _c.index ];
+					node_index_type pIndex = pIndices[ _c.index ];
 					if( !pSliceValues.edgeSet[pIndex] )
 					{
 						typename HyperCube::Cube< Dim >::template Element< 0 > c0( HyperCube::BACK , _c.index ) , c1( HyperCube::FRONT , _c.index );
@@ -1130,12 +1200,12 @@ protected:
 						//					if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c0 )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c1 ) ) ERROR_OUT( "Finer edges should both be valid or invalid" );
 						if( !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c0.index ) || !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c1.index ) ) continue;
 
-						int cIndex0 = cSliceData0.edgeIndices( tree._sNodes.treeNodes[i]->children + c0.index )[_c.index];
-						int cIndex1 = cSliceData1.edgeIndices( tree._sNodes.treeNodes[i]->children + c1.index )[_c.index];
+						node_index_type cIndex0 = cSliceData0.edgeIndices( tree._sNodes.treeNodes[i]->children + c0.index )[_c.index];
+						node_index_type cIndex1 = cSliceData1.edgeIndices( tree._sNodes.treeNodes[i]->children + c1.index )[_c.index];
 						// If there's one zero-crossing along the edge
 						if( cSliceValues0.edgeSet[cIndex0] != cSliceValues1.edgeSet[cIndex1] )
 						{
-							long long key;
+							_Key key;
 							if( cSliceValues0.edgeSet[cIndex0] ) key = cSliceValues0.edgeKeys[cIndex0]; //, vPair = cSliceValues0.edgeVertexMap.find( key )->second;
 							else                                 key = cSliceValues1.edgeKeys[cIndex1]; //, vPair = cSliceValues1.edgeVertexMap.find( key )->second;
 							pSliceValues.edgeKeys[ pIndex ] = key;
@@ -1144,8 +1214,8 @@ protected:
 						// If there's are two zero-crossings along the edge
 						else if( cSliceValues0.edgeSet[cIndex0] && cSliceValues1.edgeSet[cIndex1] )
 						{
-							long long key0 = cSliceValues0.edgeKeys[cIndex0] , key1 = cSliceValues1.edgeKeys[cIndex1];
-							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key0 , key1 ) );
+							_Key key0 = cSliceValues0.edgeKeys[cIndex0] , key1 = cSliceValues1.edgeKeys[cIndex1];
+							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
 							const TreeNode* node = tree._sNodes.treeNodes[i];
 							LocalDepth _depth = depth;
 							int _slab = slab;
@@ -1153,12 +1223,14 @@ protected:
 							{
 								node = node->parent , _depth-- , _slab>>= 1;
 								_SliceValues& _pSliceValues = slabValues[_depth].sliceValues(_slab);
-								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key0 , key1 ) );
+								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
 							}
 						}
 					}
 				}
 			}
+		}
+		);
 	}
 	static void _SetSliceIsoEdges( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , std::vector< _SlabValues >& slabValues )
 	{
@@ -1168,55 +1240,58 @@ protected:
 	static void _SetSliceIsoEdges( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , HyperCube::Direction zDir , std::vector< _SlabValues >& slabValues )
 	{
 		_SliceValues& sValues = slabValues[depth].sliceValues( slice );
-		std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
-#pragma omp parallel for
-		for( int i=tree._sNodesBegin(depth, slice-(zDir==HyperCube::BACK ? 0 : 1)) ; i<tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) ; i++ ) if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth, slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 		{
-			int isoEdges[ 2 * HyperCube::MarchingSquares::MAX_EDGES ];
-			ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-			TreeNode* leaf = tree._sNodes.treeNodes[i];
-			if( !IsActiveNode< Dim >( leaf->children ) )
+			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
-				int idx = i - sValues.sliceData.nodeOffset;
-				const typename SliceData::SquareEdgeIndices& eIndices = sValues.sliceData.edgeIndices( leaf );
-				const typename SliceData::SquareFaceIndices& fIndices = sValues.sliceData.faceIndices( leaf );
-				unsigned char mcIndex = sValues.mcIndices[idx];
-				if( !sValues.faceSet[ fIndices[0] ] )
+				int isoEdges[ 2 * HyperCube::MarchingSquares::MAX_EDGES ];
+				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
+				TreeNode* leaf = tree._sNodes.treeNodes[i];
+				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
-					neighborKey.getNeighbors( leaf );
-					unsigned int xx = WindowIndex< IsotropicUIntPack< Dim , 3 > , IsotropicUIntPack< Dim , 1 > >::Index + (zDir==HyperCube::BACK ? -1 : 1);
-					if( !IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx] ) || !IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx]->children ) )
+					node_index_type idx = (node_index_type)i - sValues.sliceData.nodeOffset;
+					const typename SliceData::SquareEdgeIndices& eIndices = sValues.sliceData.edgeIndices( leaf );
+					const typename SliceData::SquareFaceIndices& fIndices = sValues.sliceData.faceIndices( leaf );
+					unsigned char mcIndex = sValues.mcIndices[idx];
+					if( !sValues.faceSet[ fIndices[0] ] )
 					{
-						_FaceEdges fe;
-						fe.count = HyperCube::MarchingSquares::AddEdgeIndices( mcIndex , isoEdges );
-						for( int j=0 ; j<fe.count ; j++ ) for( int k=0 ; k<2 ; k++ )
+						neighborKey.getNeighbors( leaf );
+						unsigned int xx = WindowIndex< IsotropicUIntPack< Dim , 3 > , IsotropicUIntPack< Dim , 1 > >::Index + (zDir==HyperCube::BACK ? -1 : 1);
+						if( !IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx] ) || !IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx]->children ) )
 						{
-							if( !sValues.edgeSet[ eIndices[ isoEdges[2*j+k] ] ] ) ERROR_OUT( "Edge not set: %d / %d" , slice , 1<<depth );
-							fe.edges[j][k] = sValues.edgeKeys[ eIndices[ isoEdges[2*j+k] ] ];
-						}
-						sValues.faceSet[ fIndices[0] ] = 1;
-						sValues.faceEdges[ fIndices[0] ] = fe;
+							_FaceEdges fe;
+							fe.count = HyperCube::MarchingSquares::AddEdgeIndices( mcIndex , isoEdges );
+							for( int j=0 ; j<fe.count ; j++ ) for( int k=0 ; k<2 ; k++ )
+							{
+								if( !sValues.edgeSet[ eIndices[ isoEdges[2*j+k] ] ] ) ERROR_OUT( "Edge not set: " , slice , " / " , 1<<depth );
+								fe.edges[j][k] = sValues.edgeKeys[ eIndices[ isoEdges[2*j+k] ] ];
+							}
+							sValues.faceSet[ fIndices[0] ] = 1;
+							sValues.faceEdges[ fIndices[0] ] = fe;
 
-						TreeNode* node = leaf;
-						LocalDepth _depth = depth;
-						int _slice = slice;
-						typename HyperCube::Cube< Dim >::template Element< Dim-1 > f( zDir , 0 );
-						std::vector< _IsoEdge > edges;
-						edges.resize( fe.count );
-						for( int j=0 ; j<fe.count ; j++ ) edges[j] = fe.edges[j];
-						while( tree._isValidSpaceNode( node->parent ) && SliceData::template HyperCubeTables< Dim , 2 , 0 >::Overlap[f.index][(unsigned int)(node-node->parent->children) ] )
-						{
-							node = node->parent , _depth-- , _slice >>= 1;
-							if( IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( _depth ) ].neighbors.data[xx] ) && IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( _depth ) ].neighbors.data[xx]->children ) ) break;
-							long long key = _VertexData::FaceIndex( node , f , tree._localToGlobal( tree._maxDepth ) );
-							_SliceValues& _sValues = slabValues[_depth].sliceValues( _slice );
-							_sValues.faceEdgeKeyValues[ omp_get_thread_num() ].push_back( std::pair< long long , std::vector< _IsoEdge > >( key , edges ) );
+							TreeNode* node = leaf;
+							LocalDepth _depth = depth;
+							int _slice = slice;
+							typename HyperCube::Cube< Dim >::template Element< Dim-1 > f( zDir , 0 );
+							std::vector< _IsoEdge > edges;
+							edges.resize( fe.count );
+							for( int j=0 ; j<fe.count ; j++ ) edges[j] = fe.edges[j];
+							while( tree._isValidSpaceNode( node->parent ) && SliceData::template HyperCubeTables< Dim , 2 , 0 >::Overlap[f.index][(unsigned int)(node-node->parent->children) ] )
+							{
+								node = node->parent , _depth-- , _slice >>= 1;
+								if( IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( _depth ) ].neighbors.data[xx] ) && IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( _depth ) ].neighbors.data[xx]->children ) ) break;
+								_Key key = _VertexData::FaceIndex( node , f , tree._localToGlobal( tree._maxDepth ) );
+								_SliceValues& _sValues = slabValues[_depth].sliceValues( _slice );
+								_sValues.faceEdgeKeyValues[ thread ].push_back( std::pair< _Key , std::vector< _IsoEdge > >( key , edges ) );
+							}
 						}
 					}
 				}
 			}
 		}
+		);
 	}
 	static void _SetXSliceIsoEdges( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slab , std::vector< _SlabValues >& slabValues )
 	{
@@ -1224,193 +1299,200 @@ protected:
 		_SliceValues& fValues = slabValues[depth].sliceValues ( slab+1 );
 		_XSliceValues& xValues = slabValues[depth].xSliceValues( slab   );
 
-		std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
-#pragma omp parallel for
-		for( int i=tree._sNodesBegin(depth,slab) ; i<tree._sNodesEnd(depth,slab) ; i++ ) if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 		{
-			int isoEdges[ 2 * HyperCube::MarchingSquares::MAX_EDGES ];
-			ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-			TreeNode* leaf = tree._sNodes.treeNodes[i];
-			if( !IsActiveNode< Dim >( leaf->children ) )
+			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
-				const typename SliceData::SquareCornerIndices& cIndices = xValues.xSliceData.edgeIndices( leaf );
-				const typename SliceData::SquareEdgeIndices& eIndices = xValues.xSliceData.faceIndices( leaf );
-				unsigned char mcIndex = ( bValues.mcIndices[ i - bValues.sliceData.nodeOffset ] ) | ( fValues.mcIndices[ i - fValues.sliceData.nodeOffset ]<<4 );
+				int isoEdges[ 2 * HyperCube::MarchingSquares::MAX_EDGES ];
+				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
+				TreeNode* leaf = tree._sNodes.treeNodes[i];
+				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
-					neighborKey.getNeighbors( leaf );
-					// Iterate over the edges on the back
-					for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
+					const typename SliceData::SquareCornerIndices& cIndices = xValues.xSliceData.edgeIndices( leaf );
+					const typename SliceData::SquareEdgeIndices& eIndices = xValues.xSliceData.faceIndices( leaf );
+					unsigned char mcIndex = ( bValues.mcIndices[ i - bValues.sliceData.nodeOffset ] ) | ( fValues.mcIndices[ i - fValues.sliceData.nodeOffset ]<<4 );
 					{
-						typename HyperCube::Cube< Dim >::template Element< 2 > f( HyperCube::CROSS , _e.index );
-						unsigned char _mcIndex = HyperCube::Cube< Dim >::template ElementMCIndex< 2 >( f , mcIndex );
-
-						unsigned int xx = SliceData::template HyperCubeTables< Dim , 2 >::CellOffsetAntipodal[f.index];
-						if(	!xValues.faceSet[ eIndices[_e.index] ] && ( !IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx] ) || !IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx]->children ) ) )
+						neighborKey.getNeighbors( leaf );
+						// Iterate over the edges on the back
+						for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
 						{
-							_FaceEdges fe;
-							fe.count = HyperCube::MarchingSquares::AddEdgeIndices( _mcIndex , isoEdges );
-							for( int j=0 ; j<fe.count ; j++ ) for( int k=0 ; k<2 ; k++ )
-							{
-								typename HyperCube::Cube< Dim >::template Element< 1 > e( f , typename HyperCube::Cube< Dim-1 >::template Element< 1 >( isoEdges[2*j+k] ) );
-								HyperCube::Direction dir ; unsigned int coIndex;
-								e.factor( dir , coIndex );
-								if( dir==HyperCube::CROSS ) // Cross-edge
-								{
-									int idx = cIndices[ coIndex ];
-									if( !xValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: %d / %d" , slab , 1<<depth );
-									fe.edges[j][k] = xValues.edgeKeys[ idx ];
-								}
-								else
-								{
-									const _SliceValues& sValues = dir==HyperCube::BACK ? bValues : fValues;
-									int idx = sValues.sliceData.edgeIndices(i)[ coIndex ];
-									if( !sValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: %d / %d" , slab , 1<<depth );
-									fe.edges[j][k] = sValues.edgeKeys[ idx ];
-								}
-							}
-							xValues.faceSet[ eIndices[_e.index] ] = 1;
-							xValues.faceEdges[ eIndices[_e.index] ] = fe;
+							typename HyperCube::Cube< Dim >::template Element< 2 > f( HyperCube::CROSS , _e.index );
+							unsigned char _mcIndex = HyperCube::Cube< Dim >::template ElementMCIndex< 2 >( f , mcIndex );
 
-							TreeNode* node = leaf;
-							LocalDepth _depth = depth;
-							int _slab = slab;
-							std::vector< _IsoEdge > edges;
-							edges.resize( fe.count );
-							for( int j=0 ; j<fe.count ; j++ ) edges[j] = fe.edges[j];
-							while( tree._isValidSpaceNode( node->parent ) && SliceData::template HyperCubeTables< Dim , 2 , 0 >::Overlap[f.index][(unsigned int)(node-node->parent->children) ] )
+							unsigned int xx = SliceData::template HyperCubeTables< Dim , 2 >::CellOffsetAntipodal[f.index];
+							if(	!xValues.faceSet[ eIndices[_e.index] ] && ( !IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx] ) || !IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( depth ) ].neighbors.data[xx]->children ) ) )
 							{
-								node = node->parent , _depth-- , _slab >>= 1;
-								if( IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( _depth ) ].neighbors.data[xx] ) && IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( _depth ) ].neighbors.data[xx]->children ) ) break;
-								long long key = _VertexData::FaceIndex( node , f , tree._localToGlobal( tree._maxDepth ) );
-								_XSliceValues& _xValues = slabValues[_depth].xSliceValues( _slab );
-								_xValues.faceEdgeKeyValues[ omp_get_thread_num() ].push_back( std::pair< long long , std::vector< _IsoEdge > >( key , edges ) );
+								_FaceEdges fe;
+								fe.count = HyperCube::MarchingSquares::AddEdgeIndices( _mcIndex , isoEdges );
+								for( int j=0 ; j<fe.count ; j++ ) for( int k=0 ; k<2 ; k++ )
+								{
+									typename HyperCube::Cube< Dim >::template Element< 1 > e( f , typename HyperCube::Cube< Dim-1 >::template Element< 1 >( isoEdges[2*j+k] ) );
+									HyperCube::Direction dir ; unsigned int coIndex;
+									e.factor( dir , coIndex );
+									if( dir==HyperCube::CROSS ) // Cross-edge
+									{
+										node_index_type idx = cIndices[ coIndex ];
+										if( !xValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: " , slab , " / " , 1<<depth );
+										fe.edges[j][k] = xValues.edgeKeys[ idx ];
+									}
+									else
+									{
+										const _SliceValues& sValues = dir==HyperCube::BACK ? bValues : fValues;
+										node_index_type idx = sValues.sliceData.edgeIndices((node_index_type)i)[ coIndex ];
+										if( !sValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: " , slab , " / " , 1<<depth );
+										fe.edges[j][k] = sValues.edgeKeys[ idx ];
+									}
+								}
+								xValues.faceSet[ eIndices[_e.index] ] = 1;
+								xValues.faceEdges[ eIndices[_e.index] ] = fe;
+
+								TreeNode* node = leaf;
+								LocalDepth _depth = depth;
+								int _slab = slab;
+								std::vector< _IsoEdge > edges;
+								edges.resize( fe.count );
+								for( int j=0 ; j<fe.count ; j++ ) edges[j] = fe.edges[j];
+								while( tree._isValidSpaceNode( node->parent ) && SliceData::template HyperCubeTables< Dim , 2 , 0 >::Overlap[f.index][(unsigned int)(node-node->parent->children) ] )
+								{
+									node = node->parent , _depth-- , _slab >>= 1;
+									if( IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( _depth ) ].neighbors.data[xx] ) && IsActiveNode< Dim >( neighborKey.neighbors[ tree._localToGlobal( _depth ) ].neighbors.data[xx]->children ) ) break;
+									_Key key = _VertexData::FaceIndex( node , f , tree._localToGlobal( tree._maxDepth ) );
+									_XSliceValues& _xValues = slabValues[_depth].xSliceValues( _slab );
+									_xValues.faceEdgeKeyValues[ thread ].push_back( std::pair< _Key , std::vector< _IsoEdge > >( key , edges ) );
+								}
 							}
 						}
 					}
 				}
 			}
 		}
+		);
 	}
-	static void _SetIsoSurface( const FEMTree< Dim , Real >& tree , LocalDepth depth , int offset , const _SliceValues& bValues , const _SliceValues& fValues , const _XSliceValues& xValues , CoredMeshData< Vertex >& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , bool flipOrientation )
+
+	static void _SetIsoSurface( const FEMTree< Dim , Real >& tree , LocalDepth depth , int offset , const _SliceValues& bValues , const _SliceValues& fValues , const _XSliceValues& xValues , CoredMeshData< Vertex , node_index_type >& mesh , bool polygonMesh , bool addBarycenter , node_index_type& vOffset , bool flipOrientation )
 	{
-		std::vector< std::pair< int , Vertex > > polygon;
-		std::vector< std::vector< _IsoEdge > > edgess( omp_get_max_threads() );
-#pragma omp parallel for
-		for( int i=tree._sNodesBegin(depth,offset) ; i<tree._sNodesEnd(depth,offset) ; i++ ) if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
+		std::vector< std::pair< node_index_type , Vertex > > polygon;
+		std::vector< std::vector< _IsoEdge > > edgess( ThreadPool::NumThreads() );
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,offset) , tree._sNodesEnd(depth,offset) , [&]( unsigned int thread , size_t i )
 		{
-			std::vector< _IsoEdge >& edges = edgess[ omp_get_thread_num() ];
-			TreeNode* leaf = tree._sNodes.treeNodes[i];
-			int res = 1<<depth;
-			LocalDepth d ; LocalOffset off;
-			tree._localDepthAndOffset( leaf , d , off );
-			bool inBounds = off[0]>=0 && off[0]<res && off[1]>=0 && off[1]<res && off[2]>=0 && off[2]<res;
-			if( inBounds && !IsActiveNode< Dim >( leaf->children ) )
+			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
-				edges.clear();
-				unsigned char mcIndex = ( bValues.mcIndices[ i - bValues.sliceData.nodeOffset ] ) | ( fValues.mcIndices[ i - fValues.sliceData.nodeOffset ]<<4 );
-				// [WARNING] Just because the node looks empty doesn't mean it doesn't get eges from finer neighbors
+				std::vector< _IsoEdge >& edges = edgess[ thread ];
+				TreeNode* leaf = tree._sNodes.treeNodes[i];
+				int res = 1<<depth;
+				LocalDepth d ; LocalOffset off;
+				tree._localDepthAndOffset( leaf , d , off );
+				bool inBounds = off[0]>=0 && off[0]<res && off[1]>=0 && off[1]<res && off[2]>=0 && off[2]<res;
+				if( inBounds && !IsActiveNode< Dim >( leaf->children ) )
 				{
-					// Gather the edges from the faces (with the correct orientation)
-					for( typename HyperCube::Cube< Dim >::template Element< Dim-1 > f ; f<HyperCube::Cube< Dim >::template ElementNum< Dim-1 >() ; f++ )
+					edges.clear();
+					unsigned char mcIndex = ( bValues.mcIndices[ i - bValues.sliceData.nodeOffset ] ) | ( fValues.mcIndices[ i - fValues.sliceData.nodeOffset ]<<4 );
+					// [WARNING] Just because the node looks empty doesn't mean it doesn't get eges from finer neighbors
 					{
-						int flip = HyperCube::Cube< Dim >::IsOriented( f ) ? 0 : 1;
-						HyperCube::Direction fDir = f.direction();
-						if( fDir==HyperCube::BACK || fDir==HyperCube::FRONT )
+						// Gather the edges from the faces (with the correct orientation)
+						for( typename HyperCube::Cube< Dim >::template Element< Dim-1 > f ; f<HyperCube::Cube< Dim >::template ElementNum< Dim-1 >() ; f++ )
 						{
-							const _SliceValues& sValues = (fDir==HyperCube::BACK) ? bValues : fValues;
-							int fIdx = sValues.sliceData.faceIndices(i)[0];
-							if( sValues.faceSet[fIdx] )
+							int flip = HyperCube::Cube< Dim >::IsOriented( f ) ? 0 : 1;
+							HyperCube::Direction fDir = f.direction();
+							if( fDir==HyperCube::BACK || fDir==HyperCube::FRONT )
 							{
-								const _FaceEdges& fe = sValues.faceEdges[ fIdx ];
-								for( int j=0 ; j<fe.count ; j++ ) edges.push_back( _IsoEdge( fe.edges[j][flip] , fe.edges[j][1-flip] ) );
-							}
-							else
-							{
-								long long key = _VertexData::FaceIndex( leaf , f , tree._localToGlobal( tree._maxDepth ) );
-								typename std::unordered_map< long long, std::vector< _IsoEdge > >::const_iterator iter = sValues.faceEdgeMap.find(key);
-								if( iter!=sValues.faceEdgeMap.end() )
+								const _SliceValues& sValues = (fDir==HyperCube::BACK) ? bValues : fValues;
+								node_index_type fIdx = sValues.sliceData.faceIndices((node_index_type)i)[0];
+								if( sValues.faceSet[fIdx] )
 								{
-									const std::vector< _IsoEdge >& _edges = iter->second;
-									for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( _IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
+									const _FaceEdges& fe = sValues.faceEdges[ fIdx ];
+									for( int j=0 ; j<fe.count ; j++ ) edges.push_back( _IsoEdge( fe.edges[j][flip] , fe.edges[j][1-flip] ) );
 								}
-								else ERROR_OUT( "Invalid faces: %d  %d" , i , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
-							}
-						}
-						else
-						{
-							int fIdx = xValues.xSliceData.faceIndices(i)[ f.coIndex() ];
-							if( xValues.faceSet[fIdx] )
-							{
-								const _FaceEdges& fe = xValues.faceEdges[ fIdx ];
-								for( int j=0 ; j<fe.count ; j++ ) edges.push_back( _IsoEdge( fe.edges[j][flip] , fe.edges[j][1-flip] ) );
-							}
-							else
-							{
-								long long key = _VertexData::FaceIndex( leaf , f , tree._localToGlobal( tree._maxDepth ) );
-								typename std::unordered_map< long long , std::vector< _IsoEdge > >::const_iterator iter = xValues.faceEdgeMap.find(key);
-								if( iter!=xValues.faceEdgeMap.end() )
-								{
-									const std::vector< _IsoEdge >& _edges = iter->second;
-									for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( _IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
-								}
-								else ERROR_OUT( "Invalid faces: %d  %s" , i , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
-							}
-						}
-					}
-					// Get the edge loops
-					std::vector< std::vector< long long  > > loops;
-					while( edges.size() )
-					{
-						loops.resize( loops.size()+1 );
-						_IsoEdge edge = edges.back();
-						edges.pop_back();
-						long long start = edge[0] , current = edge[1];
-						while( current!=start )
-						{
-							int idx;
-							for( idx=0 ; idx<(int)edges.size() ; idx++ ) if( edges[idx][0]==current ) break;
-							if( idx==edges.size() )
-							{
-								typename std::unordered_map< long long, long long >::const_iterator iter;
-								if     ( (iter=bValues.vertexPairMap.find(current))!=bValues.vertexPairMap.end() ) loops.back().push_back( current ) , current = iter->second;
-								else if( (iter=fValues.vertexPairMap.find(current))!=fValues.vertexPairMap.end() ) loops.back().push_back( current ) , current = iter->second;
-								else if( (iter=xValues.vertexPairMap.find(current))!=xValues.vertexPairMap.end() ) loops.back().push_back( current ) , current = iter->second;
 								else
 								{
-									LocalDepth d ; LocalOffset off;
-									tree._localDepthAndOffset( leaf , d , off );
-									ERROR_OUT( "Failed to close loop [%d: %d %d %d] | (%d): %lld" , d-1 , off[0] , off[1] , off[2] , i , current );
+									_Key key = _VertexData::FaceIndex( leaf , f , tree._localToGlobal( tree._maxDepth ) );
+									typename std::unordered_map< _Key , std::vector< _IsoEdge > , typename _Key::Hasher >::const_iterator iter = sValues.faceEdgeMap.find(key);
+									if( iter!=sValues.faceEdgeMap.end() )
+									{
+										const std::vector< _IsoEdge >& _edges = iter->second;
+										for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( _IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
+									}
+									else ERROR_OUT( "Invalid faces: " , i , "  " , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
 								}
 							}
 							else
 							{
-								loops.back().push_back( current );
-								current = edges[idx][1];
-								edges[idx] = edges.back() , edges.pop_back();
+								node_index_type fIdx = xValues.xSliceData.faceIndices((node_index_type)i)[ f.coIndex() ];
+								if( xValues.faceSet[fIdx] )
+								{
+									const _FaceEdges& fe = xValues.faceEdges[ fIdx ];
+									for( int j=0 ; j<fe.count ; j++ ) edges.push_back( _IsoEdge( fe.edges[j][flip] , fe.edges[j][1-flip] ) );
+								}
+								else
+								{
+									_Key key = _VertexData::FaceIndex( leaf , f , tree._localToGlobal( tree._maxDepth ) );
+									typename std::unordered_map< _Key , std::vector< _IsoEdge > , typename _Key::Hasher >::const_iterator iter = xValues.faceEdgeMap.find(key);
+									if( iter!=xValues.faceEdgeMap.end() )
+									{
+										const std::vector< _IsoEdge >& _edges = iter->second;
+										for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( _IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
+									}
+									else ERROR_OUT( "Invalid faces: " , i , "  " ,  fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
+								}
 							}
 						}
-						loops.back().push_back( start );
-					}
-					// Add the loops to the mesh
-					for( size_t j=0 ; j<loops.size() ; j++ )
-					{
-						std::vector< std::pair< int , Vertex > > polygon( loops[j].size() );
-						for( size_t k=0 ; k<loops[j].size() ; k++ )
+						// Get the edge loops
+						std::vector< std::vector< _Key > > loops;
+						while( edges.size() )
 						{
-							long long key = loops[j][k];
-							typename std::unordered_map< long long, std::pair< int, Vertex > >::const_iterator iter;
-							size_t kk = flipOrientation ? loops[j].size()-1-k : k;
-							if     ( ( iter=bValues.edgeVertexMap.find( key ) )!=bValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
-							else if( ( iter=fValues.edgeVertexMap.find( key ) )!=fValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
-							else if( ( iter=xValues.edgeVertexMap.find( key ) )!=xValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
-							else ERROR_OUT( "Couldn't find vertex in edge map" );
+							loops.resize( loops.size()+1 );
+							_IsoEdge edge = edges.back();
+							edges.pop_back();
+							_Key start = edge[0] , current = edge[1];
+							while( current!=start )
+							{
+								int idx;
+								for( idx=0 ; idx<(int)edges.size() ; idx++ ) if( edges[idx][0]==current ) break;
+								if( idx==edges.size() )
+								{
+									typename std::unordered_map< _Key , _Key , typename _Key::Hasher >::const_iterator iter;
+									if     ( (iter=bValues.vertexPairMap.find(current))!=bValues.vertexPairMap.end() ) loops.back().push_back( current ) , current = iter->second;
+									else if( (iter=fValues.vertexPairMap.find(current))!=fValues.vertexPairMap.end() ) loops.back().push_back( current ) , current = iter->second;
+									else if( (iter=xValues.vertexPairMap.find(current))!=xValues.vertexPairMap.end() ) loops.back().push_back( current ) , current = iter->second;
+									else
+									{
+										LocalDepth d ; LocalOffset off;
+										tree._localDepthAndOffset( leaf , d , off );
+										ERROR_OUT( "Failed to close loop [" , d-1 , ": " , off[0] , " " , off[1] , " " , off[2] , "] | (" , i , "): " , current.to_string() );
+									}
+								}
+								else
+								{
+									loops.back().push_back( current );
+									current = edges[idx][1];
+									edges[idx] = edges.back() , edges.pop_back();
+								}
+							}
+							loops.back().push_back( start );
 						}
-						_AddIsoPolygons( mesh , polygon , polygonMesh , addBarycenter , vOffset );
+						// Add the loops to the mesh
+						for( size_t j=0 ; j<loops.size() ; j++ )
+						{
+							std::vector< std::pair< node_index_type , Vertex > > polygon( loops[j].size() );
+							for( size_t k=0 ; k<loops[j].size() ; k++ )
+							{
+								_Key key = loops[j][k];
+								typename std::unordered_map< _Key , std::pair< node_index_type , Vertex > , typename _Key::Hasher >::const_iterator iter;
+								size_t kk = flipOrientation ? loops[j].size()-1-k : k;
+								if     ( ( iter=bValues.edgeVertexMap.find( key ) )!=bValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
+								else if( ( iter=fValues.edgeVertexMap.find( key ) )!=fValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
+								else if( ( iter=xValues.edgeVertexMap.find( key ) )!=xValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
+								else ERROR_OUT( "Couldn't find vertex in edge map" );
+							}
+							_AddIsoPolygons( thread , mesh , polygon , polygonMesh , addBarycenter , vOffset );
+						}
 					}
 				}
 			}
 		}
+		);
 	}
 
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
@@ -1468,12 +1550,12 @@ protected:
 			// We have a linear function L, with L(0) = x0 and L(1) = x1
 			// => L(t) = x0 + t * (x1-x0)
 			// => L(t) = isoValue <=> t = ( isoValue - x0 ) / ( x1 - x0 )
-			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: %g %g" , x0 , x1 );
+			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: " , x0 , " " , x1 );
 			averageRoot = ( isoValue - x0 ) / ( x1 - x0 );
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
 		{
-			WARN( "Bad average root: %f\t(%f %f) (%f)" , averageRoot , x0 , x1 , isoValue );
+			_BadRootCount++;
 			if( averageRoot<0 ) averageRoot = 0;
 			if( averageRoot>1 ) averageRoot = 1;
 		}
@@ -1548,14 +1630,12 @@ protected:
 			// We have a linear function L, with L(0) = x0 and L(1) = x1
 			// => L(t) = x0 + t * (x1-x0)
 			// => L(t) = isoValue <=> t = ( isoValue - x0 ) / ( x1 - x0 )
-			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: %g %g" , x0 , x1 );
+			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: " , x0 , " " , x1 );
 			averageRoot = ( isoValue - x0 ) / ( x1 - x0 );
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
 		{
-			WARN( "Bad average root: %f\t(%f %f) (%f)" , averageRoot , x0 , x1 , isoValue );
-			if( averageRoot<0 ) averageRoot = 0;
-			if( averageRoot>1 ) averageRoot = 1;
+			_BadRootCount++;
 		}
 		position[2] = Real( start + width*averageRoot );
 		Real depth = (Real)1.;
@@ -1578,69 +1658,68 @@ protected:
 		return true;
 	}
 
-	static int _AddIsoPolygons( CoredMeshData< Vertex >& mesh , std::vector< std::pair< int , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , int& vOffset )
+	static unsigned int _AddIsoPolygons( unsigned int thread , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< std::pair< node_index_type , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , node_index_type &vOffset )
 	{
 		if( polygonMesh )
 		{
-			std::vector< int > vertices( polygon.size() );
-			for( int i=0 ; i<(int)polygon.size() ; i++ ) vertices[i] = polygon[polygon.size()-1-i].first;
-			mesh.addPolygon_s( vertices );
+			std::vector< node_index_type > vertices( polygon.size() );
+			for( unsigned int i=0 ; i<polygon.size() ; i++ ) vertices[i] = polygon[polygon.size()-1-i].first;
+			mesh.addPolygon_s( thread , vertices );
 			return 1;
 		}
 		if( polygon.size()>3 )
 		{
 			bool isCoplanar = false;
-			std::vector< int > triangle( 3 );
+			std::vector< node_index_type > triangle( 3 );
 
 			if( addBarycenter )
-				for( int i=0 ; i<(int)polygon.size() ; i++ )
-					for( int j=0 ; j<i ; j++ )
-						if( (i+1)%polygon.size()!=j && (j+1)%polygon.size()!=i )
-						{
-							Vertex v1 = polygon[i].second , v2 = polygon[j].second;
-							for( int k=0 ; k<3 ; k++ ) if( v1.point[k]==v2.point[k] ) isCoplanar = true;
-						}
+				for( unsigned int i=0 ; i<polygon.size() ; i++ ) for( unsigned int j=0 ; j<i ; j++ )
+					if( (i+1)%polygon.size()!=j && (j+1)%polygon.size()!=i )
+					{
+						Vertex v1 = polygon[i].second , v2 = polygon[j].second;
+						for( int k=0 ; k<3 ; k++ ) if( v1.point[k]==v2.point[k] ) isCoplanar = true;
+					}
 			if( isCoplanar )
 			{
 				Vertex c;
 				c *= 0;
-				for( int i=0 ; i<(int)polygon.size() ; i++ ) c += polygon[i].second;
+				for( unsigned int i=0 ; i<polygon.size() ; i++ ) c += polygon[i].second;
 				c /= ( typename Vertex::Real )polygon.size();
-				int cIdx;
-#pragma omp critical (add_barycenter_point_access)
+				node_index_type cIdx;
 				{
+					std::lock_guard< std::mutex > lock( _pointInsertionMutex );
 					cIdx = mesh.addOutOfCorePoint( c );
 					vOffset++;
 				}
-				for( int i=0 ; i<(int)polygon.size() ; i++ )
+				for( unsigned i=0 ; i<polygon.size() ; i++ )
 				{
 					triangle[0] = polygon[ i                  ].first;
 					triangle[1] = cIdx;
 					triangle[2] = polygon[(i+1)%polygon.size()].first;
-					mesh.addPolygon_s( triangle );
+					mesh.addPolygon_s( thread , triangle );
 				}
-				return (int)polygon.size();
+				return (unsigned int)polygon.size();
 			}
 			else
 			{
 				std::vector< Point< Real , Dim > > vertices( polygon.size() );
-				for( int i=0 ; i<(int)polygon.size() ; i++ ) vertices[i] = polygon[i].second.point;
-				std::vector< TriangleIndex > triangles = MinimalAreaTriangulation< Real , Dim >( ( ConstPointer( Point< Real , Dim > ) )GetPointer( vertices ) , vertices.size() );
-				if( triangles.size()!=polygon.size()-2 ) ERROR_OUT( "Minimal area triangulation failed: %d != %d" , (int)triangles.size() , (int)polygon.size()-2 );
-				for( int i=0 ; i<(int)triangles.size() ; i++ )
+				for( unsigned int i=0 ; i<polygon.size() ; i++ ) vertices[i] = polygon[i].second.point;
+				std::vector< TriangleIndex< node_index_type > > triangles = MinimalAreaTriangulation< node_index_type , Real , Dim >( ( ConstPointer( Point< Real , Dim > ) )GetPointer( vertices ) , (node_index_type)vertices.size() );
+				if( triangles.size()!=polygon.size()-2 ) ERROR_OUT( "Minimal area triangulation failed:" , triangles.size() , " != " , polygon.size()-2 );
+				for( unsigned int i=0 ; i<triangles.size() ; i++ )
 				{
 					for( int j=0 ; j<3 ; j++ ) triangle[2-j] = polygon[ triangles[i].idx[j] ].first;
-					mesh.addPolygon_s( triangle );
+					mesh.addPolygon_s( thread , triangle );
 				}
 			}
 		}
 		else if( polygon.size()==3 )
 		{
-			std::vector< int > vertices( 3 );
+			std::vector< node_index_type > vertices( 3 );
 			for( int i=0 ; i<3 ; i++ ) vertices[2-i] = polygon[i].first;
-			mesh.addPolygon_s( vertices );
+			mesh.addPolygon_s( thread , vertices );
 		}
-		return (int)polygon.size()-2;
+		return (unsigned int)polygon.size()-2;
 	}
 public:
 	struct IsoStats
@@ -1657,9 +1736,10 @@ public:
 			return stream.str();
 		}
 	};
-	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
-	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
+	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
+	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex , node_index_type >& mesh , const SetVertexFunction &SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
 	{
+		_BadRootCount = 0u;
 		IsoStats isoStats;
 		static_assert( sizeof...(FEMSigs)==Dim , "[ERROR] Number of signatures should match dimension" );
 		tree._setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
@@ -1673,8 +1753,7 @@ public:
 		if( data ) pointEvaluator = new typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >( tree._maxDepth );
 		DenseNodeData< Real , UIntPack< FEMSigs ... > > coarseCoefficients( tree._sNodesEnd( tree._maxDepth-1 ) );
 		memset( coarseCoefficients() , 0 , sizeof(Real)*tree._sNodesEnd( tree._maxDepth-1 ) );
-#pragma omp parallel for
-		for( int i=tree._sNodesBegin(0) ; i<tree._sNodesEnd( tree._maxDepth-1 ) ; i++ ) coarseCoefficients[i] = coefficients[i];
+		ThreadPool::Parallel_for( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( unsigned int, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
 		typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
 		for( LocalDepth d=1 ; d<tree._maxDepth ; d++ ) tree._upSample( UIntPack< FEMSigs ... >() , rp , d , coarseCoefficients() );
 		FEMTree< Dim , Real >::MemoryUsage();
@@ -1682,7 +1761,7 @@ public:
 		std::vector< _Evaluator< UIntPack< FEMSigs ... > , 1 > > evaluators( tree._maxDepth+1 );
 		for( LocalDepth d=0 ; d<=tree._maxDepth ; d++ ) evaluators[d].set( tree._maxDepth );
 
-		int vertexOffset = 0;
+		node_index_type vertexOffset = 0;
 
 		std::vector< _SlabValues > slabValues( tree._maxDepth+1 );
 
@@ -1739,27 +1818,18 @@ public:
 				_SetXSliceIsoEdges( tree , d , o-1 , slabValues );
 				isoStats.edgesTime += Time()-t , t = Time();
 
-#pragma omp parallel sections
-				{
-#pragma omp section
-					slabValues[d]. sliceValues(o-1).setEdgeVertexMap();
-#pragma omp section
-					slabValues[d]. sliceValues(o  ).setEdgeVertexMap();
-#pragma omp section
-					slabValues[d].xSliceValues(o-1).setEdgeVertexMap();
-#pragma omp section
-					slabValues[d]. sliceValues(o-1).setVertexPairMap();
-#pragma omp section
-					slabValues[d]. sliceValues(o  ).setVertexPairMap();
-#pragma omp section
-					slabValues[d].xSliceValues(o-1).setVertexPairMap();
-#pragma omp section
-					slabValues[d]. sliceValues(o-1).setFaceEdgeMap();
-#pragma omp section
-					slabValues[d]. sliceValues(o  ).setFaceEdgeMap();
-#pragma omp section
-					slabValues[d].xSliceValues(o-1).setFaceEdgeMap();
-				}
+				ThreadPool::ParallelSections
+				(
+					[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o-1).setEdgeVertexMap(); } ,
+					[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o  ).setEdgeVertexMap(); } ,
+					[ &slabValues , d , o ]( void ){ slabValues[d].xSliceValues(o-1).setEdgeVertexMap(); } ,
+					[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o-1).setVertexPairMap(); } ,
+					[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o  ).setVertexPairMap(); } ,
+					[ &slabValues , d , o ]( void ){ slabValues[d].xSliceValues(o-1).setVertexPairMap(); } ,
+					[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o-1).setFaceEdgeMap(); } ,
+					[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o  ).setFaceEdgeMap(); } ,
+					[ &slabValues , d , o ]( void ){ slabValues[d].xSliceValues(o-1).setFaceEdgeMap(); }
+				);
 				// Add the triangles
 				t = Time();
 				_SetIsoSurface( tree , d , o-1 , slabValues[d].sliceValues(o-1) , slabValues[d].sliceValues(o) , slabValues[d].xSliceValues(o-1) , mesh , polygonMesh , addBarycenter , vertexOffset , flipOrientation );
@@ -1784,9 +1854,14 @@ public:
 		}
 		FEMTree< Dim , Real >::MemoryUsage();
 		if( pointEvaluator ) delete pointEvaluator;
+		size_t badRootCount = _BadRootCount;
+		if( badRootCount!=0 ) WARN( "bad average roots: " , badRootCount );
 		return isoStats;
 	}
 };
+template< class Real , class Vertex > std::mutex IsoSurfaceExtractor< 3 , Real , Vertex >::_pointInsertionMutex;
+template< class Real , class Vertex > std::atomic< size_t > IsoSurfaceExtractor< 3 , Real , Vertex >::_BadRootCount;
+
 
 template< class Real , class Vertex > template< unsigned int D , unsigned int K >
 unsigned int IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::CellOffset[ HyperCube::Cube< D >::template ElementNum< K >() ][ HyperCube::Cube< D >::template IncidentCubeNum< K >() ];

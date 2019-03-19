@@ -46,48 +46,48 @@ template< class Real , unsigned int Dim > struct XForm;
 template< class Real , unsigned int Dim >
 struct Point
 {
-	void _init( int d )
+	void _init( unsigned int d )
 	{
 		if( !d ) memset( coords , 0 , sizeof(Real)*Dim );
 		else ERROR_OUT( "Should never be called" );
 	}
-	template< class _Real , class ... _Reals > void _init( int d , _Real v , _Reals ... values )
+	template< class _Real , class ... _Reals > void _init( unsigned int d , _Real v , _Reals ... values )
 	{
 		coords[d] = (Real)v;
 		if( d+1<Dim ) _init( d+1 , values... );
 	}
 	template< class ... Points >
-	static void _AddColumnVector( XForm< Real , Dim >& x , int c , Point point , Points ... points )
+	static void _AddColumnVector( XForm< Real , Dim >& x , unsigned int c , Point point , Points ... points )
 	{
-		for( int r=0 ; r<Dim ; r++ ) x( c , r ) = point[r];
+		for( unsigned int r=0 ; r<Dim ; r++ ) x( c , r ) = point[r];
 		_AddColumnVector( x , c+1 , points ... );
 	}
-	static void _AddColumnVector( XForm< Real , Dim >& x , int c ){ ; }
+	static void _AddColumnVector( XForm< Real , Dim >& x , unsigned int c ){ ; }
 public:
 	Real coords[Dim];
 	Point( void ) { memset( coords , 0 , sizeof(Real)*Dim ); }
 	Point( const Point& p ){ memcpy( coords , p.coords , sizeof(Real)*Dim ); }
 	template< class ... _Reals > Point( _Reals ... values ){ static_assert( sizeof...(values)==Dim || sizeof...(values)==0 , "[ERROR] Point::Point: Invalid number of coefficients" ) ; _init( 0 , values... ); }
-	template< class _Real > Point( const Point< _Real , Dim >& p ){ for( int d=0 ; d<Dim ; d++ ) coords[d] = (Real) p.coords[d]; }
-	inline       Real& operator[] ( int i )       { return coords[i]; }
-	inline const Real& operator[] ( int i ) const { return coords[i]; }
-	inline Point  operator - ( void ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = - coords[d] ; return q; }
+	template< class _Real > Point( const Point< _Real , Dim >& p ){ for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] = (Real) p.coords[d]; }
+	inline       Real& operator[] ( unsigned int i )       { return coords[i]; }
+	inline const Real& operator[] ( unsigned int i ) const { return coords[i]; }
+	inline Point  operator - ( void ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = - coords[d] ; return q; }
 
 
-	template< class _Real > inline Point& operator += ( Point< _Real , Dim > p )       { for( int d=0 ; d<Dim ; d++ ) coords[d] += (Real)p.coords[d] ; return *this; }
-	template< class _Real > inline Point  operator +  ( Point< _Real , Dim > p ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] + (Real)p.coords[d] ; return q; }
+	template< class _Real > inline Point& operator += ( Point< _Real , Dim > p )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] += (Real)p.coords[d] ; return *this; }
+	template< class _Real > inline Point  operator +  ( Point< _Real , Dim > p ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] + (Real)p.coords[d] ; return q; }
 	template< class _Real > inline Point& operator -= ( Point< _Real , Dim > p )       { return (*this)+=(-p); }
 	template< class _Real > inline Point  operator -  ( Point< _Real , Dim > p ) const { return (*this)+ (-p); }
-	template< class Scalar > inline Point& operator *= ( Scalar r )       { for( int d=0 ; d<Dim ; d++ ) coords[d] *= r ; return *this; }
-	template< class Scalar > inline Point  operator *  ( Scalar r ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] * r ; return q; }
-	template< class Scalar > inline Point& operator /= ( Scalar r )       { for( int d=0 ; d<Dim ; d++ ) coords[d] /= r ; return *this; }
-	template< class Scalar > inline Point  operator /  ( Scalar r ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] / r ; return q; }
-	template< class _Real > inline Point& operator *= ( Point< _Real , Dim > p )       { for( int d=0 ; d<Dim ; d++ ) coords[d] *= p.coords[d] ; return *this; }
-	template< class _Real > inline Point  operator *  ( Point< _Real , Dim > p ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] * p.coords[d] ; return q; }
-	template< class _Real > inline Point& operator /= ( Point< _Real , Dim > p )       { for( int d=0 ; d<Dim ; d++ ) coords[d] /= p.coords[d] ; return *this; }
-	template< class _Real > inline Point  operator /  ( Point< _Real , Dim > p ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] / p.coords[d] ; return q; }
+	template< class Scalar > inline Point& operator *= ( Scalar r )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] *= r ; return *this; }
+	template< class Scalar > inline Point  operator *  ( Scalar r ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] * r ; return q; }
+	template< class Scalar > inline Point& operator /= ( Scalar r )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] /= r ; return *this; }
+	template< class Scalar > inline Point  operator /  ( Scalar r ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] / r ; return q; }
+	template< class _Real > inline Point& operator *= ( Point< _Real , Dim > p )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] *= p.coords[d] ; return *this; }
+	template< class _Real > inline Point  operator *  ( Point< _Real , Dim > p ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] * p.coords[d] ; return q; }
+	template< class _Real > inline Point& operator /= ( Point< _Real , Dim > p )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] /= p.coords[d] ; return *this; }
+	template< class _Real > inline Point  operator /  ( Point< _Real , Dim > p ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] / p.coords[d] ; return q; }
 
-	static Real Dot( const Point& p1 , const Point& p2 ){ Real dot = {} ; for( int d=0 ; d<Dim ; d++ ) dot += p1.coords[d] * p2.coords[d] ; return dot; }
+	static Real Dot( const Point& p1 , const Point& p2 ){ Real dot = {} ; for( unsigned int d=0 ; d<Dim ; d++ ) dot += p1.coords[d] * p2.coords[d] ; return dot; }
 	static Real SquareNorm( const Point& p ){ return Dot( p , p ); }
 	template< class ... Points > static Point CrossProduct( Points ... points )
 	{
@@ -95,15 +95,15 @@ public:
 		XForm< Real , Dim > x;
 		_AddColumnVector( x , 0 , points ... );
 		Point p;
-		for( int d=0 ; d<Dim ; d++ ) p[d] = ( d&1 ) ? -x.subDeterminant( Dim-1 , d ) : x.subDeterminant( Dim-1 , d );
+		for( unsigned int d=0 ; d<Dim ; d++ ) p[d] = ( d&1 ) ? -x.subDeterminant( Dim-1 , d ) : x.subDeterminant( Dim-1 , d );
 		return p;
 	}
 	static Point CrossProduct( const Point* points )
 	{
 		XForm< Real , Dim > x;
-		for( int d=0 ; d<Dim-1 ; d++ ) for( int c=0 ; c<Dim ; c++ ) x(d,c) = points[d][c];
+		for( unsigned int d=0 ; d<Dim-1 ; d++ ) for( unsigned int c=0 ; c<Dim ; c++ ) x(d,c) = points[d][c];
 		Point p;
-		for( int d=0 ; d<Dim ; d++ ) p[d] = ( d&1 ) ? -x.subDeterminant( Dim-1 , d ) : x.subDeterminant( Dim-1 , d );
+		for( unsigned int d=0 ; d<Dim ; d++ ) p[d] = ( d&1 ) ? -x.subDeterminant( Dim-1 , d ) : x.subDeterminant( Dim-1 , d );
 		return p;
 	}
 	static Point CrossProduct( Point* points ){ return CrossProduct( ( const Point* )points ); }
@@ -118,27 +118,27 @@ struct Matrix
 	static const unsigned int Rows = _Rows;
 	Real coords[Columns][Rows];
 	Matrix( void ) { memset( coords , 0 , sizeof(coords) ); }
-	inline       Real& operator() ( int c , int r )       { return coords[c][r]; }
-	inline const Real& operator() ( int c , int r ) const { return coords[c][r]; }
-	inline       Real* operator[] ( int c         )       { return coords[c]   ; }
-	inline const Real* operator[] ( int c         ) const { return coords[c]   ; }
+	inline       Real& operator() ( unsigned int c , unsigned int r )       { return coords[c][r]; }
+	inline const Real& operator() ( unsigned int c , unsigned int r ) const { return coords[c][r]; }
+	inline       Real* operator[] ( unsigned int c                  )       { return coords[c]   ; }
+	inline const Real* operator[] ( unsigned int c                  ) const { return coords[c]   ; }
 
-	inline Matrix  operator - ( void ) const { Matrix m ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) m.coords[c][r] = - coords[c][r] ; return m; }
+	inline Matrix  operator - ( void ) const { Matrix m ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) m.coords[c][r] = - coords[c][r] ; return m; }
 
-	inline Matrix& operator += ( const Matrix& m ){ for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) coords[c][r] += m.coords[c][r] ; return *this; }
-	inline Matrix  operator +  ( const Matrix& m ) const { Matrix n ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) n.coords[c][r] = coords[c][r] + m.coords[c][r] ; return n; }
-	inline Matrix& operator *= ( Real s ) { for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) coords[c][r] *= s ; return *this; }
-	inline Matrix  operator *  ( Real s ) const { Matrix n ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) n.coords[c][r] = coords[c][r] * s ; return n; }
+	inline Matrix& operator += ( const Matrix& m ){ for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) coords[c][r] += m.coords[c][r] ; return *this; }
+	inline Matrix  operator +  ( const Matrix& m ) const { Matrix n ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) n.coords[c][r] = coords[c][r] + m.coords[c][r] ; return n; }
+	inline Matrix& operator *= ( Real s ) { for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) coords[c][r] *= s ; return *this; }
+	inline Matrix  operator *  ( Real s ) const { Matrix n ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) n.coords[c][r] = coords[c][r] * s ; return n; }
 
 	inline Matrix& operator -= ( const Matrix& m ){ return ( (*this)+=(-m) ); }
 	inline Matrix  operator -  ( const Matrix& m ) const { return (*this)+(-m); }
 	inline Matrix& operator /= ( Real s ){ return ( (*this)*=(Real)(1./s) ); }
 	inline Matrix  operator /  ( Real s ) const { return (*this) * ( (Real)(1./s) ); }
 
-	static Real Dot( const Matrix& m1 , const Matrix& m2 ){ Real dot = (Real)0 ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) dot += m1.coords[c][r] * m2.coords[c][r] ; return dot; }
+	static Real Dot( const Matrix& m1 , const Matrix& m2 ){ Real dot = (Real)0 ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) dot += m1.coords[c][r] * m2.coords[c][r] ; return dot; }
 
 	template< typename T >
-	inline Point< T , Rows > operator* ( const Point< T , Columns >& p ) const { Point< T , Rows > q ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) q[r] += (T)( p[c] * coords[c][r] ) ; return q; }
+	inline Point< T , Rows > operator* ( const Point< T , Columns >& p ) const { Point< T , Rows > q ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) q[r] += (T)( p[c] * coords[c][r] ) ; return q; }
 };
 
 template< class Real , unsigned int Dim >
@@ -149,17 +149,17 @@ struct XForm
 	static XForm Identity( void )
 	{
 		XForm xForm;
-		for( int d=0 ; d<Dim ; d++ ) xForm(d,d) = (Real)1.;
+		for( unsigned int d=0 ; d<Dim ; d++ ) xForm(d,d) = (Real)1.;
 		return xForm;
 	}
-	Real& operator() ( int i , int j ){ return coords[i][j]; }
-	const Real& operator() ( int i , int j ) const { return coords[i][j]; }
+	Real& operator() ( unsigned int i , unsigned int j ){ return coords[i][j]; }
+	const Real& operator() ( unsigned int i , unsigned int j ) const { return coords[i][j]; }
 	template< class _Real > Point< _Real , Dim-1 > operator * ( const Point< _Real , Dim-1 >& p ) const
 	{
 		Point< _Real , Dim-1 > q;
-		for( int i=0 ; i<Dim-1 ; i++ )
+		for( unsigned int i=0 ; i<Dim-1 ; i++ )
 		{
-			for( int j=0 ; j<Dim-1 ; j++ ) q[i] += (_Real)( coords[j][i] * p[j] );
+			for( unsigned int j=0 ; j<Dim-1 ; j++ ) q[i] += (_Real)( coords[j][i] * p[j] );
 			q[i] += (_Real)coords[Dim-1][i];
 		}
 		return q;
@@ -167,25 +167,25 @@ struct XForm
 	template< class _Real > Point< _Real , Dim > operator * ( const Point< _Real , Dim >& p ) const
 	{
 		Point< _Real , Dim > q;
-		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) q[i] += (_Real)( coords[j][i] * p[j] );
+		for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) q[i] += (_Real)( coords[j][i] * p[j] );
 		return q;
 	}
 	XForm operator * ( const XForm& m ) const
 	{
 		XForm n;
-		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) for( int k=0 ; k<Dim ; k++ ) n.coords[i][j] += m.coords[i][k]*coords[k][j];
+		for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) for( unsigned int k=0 ; k<Dim ; k++ ) n.coords[i][j] += m.coords[i][k]*coords[k][j];
 		return n;
 	}
 	XForm transpose( void ) const
 	{
 		XForm xForm;
-		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) xForm( i , j ) = coords[j][i];
+		for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) xForm( i , j ) = coords[j][i];
 		return xForm;
 	}
 	Real determinant( void ) const
 	{
 		Real det = (Real)0.;
-		for( int d=0 ; d<Dim ; d++ ) 
+		for( unsigned int d=0 ; d<Dim ; d++ ) 
 			if( d&1 ) det -= coords[d][0] * subDeterminant( d , 0 );
 			else      det += coords[d][0] * subDeterminant( d , 0 );
 		return det;
@@ -194,30 +194,30 @@ struct XForm
 	{
 		XForm xForm;
 		Real d = determinant();
-		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ )
+		for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ )
 			if( (i+j)%2==0 ) xForm.coords[j][i] =  subDeterminant( i , j ) / d;
 			else             xForm.coords[j][i] = -subDeterminant( i , j ) / d;
 		return xForm;
 	}
-	Real subDeterminant( int i , int j ) const
+	Real subDeterminant( unsigned int i , unsigned int j ) const
 	{
 		XForm< Real , Dim-1 > xForm;
-		int ii[Dim-1] , jj[Dim-1];
-		for( int a=0 , _i=0 , _j=0 ; a<Dim ; a++ )
+		unsigned int ii[Dim-1] , jj[Dim-1];
+		for( unsigned int a=0 , _i=0 , _j=0 ; a<Dim ; a++ )
 		{
 			if( a!=i ) ii[_i++] = a;
 			if( a!=j ) jj[_j++] = a;
 		}
-		for( int _i=0 ; _i<Dim-1 ; _i++ ) for( int _j=0 ; _j<Dim-1 ; _j++ ) xForm( _i , _j ) = coords[ ii[_i] ][ jj[_j] ];
+		for( unsigned int _i=0 ; _i<Dim-1 ; _i++ ) for( unsigned int _j=0 ; _j<Dim-1 ; _j++ ) xForm( _i , _j ) = coords[ ii[_i] ][ jj[_j] ];
 		return xForm.determinant();
 	}
 
-	inline XForm  operator - ( void ) const { XForm m ; for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) m.coords[c][r] = - coords[c][r] ; return m; }
+	inline XForm  operator - ( void ) const { XForm m ; for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) m.coords[c][r] = - coords[c][r] ; return m; }
 
-	inline XForm& operator += ( const XForm& m ){ for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) coords[c][r] += m.coords[c][r] ; return *this; }
-	inline XForm  operator +  ( const XForm& m ) const { XForm n ; for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) n.coords[c][r] = coords[c][r] + m.coords[c][r] ; return n; }
-	inline XForm& operator *= ( Real s ) { for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) coords[c][r] *= s ; return *this; }
-	inline XForm  operator *  ( Real s ) const { XForm n ; for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) n.coords[c][r] = coords[c][r] * s ; return n; }
+	inline XForm& operator += ( const XForm& m ){ for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) coords[c][r] += m.coords[c][r] ; return *this; }
+	inline XForm  operator +  ( const XForm& m ) const { XForm n ; for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) n.coords[c][r] = coords[c][r] + m.coords[c][r] ; return n; }
+	inline XForm& operator *= ( Real s ) { for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) coords[c][r] *= s ; return *this; }
+	inline XForm  operator *  ( Real s ) const { XForm n ; for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) n.coords[c][r] = coords[c][r] * s ; return n; }
 
 	inline XForm& operator -= ( const XForm& m ){ return ( (*this)+=(-m) ); }
 	inline XForm  operator -  ( const XForm& m ) const { return (*this)+(-m); }
@@ -307,19 +307,19 @@ struct Simplex
 {
 	Point< Real , Dim > p[K+1];
 	Simplex( void ){ static_assert( K<=Dim , "[ERROR] Bad simplex dimension" ); }
-	Point< Real , Dim >& operator[]( int k ){ return p[k]; }
-	const Point< Real , Dim >& operator[]( int k ) const { return p[k]; }
+	Point< Real , Dim >& operator[]( unsigned int k ){ return p[k]; }
+	const Point< Real , Dim >& operator[]( unsigned int k ) const { return p[k]; }
 	Real measure( void ) const { return (Real)sqrt( squareMeasure() ); }
 	Real squareMeasure( void ) const
 	{
 		XForm< Real , K > mass;
-		for( int i=1 ; i<=K ; i++ ) for( int j=1 ; j<=K ; j++ ) mass(i-1,j-1) = Point< Real , Dim >::Dot( p[i]-p[0] , p[j]-p[0] );
+		for( unsigned int i=1 ; i<=K ; i++ ) for( unsigned int j=1 ; j<=K ; j++ ) mass(i-1,j-1) = Point< Real , Dim >::Dot( p[i]-p[0] , p[j]-p[0] );
 		return mass.determinant() / ( Factorial< K >::Value * Factorial< K >::Value );
 	}
 	Point< Real , Dim > center( void ) const
 	{
 		Point< Real , Dim > c;
-		for( int k=0 ; k<=K ; k++ ) c += p[k];
+		for( unsigned int k=0 ; k<=K ; k++ ) c += p[k];
 		return c / (K+1);
 	}
 	void split( Point< Real , Dim > pNormal , Real pOffset , std::vector< Simplex >& back , std::vector< Simplex >& front ) const;
@@ -328,8 +328,8 @@ template< class Real , unsigned int Dim >
 struct Simplex< Real , Dim , 0 >
 {
 	Point< Real , Dim > p[1];
-	Point< Real , Dim >& operator[]( int k ){ return p[k]; }
-	const Point< Real , Dim >& operator[]( int k ) const { return p[k]; }
+	Point< Real , Dim >& operator[]( unsigned int k ){ return p[k]; }
+	const Point< Real , Dim >& operator[]( unsigned int k ) const { return p[k]; }
 	Real squareMeasure( void ) const { return (Real)1.; }
 	Real measure( void ) const { return (Real)1.; }
 	Point< Real , Dim > center( void ) const { return p[0]; }
@@ -342,101 +342,84 @@ struct Simplex< Real , Dim , 0 >
 template< class Real , unsigned int Dim > using Edge = Simplex< Real , Dim , 1 >;
 template< class Real , unsigned int Dim > using Triangle = Simplex< Real , Dim , 2 >;
 
-template< unsigned int K >
+template< unsigned int K , typename Index >
 struct SimplexIndex
 {
-	int idx[K+1];
+	Index idx[K+1];
 	template< class ... Ints >
 	SimplexIndex( Ints ... values ){ static_assert( sizeof...(values)==K+1 || sizeof...(values)==0 , "[ERROR] Invalid number of coefficients" ) ; _init( 0 , values ... ); }
-	SimplexIndex( int i0 , int i1 , int i2 ){ idx[0] = i0 , idx[1] = i1 , idx[2] = i2; }
-	int& operator[] ( int i ) { return idx[i] ;}
-	const int& operator[] ( int i ) const { return idx[i]; }
+	Index &operator[] ( unsigned int i ) { return idx[i] ;}
+	const Index &operator[] ( unsigned int i ) const { return idx[i]; }
 protected:
-	void _init( int k )
+	void _init( unsigned int k )
 	{
 		if( !k ) memset( idx , 0 , sizeof(idx) );
 		else ERROR_OUT( "Should never be called" );
 	}
-	template< class ... Ints > void _init( int k , int v , Ints ... values )
+	template< class ... Ints > void _init( unsigned int k , Index v , Ints ... values )
 	{
 		idx[k] = v;
 		if( k<=K ) _init( k+1 , values ... );
 	}
 };
-typedef SimplexIndex< 1 > EdgeIndex;
-typedef SimplexIndex< 2 > TriangleIndex;
+template< typename Index > using EdgeIndex = SimplexIndex< 1 , Index >;
+template< typename Index > using TriangleIndex = SimplexIndex< 2 , Index >;
 
+template< typename Index >
 class CoredPointIndex
 {
 public:
-	int index;
+	Index index;
 	char inCore;
 
-	int operator == (const CoredPointIndex& cpi) const {return (index==cpi.index) && (inCore==cpi.inCore);};
-	int operator != (const CoredPointIndex& cpi) const {return (index!=cpi.index) || (inCore!=cpi.inCore);};
+	bool operator == (const CoredPointIndex& cpi) const {return (index==cpi.index) && (inCore==cpi.inCore);};
+	bool operator != (const CoredPointIndex& cpi) const {return (index!=cpi.index) || (inCore!=cpi.inCore);};
 };
-struct CoredEdgeIndex{ CoredPointIndex idx[2]; };
+template< typename Index > struct CoredEdgeIndex{ CoredPointIndex< Index > idx[2]; };
 
+template< typename Index >
 class TriangulationEdge
 {
 public:
 	TriangulationEdge( void ){ pIndex[0] = pIndex[1] = tIndex[0] = tIndex[1] = -1; }
-	int pIndex[2];
-	int tIndex[2];
+	Index pIndex[2] , tIndex[2];
 };
 
+template< typename Index >
 class TriangulationTriangle
 {
 public:
 	TriangulationTriangle( void ){ eIndex[0] = eIndex[1] = eIndex[2] = -1; }
-	int eIndex[3];
+	Index eIndex[3];
 };
 
-template< class Real , unsigned int Dim >
-class Triangulation
-{
-public:
-	std::vector< Point< Real , Dim > > points;
-	std::vector< TriangulationEdge > edges;
-	std::vector< TriangulationTriangle > triangles;
-
-	int factor( int tIndex , int& p1 , int& p2 , int& p3 ) const;
-	Real area( void ) const;
-	Real area( int tIndex ) const ;
-	Real area( int p1 , int p2 , int p3 ) const;
-	int flipMinimize( int eIndex );
-	int addTriangle( int p1 , int p2 , int p3 );
-
-protected:
-	std::unordered_map< long long , int > edgeMap;
-	static long long EdgeIndex( int p1 , int p2 );
-	Real area( const Triangle< Real , Dim >& t ) const;
-};
-
+template< typename Index >
 struct CoredVertexIndex
 {
-	int idx;
+	Index idx;
 	bool inCore;
 };
-template< class Vertex >
+
+template< class Vertex , typename Index >
 class CoredCurveData
 {
 public:
 	std::vector< Vertex > inCorePoints;
 	virtual void resetIterator( void ) = 0;
 
-	virtual int addOutOfCorePoint( const Vertex& p ) = 0;
-	virtual int addOutOfCorePoint_s( const Vertex& p ) = 0;
-	virtual void addEdge_s( CoredVertexIndex v1 , CoredVertexIndex v2 ) = 0;
-	virtual void addEdge_s( int v1 , int v2 ) = 0;
+	virtual Index addOutOfCorePoint( const Vertex& p ) = 0;
+	virtual Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p ) = 0;
+	virtual void addEdge_s( unsigned int thread , CoredVertexIndex< Index > v1 , CoredVertexIndex< Index > v2 ) = 0;
+	virtual void addEdge_s( unsigned int thread , Index v1 , Index v2 ) = 0;
 
-	virtual int nextOutOfCorePoint( Vertex& p )=0;
-	virtual int nextEdge( CoredVertexIndex& v1 , CoredVertexIndex& v2 ) = 0;
+	virtual Index nextOutOfCorePoint( Vertex& p )=0;
+	virtual Index nextEdge( CoredVertexIndex< Index >& v1 , CoredVertexIndex< Index >& v2 ) = 0;
 
-	virtual int outOfCorePointCount(void)=0;
-	virtual int edgeCount( void ) = 0;
+	virtual size_t outOfCorePointCount(void)=0;
+	virtual size_t edgeCount( void ) = 0;
 };
-template< class Vertex >
+
+template< class Vertex , typename Index >
 class CoredMeshData
 {
 public:
@@ -444,65 +427,65 @@ public:
 	std::vector< Vertex > inCorePoints;
 	virtual void resetIterator( void ) = 0;
 
-	virtual int addOutOfCorePoint( const Vertex& p ) = 0;
-	virtual int addOutOfCorePoint_s( const Vertex& p ) = 0;
-	virtual void addPolygon_s( const std::vector< CoredVertexIndex >& vertices ) = 0;
-	virtual void addPolygon_s( const std::vector< int >& vertices ) = 0;
+	virtual Index addOutOfCorePoint( const Vertex& p ) = 0;
+	virtual Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p ) = 0;
+	virtual void addPolygon_s( unsigned int thread , const std::vector< CoredVertexIndex< Index > >& vertices ) = 0;
+	virtual void addPolygon_s( unsigned int thread , const std::vector< Index >& vertices ) = 0;
 
-	virtual int nextOutOfCorePoint( Vertex& p )=0;
-	virtual int nextPolygon( std::vector< CoredVertexIndex >& vertices ) = 0;
+	virtual Index nextOutOfCorePoint( Vertex& p )=0;
+	virtual Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices ) = 0;
 
-	virtual int outOfCorePointCount(void)=0;
-	virtual int polygonCount( void ) = 0;
+	virtual size_t outOfCorePointCount( void )=0;
+	virtual size_t polygonCount( void ) = 0;
 };
 
-template< class Vertex >
-class CoredVectorCurveData : public CoredCurveData< Vertex >
+template< class Vertex , typename Index >
+class CoredVectorCurveData : public CoredCurveData< Vertex , Index >
 {
 	std::vector< Vertex > oocPoints;
-	std::vector< std::pair< int , int > > edges;
-	int threadIndex;
-	int edgeIndex;
-	int oocPointIndex;
+	std::vector< std::pair< Index , Index > > edges;
+	unsigned int threadIndex;
+	Index edgeIndex;
+	Index oocPointIndex;
 public:
-	CoredVectorCurveData(void);
+	CoredVectorCurveData( void );
 
-	void resetIterator(void);
+	void resetIterator( void );
 
-	int addOutOfCorePoint( const Vertex& p );
-	int addOutOfCorePoint_s( const Vertex& p );
-	void addEdge_s( CoredVertexIndex v1 , CoredVertexIndex v2 );
-	void addEdge_s( int v1 , int v2 );
+	Index addOutOfCorePoint( const Vertex& p );
+	Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p );
+	void addEdge_s( unsigned int thread , CoredVertexIndex< Index > v1 , CoredVertexIndex< Index > v2 );
+	void addEdge_s( unsigned int thread , Index v1 , Index v2 );
 
-	int nextOutOfCorePoint( Vertex& p );
-	int nextEdge( CoredVertexIndex& v1 , CoredVertexIndex& v2 );
+	Index nextOutOfCorePoint( Vertex& p );
+	Index nextEdge( CoredVertexIndex< Index > &v1 , CoredVertexIndex< Index > &v2 );
 
-	int outOfCorePointCount(void);
-	int edgeCount( void );
+	size_t outOfCorePointCount( void );
+	size_t edgeCount( void );
 };
-template< class Vertex >
-class CoredVectorMeshData : public CoredMeshData< Vertex >
+template< class Vertex , typename Index >
+class CoredVectorMeshData : public CoredMeshData< Vertex , Index >
 {
 	std::vector< Vertex > oocPoints;
-	std::vector< std::vector< std::vector< int > > > polygons;
-	int threadIndex;
-	int polygonIndex;
-	int oocPointIndex;
+	std::vector< std::vector< std::vector< Index > > > polygons;
+	unsigned int threadIndex;
+	Index polygonIndex;
+	Index oocPointIndex;
 public:
-	CoredVectorMeshData(void);
+	CoredVectorMeshData( void );
 
-	void resetIterator(void);
+	void resetIterator( void );
 
-	int addOutOfCorePoint( const Vertex& p );
-	int addOutOfCorePoint_s( const Vertex& p );
-	void addPolygon_s( const std::vector< CoredVertexIndex >& vertices );
-	void addPolygon_s( const std::vector< int >& vertices );
+	Index addOutOfCorePoint( const Vertex& p );
+	Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p );
+	void addPolygon_s( unsigned int thread , const std::vector< CoredVertexIndex< Index > >& vertices );
+	void addPolygon_s( unsigned int thread , const std::vector< Index >& vertices );
 
-	int nextOutOfCorePoint( Vertex& p );
-	int nextPolygon( std::vector< CoredVertexIndex >& vertices );
+	Index nextOutOfCorePoint( Vertex& p );
+	Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices );
 
-	int outOfCorePointCount(void);
-	int polygonCount( void );
+	size_t outOfCorePointCount( void );
+	size_t polygonCount( void );
 };
 class BufferedReadWriteFile
 {
@@ -511,7 +494,7 @@ class BufferedReadWriteFile
 	char *_buffer , _fileName[1024];
 	size_t _bufferIndex , _bufferSize;
 public:
-	BufferedReadWriteFile( const char* fileName=NULL , const char* fileHeader="" , int bufferSize=(1<<20) )
+	BufferedReadWriteFile( const char* fileName=NULL , const char* fileHeader="" , unsigned int bufferSize=(1<<20) )
 	{
 		_bufferIndex = 0;
 		_bufferSize = bufferSize;
@@ -528,7 +511,7 @@ public:
 #endif // _WIN32
 			tempFile = true;
 		}
-		if( !_fp ) ERROR_OUT( "Failed to open file: %s" , _fileName );
+		if( !_fp ) ERROR_OUT( "Failed to open file: " , _fileName );
 		_buffer = (char*) malloc( _bufferSize );
 	}
 	~BufferedReadWriteFile( void )
@@ -591,56 +574,55 @@ public:
 		_bufferSize = fread( _buffer , 1 , _bufferSize , _fp );
 	}
 };
-template< class Vertex >
-class CoredFileCurveData : public CoredCurveData< Vertex >
+template< class Vertex , typename Index >
+class CoredFileCurveData : public CoredCurveData< Vertex , Index >
 {
 	BufferedReadWriteFile *oocPointFile;
-	int oocPoints;
-//	std::vector< int > polygons;
+	Index oocPoints;
 	std::vector< BufferedReadWriteFile* > edgeFiles;
-	int threadIndex;
+	unsigned int threadIndex;
 public:
 	CoredFileCurveData( const char* fileHeader="" );
 	~CoredFileCurveData( void );
 
 	void resetIterator( void );
 
-	int addOutOfCorePoint( const Vertex& p );
-	int addOutOfCorePoint_s( const Vertex& p );
-	void addEdge_s( CoredVertexIndex v1 , CoredVertexIndex v2 );
-	void addEdge_s( int v1 , int v2 );
+	Index addOutOfCorePoint( const Vertex& p );
+	Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p );
+	void addEdge_s( unsigned int thread , CoredVertexIndex< Index > v1 , CoredVertexIndex< Index > v2 );
+	void addEdge_s( unsigned int thread , Index v1 , Index v2 );
 
-	int nextOutOfCorePoint( Vertex& p );
-	int nextEdge( CoredVertexIndex& v1 , CoredVertexIndex& v2 );
+	Index nextOutOfCorePoint( Vertex& p );
+	Index nextEdge( CoredVertexIndex< Index > &v1 , CoredVertexIndex< Index > &v2 );
 
-	int outOfCorePointCount( void );
-	int edgeCount( void );
+	size_t outOfCorePointCount( void );
+	size_t edgeCount( void );
 };
 
-template< class Vertex >
-class CoredFileMeshData : public CoredMeshData< Vertex >
+template< class Vertex , typename Index >
+class CoredFileMeshData : public CoredMeshData< Vertex , Index >
 {
 	BufferedReadWriteFile *oocPointFile;
-	int oocPoints;
-	std::vector< int > polygons;
+	Index oocPoints;
+	std::vector< Index > polygons;
 	std::vector< BufferedReadWriteFile* > polygonFiles;
-	int threadIndex;
+	unsigned int threadIndex;
 public:
 	CoredFileMeshData( const char* fileHeader="" );
 	~CoredFileMeshData( void );
 
 	void resetIterator( void );
 
-	int addOutOfCorePoint( const Vertex& p );
-	int addOutOfCorePoint_s( const Vertex& p );
-	void addPolygon_s( const std::vector< CoredVertexIndex >& vertices );
-	void addPolygon_s( const std::vector< int >& vertices );
+	Index addOutOfCorePoint( const Vertex& p );
+	Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p );
+	void addPolygon_s( unsigned int thread , const std::vector< CoredVertexIndex< Index > >& vertices );
+	void addPolygon_s( unsigned int thread , const std::vector< Index >& vertices );
 
-	int nextOutOfCorePoint( Vertex& p );
-	int nextPolygon( std::vector< CoredVertexIndex >& vertices );
+	Index nextOutOfCorePoint( Vertex& p );
+	Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices );
 
-	int outOfCorePointCount( void );
-	int polygonCount( void );
+	size_t outOfCorePointCount( void );
+	size_t polygonCount( void );
 };
 #include "Geometry.inl"
 

@@ -81,10 +81,10 @@ template< class C > ConstArray< C > GetPointer( const C& c ) { return ConstArray
 template< class C >      Array< C > GetPointer(       std::vector< C >& v ){ return      Array< C >::FromPointer( &v[0] , v.size() ); }
 template< class C > ConstArray< C > GetPointer( const std::vector< C >& v ){ return ConstArray< C >::FromPointer( &v[0] , v.size() ); }
 
-template< class C >      Array< C > GetPointer(       C* c , int sz ) { return      Array< C >::FromPointer( c , sz ); }
-template< class C > ConstArray< C > GetPointer( const C* c , int sz ) { return ConstArray< C >::FromPointer( c , sz ); }
-template< class C >      Array< C > GetPointer(       C* c , int start , int end ) { return      Array< C >::FromPointer( c , start , end ); }
-template< class C > ConstArray< C > GetPointer( const C* c , int start , int end ) { return ConstArray< C >::FromPointer( c , start , end ); }
+template< class C >      Array< C > GetPointer(       C* c , size_t sz ) { return      Array< C >::FromPointer( c , sz ); }
+template< class C > ConstArray< C > GetPointer( const C* c , size_t sz ) { return ConstArray< C >::FromPointer( c , sz ); }
+template< class C >      Array< C > GetPointer(       C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return      Array< C >::FromPointer( c , start , end ); }
+template< class C > ConstArray< C > GetPointer( const C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return ConstArray< C >::FromPointer( c , start , end ); }
 
 #else // !ARRAY_DEBUG
 #define      Pointer( ... )       __VA_ARGS__*
@@ -109,9 +109,9 @@ template< class C > const C* GetPointer( const C& c ){ return &c; }
 template< class C >       C* GetPointer(       std::vector< C >& v ){ return &v[0]; }
 template< class C > const C* GetPointer( const std::vector< C >& v ){ return &v[0]; }
 
-template< class C >       C* GetPointer(       C* c , int sz ) { return c; }
-template< class C > const C* GetPointer( const C* c , int sz ) { return c; }
-template< class C >       C* GetPointer(       C* c , int start , int end ) { return c; }
-template< class C > const C* GetPointer( const C* c , int start , int end ) { return c; }
+template< class C >       C* GetPointer(       C* c , size_t sz ) { return c; }
+template< class C > const C* GetPointer( const C* c , size_t sz ) { return c; }
+template< class C >       C* GetPointer(       C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return c; }
+template< class C > const C* GetPointer( const C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return c; }
 #endif // ARRAY_DEBUG
 #endif // ARRAY_INCLUDED

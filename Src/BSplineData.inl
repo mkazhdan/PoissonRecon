@@ -242,8 +242,8 @@ template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 >
 double BSplineIntegrationData< FEMSig1 , FEMSig2 >::Dot( int depth1 ,  int off1 , int depth2 , int off2 )
 {
-	if( D1>Degree1 ) ERROR_OUT( "Taking more derivatives than the degree: %d > %d" , D1 , Degree1 );
-	if( D2>Degree2 ) ERROR_OUT( "Taking more derivatives than the degree: %d > %d" , D2 , Degree2 );
+	if( D1>Degree1 ) ERROR_OUT( "Taking more derivatives than the degree: " , D1 , " > " , Degree1 );
+	if( D2>Degree2 ) ERROR_OUT( "Taking more derivatives than the degree: " , D2 , " > " , Degree2 );
 	const int _Degree1 = ( Degree1>=D1 ) ? Degree1 - D1 : 0 , _Degree2 = ( Degree2>=D2 ) ? Degree2 - D2 : 0;
 	int sums[ Degree1+1 ][ Degree2+1 ];
 

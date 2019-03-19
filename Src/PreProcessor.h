@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2007, Michael Kazhdan
+Copyright (c) 2019, Michael Kazhdan and Matthew Bolitho
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -25,38 +25,23 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
-#ifndef MAT_INCLUDED
-#define MAT_INCLUDED
-#include "Geometry.h"
-#include "Array.h"
 
-template< typename Index , class Real , unsigned int Dim >
-std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
+#ifndef PRE_PROCESSOR_INCLUDED
+#define PRE_PROCESSOR_INCLUDED
 
-template< typename Index , class Real , unsigned int Dim >
-class _MinimalAreaTriangulation
-{
-	Pointer( Real ) _bestTriangulation;
-	Pointer( Index ) _midpoint;
-	size_t _vCount;
-	ConstPointer( Point< Real , Dim > ) _vertices;
+#undef BIG_DATA									// Supports processing requiring more than 32-bit integers for indexing
+												// Note: enabling BIG_DATA can generate .ply files using "longlong" for vertex indices instead of "int".
+												// These are not standardly supported by .ply reading/writing applications.
+												// The executable ChunkPLY can help by partitioning the mesh into more manageable chunks
+												// (each of which is small enough to be represented using 32-bit indexing.)
+						
+#undef FAST_COMPILE								// If enabled, only a single version of the code is compiled
+#undef SHOW_WARNINGS							// Display compilation warnings
+#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
+#undef USE_SEG_FAULT_HANDLER					// Tries to dump a stack trace in the case of a segfault (gcc only)
 
-	void _set( void );
-	Real _subPolygonArea( Index i , Index j );
-	void _addTriangles( Index i , Index j , std::vector< TriangleIndex< Index > >& triangles ) const;
-	Index _subPolygonIndex( Index i , Index j ) const;
+#ifdef BIG_DATA
+#define USE_DEEP_TREE_NODES						// Chances are that if you are using big data, you want to support a tree with depth>15.
+#endif // BIG_DATA
 
-	_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
-	~_MinimalAreaTriangulation( void );
-	std::vector< TriangleIndex< Index > > getTriangulation( void );
-	friend std::vector< TriangleIndex< Index > > MinimalAreaTriangulation< Index , Real , Dim >( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
-};
-template< typename Index , class Real , unsigned int Dim >
-std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount )
-{
-	_MinimalAreaTriangulation< Index , Real , Dim > MAT( vertices , vCount );
-	return MAT.getTriangulation();
-}
-#include "MAT.inl"
-
-#endif // MAT_INCLUDED
+#endif // PRE_PROCESSOR_INCLUDED

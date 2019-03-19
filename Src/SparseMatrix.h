@@ -93,8 +93,6 @@ public:
 	SparseMatrix& operator += ( const SparseMatrix& M );
 	SparseMatrix& operator -= ( const SparseMatrix& M );
 
-	Pointer( T ) operator * ( const Pointer( T ) in ) const;
-
 	template< class A_const_iterator , class B_const_iterator >
 	static SparseMatrix Multiply( const SparseMatrixInterface< T , A_const_iterator >& A , const SparseMatrixInterface< T , B_const_iterator >& B );
 	template< class const_iterator >
@@ -150,8 +148,6 @@ public:
 	SparseMatrix  operator /  ( T s ) const;
 	SparseMatrix& operator *= ( T s );
 	SparseMatrix& operator /= ( T s );
-
-	Pointer( T ) operator * ( const Pointer( T ) in ) const;
 };
 
 #include "SparseMatrix.inl"

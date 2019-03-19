@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 10.07)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 11.00)</h2></center>
 <center>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#LINKS">links</a>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#EXECUTABLES">executables</a>
@@ -27,10 +27,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">V10.07</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">V10.06</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">V10.05</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">V10.04</a>,
@@ -543,6 +544,36 @@ individual components of the visualizer.
 </dl>
 </ul>
 
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
+<font size="+1"><b>ChunkPly</b></font>:
+Decomposes a single mesh/point-set file into a set of chunks with prescribed bounding box widths.
+</SUMMARY>
+<dt><b>--in</b> &lt;<i>input ply file</i>&gt;
+</dt><dd> This string is the name of the file containing the geometry that is to be chunked.
+
+</dd><dt>[<b>--out</b> &lt;<i>output ply file name/header</i>&gt;]
+</dt><dd> This string is the name of the file/header to which the chunks should be written. If the width of the chunk is <I>W</I>, the file containing the geometry inside the cube [<I>W</I>&middot;<i>i</I>,<i>W</i>&middot;(<i>i+1</i>)</I>]&times;[<I>W</I>&middot;<i>j</I>,<i>W</i>&middot;(<i>j+1</i>)</I>]&times;[<I>W</I>&middot;<i>k</I>,<i>W</i>&middot;(<i>k+1</i>)</I>]</I> will be named <I>&lt;output header&gt;.i.j.k.ply</i>.
+
+</dd><dt>[<b>--width &lt;<i>chunk width</i>&gt;</b>]
+</dt><dd> This floating point value specifies the width of the cubes used for chunking.<BR>
+The default value for this parameter is <i>-1</i>, indicating that the input should be written to a single ouput. (In this case the value of the <i>--out</i> parameter is the name of the single file to which the output is written.
+
+</dd><dt>[<b>--radius &lt;<i>padding radius</i>&gt;</b>]
+</dt><dd> This floating point value specifies the size of the padding region used, as a fraction of the total width of the cube.<BR>
+The default value for this parameter is <i>0</i>, indicating that no padding should be used.
+
+</dd><dt>[<b>--verbose</b>]
+</dt><dd> Enabling this flag provides a more verbose description of the running times and memory usages of
+individual components of the visualizer.
+
+</dd>
+</DETAILS>
+</dl>
+</ul>
+
 <hr>
 <a name="USAGE"><b>USAGE EXAMPLES (WITH SAMPLE DATA)</b></a><br>
 
@@ -550,7 +581,7 @@ individual components of the visualizer.
 <dl>
 <DETAILS>
 <SUMMARY>
-<font size="+1"><b>PoissonRecon / SSDRecon / SurfaceTrimmer</b></font>
+<font size="+1"><b>PoissonRecon / SSDRecon / SurfaceTrimmer / ChunkPly</b></font>
 </SUMMARY>
 For testing purposes, three point sets are provided:
 <ol>
@@ -577,13 +608,17 @@ By default, the Poisson surface reconstructor uses degree-2 B-splines. A more ef
 <li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.points.ply"><b>Eagle</b></a>:
 A set of 796,825 oriented point samples with color (represented in PLY format) was obtained in the EPFL <a href="http://lgg.epfl.ch/statues.php">Scanning 3D Statues from Photos</a> course.<br>
 A reconstruction of the eagle that extrapolates the color values from the input samples can be obtained by calling:
-<blockquote><code>% PoissonRecon --in eagle.points.ply --out eagle.screened.color.ply --depth 10 --colors</code></blockquote>
+<blockquote><code>% PoissonRecon --in eagle.points.ply --out eagle.pr.color.ply --depth 10 --colors</code></blockquote>
 using the <b>--colors</b> flag to indicate that color extrapolation should be used.<BR>
 A reconstruction of the eagle that does not close up the holes can be obtained by first calling:
-<blockquote><code>% SSDRecon --in eagle.points.ply --out eagle.screened.color.ply --depth 10 --colors --density</code></blockquote>
+<blockquote><code>% SSDRecon --in eagle.points.ply --out eagle.ssd.color.ply --depth 10 --colors --density</code></blockquote>
 using the <b>--density</b> flag to indicate that density estimates should be output with the vertices of the mesh, and then calling:
-<blockquote><code>% SurfaceTrimmer --in eagle.screened.color.ply --out eagle.screened.color.trimmed.ply --trim 7</code></blockquote>
-to remove all subsets of the surface where the sampling density corresponds to a depth smaller than 7.
+<blockquote><code>% SurfaceTrimmer --in eagle.ssd.color.ply --out eagle.ssd.color.trimmed.ply --trim 7</code></blockquote>
+to remove all subsets of the surface where the sampling density corresponds to a depth smaller than 7.<BR>
+This reconstruction can be chunked into cubes of size 4&times;4&times;4 by calling:
+<blockquote><code>% ChunkPly --in eagle.ssd.color.trimmed.ply --out eagle.ssd.color.trimmed.chnks --width 4</code></blockquote>
+which partitions the reconstruction into 11 pieces.
+
 </li>
 
 </ol>
@@ -811,6 +846,13 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Removed a bug that would cause memory access errors when some slices were empty.
 </ol>
 
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 11.00</a>:
+<ol>
+<LI> Added support for processing point-sets so large that 32-bit indices for octrees are not sufficient. (Enabled by defining the preprocessor variable <B>BIG_DATA</B> in the file <I>PreProcessor.h</I>.
+<LI> Added C++11 parallelism for compilers that do not support OpenMP.
+<LI> Added the code for <I>ChunkPly</I> which breaks up large meshes and/or point-sets into chunks.
+</ol>
+
 </DETAILS>
 
 
@@ -820,4 +862,3 @@ This work genersouly supported by NSF grants #0746039 and #1422325.
 
 <hr>
 <a href="http://www.cs.jhu.edu/~misha">HOME</a>
-

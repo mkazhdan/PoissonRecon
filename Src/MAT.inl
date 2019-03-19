@@ -29,22 +29,22 @@ DAMAGE.
 //////////////////////////////
 // MinimalAreaTriangulation //
 //////////////////////////////
-template< class Real , unsigned int Dim >
-_MinimalAreaTriangulation< Real , Dim >::_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount ) : _vertices( vertices ) , _vCount( vCount )
+template< typename Index , class Real , unsigned int Dim >
+_MinimalAreaTriangulation< Index , Real , Dim >::_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount ) : _vertices( vertices ) , _vCount( vCount )
 {
 	_bestTriangulation = NullPointer( Real );
-	_midpoint = NullPointer( int );
+	_midpoint = NullPointer( Index );
 }
-template< class Real , unsigned int Dim >
-_MinimalAreaTriangulation< Real , Dim >::~_MinimalAreaTriangulation( void )
+template< typename Index , class Real , unsigned int Dim >
+_MinimalAreaTriangulation< Index , Real , Dim >::~_MinimalAreaTriangulation( void )
 {
 	FreePointer( _bestTriangulation );
 	FreePointer( _midpoint );
 }
-template< class Real , unsigned int Dim >
-std::vector< TriangleIndex > _MinimalAreaTriangulation< Real , Dim >::getTriangulation( void )
+template< typename Index , class Real , unsigned int Dim >
+std::vector< TriangleIndex< Index > > _MinimalAreaTriangulation< Index , Real , Dim >::getTriangulation( void )
 {
-	std::vector< TriangleIndex > triangles;
+	std::vector< TriangleIndex< Index > > triangles;
 	if( _vCount==3 )
 	{
 		triangles.resize(1);
@@ -55,7 +55,7 @@ std::vector< TriangleIndex > _MinimalAreaTriangulation< Real , Dim >::getTriangu
 	}
 	else if( _vCount==4 )
 	{
-		TriangleIndex tIndex[2][2];
+		TriangleIndex< Index > tIndex[2][2];
 		Real area[] = { 0 , 0 };
 
 		triangles.resize(2);
@@ -84,31 +84,32 @@ std::vector< TriangleIndex > _MinimalAreaTriangulation< Real , Dim >::getTriangu
 	_addTriangles( 1 , 0 , triangles );
 	return triangles;
 }
-template< class Real , unsigned int Dim >
-void _MinimalAreaTriangulation< Real , Dim >::_set( void )
+template< typename Index , class Real , unsigned int Dim >
+void _MinimalAreaTriangulation< Index , Real , Dim >::_set( void )
 {
 	FreePointer( _bestTriangulation );
 	FreePointer( _midpoint );
 	_bestTriangulation = AllocPointer< Real >( _vCount * _vCount );
-	_midpoint = AllocPointer< int >( _vCount * _vCount );
+	_midpoint = AllocPointer< Index >( _vCount * _vCount );
 	for( int i=0 ; i<_vCount*_vCount ; i++ ) _bestTriangulation[i] = -1 , _midpoint[i] = -1;
 	_subPolygonArea( 1 , 0 );
 }
 
-template< class Real , unsigned int Dim > size_t _MinimalAreaTriangulation< Real , Dim >::_subPolygonIndex( size_t i , size_t j ) const { return i*_vCount+j; }
+template< typename Index , class Real , unsigned int Dim >
+Index _MinimalAreaTriangulation< Index , Real , Dim >::_subPolygonIndex( Index i , Index j ) const { return (Index)( i*_vCount+j ); }
 
-template< class Real , unsigned int Dim >
-void _MinimalAreaTriangulation< Real , Dim >::_addTriangles( size_t i , size_t j , std::vector< TriangleIndex >& triangles ) const
+template< typename Index , class Real , unsigned int Dim >
+void _MinimalAreaTriangulation< Index , Real , Dim >::_addTriangles( Index i , Index j , std::vector< TriangleIndex< Index > >& triangles ) const
 {
-	TriangleIndex tIndex;
-	if( j<i ) j += _vCount;
+	TriangleIndex< Index > tIndex;
+	if( j<i ) j += (Index)_vCount;
 	if( i==j || i+1==j ) return;
-	int mid = _midpoint[ _subPolygonIndex( i , j%_vCount ) ];
-	if( mid>=0 )
+	Index mid = _midpoint[ _subPolygonIndex( i , j%_vCount ) ];
+	if( mid!=-1 )
 	{
-		tIndex.idx[0] = int( i );
-		tIndex.idx[1] = int( mid );
-		tIndex.idx[2] = int( j%_vCount );
+		tIndex.idx[0] = i;
+		tIndex.idx[1] = mid;
+		tIndex.idx[2] = j%_vCount;
 		triangles.push_back( tIndex );
 		_addTriangles( i , mid , triangles );
 		_addTriangles( mid , j , triangles );
@@ -116,13 +117,13 @@ void _MinimalAreaTriangulation< Real , Dim >::_addTriangles( size_t i , size_t j
 }
 
 // Get the minimial area of the sub-polygon [ v_i , ... , v_j ]
-template< class Real , unsigned int Dim >
-Real _MinimalAreaTriangulation< Real , Dim >::_subPolygonArea( size_t i , size_t j )
+template< typename Index , class Real , unsigned int Dim >
+Real _MinimalAreaTriangulation< Index , Real , Dim >::_subPolygonArea( Index i , Index j )
 {
-	size_t idx = _subPolygonIndex( i , j );
+	Index idx = _subPolygonIndex( i , j );
 	if( _midpoint[idx]!=-1 ) return _bestTriangulation[idx];
 	Real a = FLT_MAX , temp;
-	if( j<i ) j += _vCount;
+	if( j<i ) j += (Index)_vCount;
 	// If either i==j or i+1=j, the polygon has trivial area
 	if( i==j || i+1==j )
 	{
@@ -131,15 +132,15 @@ Real _MinimalAreaTriangulation< Real , Dim >::_subPolygonArea( size_t i , size_t
 	}
 	// If we have already computed the minimal area for this edge
 	if( _midpoint[idx]!=-1 ) return _bestTriangulation[idx];
-	int mid=-1;
+	Index mid = -1;
 
 	// For each vertex r \in( i , j ):
 	// -- Construct the triangle ( j , r , i )
 	// -- Compute the Area(j,r,i) + Area( j , ... , r ) + Area( r , ... , i )
-	for( size_t r=i+1 ; r<j ; r++ )
+	for( Index r=i+1 ; r<j ; r++ )
 	{
-		size_t idx1 = _subPolygonIndex( i , r%_vCount ); // SubPolygon( r , ... , i )
-		size_t idx2 = _subPolygonIndex( r%_vCount , j%_vCount ); // SubPolygon( j , ... , r );
+		Index idx1 = _subPolygonIndex( i , r%_vCount ); // SubPolygon( r , ... , i )
+		Index idx2 = _subPolygonIndex( r%_vCount , j%_vCount ); // SubPolygon( j , ... , r );
 
 		temp = SquareArea( _vertices[i] , _vertices[r%_vCount] , _vertices[j%_vCount] );
 		temp = temp<0 ? 0 : (Real)sqrt(temp);
@@ -149,7 +150,7 @@ Real _MinimalAreaTriangulation< Real , Dim >::_subPolygonArea( size_t i , size_t
 			temp += _bestTriangulation[idx1];
 			// If the partial area is already too large, terminate
 			if( temp>a ) continue; // Terminate early
-			// Otherwise, compute the total area
+								   // Otherwise, compute the total area
 			temp += _subPolygonArea( r%_vCount , j%_vCount );
 		}
 		else
@@ -162,9 +163,10 @@ Real _MinimalAreaTriangulation< Real , Dim >::_subPolygonArea( size_t i , size_t
 			temp += _subPolygonArea( i , r%_vCount );
 		}
 
-		if( temp<a ) a=temp , mid=(int)(r%_vCount);
+		if( temp<a ) a=temp , mid=r%_vCount;
 	}
 	_bestTriangulation[idx] = a;
 	_midpoint[idx] = mid;
 	return a;
 }
+

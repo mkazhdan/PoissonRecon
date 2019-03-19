@@ -26,7 +26,7 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#undef ARRAY_DEBUG
+#include "PreProcessor.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,7 +55,10 @@ cmdLineReadable
 	Verbose( "verbose" );
 
 cmdLineParameter< int >
-	Threads( "threads" , omp_get_num_procs() );
+	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
+	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 
 cmdLineParameter< float >
 	IsoValue( "iso" , 0.f );
@@ -67,6 +70,9 @@ cmdLineReadable* params[] =
 	&OutGrid , &PrimalGrid ,
 	&Threads ,
 	&Verbose , 
+	&ParallelType ,
+	&ScheduleType ,
+	&ThreadChunkSize ,
 	NULL
 };
 
@@ -77,9 +83,12 @@ void ShowUsage( char* ex )
 	printf( "\t --%s <input tree>\n" , In.name );
 	printf( "\t[--%s <ouput triangle mesh>]\n" , OutMesh.name );
 	printf( "\t[--%s <ouput grid>]\n" , OutGrid.name );
-#ifdef _OPENMP
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
-#endif // _OPENMP
+	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
+	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
+	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
+	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
+	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
 	printf( "\t[--%s <iso-value for extraction>=%f]\n" , IsoValue.name , IsoValue.value );
 	printf( "\t[--%s]\n" , NonManifold.name );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
@@ -101,26 +110,28 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 	if( Dim==2 && ImageWriter::ValidExtension( ext ) )
 	{
 		Real avg = 0;
-#pragma omp parallel for reduction( + : avg )
-		for( int i=0 ; i<resolution ; i++ ) avg += values[i];
+		std::vector< Real > avgs( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) avg += avgs[t];
 		avg /= (Real)resolution;
 
 		Real std = 0;
-#pragma omp parallel for reduction( + : std )
-		for( int i=0 ; i<resolution ; i++ ) std += ( values[i] - avg ) * ( values[i] - avg );
+		std::vector< Real > stds( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) std += stds[t];
 		std = (Real)sqrt( std / resolution );
 
 		if( Verbose.set ) printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
-#pragma omp parallel for
-		for( int i=0 ; i<resolution ; i++ )
+		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
 		{
 			Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
 			v = (Real)( ( v + 1. ) / 2. * 256. );
 			unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
 			for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
 		}
+		);
 		ImageWriter::Write( fileName , pixels , res , res , 3 );
 		delete[] pixels;
 	}
@@ -128,7 +139,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 	{
 
 		FILE *fp = fopen( fileName , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: %s" , fileName );
+		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: " , fileName );
 		else
 		{
 			fwrite( &res , sizeof(int) , 1 , fp );
@@ -149,6 +160,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 {
+	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > > coefficients;
 
@@ -170,22 +182,22 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 	{
 		double t = Time();
 		typedef PlyVertex< Real , Dim > Vertex;
-		CoredFileMeshData< Vertex > mesh;
+		CoredFileMeshData< Vertex , node_index_type > mesh;
 		std::function< void ( Vertex& , Point< Real , Dim > , Real , Real ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real , Real ){ v.point = p; };
 #if defined( __GNUC__ ) && __GNUC__ < 5
-		#warning "you've got me gcc version<5"
-			static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
+#warning "you've got me gcc version<5"
+		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
 		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #else // !__GNUC__ || __GNUC__ >=5
 		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #endif // __GNUC__ || __GNUC__ < 4
 
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
-		if( Verbose.set ) printf( "Vertices / Polygons: %d / %d\n" , (int)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (int)mesh.polygonCount() );
+		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (unsigned long long)mesh.polygonCount() );
 
 		std::vector< std::string > comments;
-		if( !PlyWritePolygons< Vertex , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() ) )
-			ERROR_OUT( "Could not write mesh to: %s" , OutMesh.value );
+		if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() ) )
+			ERROR_OUT( "Could not write mesh to: " , OutMesh.value );
 	}
 }
 
@@ -195,7 +207,7 @@ void Execute( FILE* fp , int degree , BoundaryType bType )
 {
 	FEMTree< Dim , Real > tree( fp , MEMORY_ALLOCATOR_BLOCK_SIZE );
 
-	if( Verbose.set ) printf( "Leaf Nodes / Active Nodes / Ghost Nodes: %d / %d / %d\n" , (int)tree.leaves() , (int)tree.nodes() , (int)tree.ghostNodes() );
+	if( Verbose.set ) printf( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
 
 	switch( bType )
 	{
@@ -235,7 +247,7 @@ void Execute( FILE* fp , int degree , BoundaryType bType )
 		}
 	}
 	break;
-	default: ERROR_OUT( "Not a valid boundary type: %d" , bType );
+	default: ERROR_OUT( "Not a valid boundary type: " , bType );
 	}
 }
 
@@ -245,7 +257,8 @@ int main( int argc , char* argv[] )
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
-	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
+	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
+	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	if( Verbose.set )
 	{
 		printf( "**************************************************\n" );
@@ -253,6 +266,7 @@ int main( int argc , char* argv[] )
 		printf( "** Running Octree Visualization (Version %s) **\n" , VERSION );
 		printf( "**************************************************\n" );
 		printf( "**************************************************\n" );
+		if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );
 	}
 
 	if( !In.set )
@@ -261,14 +275,14 @@ int main( int argc , char* argv[] )
 		return EXIT_FAILURE;
 	}
 	FILE* fp = fopen( In.value , "rb" );
-	if( !fp ) ERROR_OUT( "Failed to open file for reading: %s" , In.value );
+	if( !fp ) ERROR_OUT( "Failed to open file for reading: " , In.value );
 	FEMTreeRealType realType ; int degree ; BoundaryType bType;
-	int dimension;
+	unsigned int dimension;
 	ReadFEMTreeParameter( fp , realType , dimension );
 	{
 		unsigned int dim = dimension;
 		unsigned int* sigs = ReadDenseNodeDataSignatures( fp , dim );
-		if( dimension!=dim ) ERROR_OUT( "Octree and node data dimensions don't math: %d != %d" , dimension , dim );
+		if( dimension!=dim ) ERROR_OUT( "Octree and node data dimensions don't math: " , dimension , " != " , dim );
 		for( unsigned int d=1 ; d<dim ; d++ ) if( sigs[0]!=sigs[d] ) ERROR_OUT( "Anisotropic signatures" );
 		degree = FEMSignatureDegree( sigs[0] );
 		bType = FEMSignatureBType( sigs[0] );
@@ -283,7 +297,7 @@ int main( int argc , char* argv[] )
 		{
 			case FEM_TREE_REAL_FLOAT:  Execute< 2 , float  >( fp , degree , bType ) ; break;
 			case FEM_TREE_REAL_DOUBLE: Execute< 2 , double >( fp , degree , bType ) ; break;
-			default: ERROR_OUT( "Unrecognized real type: %d" , realType );
+			default: ERROR_OUT( "Unrecognized real type: " , realType );
 		}
 		break;
 	case 3:
@@ -291,7 +305,7 @@ int main( int argc , char* argv[] )
 		{
 			case FEM_TREE_REAL_FLOAT:  Execute< 3 , float  >( fp , degree , bType ) ; break;
 			case FEM_TREE_REAL_DOUBLE: Execute< 3 , double >( fp , degree , bType ) ; break;
-			default: ERROR_OUT( "Unrecognized real type: %d" , realType );
+			default: ERROR_OUT( "Unrecognized real type: " , realType );
 		}
 		break;
 	default: ERROR_OUT( "Only dimensions 1-4 supported" );

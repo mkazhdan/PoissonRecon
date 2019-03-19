@@ -32,8 +32,6 @@ WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 #ifndef __PLY_FILE_H__
 #define __PLY_FILE_H__
 
-#define MISHA_PLY
-
 #include <string>
 #include <vector>
 
@@ -56,21 +54,25 @@ WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 #define PLY_CHAR       1
 #define PLY_SHORT      2
 #define PLY_INT        3
-#define PLY_UCHAR      4
-#define PLY_USHORT     5
-#define PLY_UINT       6
-#define PLY_FLOAT      7
-#define PLY_DOUBLE     8
-#define PLY_INT_8      9
-#define PLY_UINT_8     10
-#define PLY_INT_16     11
-#define PLY_UINT_16    12
-#define PLY_INT_32     13
-#define PLY_UINT_32    14
-#define PLY_FLOAT_32   15
-#define PLY_FLOAT_64   16
+#define PLY_LONGLONG   4
+#define PLY_UCHAR      5
+#define PLY_USHORT     6
+#define PLY_UINT       7
+#define PLY_ULONGLONG  8
+#define PLY_FLOAT      9
+#define PLY_DOUBLE     10
+#define PLY_INT_8      11
+#define PLY_UINT_8     12
+#define PLY_INT_16     13
+#define PLY_UINT_16    14
+#define PLY_INT_32     15
+#define PLY_UINT_32    16
+#define PLY_INT_64     17
+#define PLY_UINT_64    18
+#define PLY_FLOAT_32   19
+#define PLY_FLOAT_64   20
 
-#define PLY_END_TYPE   17
+#define PLY_END_TYPE   21
 
 #define  PLY_SCALAR  0
 #define  PLY_LIST    1
@@ -106,7 +108,7 @@ struct PlyStoredProperty
 struct PlyElement
 {
 	std::string name;             /* element name */
-	int num;                      /* number of elements in this object */
+	size_t num;                   /* number of elements in this object */
 	int size;                     /* size of element (bytes) or -1 if variable */
 	std::vector< PlyStoredProperty > props; /* list of properties in the file */
 	int other_offset;             /* offset to un-asked-for props, or -1 if none*/
@@ -162,11 +164,11 @@ struct PlyFile
 	PlyFile( FILE *f ) : fp(f) , other_elems(NULL) , version(1.) { }
 	~PlyFile( void ){ if( fp ) fclose(fp) ; if(other_elems) delete other_elems; }
 
-	void describe_element ( const std::string & , int , int , const PlyProperty * );
+	void describe_element ( const std::string & , size_t , int , const PlyProperty * );
 	void describe_property( const std::string & , const PlyProperty * );
 	void describe_other_elements( PlyOtherElems * );
 	PlyElement *find_element( const std::string & );
-	void element_count( const std::string & , int );
+	void element_count( const std::string & , size_t );
 	void header_complete( void );
 	void put_element_setup( const std::string & );
 	void put_element ( void * );
@@ -178,7 +180,7 @@ struct PlyFile
 	void add_comment ( const std::string & );
 	void add_obj_info( const std::string & );
 
-	std::vector< PlyProperty * > get_element_description( const std::string & , int & );
+	std::vector< PlyProperty * > get_element_description( const std::string & , size_t & );
 	void get_element_setup( const std::string & , int , PlyProperty * );
 	int get_property( const std::string & , const PlyProperty * );
 	void describe_other_properties( const PlyOtherProp & , int );
@@ -187,7 +189,7 @@ struct PlyFile
 	std::vector< std::string > &get_comments( void );
 	std::vector< std::string > &get_obj_info( void );
 	void get_info( float & , int & );
-	PlyOtherElems *get_other_element( std::string & , int );
+	PlyOtherElems *get_other_element( std::string & , size_t );
 protected:
 	void _ascii_get_element ( void * );
 	void _binary_get_element( void * );
@@ -195,4 +197,5 @@ protected:
 	static PlyFile *_Read ( FILE * ,       std::vector< std::string > & );
 };
 
+#include "PlyFile.inl"
 #endif /* !__PLY_FILE_H__ */

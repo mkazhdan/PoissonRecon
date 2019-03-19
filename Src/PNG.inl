@@ -20,7 +20,7 @@ inline PNGReader::PNGReader( const char* fileName , unsigned int& width , unsign
 
 
 	_fp = fopen( fileName , "rb" );
-	if( !_fp ) ERROR_OUT( "Failed to open file for reading: %s" , fileName );
+	if( !_fp ) ERROR_OUT( "Failed to open file for reading: " , fileName );
 	png_init_io( _png_ptr , _fp );
 
 	png_read_info( _png_ptr, _info_ptr );
@@ -85,7 +85,7 @@ inline bool PNGReader::GetInfo( const char* fileName , unsigned int& width , uns
 	if( !end_info ) ERROR_OUT( "Failed to create end pointer" );
 
 	fp = fopen( fileName , "rb" );
-	if( !fp ) ERROR_OUT( "Failed to open file for reading: %s" , fileName );
+	if( !fp ) ERROR_OUT( "Failed to open file for reading: " , fileName );
 	png_init_io( png_ptr , fp );
 
 	png_read_info( png_ptr, info_ptr );

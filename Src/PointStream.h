@@ -34,17 +34,17 @@ DAMAGE.
 #include "Geometry.h"
 
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class InputPointStream
 {
 public:
 	virtual ~InputPointStream( void ){}
 	virtual void reset( void ) = 0;
 	virtual bool nextPoint( Point< Real , Dim >& p ) = 0;
-	virtual int nextPoints( Point< Real , Dim >* p , int count )
+	virtual size_t nextPoints( Point< Real , Dim >* p , size_t count )
 	{
-		int c=0;
-		for( int i=0 ; i<count ; i++ , c++ ) if( !nextPoint( p[i] ) ) break;
+		size_t c=0;
+		for( size_t i=0 ; i<count ; i++ , c++ ) if( !nextPoint( p[i] ) ) break;
 		return c;
 	}
 	void boundingBox( Point< Real , Dim >& min , Point< Real , Dim >& max )
@@ -53,7 +53,7 @@ public:
 		Point< Real , Dim > p;
 		while( nextPoint( p ) )
 		{
-			for( int i=0 ; i<Dim ; i++ )
+			for( unsigned int i=0 ; i<Dim ; i++ )
 			{
 				if( first || p[i]<min[i] ) min[i] = p[i];
 				if( first || p[i]>max[i] ) max[i] = p[i];
@@ -64,16 +64,16 @@ public:
 	}
 };
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class OutputPointStream
 {
 public:
 	virtual ~OutputPointStream( void ){}
 	virtual void nextPoint( const Point< Real , Dim >& p ) = 0;
-	virtual void nextPoints( const Point< Real , Dim >* p , int count ){ for( int i=0 ; i<count ; i++ ) nextPoint( p[i] ); }
+	virtual void nextPoints( const Point< Real , Dim >* p , size_t count ){ for( size_t i=0 ; i<count ; i++ ) nextPoint( p[i] ); }
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class InputPointStreamWithData : public InputPointStream< Real , Dim >
 {
 public:
@@ -82,16 +82,16 @@ public:
 	virtual bool nextPoint( Point< Real , Dim >& p , Data& d ) = 0;
 
 	virtual bool nextPoint( Point< Real , Dim >& p ){ Data d ; return nextPoint( p , d ); }
-	virtual int nextPoints( Point< Real , Dim >* p , Data* d , int count )
+	virtual size_t nextPoints( Point< Real , Dim >* p , Data* d , size_t count )
 	{
-		int c=0;
-		for( int i=0 ; i<count ; i++ , c++ ) if( !nextPoint( p[i] , d[i] ) ) break;
+		size_t c=0;
+		for( size_t i=0 ; i<count ; i++ , c++ ) if( !nextPoint( p[i] , d[i] ) ) break;
 		return c;
 	}
-	virtual int nextPoints( Point< Real , Dim >* p , int count ){ return InputPointStream< Real , Dim >::nextPoints( p , count ); }
+	virtual size_t nextPoints( Point< Real , Dim >* p , size_t count ){ return InputPointStream< Real , Dim >::nextPoints( p , count ); }
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class OutputPointStreamWithData : public OutputPointStream< Real , Dim >
 {
 public:
@@ -99,11 +99,11 @@ public:
 	virtual void nextPoint( const Point< Real , Dim >& p , const Data& d ) = 0;
 
 	virtual void nextPoint( const Point< Real , Dim >& p ){ Data d ; return nextPoint( p , d ); }
-	virtual void nextPoints( const Point< Real , Dim >* p , const Data* d , int count ){ for( int i=0 ; i<count ; i++ ) nextPoint( p[i] , d[i] ); }
-	virtual void nextPoints( const Point< Real , Dim >* p , int count ){ OutputPointStream< Real , Dim >::nextPoints( p , count ); }
+	virtual void nextPoints( const Point< Real , Dim >* p , const Data* d , size_t count ){ for( size_t i=0 ; i<count ; i++ ) nextPoint( p[i] , d[i] ); }
+	virtual void nextPoints( const Point< Real , Dim >* p , size_t count ){ OutputPointStream< Real , Dim >::nextPoints( p , count ); }
 };
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class TransformedInputPointStream : public InputPointStream< Real , Dim >
 {
 	std::function< void ( Point< Real , Dim >& ) > _xForm;
@@ -119,7 +119,7 @@ public:
 	}
 };
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class TransformedOutputPointStream : public OutputPointStream< Real , Dim >
 {
 	std::function< void ( Point< Real , Dim >& ) > _xForm;
@@ -135,7 +135,7 @@ public:
 	}
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class TransformedInputPointStreamWithData : public InputPointStreamWithData< Real , Dim , Data >
 {
 	std::function< void ( Point< Real , Dim >& , Data& ) > _xForm;
@@ -151,7 +151,7 @@ public:
 	}
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class TransformedOutputPointStreamWithData : public OutputPointStreamWithData< Real , Dim , Data >
 {
 	std::function< void ( Point< Real , Dim >& , Data& ) > _xForm;
@@ -167,7 +167,7 @@ public:
 	}
 };
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class MemoryInputPointStream : public InputPointStream< Real , Dim >
 {
 	const Point< Real , Dim >* _points;
@@ -180,7 +180,7 @@ public:
 	bool nextPoint( Point< Real , Dim >& p );
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class MemoryInputPointStreamWithData : public InputPointStreamWithData< Real , Dim , Data >
 {
 	const std::pair< Point< Real , Dim > , Data >* _points;
@@ -193,7 +193,7 @@ public:
 	bool nextPoint( Point< Real , Dim >& p , Data& d );
 };
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class ASCIIInputPointStream : public InputPointStream< Real , Dim >
 {
 	FILE* _fp;
@@ -204,7 +204,7 @@ public:
 	bool nextPoint( Point< Real , Dim >& p );
 };
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class ASCIIOutputPointStream : public OutputPointStream< Real , Dim >
 {
 	FILE* _fp;
@@ -214,7 +214,7 @@ public:
 	void nextPoint( const Point< Real , Dim >& p );
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class ASCIIInputPointStreamWithData : public InputPointStreamWithData< Real , Dim , Data >
 {
 	FILE* _fp;
@@ -226,7 +226,7 @@ public:
 	bool nextPoint( Point< Real , Dim >& p , Data& d );
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class ASCIIOutputPointStreamWithData : public OutputPointStreamWithData< Real , Dim , Data >
 {
 	FILE* _fp;
@@ -237,7 +237,7 @@ public:
 	void nextPoint( const Point< Real , Dim >& p , const Data& d );
 };
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class BinaryInputPointStream : public InputPointStream< Real , Dim >
 {
 	FILE* _fp;
@@ -247,7 +247,7 @@ public:
 	void reset( void ){ fseek( _fp , SEEK_SET , 0 ); }
 	bool nextPoint( Point< Real , Dim >& p );
 };
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class BinaryOutputPointStream : public OutputPointStream< Real , Dim >
 {
 	FILE* _fp;
@@ -258,7 +258,7 @@ public:
 	void nextPoint( const Point< Real , Dim >& p );
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class BinaryInputPointStreamWithData : public InputPointStreamWithData< Real , Dim , Data >
 {
 	FILE* _fp;
@@ -269,7 +269,7 @@ public:
 	void reset( void ){ fseek( _fp , SEEK_SET , 0 ); }
 	bool nextPoint( Point< Real , Dim >& p , Data& d );
 };
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class BinaryOutputPointStreamWithData : public OutputPointStreamWithData< Real , Dim , Data >
 {
 	FILE* _fp;
@@ -281,14 +281,14 @@ public:
 	void nextPoint( const Point< Real , Dim >& p , const Data& d );
 };
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class PLYInputPointStream : public InputPointStream< Real , Dim >
 {
 	char* _fileName;
 	PlyFile* _ply;
 	std::vector< std::string > _elist;
 
-	int _pCount , _pIdx;
+	size_t _pCount , _pIdx;
 	void _free( void );
 public:
 	PLYInputPointStream( const char* fileName );
@@ -297,7 +297,7 @@ public:
 	bool nextPoint( Point< Real , Dim >& p );
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class PLYInputPointStreamWithData : public InputPointStreamWithData< Real , Dim , Data >
 {
 	struct _PlyVertexWithData : public PlyVertex< Real , Dim > { Data data; };
@@ -308,7 +308,7 @@ class PLYInputPointStreamWithData : public InputPointStreamWithData< Real , Dim 
 	int _dataPropertiesCount;
 	bool (*_validationFunction)( const bool* );
 
-	int _pCount , _pIdx;
+	size_t _pCount , _pIdx;
 	void _free( void );
 public:
 	PLYInputPointStreamWithData( const char* fileName , const PlyProperty* dataProperties , int dataPropertiesCount , bool (*validationFunction)( const bool* )=NULL );
@@ -317,23 +317,23 @@ public:
 	bool nextPoint( Point< Real , Dim >& p , Data& d );
 };
 
-template< class Real , int Dim >
+template< class Real , unsigned int Dim >
 class PLYOutputPointStream : public OutputPointStream< Real , Dim >
 {
 	PlyFile* _ply;
-	int _pCount , _pIdx;
+	size_t _pCount , _pIdx;
 public:
 	PLYOutputPointStream( const char* fileName , size_t count , int fileType );
 	~PLYOutputPointStream( void );
 	void nextPoint( const Point< Real , Dim >& p );
 };
 
-template< class Real , int Dim , class Data >
+template< class Real , unsigned int Dim , class Data >
 class PLYOutputPointStreamWithData : public OutputPointStreamWithData< Real , Dim , Data >
 {
 	struct _PlyVertexWithData : public PlyVertex< Real , Dim > { Data data; };
 	PlyFile* _ply;
-	int _pCount , _pIdx;
+	size_t _pCount , _pIdx;
 public:
 	PLYOutputPointStreamWithData( const char* fileName , size_t count , int fileType , const PlyProperty* dataProperties , int dataPropertiesCount );
 	~PLYOutputPointStreamWithData( void );

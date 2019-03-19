@@ -26,13 +26,16 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#undef ARRAY_DEBUG
-#undef FAST_COMPILE
+#include "PreProcessor.h"
+
 #undef USE_DOUBLE
 #define DIMENSION 2
-#define USE_DEEP_TREE_NODES
 #define ROW_BLOCK_SIZE 16
 #define DEFAULT_FEM_DEGREE 1
+
+#ifndef USE_DEEP_TREE_NODES
+#define USE_DEEP_TREE_NODES
+#endif // USE_DEEP_TREE_NODES
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,7 +57,10 @@ cmdLineParameter< int >
 #else // !FAST_COMPILE
 	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
 #endif // FAST_COMPILE
-	Threads( "threads" , omp_get_num_procs() ) ,
+	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
+	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	GSIterations( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 6 ) ,
@@ -78,6 +84,9 @@ cmdLineReadable* params[] =
 #if !defined( FAST_COMPILE )
 	&Degree , 
 #endif // !FAST_COMPILE
+	&ParallelType ,
+	&ScheduleType ,
+	&ThreadChunkSize ,
 	NULL
 };
 
@@ -91,7 +100,12 @@ void ShowUsage( char* ex )
 #endif // !FAST_COMPILE
 	printf( "\t[--%s <GS iterations>=%d]\n" , GSIterations.name , GSIterations.value );
 	printf( "\t[--%s <full depth>=%d]\n" , FullDepth.name , FullDepth.value );
-	printf( "\t[--%s <parallelization threads>=%d]\n" , Threads.name , Threads.value );
+	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
+	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
+	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
+	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
+	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
+	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
 	printf( "\t[--%s <successive under-relaxation scale>=%f]\n", WeightScale.name , WeightScale.value );
 	printf( "\t[--%s <successive under-relaxation exponent>=%f]\n", WeightExponent.name , WeightExponent.value );
 	printf( "\t[--%s <maximum memory (in GB)>=%d]\n" , MaxMemoryGB.name , MaxMemoryGB.value );
@@ -182,8 +196,8 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 			_labelRows[i] = new RGBPixel[ _resolution[0] ];
 			_maskRows [i] = new      int[ _resolution[0] ];
 		}
-		if( pixels->channels()!=3 && pixels->channels()!=1 ) ERROR_OUT( "Pixel input must have 1 or 3 channels: %d" , pixels->channels() );
-		if( labels->channels()!=3 && labels->channels()!=1 ) ERROR_OUT( "Label input must have 1 or 3 channels: %d" , labels->channels() );
+		if( pixels->channels()!=3 && pixels->channels()!=1 ) ERROR_OUT( "Pixel input must have 1 or 3 channels: " , pixels->channels() );
+		if( labels->channels()!=3 && labels->channels()!=1 ) ERROR_OUT( "Label input must have 1 or 3 channels: " , labels->channels() );
 		__pixelRow = pixels->channels()==3 ? NULL : new unsigned char[ _resolution[0] ];
 		__labelRow = labels->channels()==3 ? NULL : new unsigned char[ _resolution[0] ];
 		_r = -2 ; prefetch();
@@ -218,8 +232,7 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 				_labels->nextRow( __labelRow );
 				for( int i=0 ; i<(int)_resolution[0] ; i++ ) labelRow[i][0] = labelRow[i][1] = labelRow[i][2] = __labelRow[i];
 			}
-#pragma omp parallel for
-			for( int i=0 ; i<(int)_resolution[0] ; i++ ) maskRow[i] = labelRow[i].mask();
+			ThreadPool::Parallel_for( 0 , _resolution[0] , [&]( unsigned int , size_t i ){ maskRow[i] = labelRow[i].mask(); } );
 		}
 	}
 
@@ -271,13 +284,14 @@ protected:
 template< typename Real , unsigned int Degree >
 void _Execute( void )
 {
+	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 	int w , h;
 	{
 		unsigned int _w , _h , _c;
 		ImageReader::GetInfo( In.values[0] , _w , _h , _c );
 		w = _w , h = _h;
 		ImageReader::GetInfo( In.values[1] , _w , _h , _c );
-		if( w!=_w || h!=_h ) ERROR_OUT( "Pixel and label dimensions don't match: %d x %d != %d x %d" , _w , _h , w , h );
+		if( w!=_w || h!=_h ) ERROR_OUT( "Pixel and label dimensions don't match: " , _w , " x " , _h , " != " , w , " x " , h );
 	}
 	if( Verbose.set ) printf( "Resolution: %d x %d\n" , w , h );
 
@@ -298,17 +312,11 @@ void _Execute( void )
 		BufferedImageDerivativeStream< Real , Colors > dStream( resolution , pixels , labels );
 		for( int j=0 ; j<h ; j++ )
 		{
-#pragma omp parallel sections
-			{
-#pragma omp section
-				{
-					dStream.prefetch();
-				}
-#pragma omp section
-				{
-					maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocator , tree.initializer() );
-				}
-			}
+			ThreadPool::ParallelSections
+				(
+					[&]( void ){ dStream.prefetch(); } ,
+					[&]( void ){ maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() ); }
+				);
 			dStream.advance();
 		}
 		delete pixels;
@@ -320,10 +328,10 @@ void _Execute( void )
 			for( int i=0 ; i<derivatives[1].size() ; i++ ) nodes.push_back( derivatives[1][i].node );
 			tree.template thicken< 1 , 0 >( &nodes[0] , (int)nodes.size() );
 		}
-		tree.template finalizeForMultigrid< Degree >( FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData >* ){ return true; } );
+		tree.template finalizeForMultigrid< Degree >( FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* ){ return true; } );
 		if( Verbose.set )
 		{
-			printf( "Valid FEM Nodes / Edges: %d %d\n" , (int)tree.validFEMNodes( IsotropicUIntPack< Dim , FEMSig >() ) , (int)( derivatives[0].size() + derivatives[1].size() ) );
+			printf( "Valid FEM Nodes / Edges: %llu %llu\n" , (unsigned long long)tree.validFEMNodes( IsotropicUIntPack< Dim , FEMSig >() ) , (unsigned long long)( derivatives[0].size() + derivatives[1].size() ) );
 			printf( "Set tree [%d]: " , maxDepth ) , p.print( true );
 		}
 	}
@@ -412,8 +420,7 @@ void _Execute( void )
 				{
 					in->nextRow( inRow );
 					RGBPixel *_inRow = inRows[block&1] + rr*w;
-#pragma omp parallel for
-					for( int i=0 ; i<w ; i++ ) _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i];
+					ThreadPool::Parallel_for( 0 , w , [&]( unsigned int , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
 				}
 			}
 		};
@@ -427,24 +434,14 @@ void _Execute( void )
 
 		// Prefetch the first block
 		FetchInput( 0 );
-		omp_set_nested( true );
 		for( int rStart=0 , block=0 ; rStart<h ; rStart+=ROW_BLOCK_SIZE , block++ )
 		{
-#pragma omp parallel sections
-			{
-#pragma omp section
+			ThreadPool::ParallelSections
+			(
+				[&]( void ){ if( block<blockNum ) FetchInput( block+1 ); } ,
+				[&]( void ){ if( block>0 ) SetOutput( block-1 ); } ,
+				[&]( void )
 				{
-					double t = Time();
-					if( block<blockNum ) FetchInput( block+1 );
-				}
-#pragma omp section
-				{
-					double t = Time();
-					if( block>0 ) SetOutput( block-1 );
-				}
-#pragma omp section
-				{
-					double t = Time();
 					RGBPixel *_inRows = inRows[block&1] , *_outRows = outRows[block&1];
 					int rEnd = rStart + ROW_BLOCK_SIZE < h ? rStart + ROW_BLOCK_SIZE : h;
 
@@ -452,16 +449,16 @@ void _Execute( void )
 					begin[0] = 0 , begin[1] = rStart , end[0] = w , end[1] = rEnd;
 					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( solution , begin , end );
 					int size = (rEnd-rStart)*w;
-#pragma omp parallel for
-					for( int ii=0 ; ii<size ; ii++ )
+					ThreadPool::Parallel_for( 0 , size , [&]( unsigned int , size_t ii )
 					{
 						Point< Real , Colors > c = Point< Real , Colors >( _inRows[ii][0] , _inRows[ii][1] , _inRows[ii][2] ) / 255;
 						c += outBlock[ii] - average;
 						_outRows[ii] = RGBPixel( c[0] , c[1] , c[2] );
 					}
+					);
 					DeletePointer( outBlock );
 				}
-			}
+			);
 		}
 		// Write out the last block
 		SetOutput( blockNum-1 );
@@ -495,9 +492,18 @@ void _Execute( void )
 int main( int argc , char* argv[] )
 {
 	Timer timer;
+#ifdef USE_SEG_FAULT_HANDLER
+	WARN( "using seg-fault handler" );
+	StackTracer::exec = argv[0];
+	signal( SIGSEGV , SignalHandler );
+#endif // USE_SEG_FAULT_HANDLER
+#ifdef ARRAY_DEBUG
+	WARN( "Array debugging enabled" );
+#endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
-	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
+	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
+	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	if( Verbose.set )
 	{
 		printf( "*********************************************\n" );
@@ -505,6 +511,7 @@ int main( int argc , char* argv[] )
 		printf( "** Running Image Stitching (Version %s) **\n" , VERSION );
 		printf( "*********************************************\n" );
 		printf( "*********************************************\n" );
+		if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );
 	}
 
 	if( !In.set )
@@ -514,7 +521,7 @@ int main( int argc , char* argv[] )
 	}
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );
+		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 
@@ -526,7 +533,7 @@ int main( int argc , char* argv[] )
 
 #ifdef FAST_COMPILE
 	static const int Degree = DEFAULT_FEM_DEGREE;
-	WARN( "Compiled for degree-%d, %s-precision _only_" , Degree , sizeof(DefaultFloatType)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-" , Degree , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 	_Execute< Real , Degree >();
 #else // !FAST_COMPILE
 	_Execute< Real >();

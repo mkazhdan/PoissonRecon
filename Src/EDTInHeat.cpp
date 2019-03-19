@@ -26,9 +26,9 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#undef FAST_COMPILE				// If enabled, only a single version of the reconstruction code is compiled
+#include "PreProcessor.h"
+
 #undef USE_DOUBLE				// If enabled, double-precesion is used
-#undef ARRAY_DEBUG				// If enabled, array access is tested for validity
 #define DIMENSION 3				// The dimension of the system
 #define DEFAULT_FEM_DEGREE 1	// The default finite-element degree
 
@@ -66,7 +66,14 @@ cmdLineParameter< int >
 	BaseDepth( "baseDepth" , 0 ) ,
 	BaseVCycles( "baseVCycles" , 1 ) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
-	Threads( "threads" , omp_get_num_procs() );
+#ifdef _OPENMP
+	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
+#else // !_OPENMP
+	ParallelType( "parallel" , (int)ThreadPool::THREAD_POOL ) ,
+#endif // _OPENMP
+	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 
 cmdLineParameter< float >
 	Scale( "scale" , 2.f ) ,
@@ -93,6 +100,9 @@ cmdLineReadable* params[] =
 	&Performance ,
 	&ExactInterpolation ,
 	&MaxMemoryGB ,
+	&ParallelType , 
+	&ScheduleType , 
+	&ThreadChunkSize ,
 	NULL
 };
 
@@ -205,6 +215,7 @@ struct SystemDual< Dim , double >
 template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( int argc , char* argv[] )
 {
+	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 0 > InterpolationInfo;
 	std::vector< std::string > comments;
@@ -213,6 +224,7 @@ void _Execute( int argc , char* argv[] )
 	messageWriter( comments , "** Running EDT in Heat (Version %s) **\n" , VERSION );
 	messageWriter( comments , "*****************************************\n" );
 	messageWriter( comments , "*****************************************\n" );
+	if( !Threads.set ) messageWriter( comments , "Running with %d threads\n" , Threads.value );
 
 
 	XForm< Real , Dim+1 > xForm , iXForm;
@@ -221,7 +233,7 @@ void _Execute( int argc , char* argv[] )
 		FILE* fp = fopen( InXForm.value , "r" );
 		if( !fp )
 		{
-			WARN( "Could not open file for reading x-form: %s" , InXForm.value );
+			WARN( "Could not open file for reading x-form: " , InXForm.value );
 			xForm = XForm< Real , Dim+1 >::Identity();
 		}
 		else
@@ -265,14 +277,14 @@ void _Execute( int argc , char* argv[] )
 		profiler.start();
 		// Read the mesh
 		std::vector< Point< Real , Dim > > vertices;
-		std::vector< TriangleIndex > triangles;
+		std::vector< TriangleIndex< node_index_type > > triangles;
 		{
 			int file_type;
 			std::vector< PlyVertex< float , Dim > > _vertices;
 			std::vector< std::vector< int > > _polygons;
 			std::vector< std::string > comments;
 			if( !PlyReadPolygons( In.value , _vertices , _polygons , PlyVertex< float , Dim >::PlyReadProperties() , PlyVertex< float , Dim >::PlyReadNum , file_type , comments ) )
-				ERROR_OUT( "Failed to read ply file: %s\n" , In.value );
+				ERROR_OUT( "Failed to read ply file: " , In.value );
 			vertices.resize( _vertices.size() );
 			for( int i=0 ; i<vertices.size() ; i++ ) for( int d=0 ; d<Dim ; d++ ) vertices[i][d] = _vertices[i].point[d];
 			triangles.resize( _polygons.size() );
@@ -282,12 +294,12 @@ void _Execute( int argc , char* argv[] )
 		XForm< Real , Dim+1 > _xForm = GetPointXForm< Real , Dim >( vertices , (Real)Scale.value );
 		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = _xForm * vertices[i];
 		xForm = _xForm * xForm;
-		FEMTreeInitializer< Dim , Real >::Initialize( tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , true , tree.nodeAllocator , tree.initializer() );
+		FEMTreeInitializer< Dim , Real >::Initialize( tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , true , tree.nodeAllocators , tree.initializer() );
 		iXForm = xForm.inverse();
 		if( OutXForm.set )
 		{
 			FILE* fp = fopen( OutXForm.value , "w" );
-			if( !fp ) WARN( "Could not open file for writing x-form: %s" , OutXForm.value );
+			if( !fp ) WARN( "Could not open file for writing x-form: %s" );
 			else
 			{
 				for( int i=0 ; i<Dim+1 ; i++ )
@@ -300,15 +312,17 @@ void _Execute( int argc , char* argv[] )
 		}
 
 		double area = 0;
-#pragma omp parallel for reduction( + : area )
-		for( int i=0 ; i<triangles.size() ; i++ )
+		std::vector< double > areas( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , triangles.size() , [&]( unsigned int thread , size_t i )
 		{
 			Simplex< Real , Dim , Dim-1 > s;
 			for( int k=0 ; k<Dim ; k++ ) for( int j=0 ; j<Dim ; j++ ) s[k][j] = vertices[ triangles[i][k] ][j];
 			Real a2 = s.squareMeasure();
-			if( a2>0 ) area += sqrt(a2) / 2;
+			if( a2>0 ) areas[thread] += sqrt(a2) / 2;
 		}
-		messageWriter( "Input Vertices / Triangle / Samples / Area: %d / %d / %d / %g\n" , (int)vertices.size() , (int)triangles.size() , geometrySamples.size() , area );
+		);
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) area += areas[t];
+		messageWriter( "Input Vertices / Triangle / Samples / Area: %llu / %llu / %llu / %g\n" , (unsigned long long)vertices.size() , (unsigned long long)triangles.size() , (unsigned long long)geometrySamples.size() , area );
 		profiler.dumpOutput2( comments , "# Read input into tree:" );
 	}
 
@@ -329,7 +343,7 @@ void _Execute( int argc , char* argv[] )
 		profiler.dumpOutput2( comments , "#       Finalized tree:" );
 	}
 
-	messageWriter( "Leaf Nodes / Active Nodes / Ghost Nodes: %d / %d / %d\n" , (int)tree.leaves() , (int)tree.nodes() , (int)tree.ghostNodes() );
+	messageWriter( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
 	messageWriter( "Memory Usage: %.3f MB\n" , float( MemoryInfo::Usage())/(1<<20) );
 
 	SparseNodeData< Point< Real , Dim+1 > , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafValues;
@@ -345,8 +359,7 @@ void _Execute( int argc , char* argv[] )
 		constraints = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMSig >() );
 		DenseNodeData< Point< Real , 1 > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _constraints( tree.nodesSize() );
 		for( int i=0 ; i<geometrySamples.size() ; i++ ) _constraints[ geometrySamples[i].node ][0] = geometrySamples[i].sample.weight * ( 1<<(Depth.value*Dim) );
-		typename FEMIntegrator::template ScalarConstraint< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 0 > , IsotropicUIntPack< Dim , FEMTrivialSignature > , IsotropicUIntPack< Dim , 0 > > F( {1.} );
-		tree.addFEMConstraints( F , _constraints , constraints , Depth.value );
+		typename FEMIntegrator::template ScalarConstraint< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 0 > , IsotropicUIntPack< Dim , FEMTrivialSignature > , IsotropicUIntPack< Dim , 0 > > F( {1.} );		tree.addFEMConstraints( F , _constraints , constraints , Depth.value );
 		profiler.dumpOutput2( comments , "# Set heat constraints:" );
 	}
 
@@ -370,22 +383,25 @@ void _Execute( int argc , char* argv[] )
 		profiler.start();
 
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( &tree , heatSolution );
-		typedef typename RegularTreeNode< Dim , FEMTreeNodeData >::template ConstNeighbors< IsotropicUIntPack< Dim , 3 > > OneRingNeighbors;
-		typedef typename RegularTreeNode< Dim , FEMTreeNodeData >::template ConstNeighborKey< IsotropicUIntPack< Dim , 1 > , IsotropicUIntPack< Dim , 1 > > OneRingNeighborKey;
-		std::vector< OneRingNeighborKey > oneRingNeighborKeys( omp_get_max_threads() );
+		typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighbors< IsotropicUIntPack< Dim , 3 > > OneRingNeighbors;
+		typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< IsotropicUIntPack< Dim , 1 > , IsotropicUIntPack< Dim , 1 > > OneRingNeighborKey;
+		std::vector< OneRingNeighborKey > oneRingNeighborKeys( ThreadPool::NumThreads() );
 		int treeDepth = tree.tree().maxDepth();
 		for( int i=0 ; i<oneRingNeighborKeys.size() ; i++ ) oneRingNeighborKeys[i].set( treeDepth );
 		DenseNodeData< Real , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafCenterValues = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMTrivialSignature >() );
 
-#pragma omp parallel for
-		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) )
+		ThreadPool::Parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i )
 		{
-			Point< Real , Dim > center ; Real width;
-			tree.centerAndWidth( i , center , width );
-			leafCenterValues[i] = evaluator.values( center , omp_get_thread_num() )[0];
+			if( tree.isValidSpaceNode( tree.node((node_index_type)i) ) )
+			{
+				Point< Real , Dim > center ; Real width;
+				tree.centerAndWidth( (node_index_type)i , center , width );
+				leafCenterValues[i] = evaluator.values( center , thread )[0];
+			}
 		}
+		);
 
-		auto CenterGradient = [&] ( const RegularTreeNode< Dim , FEMTreeNodeData >* leaf , int thread )
+		auto CenterGradient = [&] ( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf , int thread )
 		{
 			int d , off[Dim] ; Point< Real , Dim > p ; Real width , _width = (Real)1./(1<<Depth.value);
 			tree.depthAndOffset( leaf , d , off ) , tree.centerAndWidth( leaf->nodeData.nodeIndex , p , width );
@@ -399,8 +415,8 @@ void _Execute( int argc , char* argv[] )
 				Real value1 , value2;
 				if( off[c]-1>=0  ) index1[c] = 0;
 				if( off[c]+1<res ) index2[c] = 2;
-				const RegularTreeNode< Dim , FEMTreeNodeData >* node1 = neighbors.neighbors().data[ GetWindowIndex( IsotropicUIntPack< Dim , 3 >() , index1 ) ];
-				const RegularTreeNode< Dim , FEMTreeNodeData >* node2 = neighbors.neighbors().data[ GetWindowIndex( IsotropicUIntPack< Dim , 3 >() , index2 ) ];
+				const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node1 = neighbors.neighbors().data[ GetWindowIndex( IsotropicUIntPack< Dim , 3 >() , index1 ) ];
+				const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node2 = neighbors.neighbors().data[ GetWindowIndex( IsotropicUIntPack< Dim , 3 >() , index2 ) ];
 				if( d==Depth.value && tree.isValidSpaceNode( node2 ) ) value2 = leafCenterValues[ node2->nodeData.nodeIndex ];
 				else
 				{
@@ -424,23 +440,26 @@ void _Execute( int argc , char* argv[] )
 			return g * _res;
 		};
 
-		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+		for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
 		{
-			RegularTreeNode< Dim , FEMTreeNodeData >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData >* )tree.node(i);
+			RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* )tree.node(i);
 			leafValues[leaf] *= 0;
 		}
 
-#pragma omp parallel for
-		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+		ThreadPool::Parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i  )
 		{
-			RegularTreeNode< Dim , FEMTreeNodeData >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData >* )tree.node(i);
-			Point< Real , Dim > g = CenterGradient( leaf , omp_get_thread_num() );
-			Real len = (Real)Length( g );
-			if( len>GradientCutOff ) g /= len;
-			Point< Real , Dim+1 >* leafValue = leafValues(leaf);
-			if( leafValue ) for( int d=0 ; d<Dim ; d++ ) (*leafValue)[d+1] = -g[d];
-			else ERROR_OUT( "Leaf value doesn't exist" );
+			if( tree.isValidSpaceNode( tree.node((node_index_type)i) ) && !tree.isValidSpaceNode( tree.node((node_index_type)i)->children ) )
+			{
+				RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* )tree.node((node_index_type)i);
+				Point< Real , Dim > g = CenterGradient( leaf , thread );
+				Real len = (Real)Length( g );
+				if( len>GradientCutOff ) g /= len;
+				Point< Real , Dim+1 >* leafValue = leafValues(leaf);
+				if( leafValue ) for( int d=0 ; d<Dim ; d++ ) (*leafValue)[d+1] = -g[d];
+				else ERROR_OUT( "Leaf value doesn't exist" );
+			}
 		}
+		);
 		profiler.dumpOutput2( comments , "#  Evaluated gradients:" );
 	}
 
@@ -500,29 +519,30 @@ void _Execute( int argc , char* argv[] )
 			{
 				double errorSum = 0 , valueSum = 0 , weightSum = 0;
 				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tree , coefficients );
-#pragma omp parallel for reduction( + : errorSum , valueSum , weightSum )
-				for( int j=0 ; j<geometrySamples.size() ; j++ )
+				std::vector< double > errorSums( ThreadPool::NumThreads() , 0 ) , valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
+				ThreadPool::Parallel_for( 0 , geometrySamples.size() , [&]( unsigned int thread , size_t j )
 				{
 					ProjectiveData< Point< Real , Dim > , Real >& sample = geometrySamples[j].sample;
 					Real w = sample.weight;
-					Real value = evaluator.values( sample.data / sample.weight , omp_get_thread_num() , geometrySamples[j].node )[0];
-					errorSum += value * value * w;
-					valueSum += value * w;
-					weightSum += w;
+					Real value = evaluator.values( sample.data / sample.weight , thread , geometrySamples[j].node )[0];
+					errorSums[thread] += value * value * w;
+					valueSums[thread] += value * w;
+					weightSums[thread] += w;
 				}
+				);
+				for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) errorSum += errorSums[t] , valueSum += valueSums[t] , weightSum += weightSums[t];
 				average = valueSum / weightSum , error = sqrt( errorSum / weightSum );
 			};
 			double average , error;
 			GetAverageValueAndError( &tree , edtSolution , average , error );
 			if( Verbose.set ) printf( "Interpolation average / error: %g / %g\n" , average , error );
-#pragma omp parallel for
-			for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(0) ; i++ ) edtSolution[i] -= (Real)average;
+			ThreadPool::Parallel_for( tree.nodesBegin(0) , tree.nodesEnd(0) , [&]( unsigned int , size_t i ){ edtSolution[i] -= (Real)average; } );
 		}
 
 		if( Out.set )
 		{
 			FILE* fp = fopen( Out.value , "wb" );
-			if( !fp ) ERROR_OUT( "Failed to open file for writing: %s" , Out.value );
+			if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Out.value );
 			FEMTree< Dim , Real >::WriteParameter( fp );
 			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fp );
 			tree.write( fp );
@@ -549,11 +569,17 @@ void Execute( int argc , char* argv[] )
 int main( int argc , char* argv[] )
 {
 	Timer timer;
+#ifdef USE_SEG_FAULT_HANDLER
+	WARN( "using seg-fault handler" );
+	StackTracer::exec = argv[0];
+	signal( SIGSEGV , SignalHandler );
+#endif // USE_SEG_FAULT_HANDLER
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
-	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
+	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
+	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 	messageWriter.echoSTDOUT = Verbose.set;
 
@@ -567,10 +593,10 @@ int main( int argc , char* argv[] )
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = BOUNDARY_FREE;
 
-	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );
+		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 	_Execute< DIMENSION , Real , FEMDegreeAndBType< Degree , BType >::Signature >( argc , argv );

@@ -126,7 +126,7 @@ struct FileNameParser
 	static inline char* LocalHeader( const char* fileName )
 	{
 		char* localFileName = Local( fileName );
-		if( !localFileName ) ERROR_OUT( "Couldn't get local file name: %s" , fileName );
+		if( !localFileName ) ERROR_OUT( "Couldn't get local file name: " , fileName );
 		char* localFileHeader = Header( localFileName );
 		delete[] localFileName;
 		return localFileHeader;
@@ -194,7 +194,7 @@ inline ImageReader* ImageReader::Get( const char* fileName )
 	else
 	{
 		delete[] ext;
-		THROW( "failed to get image reader for: %s" , fileName );
+		THROW( "failed to get image reader for: " , fileName );
 	}
 	reader->_width = width;
 	reader->_height = height;
@@ -256,7 +256,7 @@ inline ImageWriter* ImageWriter::Get( const char* fileName , unsigned int width 
 	else
 	{
 		delete[] ext;
-		THROW( "failed to get image writer for: %s" , fileName );
+		THROW( "failed to get image writer for: " , fileName );
 	}
 	writer->_width = width;
 	writer->_height = height;
@@ -273,22 +273,22 @@ bool TiledImageReader::GetInfo( const char* fileName , unsigned int& width , uns
 	unsigned int *_tileHeights , *_tileWidths;
 	unsigned int _tileRows , _tileColumns , _channels;
 	FILE* fp = fopen( fileName , "r" );
-	if( !fp ){ WARN( "Couldn't open file for reading: %s" , fileName ) ; return false; }
+	if( !fp ){ WARN( "Couldn't open file for reading: " , fileName ) ; return false; }
 	{
 		char line[1024];
-		if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read column line from: %s" , fileName );
+		if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read column line from: " , fileName );
 		line[strlen(line)-1] = 0;
-		if( sscanf( line , "Columns: %d" , &_tileColumns )!=1 ) ERROR_OUT( "Failed to read column count from: %s (%s)" , fileName , line );
-		if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read row line from: %s" , fileName );
+		if( sscanf( line , "Columns: %d" , &_tileColumns )!=1 ) ERROR_OUT( "Failed to read column count from: " , fileName , " (" , line , ")" );
+		if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read row line from: " , fileName );
 		line[strlen(line)-1] = 0;
-		if( sscanf( line , "Rows: %d" , &_tileRows )!=1 ) ERROR_OUT( "Failed to read row count from: %s (%s)" , fileName , line );
+		if( sscanf( line , "Rows: %d" , &_tileRows )!=1 ) ERROR_OUT( "Failed to read row count from: " , fileName , " (" , line , ")" );
 		_tileHeights = new unsigned int[ _tileRows+1 ];
 		_tileWidths  = new unsigned int[ _tileColumns+1 ];
 
 		char tileName[1024];
 		for( unsigned int r=0 ; r<_tileRows ; r++ ) for( unsigned int c=0 ; c<_tileColumns ; c++ )
 		{
-			if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read tile name from: %s" , fileName );
+			if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read tile name from: " , fileName );
 			line[strlen(line)-1] = 0;
 			if( fileDir ) sprintf( tileName , "%s%c%s" , fileDir , FileNameParser::Separator , line );
 			else          sprintf( tileName , "%s" , line );
@@ -296,11 +296,11 @@ bool TiledImageReader::GetInfo( const char* fileName , unsigned int& width , uns
 			unsigned int _w , _h , _c;
 			ImageReader::GetInfo( tileName , _w , _h , _c );
 			if( !r && !c ) _channels = _c;
-			else if( _channels!=_c ) ERROR_OUT( "Number of color channels don't match: %d != %d" , _channels , _c );
+			else if( _channels!=_c ) ERROR_OUT( "Number of color channels don't match: " , _channels , " != " , _c );
 			if( !r ) _tileWidths[c+1] = _w;
-			else if( _tileWidths[c+1]!=_w ) ERROR_OUT( "Images in the same column must have the same width: %d != %d" , _tileWidths[c+1] , _w );
+			else if( _tileWidths[c+1]!=_w ) ERROR_OUT( "Images in the same column must have the same width: " , _tileWidths[c+1] , " != " , _w );
 			if( !c ) _tileHeights[r+1] = _h;
-			else if( _tileHeights[r+1]!=_h ) ERROR_OUT( "Images in the same row must have the same heights: %d != %d" , _tileHeights[r+1] , _h );
+			else if( _tileHeights[r+1]!=_h ) ERROR_OUT( "Images in the same row must have the same heights: " , _tileHeights[r+1] ," != " , _h );
 		}
 	}
 	fclose( fp );
@@ -316,15 +316,15 @@ TiledImageReader::TiledImageReader( const char* fileName , unsigned int& width ,
 {
 	char* fileDir = FileNameParser::Dir( fileName );
 	FILE* fp = fopen( fileName , "r" );
-	if( !fp ) ERROR_OUT( "Couldn't open file for reading: %s" , fileName );
+	if( !fp ) ERROR_OUT( "Couldn't open file for reading: " , fileName );
 	{
 		char line[1024];
-		if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed read column line from: %s" , fileName );
+		if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed read column line from: " , fileName );
 		line[strlen(line)-1] = 0;
-		if( sscanf( line , "Columns: %d" , &_tileColumns )!=1 ) ERROR_OUT( "Failed to read column count from: %s (%s)" , fileName , line );
-		if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed read row line from: %s" , fileName );
+		if( sscanf( line , "Columns: %d" , &_tileColumns )!=1 ) ERROR_OUT( "Failed to read column count from: " , fileName , " (" , line , ")" );
+		if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed read row line from: " , fileName );
 		line[strlen(line)-1] = 0;
-		if( sscanf( line , "Rows: %d" , &_tileRows )!=1 ) ERROR_OUT( "Failed to read row count from: %s (%s)" , fileName , line );
+		if( sscanf( line , "Rows: %d" , &_tileRows )!=1 ) ERROR_OUT( "Failed to read row count from: " , fileName , " (" , line , ")" );
 
 		_tileReaders = new ImageReader*[ _tileColumns ];
 		_tileHeights = new unsigned int[ _tileRows+1 ];
@@ -334,7 +334,7 @@ TiledImageReader::TiledImageReader( const char* fileName , unsigned int& width ,
 		char tileName[1024];
 		for( unsigned int r=0 ; r<_tileRows ; r++ ) for( unsigned int c=0 ; c<_tileColumns ; c++ )
 		{
-			if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read tile name from: %s" , fileName );
+			if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read tile name from: " , fileName );
 			line[strlen(line)-1] = 0;
 			if( fileDir ) sprintf( tileName , "%s%c%s" , fileDir , FileNameParser::Separator , line );
 			else          sprintf( tileName , "%s" , line );
@@ -349,11 +349,11 @@ TiledImageReader::TiledImageReader( const char* fileName , unsigned int& width ,
 		unsigned int _w , _h , _c;
 		ImageReader::GetInfo( _tileNames[r*_tileColumns+c] , _w , _h , _c );
 		if( !r && !c ) _channels = _c;
-		else if( _channels!=_c ) ERROR_OUT( "Number of color channels don't match: %d != %d" , _channels , _c );
+		else if( _channels!=_c ) ERROR_OUT( "Number of color channels don't match: " , _channels , " != " , _c );
 		if( !r ) _tileWidths[c+1] = _w;
-		else if( _tileWidths[c+1]!=_w ) ERROR_OUT( "Images in the same column must have the same width: %d != %d" , _tileWidths[c+1] , _w );
+		else if( _tileWidths[c+1]!=_w ) ERROR_OUT( "Images in the same column must have the same width: " , _tileWidths[c+1] , " != " , _w );
 		if( !c ) _tileHeights[r+1] = _h;
-		else if( _tileHeights[r+1]!=_h ) ERROR_OUT( "Images in the same row must have the same heights: %d != %d" , _tileHeights[r+1] , _h );
+		else if( _tileHeights[r+1]!=_h ) ERROR_OUT( "Images in the same row must have the same heights: " , _tileHeights[r+1] , " != " , _h );
 	}
 	_tileWidths[0] = _tileHeights[0] = 0;
 	for( unsigned int c=0 ; c<_tileColumns ; c++ ) _tileWidths[c+1] += _tileWidths[c];
@@ -405,7 +405,7 @@ TiledImageWriter::TiledImageWriter( const char* fileName , unsigned int width , 
 	}
 	delete[] tileHeader;
 	FILE* fp = fopen( fileName , "w" );
-	if( !fp ) ERROR_OUT( "Failed to open file for writing: %s" , fileName );
+	if( !fp ) ERROR_OUT( "Failed to open file for writing: " , fileName );
 	fprintf( fp , "Columns: %d\n" , _tileColumns );
 	fprintf( fp , "Rows: %d\n" , _tileRows );
 	for( unsigned int i=0 ; i<_tileRows*_tileColumns ; i++ )
