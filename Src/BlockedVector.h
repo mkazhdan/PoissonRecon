@@ -30,28 +30,18 @@ DAMAGE.
 #ifndef BLOCKED_VECTOR_INCLUDED
 #define BLOCKED_VECTOR_INCLUDED
 
-#ifdef NEW_CODE
 #include "MyMiscellany.h"
-#endif // NEW_CODE
 
 // This represents a vector that can only grow in size.
 // It has the property that once a reference to an element is returned, that reference remains valid until the vector is destroyed.
-#ifdef NEW_CODE
 template< typename T , unsigned int LogBlockSize=10 , unsigned int InitialBlocks=10 , unsigned int AllocationMultiplier=2 >
-#else // !NEW_CODE
-template< typename T , unsigned int LogBlockSize=10 , unsigned InitialBlocks=10 , unsigned int AllocationMultiplier=2 >
-#endif // NEW_CODE
 struct BlockedVector
 {
 	BlockedVector( T defaultValue=T() ) : _defaultValue( defaultValue )
 	{
 		_reservedBlocks = InitialBlocks;
 		_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
-#ifdef NEW_CODE
 		for( size_t i=0 ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
-#else // !NEW_CODE
-		for( size_t i=0 ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( Pointer( T ) );
-#endif // NEW_CODE
 		_allocatedBlocks = _size = 0;
 	}
 	~BlockedVector( void )
@@ -81,11 +71,7 @@ struct BlockedVector
 			_blocks[i] = NewPointer< T >( _BlockSize );
 			memcpy( _blocks[i] , v._blocks[i] , sizeof(T)*_BlockSize );
 		}
-#ifdef NEW_CODE
 		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
-#else // !NEW_CODE
-		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( Pointer ( T ) );
-#endif // NEW_CODE
 		return *this;
 	}
 	BlockedVector( BlockedVector&& v )
@@ -128,11 +114,7 @@ struct BlockedVector
 			size_t newReservedSize = std::max< size_t >( _reservedBlocks * AllocationMultiplier , block+1 );
 			Pointer( Pointer( T ) ) __blocks = NewPointer< Pointer( T ) >( newReservedSize );
 			memcpy( __blocks , _blocks , sizeof( Pointer( T ) ) * _reservedBlocks );
-#ifdef NEW_CODE
 			for( size_t i=_reservedBlocks ; i<newReservedSize ; i++ ) __blocks[i] = NullPointer( T );
-#else // !NEW_CODE
-			for( size_t i=_reservedBlocks ; i<newReservedSize ; i++ ) __blocks[i] = NullPointer( Pointer( T )  );
-#endif // NEW_CODE
 			Pointer( Pointer( T ) ) _oldBlocks = _blocks;
 			_blocks = __blocks;
 			_reservedBlocks = newReservedSize;

@@ -140,9 +140,15 @@ CoredFileMeshData< Vertex , Index >::CoredFileMeshData( const char* fileHeader )
 	polygons.resize( std::thread::hardware_concurrency() );
 	for( unsigned int i=0 ; i<polygons.size() ; i++ ) polygons[i] = 0;
 
-	oocPointFile = new BufferedReadWriteFile( NULL , fileHeader );
+	char _fileHeader[1024];
+	sprintf( _fileHeader , "%s_points_" , fileHeader );
+	oocPointFile = new BufferedReadWriteFile( NULL , _fileHeader );
 	polygonFiles.resize( std::thread::hardware_concurrency() );
-	for( unsigned int i=0 ; i<polygonFiles.size() ; i++ ) polygonFiles[i] = new BufferedReadWriteFile( NULL , fileHeader );
+	for( unsigned int i=0 ; i<polygonFiles.size() ; i++ )
+	{
+		sprintf( _fileHeader , "%s_polygons_t%d_" , fileHeader , i );
+		polygonFiles[i] = new BufferedReadWriteFile( NULL , _fileHeader );
+	}
 }
 template< class Vertex , typename Index >
 CoredFileMeshData< Vertex , Index >::~CoredFileMeshData( void )

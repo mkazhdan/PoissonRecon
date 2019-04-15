@@ -1,11 +1,11 @@
-<center><h2>Adaptive Multigrid Solvers (Version 11.00)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 11.01)</h2></center>
 <center>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#LINKS">links</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#EXECUTABLES">executables</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#USAGE">usage</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#CHANGES">changes</a>
+<a href="#LINKS">links</a>
+<a href="#EXECUTABLES">executables</a>
+<a href="#USAGE">usage</a>
+<a href="#CHANGES">changes</a>
 <!--
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/index.html#SUPPORT">support</a>
+<a href="#SUPPORT">support</a>
 -->
 </center>
 <hr>
@@ -27,10 +27,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">V11.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">V10.07</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">V10.06</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">V10.05</a>,
@@ -670,7 +671,7 @@ To obtain a sampling of the implicit function over a regular grid:
 <hr>
 <DETAILS>
 <SUMMARY>
-<font size="+1"><b><B>HISTORY OF CHANGES</B></b></font>
+<A NAME="CHANGES"><font size="+1"><b><B>HISTORY OF CHANGES</B></b></font></A>
 </SUMMARY>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">Version 3</a>:
 <ol>
@@ -853,12 +854,14 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Added the code for <I>ChunkPly</I> which breaks up large meshes and/or point-sets into chunks.
 </ol>
 
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 11.01</a>:
+<ol>
+<LI> Fixed bug with <I>_mktemp</I> that caused the code to crash on Windows machine with more than 26 cores.
+</ol>
+
 </DETAILS>
 
 
 <hr>
 <a name="SUPPORT"><b>SUPPORT</b></a><br>
 This work genersouly supported by NSF grants #0746039 and #1422325.
-
-<hr>
-<a href="http://www.cs.jhu.edu/~misha">HOME</a>

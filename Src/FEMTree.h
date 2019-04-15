@@ -44,9 +44,6 @@ DAMAGE.
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED
 
-#define VERSION "11.00"
-#define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
-
 #include <atomic>
 #include "MyMiscellany.h"
 #include "BSplineData.h"
