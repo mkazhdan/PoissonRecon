@@ -1225,7 +1225,9 @@ T FEMTree< Dim , Real >::_getInterpolationConstraintFromProlongedSolution( const
 	{
 		int s[Dim];
 #if defined( _WIN32 ) || defined( _WIN64 )
+#ifdef SHOW_WARNINGS
 #pragma message ( "[WARNING] You've got me MSVC" )
+#endif // SHOW_WARNINGS
 		auto  UpdateFunction = [&]( int d , int i ){ s[d] = (int)SupportSizes::Values[d] - 1 - ( i - (int)OverlapRadii::Values[d] + (int)LeftSupportRadii::Values[d] ); };
 		auto ProcessFunction = [&]( const FEMTreeNode* pNode )
 		{
@@ -3278,7 +3280,9 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 					_SetParentOverlapBounds( UIntPack< Degrees1 ... >() , UIntPack< Degrees2 ... >() , node , start , end );
 
 #ifdef __clang__
+#ifdef SHOW_WARNINGS
 #pragma message ( "[WARNING] You've got me clang" )
+#endif // SHOW_WARNINGS
 					std::function< void (int,int) > updateFunction = [](int,int){};
 #endif // __clang__
 
