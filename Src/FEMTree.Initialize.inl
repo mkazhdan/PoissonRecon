@@ -93,6 +93,33 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPo
 		pointStream.reset();
 	}
 	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
+	if( std::is_same< Real , float >::value )
+	{
+		std::vector< size_t > badNodeCounts( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , samplePoints.size() , [&]( unsigned int thread , size_t i )
+		{
+			Point< Real , Dim > start;
+			Real width;
+			samplePoints[i].node->startAndWidth( start , width );
+			Point< Real , Dim > p = samplePoints[i].sample.data / samplePoints[i].sample.weight;
+			bool foundBadNode = false;
+			for( int d=0 ; d<Dim ; d++ )
+			{
+				if     ( p[d]<start[d]       ) p[d] = start[d];
+				else if( p[d]>start[d]+width ) p[d] = start[d] + width;
+				foundBadNode = true;
+			}
+			if( foundBadNode )
+			{
+				samplePoints[i].sample.data = p * samplePoints[i].sample.weight;
+				badNodeCounts[ thread ]++;
+			}
+		}
+		);
+		size_t badNodeCount = 0;
+		for( int i=0 ; i<badNodeCounts.size() ; i++ ) badNodeCount += badNodeCounts[i];
+		if( badNodeCount ) WARN( "Found bad sample nodes: " , badNodeCount );
+	}
 	FEMTree< Dim , Real >::MemoryUsage();
 	return pointCount;
 }
@@ -165,6 +192,33 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPo
 	}
 	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
 	if( badData           ) WARN( "Found bad data: " , badData );
+	if( std::is_same< Real , float >::value )
+	{
+		std::vector< size_t > badNodeCounts( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , samplePoints.size() , [&]( unsigned int thread , size_t i )
+		{
+			Point< Real , Dim > start;
+			Real width;
+			samplePoints[i].node->startAndWidth( start , width );
+			Point< Real , Dim > p = samplePoints[i].sample.data / samplePoints[i].sample.weight;
+			bool foundBadNode = false;
+			for( int d=0 ; d<Dim ; d++ )
+			{
+				if     ( p[d]<start[d]       ) p[d] = start[d];
+				else if( p[d]>start[d]+width ) p[d] = start[d] + width;
+				foundBadNode = true;
+			}
+			if( foundBadNode )
+			{
+				samplePoints[i].sample.data = p * samplePoints[i].sample.weight;
+				badNodeCounts[ thread ]++;
+			}
+		}
+		);
+		size_t badNodeCount = 0;
+		for( int i=0 ; i<badNodeCounts.size() ; i++ ) badNodeCount += badNodeCounts[i];
+		if( badNodeCount ) WARN( "Found bad sample nodes: " , badNodeCount );
+	}
 	FEMTree< Dim , Real >::MemoryUsage();
 	return pointCount;
 }

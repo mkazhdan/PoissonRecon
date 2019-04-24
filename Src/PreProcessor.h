@@ -44,7 +44,7 @@ DAMAGE.
 #define USE_DEEP_TREE_NODES						// Chances are that if you are using big data, you want to support a tree with depth>15.
 #endif // BIG_DATA
 
-#define VERSION "11.01"							// The version of the code
+#define VERSION "11.02"							// The version of the code
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12		// The chunk size for memory allocation
 
 #endif // PRE_PROCESSOR_INCLUDED
