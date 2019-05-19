@@ -105,9 +105,8 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPo
 			bool foundBadNode = false;
 			for( int d=0 ; d<Dim ; d++ )
 			{
-				if     ( p[d]<start[d]       ) p[d] = start[d];
-				else if( p[d]>start[d]+width ) p[d] = start[d] + width;
-				foundBadNode = true;
+				if     ( p[d]<start[d]       ) foundBadNode = true , p[d] = start[d];
+				else if( p[d]>start[d]+width ) foundBadNode = true , p[d] = start[d] + width;
 			}
 			if( foundBadNode )
 			{
