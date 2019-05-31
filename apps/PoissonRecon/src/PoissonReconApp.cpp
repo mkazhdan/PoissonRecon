@@ -30,32 +30,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <tinyxml2.h>
 #include <iostream>
 #include <string>
-#include "boost/format.hpp"
 
 #include "Mesh/PoissonRecon/PoissonRecon.h"
 
-template <typename... Int>
-std::string ParsePath(std::string path, Int... index)
+template <class... Int>
+std::string ParsePath(const std::string &path, const Int... index)
 {
   if (path.find('%') != std::string::npos)
   {
-    std::vector<int> indices{{static_cast<int>(index)...}};
-
-    boost::format f(path);
-
-    for (std::vector<int>::const_iterator it = indices.begin();
-         it != indices.end();
-         it++)
-    {
-      f % *it;
-    }
-
-    return boost::str(f);
+    char buffer[4096];
+    return std::string(
+        buffer, std::snprintf(buffer, sizeof(buffer), path.c_str(), index...));
   }
-  else
-  {
-    return path;
-  }
+
+  return path;
 }
 
 void usage()

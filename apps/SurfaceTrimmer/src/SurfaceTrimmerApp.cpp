@@ -41,20 +41,20 @@ DAMAGE.
 #include <algorithm>
 #include <iostream>
 #include <string>
-#include "boost/format.hpp"
 
 #include "Mesh/PoissonRecon/SurfaceTrimmer.h"
 
-std::string ParsePath(std::string path, const int index)
+template <class... Int>
+std::string ParsePath(const std::string &path, const Int... index)
 {
   if (path.find('%') != std::string::npos)
   {
-    return boost::str(boost::format(path) % index);
+    char buffer[4096];
+    return std::string(
+        buffer, std::snprintf(buffer, sizeof(buffer), path.c_str(), index...));
   }
-  else
-  {
-    return path;
-  }
+
+  return path;
 }
 
 void usage()
