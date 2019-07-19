@@ -753,12 +753,10 @@ The function fitting the input samples can be by calling the point interpolant:
 Then, the reconstructed function can be evaluated at the evaluation samples by calling the adaptive tree visualization:
 <blockquote><code>% AdaptiveTreeVisualization --in quadratic.2D.tree --samples quadratic.2D.evaluation.samples</code></blockquote>
 This will output the evaluation positions and values:
-<blockquote><CODE>
-0 0 1.33836e-05<br>
-0.5 0 0.25001<br>
-0.5 0.5 0.500006<br>
-2 2 nan
-</CODE></blockquote>
+<blockquote><CODE>0 0 1.33836e-05<br>
+<blockquote><CODE>0.5 0 0.25001</CODE></blockquote><br>
+<blockquote><CODE>0.5 0.5 0.500006</CODE></blockquote><br>
+<blockquote><CODE>2 2 nan</CODE></blockquote>
 Note that because the last evaluation position, (2,2), is outside the bounding box of the fitting samples, the function cannot be evaluated at this point and a value of "nan" is output.
 </DETAILS>
 </dl>
