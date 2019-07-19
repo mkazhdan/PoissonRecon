@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 11.02)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 12.00)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#EXECUTABLES">executables</a>
@@ -27,10 +27,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">V11.02</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">V11.01</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">V11.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">V10.07</a>,
@@ -340,6 +341,103 @@ individual components of the surface reconstructor.
 <dl>
 <DETAILS>
 <SUMMARY>
+<font size="+1"><b>PointInterpolant</b></font>:
+Fits a function to a set of sample values (and gradients)
+</SUMMARY>
+
+<dt><b>--in</b> &lt;<i>input sample positions and values</i>&gt;</dt>
+<dd> This string is the name of the file from which the positions and values will be read.<br>
+The file should be an ascii file with groups of <I>Dim</I>+1 or 2*<I>Dim</I>+1 (depending on whether gradients are provided or note)
+white space delimited, numbers: the coordinates of the point's position, followed by the value at that point (and gradient).<br>
+No information about the number of samples should be specified.</dd>
+
+<dt>[<b>--dim</b> &lt;<i>dimension of the samples</i>&gt;]</dt>
+<dd> This integerl value is the dimension of the samples.<BR>
+The default value is 2.<br></dd>
+
+<dt>[<b>--tree</b> &lt;<i>output octree and coefficients</i>&gt;]</dt>
+<dd> This string is the name of the file to which the the octree and function coefficients are to be written.</dd>
+
+<dt>[<b>--grid</b> &lt;<i>output grid</i>&gt;]</dt>
+<dd> This string is the name of the file to which the sampled implicit function will be written.
+The file is wrtten out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
+and the next 4 x 2^<i>d</i> x 2^<i>d</i> x ... bytes corresponding to the (single precision) floating point values
+of the implicit function.</dd>
+
+<dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]</dt>
+<dd> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.
+Larger degrees support higher order approximations, but come at the cost of denser system matrices (incurring a cost in both space and time).<br>
+The default value for this parameter is 2.</dt>
+
+<dt>[<b>--bType</b> &lt;<i>boundary type</i>&gt;]</dt>
+<dd> This integer specifies the boundary type for the finite elements. Valid values are:
+<ul>
+<li> <b>1</b>: Free boundary constraints</li>
+<li> <b>2</b>: Dirichlet boundary constraints</li>
+<li> <b>3</b>: Neumann boundary constraints</li>
+</ul>
+The default value for this parameter is 1 (free).
+
+<dt>[<b>--depth</b> &lt;<i>reconstruction depth</i>&gt;]</dt>
+<dd> This integer is the maximum depth of the tree that will be used for surface reconstruction.
+Running at depth <i>d</i> corresponds to solving on a grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x ... Note that since the reconstructor adapts the octree to the
+sampling density, the specified reconstruction depth is only an upper bound.<br>
+The default value for this parameter is 8.</dd>
+
+<dt>[<b>--width</b> &lt;<i>finest cell width</i>&gt;]</dt>
+<dd> This floating point value specifies the target width of the finest level octree cells.<br>
+This parameter is ignored if the <B>--depth</B> is also specified.</dd>
+
+<dt>[<b>--scale</b> &lt;<i>scale factor</i>&gt;]</dt>
+<dd> This floating point value specifies the ratio between the diameter of the cube used for reconstruction
+and the diameter of the samples' bounding cube.<br>
+The default value is 1.1.</dd>
+
+<dt>[<b>--valueWeight</b> &lt;<i>value interpolation weight</i>&gt;]</dt>
+<dd> This floating point value specifies the importance that interpolation of the samples' values
+is given in the fitting of the function.<br>
+The default value for this parameter is 1000.</dd>
+
+<dt>[<b>--gradientWeight</b> &lt;<i>gradient interpolation weight</i>&gt;]</dt>
+<dd> This floating point value specifies the importance that interpolation of the samples' gradients
+is given in the fitting of the function.<br>
+The default value for this parameter is 1.<BR>
+This value is ignored unless gradient interpolation is specified.</dd>
+
+<dt>[<b>--lapWeight</b> &lt;<i>Laplacian weight</i>&gt;]</dt>
+<dd> This floating point value specifies the importance that Laplacian regularization
+is given in the fitting of the function.<br>
+The default value for this parameter is 0.</dd>
+
+<dt>[<b>--biLapWeight</b> &lt;<i>bi-Laplacian weight</i>&gt;]</dt>
+<dd> This floating point value specifies the importance that bi-Laplacian regularization
+is given in the fitting of the function.<br>
+The default value for this parameter is 1.</dd>
+
+<dt>[<b>--iters</b> &lt;<i>GS iters</i>&gt;]</dt>
+<dd> This integer value specifies the number of Gauss-Seidel relaxations to be performed at each level of the hiearchy.<br>
+The default value for this parameter is 8.</dd>
+
+<dt>[<b>--useGradients</b>]</dt>
+<dd> Enabling this flag indicates that the input file contains gradients as well as sample values.</dd>
+
+<dt>[<b>--performance</b>]</dt>
+<dd> Enabling this flag provides running time and peak memory usage at the end of the execution.</dd>
+
+<dt>[<b>--verbose</b>]</dt>
+<dd> Enabling this flag provides a more verbose description of the running times and memory usages of
+individual components of the surface reconstructor.</dd>
+
+</DETAILS>
+</dl>
+</ul>
+
+
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
 <font size="+1"><b>SurfaceTrimmer</b></font>:
 Trims off parts of a triangle mesh with a per-vertex signal whose value falls below a threshold (used for removing parts of a reconstructed surface that are generated in low-sampling-density regions)
 </SUMMARY>
@@ -504,9 +602,15 @@ The default value for this parameter is equal to the numer of (virtual) processo
 Extracts iso-surfaces and a sampling on a regular grid from an implicit function represented over an adapted tree
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input tree and coefficients</i>&gt;
-</dt><dd> This string is the name of the file from which the tree and implicit functions coefficients are to be read. 
+</dt><dd> This string is the name of the file from which the tree and implicit functions coefficients are to be read.</dd>
 
-</dd><dt>[<b>--grid</b> &lt;<i>output value grid</i>&gt;]
+<dt>[<b>--samples</b> &lt;<i>input sample positions</i>&gt;]</dt>
+<dd> This string is the name of the file from which sampling positions are to be read.<BR>
+The file should be an ascii file with groups of <I>Dim</I> white space delimited, numbers giving the coordinates of the sampling  points' position.<br>
+No information about the number of samples should be specified.</dd>
+</dd>
+
+<dt>[<b>--grid</b> &lt;<i>output value grid</i>&gt;]
 </dt><dd> This string is the name of the file to which the sampling of the implicit along a regular grid will be written.<BR>
 The file is written out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, <i>R</i>,
 and the next 4 x <I>R</I>^<i>D</i> bytes corresponding to the (single precision) floating point values of the implicit function. (Here, <i>D</I> is the dimension.)
@@ -629,6 +733,36 @@ which partitions the reconstruction into 11 pieces.
 </dl>
 </ul>
 
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
+<font size="+1"><b>PointInterpolant / AdaptiveTreeVisualization</b></font>
+</SUMMARY>
+For testing purposes, a pair of point-sets is provided:
+<ol>
+
+<li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/quadratic.2D.fitting.samples"><b>fitting samples</b></a>:
+A set of 1000 random 2D samples from within the square [-1,1,]x[-1,1] along with the evaluation of the quadratic <i>f(x,y)=x*x+y*y</i> at each sample point (represented in ASCII format).
+<LI> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/quadratic.2D.evaluation.samples"><b>evaluation samples</b></a>:
+A set of 4 2D positions at which the fit function is to be evaluated (represented in ASCII format).
+</ol>
+
+The function fitting the input samples can be by calling the point interpolant:
+<blockquote><code>% PointInterpolant --in quadratic.2D.fitting.samples --out quadratic.2D.tree --dim 2</code></blockquote>
+Then, the reconstructed function can be evaluated at the evaluation samples by calling the adaptive tree visualization:
+<blockquote><code>% AdaptiveTreeVisualization --in quadratic.2D.tree --samples quadratic.2D.evaluation.samples</code></blockquote>
+This will output the evaluation positions and values:
+<blockquote><CODE>
+0 0 1.33836e-05<br>
+0.5 0 0.25001<br>
+0.5 0.5 0.500006<br>
+2 2 nan
+</CODE></blockquote>
+Note that because the last evaluation position, (2,2), is outside the bounding box of the fitting samples, the function cannot be evaluated at this point and a value of "nan" is output.
+</DETAILS>
+</dl>
+</ul>
 
 <ul>
 <dl>
@@ -871,4 +1005,3 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <hr>
 <a name="SUPPORT"><b>SUPPORT</b></a><br>
 This work genersouly supported by NSF grants #0746039 and #1422325.
-

@@ -545,7 +545,7 @@ void _Execute( int argc , char* argv[] )
 			if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Out.value );
 			FEMTree< Dim , Real >::WriteParameter( fp );
 			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fp );
-			tree.write( fp );
+			tree.write( fp , xForm );
 			edtSolution.write( fp );
 			fclose( fp );
 		}

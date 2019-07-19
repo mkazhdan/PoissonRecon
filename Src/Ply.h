@@ -30,8 +30,8 @@ WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 
 */
 
-#ifndef __PLY_H__
-#define __PLY_H__
+#ifndef PLY_INCLUDED
+#define PLY_INCLUDED
 
 #include <limits>
 #include <vector>
@@ -569,4 +569,4 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* me
 }
 inline int PlyDefaultFileType( void ){ return PLY_ASCII; }
 
-#endif /* !__PLY_H__ */
+#endif // PLY_INCLUDED

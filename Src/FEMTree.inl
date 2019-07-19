@@ -73,7 +73,7 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( size_t
 	memset( _refinableSigs , -1 , sizeof( _refinableSigs ) );
 }
 template< unsigned int Dim , class Real >
-FEMTree< Dim , Real >::FEMTree( FILE* fp , size_t blockSize ) : _nodeInitializer( *this )
+FEMTree< Dim , Real >::FEMTree( FILE* fp , XForm< Real , Dim+1 > &xForm , size_t blockSize ) : _nodeInitializer( *this )
 {
 	if( blockSize )
 	{
@@ -87,6 +87,7 @@ FEMTree< Dim , Real >::FEMTree( FILE* fp , size_t blockSize ) : _nodeInitializer
 	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
 	if( fp )
 	{
+		if( fread( xForm.coords , sizeof( Real ) , (Dim+1)*(Dim+1) , fp )!=(Dim+1)*(Dim+1) ) ERROR_OUT( "Failed to read transform" );
 		if( fread( &_depthOffset , sizeof( int ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read depth offset" );
 		_tree = FEMTreeNode::NewBrood( nodeAllocator , _nodeInitializer );
 		_tree->read( fp , nodeAllocator , _nodeInitializer );
@@ -113,8 +114,9 @@ FEMTree< Dim , Real >::FEMTree( FILE* fp , size_t blockSize ) : _nodeInitializer
 		_depthOffset = 0;
 	}
 }
-template< unsigned int Dim , class Real > void FEMTree< Dim , Real >::write( FILE* fp ) const
+template< unsigned int Dim , class Real > void FEMTree< Dim , Real >::write( FILE* fp , XForm< Real , Dim+1 > xForm ) const
 {
+	fwrite( xForm.coords , sizeof( Real ) , (Dim+1)*(Dim+1) , fp );
 	fwrite( &_depthOffset , sizeof( int ) , 1 , fp );
 	_tree->write( fp );
 }
@@ -321,68 +323,81 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 	MemoryUsage();
 	return _density;
 }
+
 template< unsigned int Dim , class Real >
-template< unsigned int ... NormalSigs , unsigned int DensityDegree , class Data >
-SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim , Real >::setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction )
+template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
+SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< bool ( InData , OutData& ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction )
+{
+	std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction = [&]( InData in , OutData &out , Real &bias )
+	{
+		if( ConversionFunction( in , out ) )
+		{
+			bias = BiasFunction( in );
+			return true;
+		}
+		else return false;
+	};
+	return setDataField( UIntPack< DataSigs ... >() , samples , data , density , pointWeightSum , ConversionAndBiasFunction );
+}
+template< unsigned int Dim , class Real >
+template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
+SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction )
 {
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	typedef PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > DensityKey;
-	typedef UIntPack< FEMSignature< NormalSigs >::Degree ... > NormalDegrees;
-	typedef PointSupportKey< UIntPack< FEMSignature< NormalSigs >::Degree ... > > NormalKey;
+	typedef UIntPack< FEMSignature< DataSigs >::Degree ... > DataDegrees;
+	typedef PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > > DataKey;
 	std::vector< DensityKey > densityKeys( ThreadPool::NumThreads() );
-	std::vector<  NormalKey >  normalKeys( ThreadPool::NumThreads() );
-	bool oneKey = DensityDegree==NormalDegrees::Min() && DensityDegree==NormalDegrees::Max();
+	std::vector<    DataKey >    dataKeys( ThreadPool::NumThreads() );
+	bool oneKey = DensityDegree==DataDegrees::Min() && DensityDegree==DataDegrees::Max();
 	for( size_t i=0 ; i<densityKeys.size() ; i++ ) densityKeys[i].set( _localToGlobal( maxDepth ) );
-	if( !oneKey ) for( size_t i=0 ; i<normalKeys.size() ; i++ ) normalKeys[i].set( _localToGlobal( maxDepth ) );
+	if( !oneKey ) for( size_t i=0 ; i<dataKeys.size() ; i++ ) dataKeys[i].set( _localToGlobal( maxDepth ) );
 	Real weightSum = 0;
 	pointWeightSum = 0;
-	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > normalField;
+	SparseNodeData< OutData , UIntPack< DataSigs ... > > dataField;
 	Real _pointWeightSum = 0;
 	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int thread , size_t i )
 	{
 		DensityKey& densityKey = densityKeys[ thread ];
-		NormalKey& normalKey = normalKeys[ thread ];
+		DataKey& dataKey = dataKeys[ thread ];
 		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
 		if( sample.weight>0 )
 		{
-			Point< Real , Dim > p = sample.data / sample.weight , n = normalData[i].template data<0>();
-			Real l = (Real)Length( n );
-			// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
-			if( !l ) return;
-			Real confidence = l / sample.weight;
-			n *= sample.weight / l;
-			Real depthBias = BiasFunction( confidence );
-			AddAtomic( weightSum , sample.weight );
-			if( !_InBounds(p) )
-			{
-				WARN( "Point sample is out of bounds" );
-				return;
-			}
-			Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[ thread ] : NULL;
+			Point< Real , Dim > p = sample.data / sample.weight;
+			InData in = data[i] / sample.weight;
+			OutData out;
 
-#if defined( __GNUC__ ) && __GNUC__ < 5
-#warning "you've got me gcc version<5"
-			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , Point< Real , Dim > >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
-#else // !__GNUC__ || __GNUC__ >=5
-			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
-#endif // __GNUC__ || __GNUC__ < 4
-			else
+			Real depthBias;
+			if( !_InBounds(p) ) WARN( "Point sample is out of bounds" );
+			else if( ConversionAndBiasFunction( in , out , depthBias ) )
 			{
-				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
+				AddAtomic( weightSum , sample.weight );
+				out *= sample.weight;
+				Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[ thread ] : NULL;
 #if defined( __GNUC__ ) && __GNUC__ < 5
-#warning "you've got me gcc version<5"
-				_splatPointData< true , true , Point< Real , Dim > >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+				#warning "you've got me gcc version<5"
+					if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData >( nodeAllocator , *density , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
 #else // !__GNUC__ || __GNUC__ >=5
-				_splatPointData< true , true , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+				if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData , DataSigs ... >( nodeAllocator , *density , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
 #endif // __GNUC__ || __GNUC__ < 4
-				AddAtomic( _pointWeightSum , sample.weight );
+				else
+				{
+					Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
+#if defined( __GNUC__ ) && __GNUC__ < 5
+					#warning "you've got me gcc version<5"
+						_splatPointData< true , true , OutData >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , out / (Real)pow( width , Dim ) , dataField , oneKey ? *( (DataKey*)&densityKey ) : dataKey );
+#else // !__GNUC__ || __GNUC__ >=5
+					_splatPointData< true , true , OutData , DataSigs ... >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , out / (Real)pow( width , Dim ) , dataField , oneKey ? *( (DataKey*)&densityKey ) : dataKey );
+#endif // __GNUC__ || __GNUC__ < 4
+					AddAtomic( _pointWeightSum , sample.weight );
+				}
 			}
 		}
 	}
 	);
 	pointWeightSum = _pointWeightSum / weightSum;
 	MemoryUsage();
-	return normalField;
+	return dataField;
 }
 template< unsigned int Dim , class Real >
 template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
@@ -412,7 +427,7 @@ SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real 
 }
 template< unsigned int Dim , class Real >
 template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
-SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real >::setDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest )
+SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real >::setMultiDepthDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest )
 {
 	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
 	LocalDepth maxDepth = _spaceRoot->maxDepth();

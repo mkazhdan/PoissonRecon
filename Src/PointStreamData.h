@@ -89,7 +89,7 @@ struct PointStreamPosition : public PointStreamData< Real , Point< Real , Dim > 
 	protected:
 		XForm< Real , Dim+1 > _xForm;
 	};
-	static void readASCII( FILE* fp , PointStreamPosition& p )
+	static void ReadASCII( FILE* fp , PointStreamPosition& p )
 	{
 		float f;
 		for( int i=0 ; i<Dim ; i++ )
@@ -271,8 +271,8 @@ struct PointStreamColor : public PointStreamData< Real , Color< Real > >
 	};
 	static void ReadASCII( FILE* fp , PointStreamColor& p )
 	{
-		unsigned char c[3];
-		if( fscanf( fp , " %c %c %c " , &c[0] , &c[1] , &c[2] )!=3 ) ERROR_OUT( "Failed to read color" );
+		unsigned int c[3];
+		if( fscanf( fp , " %d %d %d " , &c[0] , &c[1] , &c[2] )!=3 ) ERROR_OUT( "Failed to read color" );
 		p.psData[0] = (Real)c[0] , p.psData[1] = (Real)c[1] , p.psData[2] = (Real)c[2];
 	};
 	static void ReadBinary( FILE* fp , PointStreamColor& p )

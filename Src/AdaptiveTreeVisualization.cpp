@@ -42,6 +42,7 @@ DAMAGE.
 
 cmdLineParameter< char* >
 	In( "in" ) ,
+	Samples( "samples" ) ,
 	OutMesh( "mesh" ) ,
 	OutGrid( "grid" );
 
@@ -66,6 +67,7 @@ cmdLineParameter< float >
 cmdLineReadable* params[] =
 {
 	&In , 
+	&Samples ,
 	&OutMesh , &NonManifold , &PolygonMesh , &FlipOrientation , &ASCII , &NonLinearFit , &IsoValue ,
 	&OutGrid , &PrimalGrid ,
 	&Threads ,
@@ -81,6 +83,7 @@ void ShowUsage( char* ex )
 {
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input tree>\n" , In.name );
+	printf( "\t[--%s sample positions>]\n" , Samples.name );
 	printf( "\t[--%s <ouput triangle mesh>]\n" , OutMesh.name );
 	printf( "\t[--%s <ouput grid>]\n" , OutGrid.name );
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
@@ -158,13 +161,44 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 }
 
 template< unsigned int Dim , class Real , unsigned int FEMSig >
-void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
+void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > xForm , FILE* fp )
 {
 	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > > coefficients;
 
 	coefficients.read( fp );
+
+	// Evaluate at the sample positions
+	if( Samples.set )
+	{
+		InputPointStream< Real , Dim > *pointStream;
+		char* ext = GetFileExtension( Samples.value );
+		if     ( !strcasecmp( ext , "bpts" ) ) pointStream = new BinaryInputPointStream< Real , Dim >( Samples.value );
+		else if( !strcasecmp( ext , "ply"  ) ) pointStream = new    PLYInputPointStream< Real , Dim >( Samples.value );
+		else                                   pointStream = new  ASCIIInputPointStream< Real , Dim >( Samples.value );
+		delete[] ext;
+		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tree , coefficients );
+		static const unsigned int CHUNK_SIZE = 1024;
+		Point< Real , Dim > points[ CHUNK_SIZE ];
+		Real values[ CHUNK_SIZE ];
+		size_t pointsRead;
+		while( ( pointsRead=pointStream->nextPoints( points , CHUNK_SIZE ) ) )
+		{
+			ThreadPool::Parallel_for( 0 , pointsRead , [&]( unsigned int thread , size_t j )
+			{
+				Point< Real , Dim > p = xForm * points[j];
+				bool inBounds = true;
+				for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) inBounds = false;
+				if( inBounds ) values[j] = evaluator.values( xForm * points[j] , thread )[0];
+				else           values[j] = (Real)nan( "" );
+			}
+			);
+			for( int j=0 ; j<pointsRead ; j++ ) printf( "%g %g %g\n" , points[j][0] , points[j][1] , values[j] );
+		}
+
+		delete pointStream;
+	}
 
 	// Output the grid
 	if( OutGrid.set )
@@ -196,7 +230,7 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (unsigned long long)mesh.polygonCount() );
 
 		std::vector< std::string > comments;
-		if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() ) )
+		if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , xForm.inverse() ) )
 			ERROR_OUT( "Could not write mesh to: " , OutMesh.value );
 	}
 }
@@ -205,7 +239,8 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 template< unsigned int Dim , class Real >
 void Execute( FILE* fp , int degree , BoundaryType bType )
 {
-	FEMTree< Dim , Real > tree( fp , MEMORY_ALLOCATOR_BLOCK_SIZE );
+	XForm< Real , Dim+1 > xForm;
+	FEMTree< Dim , Real > tree( fp , xForm , MEMORY_ALLOCATOR_BLOCK_SIZE );
 
 	if( Verbose.set ) printf( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
 
@@ -215,10 +250,10 @@ void Execute( FILE* fp , int degree , BoundaryType bType )
 	{
 		switch( degree )
 		{
-			case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BOUNDARY_FREE >::Signature >( &tree , fp ) ; break;
-			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >( &tree , fp ) ; break;
-			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >( &tree , fp ) ; break;
-			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >( &tree , fp ) ; break;
+			case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BOUNDARY_FREE >::Signature >( &tree , xForm , fp ) ; break;
+			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >( &tree , xForm , fp ) ; break;
+			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >( &tree , xForm , fp ) ; break;
+			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >( &tree , xForm , fp ) ; break;
 			default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 		}
 	}
@@ -227,10 +262,10 @@ void Execute( FILE* fp , int degree , BoundaryType bType )
 	{
 		switch( degree )
 		{
-			case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BOUNDARY_NEUMANN >::Signature >( &tree , fp ) ; break;
-			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >( &tree , fp ) ; break;
-			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >( &tree , fp ) ; break;
-			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >( &tree , fp ) ; break;
+			case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BOUNDARY_NEUMANN >::Signature >( &tree , xForm , fp ) ; break;
+			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >( &tree , xForm , fp ) ; break;
+			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >( &tree , xForm , fp ) ; break;
+			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >( &tree , xForm , fp ) ; break;
 			default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 		}
 	}
@@ -239,10 +274,10 @@ void Execute( FILE* fp , int degree , BoundaryType bType )
 	{
 		switch( degree )
 		{
-			case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BOUNDARY_DIRICHLET >::Signature >( &tree , fp ) ; break;
-			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >( &tree , fp ) ; break;
-			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >( &tree , fp ) ; break;
-			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >( &tree , fp ) ; break;
+			case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BOUNDARY_DIRICHLET >::Signature >( &tree , xForm , fp ) ; break;
+			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >( &tree , xForm , fp ) ; break;
+			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >( &tree , xForm , fp ) ; break;
+			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >( &tree , xForm , fp ) ; break;
 			default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 		}
 	}

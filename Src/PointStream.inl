@@ -150,8 +150,8 @@ void PLYInputPointStream< Real , Dim >::reset( void )
 		{
 			foundVertices = true;
 			_pCount = num_elems , _pIdx = 0;
-			for( int i=0 ; i<PlyVertex< Real , Dim >::ReadComponents ; i++ ) 
-				if( !_ply->get_property( elem_name , &(PlyVertex< Real , Dim >::Properties()[i]) ) ) ERROR_OUT( "Failed to find property in ply file: %s" , PlyVertex< Real , Dim >::Properties()[i].name );
+			for( int i=0 ; i<PlyVertex< Real , Dim >::PlyReadNum ; i++ ) 
+				if( !_ply->get_property( elem_name , &(PlyVertex< Real , Dim >::PlyReadProperties()[i]) ) ) ERROR_OUT( "Failed to find property in ply file: %s" , PlyVertex< Real , Dim >::PlyReadProperties()[i].name );
 		}
 		for( int j=0 ; j<plist.size() ; j++ ) delete plist[j];
 		if( foundVertices ) break;

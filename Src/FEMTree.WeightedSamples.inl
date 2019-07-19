@@ -116,7 +116,7 @@ void FEMTree< Dim , Real >::_getSampleDepthAndWeight( const DensityEstimator< We
 	{
 		Real oldWeight , newWeight;
 		oldWeight = newWeight = weight;
-		while( newWeight<(Real)1. && temp->parent )
+		while( newWeight<(Real)1. && _localDepth(temp) )
 		{
 			temp=temp->parent;
 			oldWeight = newWeight;

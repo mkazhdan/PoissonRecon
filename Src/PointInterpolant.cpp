@@ -29,13 +29,10 @@ DAMAGE.
 #include "PreProcessor.h"
 
 #undef USE_DOUBLE								// If enabled, double-precesion is used
-#define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
-												// This can be changed to zero if more interpolatory performance is desired.
 #define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
-#define NORMAL_DEGREE 2							// The order of the B-Spline used to splat int the normals for constructing the Laplacian constraints
 #define DEFAULT_FEM_DEGREE 2					// The default finite-element degree
-#define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
-#define DIMENSION 3								// The dimension of the system
+#define DEFAULT_FEM_BOUNDARY BOUNDARY_FREE		// The default finite-element boundary type
+#define DEFAULT_DIMENSION 2						// The dimension of the system
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,8 +48,6 @@ DAMAGE.
 
 MessageWriter messageWriter;
 
-double BaseSSDWeights[] = { 5e+1f , 5e-4f , 1e-5f }; 
-
 cmdLineParameter< char* >
 	In( "in" ) ,
 	Out( "out" ) ,
@@ -64,17 +59,16 @@ cmdLineParameter< char* >
 cmdLineReadable
 	Performance( "performance" ) ,
 	ShowResidual( "showResidual" ) ,
+	PrimalGrid( "primalGrid" ) ,
+	ExactInterpolation( "exact" ) ,
+	InCore( "inCore" ) ,
+	NoValueConstraints( "noValues" ) ,
+	UseGradientConstraints( "useGradients" ) ,
 	NoComments( "noComments" ) ,
 	PolygonMesh( "polygonMesh" ) ,
 	NonManifold( "nonManifold" ) ,
-	ASCII( "ascii" ) ,
-	Density( "density" ) ,
 	NonLinearFit( "nonLinearFit" ) ,
-	PrimalGrid( "primalGrid" ) ,
-	ExactInterpolation( "exact" ) ,
-	Normals( "normals" ) ,
-	Colors( "colors" ) ,
-	InCore( "inCore" ) ,
+	ASCII( "ascii" ) ,
 	Verbose( "verbose" );
 
 cmdLineParameter< int >
@@ -82,13 +76,13 @@ cmdLineParameter< int >
 	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
 #endif // !FAST_COMPILE
 	Depth( "depth" , 8 ) ,
-	KernelDepth( "kernelDepth" ) ,
 	Iters( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 5 ) ,
 	BaseDepth( "baseDepth" , 5 ) ,
 	BaseVCycles( "baseVCycles" , 4 ) ,
 #ifndef FAST_COMPILE
 	BType( "bType" , DEFAULT_FEM_BOUNDARY+1 ) ,
+	Dimension( "dim" , DEFAULT_DIMENSION ) ,
 #endif // !FAST_COMPILE
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
@@ -97,41 +91,33 @@ cmdLineParameter< int >
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 
 cmdLineParameter< float >
-	DataX( "data" , 32.f ) ,
-	SamplesPerNode( "samplesPerNode" , 1.5f ) ,
 	Scale( "scale" , 1.1f ) ,
 	Width( "width" , 0.f ) ,
-	Confidence( "confidence" , 0.f ) ,
-	ConfidenceBias( "confidenceBias" , 0.f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
-	ValueWeight   (    "valueWeight" , 1.f ) ,
+	IsoValue( "iso" , 0.f ) ,
+	ValueWeight   (    "valueWeight" , 1000.f ) ,
 	GradientWeight( "gradientWeight" , 1.f ) ,
+	LapWeight     (      "lapWeight" , 0.f ) ,
 	BiLapWeight   (    "biLapWeight" , 1.f );
-
 
 cmdLineReadable* params[] =
 {
 #ifndef FAST_COMPILE
-	&Degree , &BType ,
+	&Degree , &BType , &Dimension ,
 #endif // !FAST_COMPILE
-	&In , &Depth , &Out , &Transform ,
+	&In , &Out , &Depth , &Transform ,
 	&Width ,
 	&Scale , &Verbose , &CGSolverAccuracy , &NoComments ,
-	&KernelDepth , &SamplesPerNode , &Confidence , &NonManifold , &PolygonMesh , &ASCII , &ShowResidual ,
-	&ConfidenceBias ,
-	&ValueWeight , &GradientWeight , &BiLapWeight ,
+	&NonManifold , &PolygonMesh , &ASCII , &ShowResidual ,
+	&ValueWeight , &GradientWeight ,
+	&LapWeight , &BiLapWeight ,
 	&Grid , &Threads ,
 	&Tree ,
-	&Density ,
 	&FullDepth ,
 	&BaseDepth , &BaseVCycles ,
 	&Iters ,
-	&DataX ,
-	&Colors ,
-	&Normals ,
-	&NonLinearFit ,
+	&IsoValue ,
 	&PrimalGrid ,
-	&TempDir ,
 	&ExactInterpolation ,
 	&Performance ,
 	&MaxMemoryGB ,
@@ -139,6 +125,9 @@ cmdLineReadable* params[] =
 	&ParallelType ,
 	&ScheduleType ,
 	&ThreadChunkSize ,
+	&NoValueConstraints ,
+	&UseGradientConstraints ,
+	&NonLinearFit ,
 	NULL
 };
 
@@ -146,10 +135,11 @@ void ShowUsage(char* ex)
 {
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input points>\n" , In.name );
-	printf( "\t[--%s <ouput triangle mesh>]\n" , Out.name );
+	printf( "\t[--%s <ouput mesh>]\n" , Out.name );
 	printf( "\t[--%s <ouput grid>]\n" , Grid.name );
 	printf( "\t[--%s <ouput fem tree>]\n" , Tree.name );
 #ifndef FAST_COMPILE
+	printf( "\t[--%s <dimension>=%d]\n" , Dimension.name , Dimension.value );
 	printf( "\t[--%s <b-spline degree>=%d]\n" , Degree.name , Degree.value );
 	printf( "\t[--%s <boundary type>=%d]\n" , BType.name , BType.value );
 	for( int i=0 ; i<BOUNDARY_COUNT ; i++ ) printf( "\t\t%d] %s\n" , i+1 , BoundaryNames[i] );
@@ -160,53 +150,32 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <coarse MG solver depth>=%d]\n" , BaseDepth.name , BaseDepth.value );
 	printf( "\t[--%s <coarse MG solver v-cycles>=%d]\n" , BaseVCycles.name , BaseVCycles.value );
 	printf( "\t[--%s <scale factor>=%f]\n" , Scale.name , Scale.value );
-	printf( "\t[--%s <minimum number of samples per node>=%f]\n" , SamplesPerNode.name, SamplesPerNode.value );
 	printf( "\t[--%s <zero-crossing weight>=%.3e]\n" , ValueWeight.name , ValueWeight.value );
 	printf( "\t[--%s <gradient weight>=%.3e]\n" , GradientWeight.name , GradientWeight.value );
+	printf( "\t[--%s <laplacian weight>=%.3e]\n" , LapWeight.name , LapWeight.value );
 	printf( "\t[--%s <bi-laplacian weight>=%.3e]\n" , BiLapWeight.name , BiLapWeight.value );
 	printf( "\t[--%s <iterations>=%d]\n" , Iters.name , Iters.value );
 	printf( "\t[--%s]\n" , ExactInterpolation.name );
-	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
-	printf( "\t[--%s]\n" , Colors.name );
-	printf( "\t[--%s]\n" , Normals.name );
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
 	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
 	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
 	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
-	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
-	printf( "\t[--%s <normal confidence bias exponent>=%f]\n" , ConfidenceBias.name , ConfidenceBias.value );
-	printf( "\t[--%s]\n" , NonManifold.name );
-	printf( "\t[--%s]\n" , PolygonMesh.name );
 	printf( "\t[--%s <cg solver accuracy>=%g]\n" , CGSolverAccuracy.name , CGSolverAccuracy.value );
 	printf( "\t[--%s <maximum memory (in GB)>=%d]\n" , MaxMemoryGB.name , MaxMemoryGB.value );
+	printf( "\t[--%s <iso-value>=%f]\n" , IsoValue.name , IsoValue.value );
+	printf( "\t[--%s]\n" , NoValueConstraints.name );
+	printf( "\t[--%s]\n" , UseGradientConstraints.name );
 	printf( "\t[--%s]\n" , Performance.name );
-	printf( "\t[--%s]\n" , Density.name );
-	printf( "\t[--%s]\n" , NonLinearFit.name );
 	printf( "\t[--%s]\n" , PrimalGrid.name );
-	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , NoComments.name );
-	printf( "\t[--%s]\n" , TempDir.name );
+	printf( "\t[--%s]\n" , PolygonMesh.name );
+	printf( "\t[--%s]\n" , NonManifold.name );
+	printf( "\t[--%s]\n" , NonLinearFit.name );
+	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , InCore.name );
 	printf( "\t[--%s]\n" , Verbose.name );
-}
-
-double Weight( double v , double start , double end )
-{
-	v = ( v - start ) / ( end - start );
-	if     ( v<0 ) return 1.;
-	else if( v>1 ) return 0.;
-	else
-	{
-		// P(x) = a x^3 + b x^2 + c x + d
-		//		P (0) = 1 , P (1) = 0 , P'(0) = 0 , P'(1) = 0
-		// =>	d = 1 , a + b + c + d = 0 , c = 0 , 3a + 2b + c = 0
-		// =>	c = 0 , d = 1 , a + b = -1 , 3a + 2b = 0
-		// =>	a = 2 , b = -3 , c = 0 , d = 1
-		// =>	P(x) = 2 x^3 - 3 x^2 + 1
-		return 2. * v * v * v - 3. * v * v + 1.;
-	}
 }
 
 template< unsigned int Dim , class Real >
@@ -283,17 +252,73 @@ XForm< Real , Dim+1 > GetPointXForm( InputPointStream< Real , Dim >& stream , Re
 	return GetBoundingBoxXForm( min , max , scaleFactor );
 }
 
-template< unsigned int Dim , typename Real , typename TotalPointSampleData >
-struct ConstraintDual
+template< unsigned int Dim , typename Real , typename TotalPointSampleData > struct ValueAndGradientFromSample;
+
+template< unsigned int Dim , typename Real >
+struct ValueAndGradientFromSample< Dim , Real , MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > >
 {
-	Real target , vWeight , gWeight;
-	ConstraintDual( Real t , Real v , Real g ) : target(t) , vWeight(v) , gWeight(g) { }
+	typedef MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > TotalPointSampleData;
+	std::pair< Real , Point< Real , Dim > > operator()( TotalPointSampleData d ) const { return std::pair< Real , Point< Real , Dim > >( d.template data<0>() , d.template data<1>() ); }
+};
+
+template< unsigned int Dim , typename Real >
+struct ValueAndGradientFromSample< Dim , Real , MultiPointStreamData< Real , PointStreamValue< Real > > >
+{
+	typedef MultiPointStreamData< Real , PointStreamValue< Real > > TotalPointSampleData;
+	std::pair< Real , Point< Real , Dim > > operator()( TotalPointSampleData d ) const { return std::pair< Real , Point< Real , Dim > >( d.template data<0>() , Point< Real , Dim >() ); }
+};
+
+template< unsigned int Dim , typename Real >
+struct ValueAndGradientFromSample< Dim , Real , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > > >
+{
+	typedef MultiPointStreamData< Real , PointStreamNormal< Real , Dim > > TotalPointSampleData;
+	std::pair< Real , Point< Real , Dim > > operator()( TotalPointSampleData d ) const { return std::pair< Real , Point< Real , Dim > >( (Real)0 , d.template data<0>() ); }
+};
+
+
+template< unsigned int Dim , typename Real , typename TotalPointSampleData > struct ConstraintDual;
+
+template< unsigned int Dim , typename Real >
+struct ConstraintDual< Dim , Real , MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > >
+{
+	typedef MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > TotalPointSampleData;
+	Real vWeight , gWeight;
+	ConstraintDual( Real v , Real g ) : vWeight(v) , gWeight(g) { }
 	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const TotalPointSampleData& data ) const 
 	{
-		Point< Real , Dim > n = data.template data<0>();
+		Real value = data.template data<0>();
+		Point< Real , Dim > gradient = data.template data<1>();
 		CumulativeDerivativeValues< Real , Dim , 1 > cdv;
-		cdv[0] = target*vWeight;
-		for( int d=0 ; d<Dim ; d++ ) cdv[1+d] = -n[d]*gWeight;
+		cdv[0] = value*vWeight;
+		for( int d=0 ; d<Dim ; d++ ) cdv[1+d] = gradient[d]*gWeight;
+		return cdv;
+	}
+};
+template< unsigned int Dim , typename Real >
+struct ConstraintDual< Dim , Real , MultiPointStreamData< Real , PointStreamValue< Real > > >
+{
+	typedef MultiPointStreamData< Real , PointStreamValue< Real > > TotalPointSampleData;
+	Real vWeight , gWeight;
+	ConstraintDual( Real v , Real g ) : vWeight(v) , gWeight(g) { }
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const TotalPointSampleData& data ) const 
+	{
+		Real value = data.template data<0>();
+		CumulativeDerivativeValues< Real , Dim , 1 > cdv;
+		cdv[0] = value*vWeight;
+		return cdv;
+	}
+};
+template< unsigned int Dim , typename Real >
+struct ConstraintDual< Dim , Real , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > > >
+{
+	typedef MultiPointStreamData< Real , PointStreamNormal< Real , Dim > > TotalPointSampleData;
+	Real vWeight , gWeight;
+	ConstraintDual( Real v , Real g ) : vWeight(v) , gWeight(g) { }
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const TotalPointSampleData& data ) const 
+	{
+		Point< Real , Dim > gradient = data.template data<0>();
+		CumulativeDerivativeValues< Real , Dim , 1 > cdv;
+		for( int d=0 ; d<Dim ; d++ ) cdv[1+d] = gradient[d]*gWeight;
 		return cdv;
 	}
 };
@@ -327,16 +352,12 @@ struct SystemDual< Dim , double , TotalPointSampleData >
 	}
 };
 
-template< typename Vertex , typename Real , unsigned int ... FEMSigs , typename ... SampleData >
-void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTree< sizeof ... ( FEMSigs ) , Real >& tree , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , Real isoValue , const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample >* samples , std::vector< MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > >* sampleData , const typename FEMTree< sizeof ... ( FEMSigs ) , Real >::template DensityEstimator< WEIGHT_DEGREE >* density , std::function< void ( Vertex& , Point< Real , DIMENSION > , Real , MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > ) > SetVertex , std::vector< std::string > &comments , XForm< Real , sizeof...(FEMSigs)+1 > iXForm )
+template< typename Vertex , typename Real , unsigned int ... FEMSigs , typename TotalPointSampleData >
+void ExtractMesh( UIntPack< FEMSigs ... > , FEMTree< sizeof ... ( FEMSigs ) , Real >& tree , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , Real isoValue , const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample >* samples , std::function< void ( Vertex& , Point< Real , sizeof ... ( FEMSigs ) > , Real , TotalPointSampleData ) > SetVertex , std::vector< std::string > &comments , XForm< Real , sizeof...(FEMSigs)+1 > iXForm )
 {
 	static const int Dim = sizeof ... ( FEMSigs );
 	typedef UIntPack< FEMSigs ... > Sigs;
-	typedef PointStreamNormal< Real , Dim > NormalPointSampleData;
-	typedef MultiPointStreamData< Real , SampleData ... > AdditionalPointSampleData;
-	typedef MultiPointStreamData< Real , NormalPointSampleData , AdditionalPointSampleData > TotalPointSampleData;
-	static const unsigned int DataSig = FEMDegreeAndBType< DATA_DEGREE , BOUNDARY_FREE >::Signature;
-	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
+	static const unsigned int DataSig = FEMDegreeAndBType< WEIGHT_DEGREE , BOUNDARY_FREE >::Signature;
 
 	FEMTreeProfiler< Dim , Real > profiler( tree );
 
@@ -356,21 +377,11 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 	else             mesh = new CoredFileMeshData< Vertex , node_index_type >( tempHeader );
 	profiler.start();
 	typename IsoSurfaceExtractor< Dim , Real , Vertex >::IsoStats isoStats;
-	if( sampleData )
-	{
-		SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setMultiDepthDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
-		for( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
-		{
-			ProjectiveData< TotalPointSampleData , Real >* clr = _sampleData( n );
-			if( clr ) (*clr) *= (Real)pow( DataX.value , tree.depth( n ) );
-		}
-		isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , &_sampleData , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
-	}
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
-	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , (SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+	isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , (typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE >*)NULL , (SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
 #else // !__GNUC__ || __GNUC__ >=5
-	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+	isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , (typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE >*)NULL , NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
 #endif // __GNUC__ || __GNUC__ < 4
 	messageWriter( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh->outOfCorePointCount()+mesh->inCorePoints.size() ) , (unsigned long long)mesh->polygonCount() );
 	std::string isoStatsString = isoStats.toString() + std::string( "\n" );
@@ -443,29 +454,24 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 }
 
 
-template< class Real , typename ... SampleData , unsigned int ... FEMSigs >
+template< class Real , typename TotalPointSampleData , unsigned int ... FEMSigs >
 void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 {
 	static const int Dim = sizeof ... ( FEMSigs );
 	typedef UIntPack< FEMSigs ... > Sigs;
 	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > Degrees;
-	typedef UIntPack< FEMDegreeAndBType< NORMAL_DEGREE , DerivativeBoundary< FEMSignature< FEMSigs >::BType , 1 >::BType >::Signature ... > NormalSigs;
-	static const unsigned int DataSig = FEMDegreeAndBType< DATA_DEGREE , BOUNDARY_FREE >::Signature;
+	typedef UIntPack< FEMDegreeAndBType< WEIGHT_DEGREE , DerivativeBoundary< FEMSignature< FEMSigs >::BType , 1 >::BType >::Signature ... > DataSigs;
 	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 1 > InterpolationInfo;
-	typedef PointStreamNormal< Real , Dim > NormalPointSampleData;
-	typedef MultiPointStreamData< Real , SampleData ... > AdditionalPointSampleData;
-	typedef MultiPointStreamData< Real , NormalPointSampleData , AdditionalPointSampleData > TotalPointSampleData;
 	typedef InputPointStreamWithData< Real , Dim , TotalPointSampleData > InputPointStream;
 	typedef TransformedInputPointStreamWithData< Real , Dim , TotalPointSampleData > XInputPointStream;
 	std::vector< std::string > comments;
-	messageWriter( comments , "************************************************\n" );
-	messageWriter( comments , "************************************************\n" );
-	messageWriter( comments , "** Running SSD Reconstruction (Version %s) **\n" , VERSION );
-	messageWriter( comments , "************************************************\n" );
-	messageWriter( comments , "************************************************\n" );
+	messageWriter( comments , "***********************************************\n" );
+	messageWriter( comments , "***********************************************\n" );
+	messageWriter( comments , "** Running Point Interpolant (Version %s) **\n" , VERSION );
+	messageWriter( comments , "***********************************************\n" );
+	messageWriter( comments , "***********************************************\n" );
 	if( !Threads.set ) messageWriter( comments , "Running with %d threads\n" , Threads.value );
-
 
 	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 
@@ -501,7 +507,6 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		}
 
 	double startTime = Time();
-	Real isoValue = 0;
 
 	FEMTree< Dim , Real > tree( MEMORY_ALLOCATOR_BLOCK_SIZE );
 	FEMTreeProfiler< Dim , Real > profiler( tree );
@@ -514,14 +519,10 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 	size_t pointCount;
 
-	Real pointWeightSum;
 	std::vector< typename FEMTree< Dim , Real >::PointSample >* samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
 	std::vector< TotalPointSampleData >* sampleData = NULL;
-	DensityEstimator* density = NULL;
-	SparseNodeData< Point< Real , Dim > , NormalSigs >* normalInfo = NULL;
-	Real targetValue = (Real)0.;
 
-	// Read in the samples (and color data)
+	// Read in the samples
 	{
 		profiler.start();
 		InputPointStream* pointStream;
@@ -555,33 +556,14 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		{
 			typename TotalPointSampleData::Transform _xForm( xForm );
 			XInputPointStream _pointStream( [&]( Point< Real , Dim >& p , TotalPointSampleData& d ){ p = xForm*p , d = _xForm(d); } , *pointStream );
-			auto ProcessDataWithConfidence = [&]( const Point< Real , Dim >& p , TotalPointSampleData& d )
-			{
-				Real l = (Real)Length( d.template data<0>() );
-				if( !l || l!=l ) return (Real)-1.;
-				return (Real)pow( l , Confidence.value );
-			};
-			auto ProcessData = []( const Point< Real , Dim >& p , TotalPointSampleData& d )
-			{
-				Real l = (Real)Length( d.template data<0>() );
-				if( !l || l!=l ) return (Real)-1.;
-				d.template data<0>() /= l;
-				return (Real)1.;
-			};
-			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessDataWithConfidence );
-			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
+			auto ProcessData = []( const Point< Real , Dim >& p , TotalPointSampleData& d ){ return (Real)1.; };
+			pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
 		}
 		iXForm = xForm.inverse();
 		delete pointStream;
 
 		messageWriter( "Input Points / Samples: %llu / %llu\n" , pointCount , (unsigned long long)samples->size() );
 		profiler.dumpOutput2( comments , "# Read input into tree:" );
-	}
-	int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;
-	if( kernelDepth>Depth.value )
-	{
-		WARN( KernelDepth.name , " can't be greater than " , Depth.name , ": " , KernelDepth.value , " <= " , Depth.value );
-		kernelDepth = Depth.value;
 	}
 
 	DenseNodeData< Real , Sigs > solution;
@@ -592,65 +574,21 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 		tree.resetNodeIndices();
 
-		// Get the kernel density estimator
+		// Prepare for multigrid
 		{
 			profiler.start();
-			density = tree.template setDensityEstimator< WEIGHT_DEGREE >( *samples , kernelDepth , SamplesPerNode.value , 1 );
-			profiler.dumpOutput2( comments , "#   Got kernel density:" );
-		}
-
-		// Transform the Hermite samples into a vector field
-		{
-			profiler.start();
-			normalInfo = new SparseNodeData< Point< Real , Dim > , NormalSigs >();
-			std::function< bool ( TotalPointSampleData , Point< Real , Dim >& ) > ConversionFunction = []( TotalPointSampleData in , Point< Real , Dim > &out )
-			{
-				Point< Real , Dim > n = in.template data<0>();
-				Real l = (Real)Length( n );
-				// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
-				if( !l ) return false;
-				out = n / l;
-				return true;
-			};
-			std::function< bool ( TotalPointSampleData , Point< Real , Dim >& , Real & ) > ConversionAndBiasFunction = []( TotalPointSampleData in , Point< Real , Dim > &out , Real &bias )
-			{
-				Point< Real , Dim > n = in.template data<0>();
-				Real l = (Real)Length( n );
-				// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
-				if( !l ) return false;
-				out = n / l;
-				bias = (Real)( log( l ) * ConfidenceBias.value / log( 1<<(Dim-1) ) );
-				return true;
-			};
-			if( ConfidenceBias.value>0 ) *normalInfo = tree.setDataField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , ConversionAndBiasFunction );
-			else                         *normalInfo = tree.setDataField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , ConversionFunction );
-			profiler.dumpOutput2( comments , "#     Got normal field:" );
-			messageWriter( "Point weight / Estimated Area: %g / %g\n" , pointWeightSum , pointCount*pointWeightSum );
-		}
-
-		if( !Density.set ) delete density , density = NULL;
-
-		// Trim the tree and prepare for multigrid
-		{
-			profiler.start();
-			constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
-			tree.template finalizeForMultigrid< MAX_DEGREE >( FullDepth.value , typename FEMTree< Dim , Real >::template HasNormalDataFunctor< NormalSigs >( *normalInfo ) , normalInfo , density );
+			tree.template finalizeForMultigrid< Degrees::Max() >( FullDepth.value , []( const typename FEMTree< Dim , Real >::FEMTreeNode * ){ return true; } );
 			profiler.dumpOutput2( comments , "#       Finalized tree:" );
 		}
 
-		// Free up the normal info [If we don't need it for subsequent iterations.]
-		if( normalInfo ) delete normalInfo , normalInfo = NULL;
-
 		// Add the interpolation constraints
-		if( ValueWeight.value>0 || GradientWeight.value>0 )
 		{
 			profiler.start();
-			if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , TotalPointSampleData , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , TotalPointSampleData >( targetValue , (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum  ) , SystemDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum ) , true , false );
-			else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , TotalPointSampleData , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , TotalPointSampleData >( targetValue , (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum  ) , SystemDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value * pointWeightSum , (Real)GradientWeight.value * pointWeightSum ) , true , 1 );
+			if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , TotalPointSampleData , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , SystemDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , true , false );
+			else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , TotalPointSampleData , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , SystemDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , true , 1 );
 			constraints = tree.initDenseNodeData( Sigs() );
 			tree.addInterpolationConstraints( constraints , solveDepth , *iInfo );
 			profiler.dumpOutput2( comments , "#Set point constraints:" );
-			if( DataX.value<=0 || ( !Colors.set && !Normals.set ) ) delete sampleData , sampleData = NULL;
 		}
 
 		messageWriter( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
@@ -662,31 +600,47 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			typename FEMTree< Dim , Real >::SolverInfo sInfo;
 			sInfo.cgDepth = 0 , sInfo.cascadic = true , sInfo.vCycles = 1 , sInfo.iters = Iters.value , sInfo.cgAccuracy = CGSolverAccuracy.value , sInfo.verbose = Verbose.set , sInfo.showResidual = ShowResidual.set , sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE , sInfo.sliceBlockSize = 1;
 			sInfo.baseDepth = BaseDepth.value , sInfo.baseVCycles = BaseVCycles.value;
-			typename FEMIntegrator::template System< Sigs , IsotropicUIntPack< Dim , 2 > > F( { 0. , 0. , (double)BiLapWeight.value } );
+			typename FEMIntegrator::template System< Sigs , IsotropicUIntPack< Dim , 2 > > F( { 0. , (double)LapWeight.value , (double)BiLapWeight.value } );
 			solution = tree.solveSystem( Sigs() , F , constraints , solveDepth , sInfo , iInfo );
 			profiler.dumpOutput2( comments , "# Linear system solved:" );
 			if( iInfo ) delete iInfo , iInfo = NULL;
 		}
 	}
 
+	if( Verbose.set )
 	{
-		profiler.start();
-		double valueSum = 0 , weightSum = 0;
-		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &tree , solution );
-		std::vector< double > valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
+		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 1 > evaluator( &tree , solution );
+		std::pair< double , double > valueStat(0,0) , gradientStat(0,0);
+		std::vector< std::pair< double , double > > valueStats( ThreadPool::NumThreads() , std::pair< double , double >(0,0) ) , gradientStats( ThreadPool::NumThreads() , std::pair< double , double >(0,0) );
+		ValueAndGradientFromSample< Dim , Real , TotalPointSampleData > valueAndGradientFromSample;
 		ThreadPool::Parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
 		{
 			ProjectiveData< Point< Real , Dim > , Real >& sample = (*samples)[j].sample;
 			Real w = sample.weight;
-			if( w>0 ) weightSums[thread] += w , valueSums[thread] += evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node )[0] * w;
+			if( w>0 )
+			{
+				CumulativeDerivativeValues< Real , Dim , 1 > values = evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node );
+				Real value = values[0];
+				Point< Real , Dim > gradient;
+				for( int d=0 ; d<Dim ; d++ ) gradient[d] = values[d+1];
+				std::pair< Real , Point< Real , Dim > > valueAndGradient = valueAndGradientFromSample( (*sampleData)[j] / w );
+				valueStats[ thread ].first += ( value - valueAndGradient.first ) * ( value - valueAndGradient.first ) * w;
+				valueStats[ thread ].second += ( value * value + valueAndGradient.first * valueAndGradient.first ) * w;
+				gradientStats[ thread ].first += Point< Real , Dim >::SquareNorm( gradient - valueAndGradient.second ) * w;
+				gradientStats[ thread ].second += ( Point< Real , Dim >::SquareNorm( gradient ) + Point< Real , Dim >::SquareNorm( valueAndGradient.second ) ) * w;
+			}
 		}
 		);
-		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) valueSum += valueSums[t] , weightSum += weightSums[t];
-		isoValue = (Real)( valueSum / weightSum );
-		if( DataX.value<=0 || ( !Colors.set && !Normals.set ) ) delete samples , samples = NULL;
-		profiler.dumpOutput( "Got average:" );
-		messageWriter( "Iso-Value: %e = %g / %g\n" , isoValue , valueSum , weightSum );
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) valueStat.first += valueStats[t].first , valueStat.second += valueStats[t].second , gradientStat.first += gradientStats[t].first , gradientStat.second += gradientStats[t].second;
+		if( ValueWeight.value>0 && GradientWeight.value>0 ) messageWriter( "Value / Gradient Error: %g / %g\n" , (Real)sqrt( valueStat.first / valueStat.second ) , (Real)sqrt( gradientStat.first / gradientStat.second ) );
+		else if( ValueWeight.value>0 ) messageWriter( "Value Error: %g\n" , (Real)sqrt( valueStat.first / valueStat.second ) );
+		else if( GradientWeight.value>0 ) messageWriter( "Gradient Error: %g\n" , (Real)sqrt( gradientStat.first / gradientStat.second ) );
 	}
+
+	delete samples , samples = NULL;
+	delete sampleData , sampleData = NULL;
+
+
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
@@ -705,9 +659,8 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , PrimalGrid.set );
 		size_t resolution = 1;
 		for( int d=0 ; d<Dim ; d++ ) resolution *= res;
-		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int , size_t i ){ values[i] -= isoValue; } );
 		profiler.dumpOutput( "Got grid:" );
-		WriteGrid< Real , DIMENSION >( values , res , Grid.value );
+		WriteGrid< Real , Dim >( values , res , Grid.value );
 		DeletePointer( values );
 		if( Verbose.set )
 		{
@@ -723,44 +676,25 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 	if( Out.set )
 	{
-		if( Normals.set )
-		{
-			if( Density.set )
-			{
-				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , PointStreamValue< Real > , AdditionalPointSampleData > > Vertex;
-				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = d.template data<0>() , v.data.template data<1>() = w , v.data.template data<2>() = d.template data<1>(); };
-				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
-			}
-			else
-			{
-				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , AdditionalPointSampleData > > Vertex;
-				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = d.template data<0>() , v.data.template data<1>() = d.template data<1>(); };
-				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
-			}
-		}
-		else
-		{
-			if( Density.set )
-			{
-				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamValue< Real > , AdditionalPointSampleData > > Vertex;
-				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = w , v.data.template data<1>() = d.template data<1>(); };
-				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
-			}
-			else
-			{
-				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , AdditionalPointSampleData > > Vertex;
-				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = d.template data<1>(); };
-				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
-			}
-		}
-		if( sampleData ){ delete sampleData ; sampleData = NULL; }
+		typedef PlyVertex< Real , Dim > Vertex;
+		std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real , TotalPointSampleData ){ v.point = p; };
+		ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , tree , solution , IsoValue.value , samples , SetVertex , comments , iXForm );
 	}
-	if( density ) delete density , density = NULL;
+
 	messageWriter( comments , "#          Total Solve: %9.1f (s), %9.1f (MB)\n" , Time()-startTime , FEMTree< Dim , Real >::MaxMemoryUsage() );
 }
 
+template< class Real , unsigned int ... FEMSigs >
+void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
+{
+	static const int Dim = sizeof ... ( FEMSigs );
+	if     ( !UseGradientConstraints.set ) Execute< Real , MultiPointStreamData< Real , PointStreamValue< Real >                                   > >( argc , argv , UIntPack< FEMSigs ... >() );
+	else if( NoValueConstraints.set )      Execute< Real , MultiPointStreamData< Real ,                            PointStreamNormal< Real , Dim > > >( argc , argv , UIntPack< FEMSigs ... >() );
+	else                                   Execute< Real , MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > >( argc , argv , UIntPack< FEMSigs ... >() );
+}
+
 #ifndef FAST_COMPILE
-template< unsigned int Dim , class Real , typename ... SampleData >
+template< unsigned int Dim , class Real >
 void Execute( int argc , char* argv[] )
 {
 	switch( BType.value )
@@ -769,30 +703,33 @@ void Execute( int argc , char* argv[] )
 	{
 		switch( Degree.value )
 		{
-			case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >() );
-			case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >() );
-//			case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >() );
-			default: ERROR_OUT( "Only B-Splines of degree 2 - 3 are supported" );
+//			case 1: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 1 , BOUNDARY_FREE >::Signature >() );
+			case 2: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >() );
+			case 3: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >() );
+//			case 4: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >() );
+			default: ERROR_OUT( "Only B-Splines of degree 1 - 3 are supported" );
 		}
 	}
 	case BOUNDARY_NEUMANN+1:
 	{
 		switch( Degree.value )
 		{
-			case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >() );
-			case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >() );
-//			case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >() );
-			default: ERROR_OUT( "Only B-Splines of degree 2 - 3 are supported" );
+//			case 1: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 1 , BOUNDARY_NEUMANN >::Signature >() );
+			case 2: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >() );
+			case 3: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >() );
+//			case 4: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >() );
+			default: ERROR_OUT( "Only B-Splines of degree 1 - 3 are supported" );
 		}
 	}
 	case BOUNDARY_DIRICHLET+1:
 	{
 		switch( Degree.value )
 		{
-			case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >() );
-			case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >() );
-//			case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >() );
-			default: ERROR_OUT( "Only B-Splines of degree 2 - 3 are supported" );
+//			case 1: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 1 , BOUNDARY_DIRICHLET >::Signature >() );
+			case 2: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >() );
+			case 3: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >() );
+//			case 4: return Execute< Real >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >() );
+			default: ERROR_OUT( "Only B-Splines of degree 1 - 3 are supported" );
 		}
 	}
 	default: ERROR_OUT( "Not a valid boundary type: " , BType.value );
@@ -813,6 +750,21 @@ int main( int argc , char* argv[] )
 #endif // ARRAY_DEBUG
 
 	cmdLineParse( argc-1 , &argv[1] , params );
+#if 0
+	if( !In.set || !Out.set ) ERROR_OUT( "Need input and output" );
+	unsigned int width , height;
+	unsigned char *pixels = ImageReader::ReadColor( In.value , width , height );
+	FILE *fp = fopen( Out.value , "wb" );
+	if( !fp ) ERROR_OUT( "Failed to open file for reading: %s" , Out.value );
+	for( int i=0 ; i<10000 ; i++ )
+	{
+		int x = rand() % width , y = rand() % height;
+		double gray = (double)( pixels[ 3*(y*width+x) + 0 ] + pixels[ 3*(y*width+x) + 1 ] + pixels[ 3*(y*width+x) + 2 ] ) / ( 255. * 3 );
+		fprintf( fp , "%d %d  %f\n" , x , y , gray );
+	}
+	fclose( fp );
+#else
+
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
@@ -823,17 +775,22 @@ int main( int argc , char* argv[] )
 		ShowUsage( argv[0] );
 		return 0;
 	}
-	if( GradientWeight.value<=0 ) ERROR_OUT( "Gradient weight must be positive: " , GradientWeight.value , "> 0" );
-	if( BiLapWeight.value<=0 ) ERROR_OUT( "Bi-Laplacian weight must be positive: " , BiLapWeight.value , " > 0" );
-	if( DataX.value<=0 ) Normals.set = Colors.set = false;
+	if( NoValueConstraints.set ) ValueWeight.value = 0;
+	if( !UseGradientConstraints.set ) GradientWeight.value = 0;
+
+	if( ValueWeight.value<0 ) ERROR_OUT( "Value weight must be non-negative: " , ValueWeight.value , "> 0" );
+	if( GradientWeight.value<0 ) ERROR_OUT( "Gradient weight must be non-negative: " , GradientWeight.value , "> 0" );
+	if( !ValueWeight.value && !GradientWeight.value ) ERROR_OUT( "Either value or gradient weight must be positive" );
+
+	if( LapWeight.value<0 ) ERROR_OUT( "Laplacian weight must be non-negative: " , LapWeight.value , " > 0" );
+	if( BiLapWeight.value<0 ) ERROR_OUT( "Bi-Laplacian weight must be non-negative: " , BiLapWeight.value , " > 0" );
+	if( !LapWeight.value && !BiLapWeight.value ) ERROR_OUT( "Eiter Laplacian or bi-Laplacian weight must be positive" );
+
 	if( BaseDepth.value>FullDepth.value )
 	{
 		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
-	ValueWeight.value    *= (float)BaseSSDWeights[0];
-	GradientWeight.value *= (float)BaseSSDWeights[1];
-	BiLapWeight.value    *= (float)BaseSSDWeights[2];
 
 #ifdef USE_DOUBLE
 	typedef double Real;
@@ -842,20 +799,22 @@ int main( int argc , char* argv[] )
 #endif // USE_DOUBLE
 
 #ifdef FAST_COMPILE
+	static const int Dimension = DIMENSION;
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
-	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
+	typedef IsotropicUIntPack< Dimension , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
 	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
-	if( Colors.set ) Execute< Real , PointStreamColor< Real > >( argc , argv , FEMSigs() );
-	else             Execute< Real >( argc , argv , FEMSigs() );
+	Execute< Real >( argc , argv , FEMSigs() );
 #else // !FAST_COMPILE
-	if( Colors.set ) Execute< DIMENSION , Real , PointStreamColor< float > >( argc , argv );
-	else             Execute< DIMENSION , Real >( argc , argv );
+	if( Dimension.value==2 ) Execute< 2 , Real >( argc , argv );
+	else if( Dimension.value==3 ) Execute< 3 , Real >( argc , argv );
+	else ERROR_OUT( "Only Degrees 2 and 3 are supported" );
 #endif // FAST_COMPILE
 	if( Performance.set )
 	{
 		printf( "Time (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
 		printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 	}
+#endif
 	return EXIT_SUCCESS;
 }

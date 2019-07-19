@@ -22,7 +22,7 @@ struct ImageReader
 	{
 		unsigned int channels;
 		ImageReader* reader = Get( fileName );
-		width = reader->width() , height = reader->height();
+		width = reader->width() , height = reader->height() , channels = reader->channels();
 		if( channels!=1 && channels!=3 ) ERROR_OUT( "Requres one- or three-channel input" );
 		unsigned char* pixels = new unsigned char[ width*height*3 ];
 		unsigned char* pixelRow = new unsigned char[ width*channels];

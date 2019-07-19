@@ -29,8 +29,8 @@ EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY
 WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.   
 */
 
-#ifndef __PLY_FILE_H__
-#define __PLY_FILE_H__
+#ifndef PLY_FILE_INCLUDED
+#define PLY_FILE_INCLUDED
 
 #include <string>
 #include <vector>
@@ -198,4 +198,4 @@ protected:
 };
 
 #include "PlyFile.inl"
-#endif /* !__PLY_FILE_H__ */
+#endif // PLY_FILE_INCLUDED

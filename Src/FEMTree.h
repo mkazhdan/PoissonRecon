@@ -2129,13 +2129,13 @@ public:
 	static void ResetLocalMemoryUsage( void ){ _LocalMemoryUsage = 0; }
 	static double MemoryUsage( void );
 	FEMTree( size_t blockSize );
-	FEMTree( FILE* fp , size_t blockSize );
+	FEMTree( FILE* fp , XForm< Real , Dim+1 > &xForm , size_t blockSize );
 	~FEMTree( void )
 	{
 		if( _tree ) for( int c=0 ; c<(1<<Dim) ; c++ ) _tree[c].cleanChildren( !nodeAllocators.size() );
 		for( size_t i=0 ; i<nodeAllocators.size() ; i++ ) delete nodeAllocators[i];
 	}
-	void write( FILE* fp ) const;
+	void write( FILE* fp , XForm< Real , Dim+1 > xForm ) const;
 	static void WriteParameter( FILE* fp )
 	{
 		FEMTreeRealType realType;
@@ -2153,17 +2153,19 @@ public:
 	template< unsigned int Radius , class IsThickenNode , class ... DenseOrSparseNodeData > void thicken( IsThickenNode F , DenseOrSparseNodeData* ... data ){ thicken< Radius , Radius >( F , data ... ); }
 	template< unsigned int DensityDegree >
 	typename FEMTree::template DensityEstimator< DensityDegree >* setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension );
-	template< unsigned int ... NormalSigs , unsigned int DensityDegree , class Data >
+	template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
+	SparseNodeData< OutData , UIntPack< DataSigs ... > > setDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction );
+	template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
 #if defined(_WIN32) || defined(_WIN64)
-	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction = []( Real ){ return 0.f; } );
+	SparseNodeData< OutData , UIntPack< DataSigs ... > > setDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< bool ( InData , OutData& ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return 0.f; } );
 #else // !_WIN32 && !_WIN64
-	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction = []( Real ){ return (Real)0; } );
+	SparseNodeData< OutData , UIntPack< DataSigs ... > > setDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< bool ( InData , OutData& ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return (Real)0; } );
 #endif // _WIN32 || _WIN64
 
 	template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
 	SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > setSingleDepthDataField( const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density );
 	template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
-	SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
+	SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setMultiDepthDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
 	template< unsigned int MaxDegree , class HasDataFunctor , class ... DenseOrSparseNodeData > void finalizeForMultigrid( LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data );
 
 	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > initDenseNodeData( UIntPack< FEMSigs ... > ) const;

@@ -338,7 +338,7 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 	typename IsoSurfaceExtractor< Dim , Real , Vertex >::IsoStats isoStats;
 	if( sampleData )
 	{
-		SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
+		SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setMultiDepthDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
 		for( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
 		{
 			ProjectiveData< TotalPointSampleData , Real >* clr = _sampleData( n );
@@ -582,9 +582,27 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		{
 			profiler.start();
 			normalInfo = new SparseNodeData< Point< Real , Dim > , NormalSigs >();
-			if( ConfidenceBias.value>0 ) *normalInfo = tree.setNormalField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , [&]( Real conf ){ return (Real)( log( conf ) * ConfidenceBias.value / log( 1<<(Dim-1) ) ); } );
-			else                         *normalInfo = tree.setNormalField( NormalSigs() , *samples , *sampleData , density , pointWeightSum );
-			ThreadPool::Parallel_for( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
+			std::function< bool ( TotalPointSampleData , Point< Real , Dim >& ) > ConversionFunction = []( TotalPointSampleData in , Point< Real , Dim > &out )
+			{
+				Point< Real , Dim > n = in.template data<0>();
+				Real l = (Real)Length( n );
+				// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
+				if( !l ) return false;
+				out = n / l;
+				return true;
+			};
+			std::function< bool ( TotalPointSampleData , Point< Real , Dim >& , Real & ) > ConversionAndBiasFunction = []( TotalPointSampleData in , Point< Real , Dim > &out , Real &bias )
+			{
+				Point< Real , Dim > n = in.template data<0>();
+				Real l = (Real)Length( n );
+				// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
+				if( !l ) return false;
+				out = n / l;
+				bias = (Real)( log( l ) * ConfidenceBias.value / log( 1<<(Dim-1) ) );
+				return true;
+			};
+			if( ConfidenceBias.value>0 ) *normalInfo = tree.setDataField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , ConversionAndBiasFunction );
+			else                         *normalInfo = tree.setDataField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , ConversionFunction );			ThreadPool::Parallel_for( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
 			profiler.dumpOutput2( comments , "#     Got normal field:" );
 			messageWriter( "Point weight / Estimated Area: %g / %g\n" , pointWeightSum , pointCount*pointWeightSum );
 		}
@@ -672,7 +690,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Tree.value );
 		FEMTree< Dim , Real >::WriteParameter( fp );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fp );
-		tree.write( fp );
+		tree.write( fp , xForm );
 		solution.write( fp );
 		fclose( fp );
 	}
