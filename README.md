@@ -342,7 +342,7 @@ individual components of the surface reconstructor.
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>PointInterpolant</b></font>:
-Fits a function to a set of sample values (and gradients)
+Fits a function to a set of sample values (and gradients) by finding the coefficients of the function that minimize an energy composed of an interpolation term and Laplacian and bi-Laplacian smoothness terms
 </SUMMARY>
 
 <dt><b>--in</b> &lt;<i>input sample positions and values</i>&gt;</dt>
@@ -997,6 +997,12 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 11.02</a>:
 <ol>
 <LI> Added error handling for numerical imprecision issues arrising when too many samples fall into a leaf node.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 12.00</a>:
+<ol>
+<LI> Added functionality enabling <I>AdaptiveTreeVisualization</I> to output the values of a function at prescribed sample positions.
+<LI> Added the implementation of <I>PointInterpolant</I> that fits a function to a discrete set of sample values.
 </ol>
 
 </DETAILS>
