@@ -28,7 +28,8 @@ DAMAGE.
 
 #include "PreProcessor.h"
 
-#undef USE_DOUBLE								// If enabled, double-precesion is used
+//#undef USE_DOUBLE								// If enabled, double-precesion is used
+#define USE_DOUBLE								// If enabled, double-precesion is used
 #define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
 #define DEFAULT_FEM_DEGREE 2					// The default finite-element degree
 #define DEFAULT_FEM_BOUNDARY BOUNDARY_FREE		// The default finite-element boundary type
@@ -345,7 +346,11 @@ struct SystemDual< Dim , double , TotalPointSampleData >
 {
 	typedef double Real;
 	CumulativeDerivativeValues< Real , Dim , 1 > weight;
-	SystemDual( Real v , Real g ) : weight( v , g , g , g ) { }
+	SystemDual( Real v , Real g )
+	{
+		weight[0] = v;
+		for( unsigned int d=0 ; d<Dim ; d++ ) weight[1+d] = g;
+	}
 	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const TotalPointSampleData& data , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
 	{
 		return dValues * weight;
@@ -678,7 +683,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	{
 		typedef PlyVertex< Real , Dim > Vertex;
 		std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real , TotalPointSampleData ){ v.point = p; };
-		ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , tree , solution , IsoValue.value , samples , SetVertex , comments , iXForm );
+		ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , tree , solution , (Real)IsoValue.value , samples , SetVertex , comments , iXForm );
 	}
 
 	messageWriter( comments , "#          Total Solve: %9.1f (s), %9.1f (MB)\n" , Time()-startTime , FEMTree< Dim , Real >::MaxMemoryUsage() );
