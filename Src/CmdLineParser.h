@@ -28,93 +28,79 @@ DAMAGE.
 
 #ifndef CMD_LINE_PARSER_INCLUDED
 #define CMD_LINE_PARSER_INCLUDED
-#include <stdarg.h>
-#include <string.h>
 
+#include <stdarg.h>
+#include <cstring>
+#include <cstdlib>
+#include <string>
+#include <vector>
 
 #ifdef WIN32
-int strcasecmp(char* c1,char* c2);
-#endif
+int strcasecmp( const char* c1 , const char* c2 );
+#endif // WIN32
 
-class cmdLineReadable{
+class cmdLineReadable
+{
 public:
 	bool set;
-	char* name;
-	cmdLineReadable(const char* name);
-	virtual ~cmdLineReadable(void);
-	virtual int read(char** argv,int argc);
-	virtual void writeValue(char* str);
+	char *name;
+	cmdLineReadable( const char *name );
+	virtual ~cmdLineReadable( void );
+	virtual int read( char** argv , int argc );
+	virtual void writeValue( char* str ) const;
 };
 
-class cmdLineInt : public cmdLineReadable {
+template< class Type > void cmdLineWriteValue( Type t , char* str );
+template< class Type > void cmdLineCleanUp( Type* t );
+template< class Type > Type cmdLineInitialize( void );
+template< class Type > Type cmdLineCopy( Type t );
+template< class Type > Type cmdLineStringToType( const char* str );
+
+template< class Type >
+class cmdLineParameter : public cmdLineReadable
+{
 public:
-	int value;
-	cmdLineInt(const char* name);
-	cmdLineInt(const char* name,const int& v);
-	int read(char** argv,int argc);
-	void writeValue(char* str);
-};
-template<int Dim>
-class cmdLineIntArray : public cmdLineReadable {
-public:
-	int values[Dim];
-	cmdLineIntArray(const char* name);
-	cmdLineIntArray(const char* name,const int v[Dim]);
-	int read(char** argv,int argc);
-	void writeValue(char* str);
+	Type value;
+	cmdLineParameter( const char *name );
+	cmdLineParameter( const char *name , Type v );
+	~cmdLineParameter( void );
+	int read( char** argv , int argc );
+	void writeValue( char* str ) const;
+	bool expectsArg( void ) const { return true; }
 };
 
-class cmdLineFloat : public cmdLineReadable {
+template< class Type , int Dim >
+class cmdLineParameterArray : public cmdLineReadable
+{
 public:
-	float value;
-	cmdLineFloat(const char* name);
-	cmdLineFloat(const char* name,const float& f);
-	int read(char** argv,int argc);
-	void writeValue(char* str);
-};
-template<int Dim>
-class cmdLineFloatArray : public cmdLineReadable {
-public:
-	float values[Dim];
-	cmdLineFloatArray(const char* name);
-	cmdLineFloatArray(const char* name,const float f[Dim]);
-	int read(char** argv,int argc);
-	void writeValue(char* str);
-};
-class cmdLineString : public cmdLineReadable {
-public:
-	char* value;
-	cmdLineString(const char* name);
-	~cmdLineString();
-	int read(char** argv,int argc);
-	void writeValue(char* str);
-};
-class cmdLineStrings : public cmdLineReadable {
-	int Dim;
-public:
-	char** values;
-	cmdLineStrings(const char* name,int Dim);
-	~cmdLineStrings(void);
-	int read(char** argv,int argc);
-	void writeValue(char* str);
-};
-template<int Dim>
-class cmdLineStringArray : public cmdLineReadable {
-public:
-	char* values[Dim];
-	cmdLineStringArray(const char* name);
-	~cmdLineStringArray();
-	int read(char** argv,int argc);
-	void writeValue(char* str);
+	Type values[Dim];
+	cmdLineParameterArray( const char *name, const Type* v=NULL );
+	~cmdLineParameterArray( void );
+	int read( char** argv , int argc );
+	void writeValue( char* str ) const;
+	bool expectsArg( void ) const { return true; }
 };
 
-// This reads the arguments in argc, matches them against "names" and sets
-// the values of "r" appropriately. Parameters start with "--"
-void cmdLineParse(int argc, char **argv,int num,cmdLineReadable** r,int dumpError=1);
+template< class Type >
+class cmdLineParameters : public cmdLineReadable
+{
+public:
+	int count;
+	Type *values;
+	cmdLineParameters( const char* name );
+	~cmdLineParameters( void );
+	int read( char** argv , int argc );
+	void writeValue( char* str ) const;
+	bool expectsArg( void ) const { return true; }
+};
 
-char* GetFileExtension(char* fileName);
-char* GetLocalFileName(char* fileName);
-char** ReadWords(const char* fileName,int& cnt);
+void cmdLineParse( int argc , char **argv, cmdLineReadable** params );
+char* FileExtension( char* fileName );
+char* LocalFileName( char* fileName );
+char* DirectoryName( char* fileName );
+char* GetFileExtension( const char* fileName );
+char* GetLocalFileName( const char* fileName );
+char** ReadWords( const char* fileName , int& cnt );
 
 #include "CmdLineParser.inl"
 #endif // CMD_LINE_PARSER_INCLUDED

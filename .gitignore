@@ -5,3 +5,8 @@
 /Bin/
 *.opensdf
 *.bat
+*.zip
+.vs/*
+V*/
+*.user
+Makefile.9

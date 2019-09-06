@@ -29,25 +29,50 @@ DAMAGE.
 ///////////////////////////
 // BSplineEvaluationData //
 ///////////////////////////
-template< int Degree , BoundaryType BType >
-double BSplineEvaluationData< Degree , BType >::Value( int depth , int off , double s , bool derivative )
+template< unsigned int FEMSig >
+double BSplineEvaluationData< FEMSig >::Value( int depth , int off , double s , int d )
 {
 	if( s<0 || s>1 ) return 0.;
 
 	int res = 1<<depth;
 	if( OutOfBounds( depth , off ) ) return 0;
 
-	BSplineComponents components = BSplineComponents( depth , off );
+	typename BSplineData< FEMSig , Degree >::BSplineComponents components( depth , off );
 
 	// [NOTE] This is an ugly way to ensure that when s=1 we evaluate using a B-Spline component within the valid range.
 	int ii = std::max< int >( 0 , std::min< int >( res-1 , (int)floor( s * res ) ) ) - off;
 
 	if( ii<BSplineSupportSizes< Degree >::SupportStart || ii>BSplineSupportSizes< Degree >::SupportEnd ) return 0;
-	if( derivative ) return components[ ii-BSplineSupportSizes< Degree >::SupportStart ].derivative()(s);
-	else             return components[ ii-BSplineSupportSizes< Degree >::SupportStart ](s);
+	return d<=Degree ? components[ii-BSplineSupportSizes< Degree >::SupportStart][d](s) : 0;
 }
-template< int Degree , BoundaryType BType >
-void BSplineEvaluationData< Degree , BType >::SetCenterEvaluator( typename CenterEvaluator::Evaluator& evaluator , int depth )
+template< unsigned int FEMSig >
+double BSplineEvaluationData< FEMSig >::Integral( int depth , int off , double b , double e , int d )
+{
+	double integral = 0;
+	// Check for valid integration bounds
+	if( OutOfBounds( depth , off ) ) return 0;
+	if( b>=e || b>=1 || e<=0 ) return 0;
+	if( b<0 ) b=0;
+	if( e>1 ) e=1;
+
+	int res = 1<<depth;
+	double _b = ( (double)( off     + BSplineSupportSizes< Degree >::SupportStart ) )/res;
+	double _e = ( (double)( off + 1 + BSplineSupportSizes< Degree >::SupportEnd   ) )/res;
+	if( b>=_e || e<=_b ) return 0;
+	typename BSplineData< FEMSig , Degree >::BSplineComponents components( depth , off );
+	for( int i=BSplineSupportSizes< Degree >::SupportStart ; i<=BSplineSupportSizes< Degree >::SupportEnd ; i++ )
+	{
+		// The index of the current cell
+		int c = off + i;
+		// The bounds of the current cell
+		_b = std::max< double >( b , ( (double)c ) / res ) , _e = std::min< double >( e , ( (double)(c+1) )/res );
+		if( _b<_e ) integral += d<=Degree ? components[i-BSplineSupportSizes< Degree >::SupportStart][d].integral( _b , _e ) : 0;
+	}
+	return integral;
+}
+template< unsigned int FEMSig >
+template< unsigned int D >
+void BSplineEvaluationData< FEMSig >::SetCenterEvaluator( typename CenterEvaluator< D >::Evaluator& evaluator , int depth )
 {
 	evaluator._depth = depth;
 	int res = 1<<depth;
@@ -55,11 +80,12 @@ void BSplineEvaluationData< Degree , BType >::SetCenterEvaluator( typename Cente
 	{
 		int ii = IndexToOffset( depth , i );
 		double s = 0.5 + ii + j;
-		for( int d1=0 ; d1<2 ; d1++ ) evaluator._ccValues[d1][i][j-BSplineSupportSizes< Degree >::SupportStart] = Value( depth , ii , s/res , d1!=0 );
+		for( int d1=0 ; d1<=D ; d1++ ) evaluator._ccValues[d1][i][j-BSplineSupportSizes< Degree >::SupportStart] = Value( depth , ii , s/res , d1 );
 	}
 }
-template< int Degree , BoundaryType BType >
-void BSplineEvaluationData< Degree , BType >::SetChildCenterEvaluator( typename CenterEvaluator::ChildEvaluator& evaluator , int parentDepth )
+template< unsigned int FEMSig >
+template< unsigned int D >
+void BSplineEvaluationData< FEMSig >::SetChildCenterEvaluator( typename CenterEvaluator< D >::ChildEvaluator& evaluator , int parentDepth )
 {
 	evaluator._parentDepth = parentDepth;
 	int res = 1<<(parentDepth+1);
@@ -67,49 +93,89 @@ void BSplineEvaluationData< Degree , BType >::SetChildCenterEvaluator( typename 
 	{
 		int ii = IndexToOffset( parentDepth , i );
 		double s = 0.5 + 2*ii + j;
-		for( int d1=0 ; d1<2 ; d1++ ) evaluator._pcValues[d1][i][j-BSplineSupportSizes< Degree >::ChildSupportStart] = Value( parentDepth , ii , s/res , d1!=0 );
+		for( int d1=0 ; d1<=D ; d1++ ) evaluator._pcValues[d1][i][j-BSplineSupportSizes< Degree >::ChildSupportStart] = Value( parentDepth , ii , s/res , d1 );
 	}
 }
-template< int Degree , BoundaryType BType >
-double BSplineEvaluationData< Degree , BType >::CenterEvaluator::Evaluator::value( int fIdx , int cIdx , bool d ) const
+template< unsigned int FEMSig >
+template< unsigned int D >
+double BSplineEvaluationData< FEMSig >::CenterEvaluator< D >::Evaluator::value( int fIdx , int cIdx , int d ) const
 {
 	int dd = cIdx-fIdx , res = 1<<(_depth);
 	if( cIdx<0 || cIdx>=res || OutOfBounds( _depth , fIdx ) || dd<BSplineSupportSizes< Degree >::SupportStart || dd>BSplineSupportSizes< Degree >::SupportEnd ) return 0;
-	return _ccValues[d?1:0][ OffsetToIndex( _depth , fIdx ) ][dd-BSplineSupportSizes< Degree >::SupportStart];
+	return _ccValues[d][ OffsetToIndex( _depth , fIdx ) ][dd-BSplineSupportSizes< Degree >::SupportStart];
 }
-template< int Degree , BoundaryType BType >
-double BSplineEvaluationData< Degree , BType >::CenterEvaluator::ChildEvaluator::value( int fIdx , int cIdx , bool d ) const
+template< unsigned int FEMSig >
+template< unsigned int D >
+double BSplineEvaluationData< FEMSig >::CenterEvaluator< D >::ChildEvaluator::value( int fIdx , int cIdx , int d ) const
 {
 	int dd = cIdx-2*fIdx , res = 1<<(_parentDepth+1);
 	if( cIdx<0 || cIdx>=res || OutOfBounds( _parentDepth , fIdx ) || dd<BSplineSupportSizes< Degree >::ChildSupportStart || dd>BSplineSupportSizes< Degree >::ChildSupportEnd ) return 0;
-	return _pcValues[d?1:0][ OffsetToIndex( _parentDepth , fIdx ) ][dd-BSplineSupportSizes< Degree >::ChildSupportStart];
+	return _pcValues[d][ OffsetToIndex( _parentDepth , fIdx ) ][dd-BSplineSupportSizes< Degree >::ChildSupportStart];
 }
-template< int Degree , BoundaryType BType >
-void BSplineEvaluationData< Degree , BType >::SetCornerEvaluator( typename CornerEvaluator::Evaluator& evaluator , int depth )
+template< unsigned int FEMSig >
+template< unsigned int D >
+void BSplineEvaluationData< FEMSig >::SetCornerEvaluator( typename CornerEvaluator< D >::Evaluator& evaluator , int depth )
 {
 	evaluator._depth = depth;
 	int res = 1<<depth;
-	for( int i=0 ; i<IndexSize ; i++ ) for( int j=BSplineSupportSizes< Degree >::CornerStart ; j<=BSplineSupportSizes< Degree >::CornerEnd ; j++ )
+	for( int i=0 ; i<IndexSize ; i++ ) for( int j=BSplineSupportSizes< Degree >::BCornerStart ; j<=BSplineSupportSizes< Degree >::BCornerEnd ; j++ )
 	{
 		int ii = IndexToOffset( depth , i );
 		double s = ii + j;
-		for( int d1=0 ; d1<2 ; d1++ ) evaluator._ccValues[d1][i][j-BSplineSupportSizes< Degree >::CornerStart] = Value( depth , ii , s/res , d1!=0 );
+		int jj = j-BSplineSupportSizes< Degree >::BCornerStart;
+		for( int d1=0 ; d1<=D ; d1++ )
+		{
+			if( d1==Degree )
+			{
+				if     ( j==BSplineSupportSizes< Degree >::BCornerStart ) evaluator._ccValues[d1][i][jj] = (                                            Value( depth , ii , ( s+0.5 )/res , d1 ) ) / 2;
+				else if( j==BSplineSupportSizes< Degree >::BCornerEnd   ) evaluator._ccValues[d1][i][jj] = ( Value( depth , ii , ( s-0.5 )/res , d1 )                                            ) / 2;
+				else                                                      evaluator._ccValues[d1][i][jj] = ( Value( depth , ii , ( s-0.5 )/res , d1 ) + Value( depth , ii , ( s+0.5 )/res , d1 ) ) / 2;
+			}
+			else evaluator._ccValues[d1][i][jj] = Value( depth , ii , s /res , d1 );
+		}
 	}
 }
-template< int Degree , BoundaryType BType >
-void BSplineEvaluationData< Degree , BType >::SetChildCornerEvaluator( typename CornerEvaluator::ChildEvaluator& evaluator , int parentDepth )
+template< unsigned int FEMSig >
+template< unsigned int D  >
+void BSplineEvaluationData< FEMSig >::SetChildCornerEvaluator( typename CornerEvaluator< D >::ChildEvaluator& evaluator , int parentDepth )
 {
 	evaluator._parentDepth = parentDepth;
 	int res = 1<<(parentDepth+1);
-	for( int i=0 ; i<IndexSize ; i++ ) for( int j=BSplineSupportSizes< Degree >::ChildCornerStart ; j<=BSplineSupportSizes< Degree >::ChildCornerEnd ; j++ )
+	for( int i=0 ; i<IndexSize ; i++ ) for( int j=BSplineSupportSizes< Degree >::ChildBCornerStart ; j<=BSplineSupportSizes< Degree >::ChildBCornerEnd ; j++ )
 	{
 		int ii = IndexToOffset( parentDepth , i );
 		double s = 2*ii + j;
-		for( int d1=0 ; d1<2 ; d1++ ) evaluator._pcValues[d1][i][j-BSplineSupportSizes< Degree >::ChildCornerStart] = Value( parentDepth , ii , s/res , d1!=0 );
+		int jj = j-BSplineSupportSizes< Degree >::ChildBCornerStart;
+		for( int d1=0 ; d1<=D ; d1++ )
+		{
+			if( d1==Degree )
+			{
+				if     ( j==BSplineSupportSizes< Degree >::ChildBCornerStart ) evaluator._pcValues[d1][i][jj] = (                                                  Value( parentDepth , ii , ( s+0.5 )/res , d1 ) ) / 2;
+				else if( j==BSplineSupportSizes< Degree >::ChildBCornerEnd   ) evaluator._pcValues[d1][i][jj] = ( Value( parentDepth , ii , ( s-0.5 )/res , d1 )                                                  ) / 2;
+				else                                                           evaluator._pcValues[d1][i][jj] = ( Value( parentDepth , ii , ( s-0.5 )/res , d1 ) + Value( parentDepth , ii , ( s+0.5 )/res , d1 ) ) / 2;
+			}
+			else evaluator._pcValues[d1][i][jj] = Value( parentDepth , ii , s /res , d1 );
+		}
 	}
 }
-template< int Degree , BoundaryType BType >
-void BSplineEvaluationData< Degree , BType >::SetUpSampleEvaluator( UpSampleEvaluator& evaluator , int lowDepth )
+template< unsigned int FEMSig >
+template< unsigned int D >
+double BSplineEvaluationData< FEMSig >::CornerEvaluator< D >::Evaluator::value( int fIdx , int cIdx , int d ) const
+{
+	int dd = cIdx-fIdx , res = ( 1<<_depth ) + 1;
+	if( cIdx<0 || cIdx>=res || OutOfBounds( _depth , fIdx ) || dd<BSplineSupportSizes< Degree >::BCornerStart || dd>BSplineSupportSizes< Degree >::BCornerEnd ) return 0;
+	return _ccValues[d][ OffsetToIndex( _depth , fIdx ) ][dd-BSplineSupportSizes< Degree >::BCornerStart];
+}
+template< unsigned int FEMSig >
+template< unsigned int D >
+double BSplineEvaluationData< FEMSig >::CornerEvaluator< D >::ChildEvaluator::value( int fIdx , int cIdx , int d ) const
+{
+	int dd = cIdx-2*fIdx , res = ( 1<<(_parentDepth+1) ) + 1;
+	if( cIdx<0 || cIdx>=res || OutOfBounds( _parentDepth , fIdx ) || dd<BSplineSupportSizes< Degree >::ChildBCornerStart || dd>BSplineSupportSizes< Degree >::ChildBCornerEnd ) return 0;
+	return _pcValues[d][ OffsetToIndex( _parentDepth , fIdx ) ][dd-BSplineSupportSizes< Degree >::ChildBCornerStart];
+}
+template< unsigned int FEMSig >
+void BSplineEvaluationData< FEMSig >::SetUpSampleEvaluator( UpSampleEvaluator& evaluator , int lowDepth )
 {
 	evaluator._lowDepth = lowDepth;
 	for( int i=0 ; i<IndexSize ; i++ )
@@ -119,75 +185,26 @@ void BSplineEvaluationData< Degree , BType >::SetUpSampleEvaluator( UpSampleEval
 		for( int j=0 ; j<BSplineSupportSizes< Degree >::UpSampleSize ; j++ ) evaluator._pcValues[i][j] = b[j];
 	}
 }
-template< int Degree , BoundaryType BType >
-double BSplineEvaluationData< Degree , BType >::CornerEvaluator::Evaluator::value( int fIdx , int cIdx , bool d ) const
-{
-	int dd = cIdx-fIdx , res = ( 1<<_depth ) + 1;
-	if( cIdx<0 || cIdx>=res || OutOfBounds( _depth , fIdx ) || dd<BSplineSupportSizes< Degree >::CornerStart || dd>BSplineSupportSizes< Degree >::CornerEnd ) return 0;
-	return _ccValues[d?1:0][ OffsetToIndex( _depth , fIdx ) ][dd-BSplineSupportSizes< Degree >::CornerStart];
-}
-template< int Degree , BoundaryType BType >
-double BSplineEvaluationData< Degree , BType >::CornerEvaluator::ChildEvaluator::value( int fIdx , int cIdx , bool d ) const
-{
-	int dd = cIdx-2*fIdx , res = ( 1<<(_parentDepth+1) ) + 1;
-	if( cIdx<0 || cIdx>=res || OutOfBounds( _parentDepth , fIdx ) || dd<BSplineSupportSizes< Degree >::ChildCornerStart || dd>BSplineSupportSizes< Degree >::ChildCornerEnd ) return 0;
-	return _pcValues[d?1:0][ OffsetToIndex( _parentDepth , fIdx ) ][dd-BSplineSupportSizes< Degree >::ChildCornerStart];
-}
-template< int Degree , BoundaryType BType >
-double BSplineEvaluationData< Degree , BType >::UpSampleEvaluator::value( int pIdx , int cIdx ) const
+template< unsigned int FEMSig >
+double BSplineEvaluationData< FEMSig >::UpSampleEvaluator::value( int pIdx , int cIdx ) const
 {
 	int dd = cIdx-2*pIdx;
 	if( OutOfBounds( _lowDepth+1 , cIdx ) || OutOfBounds( _lowDepth , pIdx ) || dd<BSplineSupportSizes< Degree >::UpSampleStart || dd>BSplineSupportSizes< Degree >::UpSampleEnd ) return 0;
 	return _pcValues[ OffsetToIndex( _lowDepth , pIdx ) ][dd-BSplineSupportSizes< Degree >::UpSampleStart];
 }
 
-//////////////////////////////////////////////
-// BSplineEvaluationData::BSplineComponents //
-//////////////////////////////////////////////
-template< int Degree , BoundaryType BType >
-BSplineEvaluationData< Degree , BType >::BSplineComponents::BSplineComponents( int depth , int offset )
-{
-	int res = 1<<depth;
-	BSplineElements< Degree > elements( res , offset , BType );
-
-	// The first index is the position, the second is the element type
-	Polynomial< Degree > components[Degree+1][Degree+1];
-	// Generate the elements that can appear in the base function corresponding to the base function at (depth,offset) = (0,0)
-	for( int d=0 ; d<=Degree ; d++ ) for( int dd=0 ; dd<=Degree ; dd++ ) components[d][dd] = Polynomial< Degree >::BSplineComponent( Degree-dd ).shift( -( (Degree+1)/2 ) + d );
-
-	// Now adjust to the desired depth and offset
-	double width = 1. / res;
-	for( int d=0 ; d<=Degree ; d++ ) for( int dd=0 ; dd<=Degree ; dd++ ) components[d][dd] = components[d][dd].scale( width ).shift( width*offset );
-
-	// Now write in the polynomials
-	for( int d=0 ; d<=Degree ; d++ )
-	{
-		int idx = offset + BSplineSupportSizes< Degree >::SupportStart + d;
-		_polys[d] = Polynomial< Degree >();
-
-		if( idx>=0 && idx<res ) for( int dd=0 ; dd<=Degree ; dd++ ) _polys[d] += components[d][dd] * ( ( double )( elements[idx][dd] ) ) / elements.denominator;
-	}
-}
-
-template< int Degree , BoundaryType BType >
-typename BSplineEvaluationData< Degree , BType >::BSplineComponents BSplineEvaluationData< Degree , BType >::BSplineComponents::derivative( void ) const
-{
-	BSplineComponents b = (*this);
-	for( int d=0 ; d<=Degree ; d++ ) b._polys[d] = b._polys[d].derivative();
-	return b;
-}
-
 //////////////////////////////////////////////////////////
 // BSplineEvaluationData::BSplineUpSamplingCoefficients //
 //////////////////////////////////////////////////////////
-template< int Degree , BoundaryType BType >
-BSplineEvaluationData< Degree , BType >::BSplineUpSamplingCoefficients::BSplineUpSamplingCoefficients( int depth , int offset )
+template< unsigned int FEMSig >
+BSplineEvaluationData< FEMSig >::BSplineUpSamplingCoefficients::BSplineUpSamplingCoefficients( int depth , int offset )
 {
+	static const BoundaryType BType = FEMSignature< FEMSig >::BType;
 	// [ 1/8 1/2 3/4 1/2 1/8]
 	// [ 1 , 1 ] ->  [ 3/4 , 1/2 , 1/8 ] + [ 1/8 , 1/2 , 3/4 ] = [ 7/8 , 1 , 7/8 ]
 	int dim = BSplineSupportSizes< Degree >::Nodes(depth) , _dim = BSplineSupportSizes< Degree >::Nodes(depth+1);
 	bool reflect;
-	offset = BSplineData< Degree , BType >::RemapOffset( depth , offset , reflect );
+	offset = BSplineData< FEMSig >::RemapOffset( depth , offset , reflect );
 	int multiplier = ( BType==BOUNDARY_DIRICHLET && reflect ) ? -1 : 1;
 	bool useReflected = ( BType!=BOUNDARY_FREE ) && ( BSplineSupportSizes< Degree >::Inset || ( offset % ( dim-1 ) ) );
 	int b[ BSplineSupportSizes< Degree >::UpSampleSize ];
@@ -201,7 +218,7 @@ BSplineEvaluationData< Degree , BType >::BSplineUpSamplingCoefficients::BSplineU
 	for( int i=BSplineSupportSizes< Degree >::UpSampleStart ; i<=BSplineSupportSizes< Degree >::UpSampleEnd ; i++ )
 	{
 		int _offset = 2*offset+i;
-		_offset = BSplineData< Degree , BType >::RemapOffset( depth+1 , _offset , reflect );
+		_offset = BSplineData< FEMSig >::RemapOffset( depth+1 , _offset , reflect );
 		if( useReflected || !reflect )
 		{
 			int _multiplier = multiplier * ( ( BType==BOUNDARY_DIRICHLET && reflect ) ? -1 : 1 );
@@ -210,7 +227,7 @@ BSplineEvaluationData< Degree , BType >::BSplineUpSamplingCoefficients::BSplineU
 		// If we are not inset and we are at the boundary, use the reflection as well
 		if( BType!=BOUNDARY_FREE && !BSplineSupportSizes< Degree >::Inset && ( offset % (dim-1) ) && !( _offset % (_dim-1) ) )
 		{
-			_offset = BSplineData< Degree , BType >::RemapOffset( depth+1 , _offset , reflect );
+			_offset = BSplineData< FEMSig >::RemapOffset( depth+1 , _offset , reflect );
 			int _multiplier = multiplier * ( ( BType==BOUNDARY_DIRICHLET && reflect ) ? -1 : 1 );
 			if( BType==BOUNDARY_DIRICHLET ) _multiplier *= -1;
 			coefficients[ _offset ] += b[ i-BSplineSupportSizes< Degree >::UpSampleStart ] * _multiplier;
@@ -221,27 +238,60 @@ BSplineEvaluationData< Degree , BType >::BSplineUpSamplingCoefficients::BSplineU
 ////////////////////////////
 // BSplineIntegrationData //
 ////////////////////////////
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 >
-double BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::Dot( int depth1 ,  int off1 , int depth2 , int off2 )
+double BSplineIntegrationData< FEMSig1 , FEMSig2 >::Dot( int depth1 ,  int off1 , int depth2 , int off2 )
 {
-	if( D1>Degree1 ) fprintf( stderr , "[ERROR] BSplineIntegrationData::Dot: taking more derivatives than the degree: %d > %d\n" , D1 , Degree1 ) , exit( 0 );
-	if( D2>Degree2 ) fprintf( stderr , "[ERROR] BSplineIntegrationData::Dot: taking more derivatives than the degree: %d > %d\n" , D2 , Degree2 ) , exit( 0 );
+	if( D1>Degree1 ) ERROR_OUT( "Taking more derivatives than the degree: " , D1 , " > " , Degree1 );
+	if( D2>Degree2 ) ERROR_OUT( "Taking more derivatives than the degree: " , D2 , " > " , Degree2 );
 	const int _Degree1 = ( Degree1>=D1 ) ? Degree1 - D1 : 0 , _Degree2 = ( Degree2>=D2 ) ? Degree2 - D2 : 0;
 	int sums[ Degree1+1 ][ Degree2+1 ];
 
 	int depth = std::max< int >( depth1 , depth2 );
 
-	BSplineElements< Degree1 > b1( 1<<depth1 , off1 , BType1 );
-	BSplineElements< Degree2 > b2( 1<<depth2 , off2 , BType2 );
-
+	BSplineElements< Degree1 > b1;
+	BSplineElements< Degree2 > b2;
+	if( BSplineSupportSizes< Degree1 >::IsInteriorlySupported( depth1 , off1 ) && BSplineSupportSizes< Degree2 >::IsInteriorlySupported( depth2 , off2 ) )
 	{
-		BSplineElements< Degree1 > b;
-		while( depth1<depth ) b=b1 , b.upSample( b1 ) , depth1++;
+		if( depth1<depth2 )
+		{
+			int begin1 , end1 , res = 1 - BSplineSupportSizes< Degree1 >::SupportStart + BSplineSupportSizes< Degree1 >::SupportEnd;
+			BSplineSupportSizes< Degree1 >::InteriorSupportedSpan( depth1 , begin1 , end1 );
+			b1 = BSplineElements< Degree1 >( res , begin1 , BOUNDARY_FREE );
+			for( int d=depth1 ; d<depth2 ; d++ )
+			{
+				BSplineElements< Degree1 > b=b1;
+				b.upSample( b1 );
+				res <<= 1;
+			}
+			b2 = BSplineElements< Degree2 >( res , off2 - ( (off1-begin1)<<(depth2-depth1) ) , BOUNDARY_FREE );
+		}
+		else
+		{
+			int begin2 , end2 , res = 1 - BSplineSupportSizes< Degree2 >::SupportStart + BSplineSupportSizes< Degree2 >::SupportEnd;
+			BSplineSupportSizes< Degree2 >::InteriorSupportedSpan( depth2 , begin2 , end2 );
+			b2 = BSplineElements< Degree2 >( res , begin2 , BOUNDARY_FREE );
+			for( int d=depth2 ; d<depth1 ; d++ )
+			{
+				BSplineElements< Degree2 > b=b2;
+				b.upSample( b2 );
+				res <<= 1;
+			}
+			b1 = BSplineElements< Degree1 >( res , off1 - ( (off2-begin2)<<(depth1-depth2) ) , BOUNDARY_FREE );
+		}
 	}
+	else
 	{
-		BSplineElements< Degree2 > b;
-		while( depth2<depth ) b=b2 , b.upSample( b2 ) , depth2++;
+		b1 = BSplineElements< Degree1 >( 1<<depth1 , off1 , FEMSignature< FEMSig1 >::BType );
+		b2 = BSplineElements< Degree2 >( 1<<depth2 , off2 , FEMSignature< FEMSig2 >::BType );
+		{
+			BSplineElements< Degree1 > b;
+			while( depth1<depth ) b=b1 , b.upSample( b1 ) , depth1++;
+		}
+		{
+			BSplineElements< Degree2 > b;
+			while( depth2<depth ) b=b2 , b.upSample( b2 ) , depth2++;
+		}
 	}
 
 	BSplineElements< Degree1-D1 > db1;
@@ -279,67 +329,66 @@ double BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::Dot( int d
 		SetBSplineElementIntegrals< _Degree1 , _Degree2 >( integrals );
 		for( int j=0 ; j<=_Degree1 ; j++ ) for( int k=0 ; k<=_Degree2 ; k++ ) _dot += integrals[j][k] * sums[j][k];
 	}
-
 	_dot /= b1.denominator;
 	_dot /= b2.denominator;
 	return ( !D1 && !D2 ) ? _dot / (1<<depth) : _dot * ( 1<<( depth*(D1+D2-1) ) );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 , unsigned int _D1 , unsigned int _D2 , class Integrator >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::IntegratorSetter< D1 , D2 , _D1 , _D2 , Integrator >::Set2D( Integrator& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::IntegratorSetter< D1 , D2 , _D1 , _D2 , Integrator >::Set2D( Integrator& integrator , int depth )
 {
 	IntegratorSetter< D1-1 , D2 , _D1 , _D2 , Integrator >::Set2D( integrator , depth );
 	IntegratorSetter< D1   , D2 , _D1 , _D2 , Integrator >::Set1D( integrator , depth );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 , unsigned int _D1 , unsigned int _D2 , class Integrator >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::IntegratorSetter< D1 , D2 , _D1 , _D2 , Integrator >::Set1D( Integrator& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::IntegratorSetter< D1 , D2 , _D1 , _D2 , Integrator >::Set1D( Integrator& integrator , int depth )
 {
 	IntegratorSetter< D1 , D2-1 , _D1 , _D2 , Integrator >::Set1D( integrator , depth );
 	_IntegratorSetter< D1 , D2 , _D1 , _D2 >::Set( integrator , depth );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D2 , unsigned int _D1 , unsigned int _D2 , class Integrator >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::IntegratorSetter< 0 , D2 , _D1 , _D2 , Integrator >::Set2D( Integrator& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::IntegratorSetter< 0 , D2 , _D1 , _D2 , Integrator >::Set2D( Integrator& integrator , int depth )
 {
 	IntegratorSetter< 0 , D2 , _D1 , _D2 , Integrator >::Set1D( integrator , depth );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D2 , unsigned int _D1 , unsigned int _D2 , class Integrator >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::IntegratorSetter< 0 , D2 , _D1 , _D2 , Integrator >::Set1D( Integrator& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::IntegratorSetter< 0 , D2 , _D1 , _D2 , Integrator >::Set1D( Integrator& integrator , int depth )
 {
 	IntegratorSetter< 0 , D2-1 , _D1 , _D2 , Integrator >::Set1D( integrator , depth );
 	_IntegratorSetter< 0 , D2 , _D1 , _D2 >::Set( integrator , depth );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int _D1 , unsigned int _D2 , class Integrator >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::IntegratorSetter< D1 , 0 , _D1 , _D2 , Integrator >::Set2D( Integrator& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::IntegratorSetter< D1 , 0 , _D1 , _D2 , Integrator >::Set2D( Integrator& integrator , int depth )
 {
 	IntegratorSetter< D1-1 , 0 , _D1 , _D2 , Integrator >::Set2D( integrator , depth );
 	IntegratorSetter< D1   , 0 , _D1 , _D2 , Integrator >::Set1D( integrator , depth );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int _D1 , unsigned int _D2 , class Integrator >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::IntegratorSetter< D1 , 0 , _D1 , _D2 , Integrator >::Set1D( Integrator& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::IntegratorSetter< D1 , 0 , _D1 , _D2 , Integrator >::Set1D( Integrator& integrator , int depth )
 {
 	_IntegratorSetter< D1 , 0 , _D1 , _D2 >::Set( integrator , depth );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int _D1 , unsigned int _D2 , class Integrator >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::IntegratorSetter< 0 , 0 , _D1 , _D2 , Integrator >::Set2D( Integrator& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::IntegratorSetter< 0 , 0 , _D1 , _D2 , Integrator >::Set2D( Integrator& integrator , int depth )
 {
 	IntegratorSetter< 0 , 0 , _D1 , _D2 , Integrator >::Set1D( integrator , depth );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int _D1 , unsigned int _D2 , class Integrator >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::IntegratorSetter< 0 , 0 , _D1 , _D2 , Integrator >::Set1D( Integrator& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::IntegratorSetter< 0 , 0 , _D1 , _D2 , Integrator >::Set1D( Integrator& integrator , int depth )
 {
 	_IntegratorSetter< 0 , 0 , _D1 , _D2 >::Set( integrator , depth );
 }
 
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 , unsigned int _D1 , unsigned int _D2 >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::_IntegratorSetter< D1 , D2 , _D1 , _D2 >::Set( typename FunctionIntegrator::template Integrator< _D1 , _D2 >& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::_IntegratorSetter< D1 , D2 , _D1 , _D2 >::Set( typename FunctionIntegrator::template Integrator< _D1 , _D2 >& integrator , int depth )
 {
 	for( int i=0 ; i<IndexSize ; i++ ) for( int j=BSplineOverlapSizes< Degree1 , Degree2 >::OverlapStart ; j<=BSplineOverlapSizes< Degree1 , Degree2 >::OverlapEnd ; j++ )
 	{
@@ -347,9 +396,9 @@ void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::_IntegratorS
 		integrator._ccIntegrals[D1][D2][i][j-BSplineOverlapSizes< Degree1 , Degree2 >::OverlapStart] = Dot< D1 , D2 >( depth , ii , depth , ii+j );
 	}
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 , unsigned int _D1 , unsigned int _D2 >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::_IntegratorSetter< D1 , D2 , _D1 , _D2 >::Set( typename FunctionIntegrator::template ChildIntegrator< _D1 , _D2 >& integrator , int pDepth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::_IntegratorSetter< D1 , D2 , _D1 , _D2 >::Set( typename FunctionIntegrator::template ChildIntegrator< _D1 , _D2 >& integrator , int pDepth )
 {
 	for( int i=0 ; i<IndexSize ; i++ ) for( int j=BSplineOverlapSizes< Degree1 , Degree2 >::ChildOverlapStart ; j<=BSplineOverlapSizes< Degree1 , Degree2 >::ChildOverlapEnd ; j++ )
 	{
@@ -358,34 +407,34 @@ void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::_IntegratorS
 	}
 }
 
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::SetIntegrator( typename FunctionIntegrator::template Integrator< D1 , D2 >& integrator , int depth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::SetIntegrator( typename FunctionIntegrator::template Integrator< D1 , D2 >& integrator , int depth )
 {
 	integrator._depth = depth;
 	IntegratorSetter< D1 , D2 , D1 , D2 , typename FunctionIntegrator::template Integrator< D1 , D2 > >::Set2D( integrator , depth );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 >
-void BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::SetChildIntegrator( typename FunctionIntegrator::template ChildIntegrator< D1 , D2 >& integrator , int parentDepth )
+void BSplineIntegrationData< FEMSig1 , FEMSig2 >::SetChildIntegrator( typename FunctionIntegrator::template ChildIntegrator< D1 , D2 >& integrator , int parentDepth )
 {
 	integrator._parentDepth = parentDepth;
 	IntegratorSetter< D1 , D2 , D1 , D2 , typename FunctionIntegrator::template ChildIntegrator< D1 , D2 > >::Set2D( integrator , parentDepth );
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 >
-double BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::FunctionIntegrator::Integrator< D1 , D2 >::dot( int off1 , int off2 , int d1 , int d2 ) const
+double BSplineIntegrationData< FEMSig1 , FEMSig2 >::FunctionIntegrator::Integrator< D1 , D2 >::dot( int off1 , int off2 , int d1 , int d2 ) const
 {
 	int d = off2-off1;
-	if( BSplineEvaluationData< Degree1 , BType1 >::OutOfBounds( _depth , off1 ) || BSplineEvaluationData< Degree2 , BType2 >::OutOfBounds( _depth , off2 ) || d<BSplineOverlapSizes< Degree1 , Degree2 >::OverlapStart || d>BSplineOverlapSizes< Degree1 , Degree2 >::OverlapEnd ) return 0;
+	if( BSplineEvaluationData< FEMSig1 >::OutOfBounds( _depth , off1 ) || BSplineEvaluationData< FEMSig2 >::OutOfBounds( _depth , off2 ) || d<BSplineOverlapSizes< Degree1 , Degree2 >::OverlapStart || d>BSplineOverlapSizes< Degree1 , Degree2 >::OverlapEnd ) return 0;
 	return _ccIntegrals[d1][d2][ OffsetToIndex( _depth , off1 ) ][d-BSplineOverlapSizes< Degree1 , Degree2 >::OverlapStart];
 }
-template< int Degree1 , BoundaryType BType1 , int Degree2 , BoundaryType BType2 >
+template< unsigned int FEMSig1 , unsigned int FEMSig2 >
 template< unsigned int D1 , unsigned int D2 >
-double BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::FunctionIntegrator::ChildIntegrator< D1 , D2 >::dot( int off1 , int off2 , int d1 , int d2 ) const
+double BSplineIntegrationData< FEMSig1 , FEMSig2 >::FunctionIntegrator::ChildIntegrator< D1 , D2 >::dot( int off1 , int off2 , int d1 , int d2 ) const
 {
 	int d = off2-2*off1;
-	if( BSplineEvaluationData< Degree1 , BType1 >::OutOfBounds( _parentDepth , off1 ) || BSplineEvaluationData< Degree2 , BType2 >::OutOfBounds( _parentDepth+1 , off2 ) || d<BSplineOverlapSizes< Degree1 , Degree2 >::ChildOverlapStart || d>BSplineOverlapSizes< Degree1 , Degree2 >::ChildOverlapEnd ) return 0;
+	if( BSplineEvaluationData< FEMSig1 >::OutOfBounds( _parentDepth , off1 ) || BSplineEvaluationData< FEMSig2 >::OutOfBounds( _parentDepth+1 , off2 ) || d<BSplineOverlapSizes< Degree1 , Degree2 >::ChildOverlapStart || d>BSplineOverlapSizes< Degree1 , Degree2 >::ChildOverlapEnd ) return 0;
 	return _pcIntegrals[d1][d2][ OffsetToIndex( _parentDepth , off1 ) ][d-BSplineOverlapSizes< Degree1 , Degree2 >::ChildOverlapStart];
 }
 
@@ -393,12 +442,40 @@ double BSplineIntegrationData< Degree1 , BType1 , Degree2 , BType2 >::FunctionIn
 // BSplineData //
 /////////////////
 #define MODULO( A , B ) ( (A)<0 ? ( (B)-((-(A))%(B)) ) % (B) : (A) % (B) )
-template< int Degree , BoundaryType BType >
-int BSplineData< Degree , BType >::RemapOffset( int depth , int offset , bool& reflect )
+
+template< unsigned int FEMSig , unsigned int D >
+BSplineData< FEMSig , D >::BSplineComponents::BSplineComponents( int depth , int offset )
+{
+	static const int _Degree = Degree;
+	int res = 1<<depth;
+	BSplineElements< Degree > elements( res , offset , FEMSignature< FEMSig >::BType );
+
+	// The first index is the position, the second is the element type
+	Polynomial< Degree > components[Degree+1][Degree+1];
+	// Generate the elements that can appear in the base function corresponding to the base function at (depth,offset) = (0,0)
+	for( int d=0 ; d<=Degree ; d++ ) for( int dd=0 ; dd<=Degree ; dd++ ) components[d][dd] = Polynomial< Degree >::BSplineComponent( _Degree-dd ).shift( -( (_Degree+1)/2 ) + d );
+
+	// Now adjust to the desired depth and offset
+	double width = 1. / res;
+	for( int d=0 ; d<=Degree ; d++ ) for( int dd=0 ; dd<=Degree ; dd++ ) components[d][dd] = components[d][dd].scale( width ).shift( width*offset );
+
+	// Now write in the polynomials
+	for( int d=0 ; d<=Degree ; d++ )
+	{
+		int idx = offset + BSplineSupportSizes< Degree >::SupportStart + d;
+		_polys[d][0] = Polynomial< Degree >();
+
+		if( idx>=0 && idx<res ) for( int dd=0 ; dd<=Degree ; dd++ ) _polys[d][0] += components[d][dd] * ( ( double )( elements[idx][dd] ) ) / elements.denominator;
+	}
+	for( int d=1 ; d<=D ; d++ ) for( int dd=0 ; dd<=Degree ; dd++ ) _polys[dd][d] = _polys[dd][d-1].derivative();
+}
+
+template< unsigned int FEMSig , unsigned int D >
+int BSplineData< FEMSig , D >::RemapOffset( int depth , int offset , bool& reflect )
 {
 	const int I = ( Degree&1 ) ? 0 : 1;
-	if( BType==BOUNDARY_FREE ){ reflect = false ; return offset; }
-	int dim = BSplineEvaluationData< Degree , BOUNDARY_NEUMANN >::End( depth ) - BSplineEvaluationData< Degree , BOUNDARY_NEUMANN >::Begin( depth );
+	if( FEMSignature< FEMSig >::BType==BOUNDARY_FREE ){ reflect = false ; return offset; }
+	int dim = BSplineEvaluationData< FEMDegreeAndBType< Degree , BOUNDARY_NEUMANN >::Signature >::End( depth ) - BSplineEvaluationData< FEMDegreeAndBType< Degree , BOUNDARY_NEUMANN >::Signature >::Begin( depth );
 	offset = MODULO( offset , 2*(dim-1+I) );
 	reflect = offset>=dim;
 	if( reflect ) return 2*(dim-1+I) - (offset+I);
@@ -406,32 +483,37 @@ int BSplineData< Degree , BType >::RemapOffset( int depth , int offset , bool& r
 }
 #undef MODULO
 
-template< int Degree , BoundaryType BType >
-BSplineData< Degree , BType >::BSplineData( int maxDepth )
+template< unsigned int FEMSig , unsigned int D >
+BSplineData< FEMSig , D >::BSplineData( void )
 {
-	functionCount = TotalFunctionCount( maxDepth );
-	baseBSplines = NewPointer< typename BSplineEvaluationData< Degree , BType >::BSplineComponents >( functionCount );
-	dBaseBSplines = NewPointer< typename BSplineEvaluationData< Degree , BType >::BSplineComponents >( functionCount );
-
-	for( size_t i=0 ; i<functionCount ; i++ )
-	{
-		int d , off;
-		FactorFunctionIndex( (int)i , d , off );
-		baseBSplines[i] = typename BSplineEvaluationData< Degree , BType >::BSplineComponents( d , off );
-		dBaseBSplines[i] = baseBSplines[i].derivative();
-	}
+	_maxDepth = 0;
+	_evaluators = NullPointer( SparseBSplineEvaluator );
 }
-template< int Degree , BoundaryType BType >
-BSplineData< Degree , BType >::~BSplineData( void )
+template< unsigned int FEMSig , unsigned int D >
+void BSplineData< FEMSig , D >::reset( int maxDepth )
 {
-	FreePointer(  baseBSplines );
-	FreePointer( dBaseBSplines );
+	if( _evaluators ) DeletePointer( _evaluators );
+
+	_maxDepth = maxDepth;
+	_evaluators = NewPointer< SparseBSplineEvaluator >( _maxDepth+1 );
+	for( unsigned int d=0 ; d<=_maxDepth ; d++ ) _evaluators[d].init( d );
+}
+template< unsigned int FEMSig , unsigned int D >
+BSplineData< FEMSig , D >::BSplineData( int maxDepth )
+{
+	_evaluators = NullPointer( SparseBSplineEvaluator );
+	reset( maxDepth );
+}
+template< unsigned int FEMSig , unsigned int D >
+BSplineData< FEMSig , D >::~BSplineData( void )
+{
+	DeletePointer( _evaluators );
 }
 
 /////////////////////
 // BSplineElements //
 /////////////////////
-template< int Degree >
+template< unsigned int Degree >
 BSplineElements< Degree >::BSplineElements( int res , int offset , BoundaryType bType )
 {
 	denominator = 1;
@@ -458,12 +540,12 @@ BSplineElements< Degree >::BSplineElements( int res , int offset , BoundaryType 
 		_addPeriodic< true >( _ReflectLeft( offset , res ) , bType==BOUNDARY_DIRICHLET ) , _addPeriodic< false >( _ReflectRight( offset , res ) , bType==BOUNDARY_DIRICHLET );
 	}
 }
-template< int Degree > int BSplineElements< Degree >::_ReflectLeft ( int offset , int res ){ return (Degree&1) ?      -offset :      -1-offset; }
-template< int Degree > int BSplineElements< Degree >::_ReflectRight( int offset , int res ){ return (Degree&1) ? 2*res-offset : 2*res-1-offset; }
-template< int Degree > int BSplineElements< Degree >::_RotateLeft  ( int offset , int res ){ return offset-2*res; }
-template< int Degree > int BSplineElements< Degree >::_RotateRight ( int offset , int res ){ return offset+2*res; }
+template< unsigned int Degree > int BSplineElements< Degree >::_ReflectLeft ( int offset , int res ){ return (Degree&1) ?      -offset :      -1-offset; }
+template< unsigned int Degree > int BSplineElements< Degree >::_ReflectRight( int offset , int res ){ return (Degree&1) ? 2*res-offset : 2*res-1-offset; }
+template< unsigned int Degree > int BSplineElements< Degree >::_RotateLeft  ( int offset , int res ){ return offset-2*res; }
+template< unsigned int Degree > int BSplineElements< Degree >::_RotateRight ( int offset , int res ){ return offset+2*res; }
 
-template< int Degree >
+template< unsigned int Degree >
 template< bool Left >
 void BSplineElements< Degree >::_addPeriodic( int offset , bool negate )
 {
@@ -478,7 +560,7 @@ void BSplineElements< Degree >::_addPeriodic( int offset , bool negate )
 	// If there is a change for additional overlap, give it a go
 	if( set ) _addPeriodic< Left >( Left ? _RotateLeft( offset , res ) : _RotateRight( offset , res ) , negate );
 }
-template< int Degree >
+template< unsigned int Degree >
 void BSplineElements< Degree >::upSample( BSplineElements< Degree >& high ) const
 {
 	int bCoefficients[ BSplineSupportSizes< Degree >::UpSampleSize ];
@@ -507,11 +589,10 @@ void BSplineElements< Degree >::upSample( BSplineElements< Degree >& high ) cons
 	high.denominator = denominator<<Degree;
 }
 
-template< int Degree >
+template< unsigned int Degree >
 template< unsigned int D >
 void BSplineElements< Degree >::differentiate( BSplineElements< Degree-D >& d ) const{ Differentiator< Degree , Degree-D >::Differentiate( *this , d ); }
-
-template< int Degree , int DDegree >
+template< unsigned int Degree , unsigned int DDegree >
 void Differentiator< Degree , DDegree >::Differentiate( const BSplineElements< Degree >& bse , BSplineElements< DDegree >& dbse )
 {
 	BSplineElements< Degree-1 > _dbse;
@@ -525,13 +606,12 @@ void Differentiator< Degree , DDegree >::Differentiate( const BSplineElements< D
 	_dbse.denominator = bse.denominator;
 	return Differentiator< Degree-1 , DDegree >::Differentiate( _dbse , dbse );
 }
-
-template< int Degree >
+template< unsigned int Degree >
 void Differentiator< Degree , Degree >::Differentiate( const BSplineElements< Degree >& bse , BSplineElements< Degree >& dbse ){ dbse = bse; }
 
 // If we were really good, we would implement this integral table to store
 // rational values to improve precision...
-template< int Degree1 , int Degree2 >
+template< unsigned int Degree1 , unsigned int Degree2 >
 void SetBSplineElementIntegrals( double integrals[Degree1+1][Degree2+1] )
 {
 	for( int i=0 ; i<=Degree1 ; i++ )
