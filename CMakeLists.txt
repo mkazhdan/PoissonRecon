@@ -9,16 +9,16 @@ if( UNIX OR MINGW )
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -w")
 endif()
 
-set( SAMPLE_PROJECT_VERSION_MAJOR 9 )
-set( SAMPLE_PROJECT_VERSION_MINOR 1 )
+set( SAMPLE_PROJECT_VERSION_MAJOR 12 )
+set( SAMPLE_PROJECT_VERSION_MINOR 0 )
 
 file( GLOB header_list Src_CC_wrap/*.h )
-list( APPEND header_list Src/Allocator.h Src/Array.h Src/BinaryNode.h Src/BSplineData.h Src/CmdLineParser.h Src/Factor.h Src/FunctionData.h Src/Geometry.h Src/MarchingCubes.h Src/MAT.h Src/MemoryUsage.h Src/MultiGridOctreeData.h Src/MyTime.h Src/Octree.h Src/Ply.h Src/PointStream.h Src/Polynomial.h Src/PPolynomial.h Src/SparseMatrix.h )
-list( APPEND inline_list Src/Array.inl Src/BSplineData.inl Src/CmdLineParser.inl Src/FunctionData.inl Src/Geometry.inl Src/MAT.inl Src/MultiGridOctreeData.inl Src/MultiGridOctreeData.IsoSurface.inl Src/MultiGridOctreeData.SortedTreeNodes.inl Src/Octree.inl Src/PointStream.inl Src/Polynomial.inl Src/PPolynomial.inl Src/SparseMatrix.inl )
+#list( APPEND header_list Src/Allocator.h Src/Array.h Src/BinaryNode.h Src/BSplineData.h Src/CmdLineParser.h Src/Factor.h Src/FunctionData.h Src/Geometry.h Src/MarchingCubes.h Src/MAT.h Src/MemoryUsage.h Src/MultiGridOctreeData.h Src/MyTime.h Src/Octree.h Src/Ply.h Src/PointStream.h Src/Polynomial.h Src/PPolynomial.h Src/SparseMatrix.h )
+#list( APPEND inline_list Src/Array.inl Src/BSplineData.inl Src/CmdLineParser.inl Src/FunctionData.inl Src/Geometry.inl Src/MAT.inl Src/MultiGridOctreeData.inl Src/MultiGridOctreeData.IsoSurface.inl Src/MultiGridOctreeData.SortedTreeNodes.inl Src/Octree.inl Src/PointStream.inl Src/Polynomial.inl Src/PPolynomial.inl Src/SparseMatrix.inl )
 file( GLOB source_list Src_CC_wrap/*.cpp )
-list( APPEND source_list Src/CmdLineParser.cpp Src/Factor.cpp Src/Geometry.cpp Src/MarchingCubes.cpp Src/PlyFile.cpp )
 
-add_library( ${PROJECT_NAME} STATIC ${header_list} ${inline_list} ${source_list} )
+#add_library( ${PROJECT_NAME} STATIC ${header_list} ${inline_list} ${source_list} )
+add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} )
 
 # Add preprocessor definitions
 set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _CRT_SECURE_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS NOMINMAX )

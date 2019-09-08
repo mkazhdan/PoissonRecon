@@ -18,9 +18,14 @@
 #ifndef CC_POISSON_RECON_LIB_WRAPPER
 #define CC_POISSON_RECON_LIB_WRAPPER
 
-#include "../Src/Ply.h"
-#include "../Src/Geometry.h"
 #include "../Src/PointStream.h"
+
+//#define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
+//#define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
+//#define NORMAL_DEGREE 2							// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
+#define DEFAULT_FEM_DEGREE 1					// The default finite-element degree
+#define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
+#define DIMENSION 3								// The dimension of the system
 
 //! Wrapper to use PoissonRecon (Kazhdan et. al) as a library
 class PoissonReconLib
@@ -100,15 +105,35 @@ public:
 		int adaptiveExp;
 	};
 
-	//! Main entry point (shortcut to Execute)
-	static bool Reconstruct(Parameters params, OrientedPointStream< float >* pointStream, CoredVectorMeshData< PlyValueVertex< float > >& mesh, XForm4x4< float >& iXForm);
-	//! Main entry point (shortcut to Execute) for colored clouds
-	static bool Reconstruct(Parameters params, OrientedPointStreamWithData< float, Point3D< float > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< float > >& mesh, XForm4x4< float >& iXForm);
+	static const int Degree = DEFAULT_FEM_DEGREE;
+	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
+	typedef IsotropicUIntPack< DIMENSION, FEMDegreeAndBType< Degree, BType >::Signature > FEMSigs;
+	static const int Dim = sizeof(FEMSigs);
 
-	//! Main entry point (shortcut to Execute)
-	static bool Reconstruct(Parameters params, OrientedPointStream< double >* pointStream, CoredVectorMeshData< PlyValueVertex< double > >& mesh, XForm4x4< double >& iXForm);
-	//! Main entry point (shortcut to Execute) for colored clouds
-	static bool Reconstruct(Parameters params, OrientedPointStreamWithData< double, Point3D< double > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< double > >& mesh, XForm4x4< double >& iXForm);
+	typedef Point< float, Dim > Pointf;
+	typedef Point< double, Dim > Pointd;
+
+	typedef PointStreamNormal< float, Dim > NormalPointSampleDataf;
+	typedef PointStreamColor< float > SampleDataf;
+	typedef MultiPointStreamData< float, SampleDataf > AdditionalPointSampleDataf;
+	typedef MultiPointStreamData< float, NormalPointSampleDataf, AdditionalPointSampleDataf > TotalPointSampleDataf;
+
+	static bool Reconstruct(Parameters params, const std::vector< std::pair< Pointf, TotalPointSampleDataf > >& inCorePoints, const TotalPointSampleDataf::Transform& xForm);
+
+	//typedef PointStreamColor< double > SampleDatad;
+	//BinaryInputPointStreamWithData
+
+	//typedef PointStreamNormal< float, 3 > NormalPointSampleData;
+
+	////! Main entry point (shortcut to Execute)
+	//static bool Reconstruct(Parameters params, OrientedPointStream< float >* pointStream, CoredVectorMeshData< PlyValueVertex< float > >& mesh, XForm4x4< float >& iXForm);
+	////! Main entry point (shortcut to Execute) for colored clouds
+	//static bool Reconstruct(Parameters params, OrientedPointStreamWithData< float, Point3D< float > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< float > >& mesh, XForm4x4< float >& iXForm);
+
+	////! Main entry point (shortcut to Execute)
+	//static bool Reconstruct(Parameters params, OrientedPointStream< double >* pointStream, CoredVectorMeshData< PlyValueVertex< double > >& mesh, XForm4x4< double >& iXForm);
+	////! Main entry point (shortcut to Execute) for colored clouds
+	//static bool Reconstruct(Parameters params, OrientedPointStreamWithData< double, Point3D< double > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< double > >& mesh, XForm4x4< double >& iXForm);
 
 };
 

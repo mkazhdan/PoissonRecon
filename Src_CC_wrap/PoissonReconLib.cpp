@@ -27,16 +27,26 @@
 #endif
 #include <assert.h>
 
+#undef USE_DOUBLE								// If enabled, double-precesion is used
+
+//#define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
+//#define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
+//#define NORMAL_DEGREE 2							// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
+//#define DEFAULT_FEM_DEGREE 1					// The default finite-element degree
+//#define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
+//#define DIMENSION 3								// The dimension of the system
+
 //PoissonRecon
-#include "../Src/MemoryUsage.h"
-#include "../Src/MyTime.h"
+#include "../Src/MyMiscellany.h"
+#include "../Src/PPolynomial.h"
+#include "../Src/FEMTree.h"
 #include "../Src/Ply.h"
 #include "../Src/Array.h"
-#include "../Src/Octree.h"
-#include "../Src/SparseMatrix.h"
+#include "../Src/PointStreamData.h"
+#include "../Src/Image.h"
 
-#define DumpOutput(...) ((void)0)
-#include "../Src/MultiGridOctreeData.h" //only after DumpOutput has been defined!
+//#define DumpOutput(...) ((void)0)
+//#include "../Src/MultiGridOctreeData.h" //only after DumpOutput has been defined!
 
 #define BSPLINE_DEGREE 2
 
@@ -64,6 +74,9 @@ PoissonReconLib::Parameters::Parameters()
 	threads = omp_get_num_procs();
 #endif
 }
+
+static bool Reconstruct(Parameters params, const std::vector< std::pair< Pointf, TotalPointSampleDataf > >& inCorePoints, const TotalPointSampleDataf::Transform& xForm);
+
 
 template< class Real >
 XForm4x4< Real > GetPointXForm(OrientedPointStream< Real >& stream, Real scaleFactor)
