@@ -131,7 +131,7 @@ public:
 	{
 		Point< Real , Dim > _p = p;
 		_xForm( _p );
-		_stream.nextPoint( _p );
+		return _stream.nextPoint( _p );
 	}
 };
 

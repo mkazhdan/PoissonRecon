@@ -298,7 +298,7 @@ void Execute( void )
 		for( unsigned int d=0 ; d<3 ; d++ ) min[d] -= width/10000.f , max[d] += width/10000.f;
 		int begin[] = { (int)floor( min[0]/width ) , (int)floor( min[1]/width ) , (int)floor( min[2]/width ) };
 		int end  [] = { (int)ceil ( max[0]/width ) , (int)ceil ( max[1]/width ) , (int)ceil ( max[2]/width ) };
-		int size [] = { end[0]-begin[0] , end[1]-begin[1] , end[2]-begin[2] };
+		int size [] = { end[0]-begin[0]+1 , end[1]-begin[1]+1 , end[2]-begin[2]+1 };
 		struct Range{ int begin[3] , end[3]; };
 		auto SetRange = [&]( Point< float , 3 > p , Range &range )
 		{
