@@ -17,38 +17,21 @@
 
 #include "PoissonReconLib.h"
 
-#ifdef _WIN32
-#include <Windows.h>
-#include <Psapi.h>
-#endif // _WIN32
+//PoissonRecon
+#include "../Src/FEMTree.h"
 
-#ifdef WITH_OPENMP
-#include <omp.h>
-#endif
 #include <assert.h>
 
-#undef USE_DOUBLE								// If enabled, double-precesion is used
-
-//#define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
-//#define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
-//#define NORMAL_DEGREE 2							// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
-//#define DEFAULT_FEM_DEGREE 1					// The default finite-element degree
-//#define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
-//#define DIMENSION 3								// The dimension of the system
-
-//PoissonRecon
-#include "../Src/MyMiscellany.h"
-#include "../Src/PPolynomial.h"
-#include "../Src/FEMTree.h"
-#include "../Src/Ply.h"
-#include "../Src/Array.h"
-#include "../Src/PointStreamData.h"
-#include "../Src/Image.h"
-
-//#define DumpOutput(...) ((void)0)
-//#include "../Src/MultiGridOctreeData.h" //only after DumpOutput has been defined!
-
-#define BSPLINE_DEGREE 2
+// The order of the B-Spline used to splat in data for color interpolation
+static const int DATA_DEGREE = 0;
+// The order of the B-Spline used to splat in the weights for density estimation
+static const int WEIGHT_DEGREE = 2;
+// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
+static const int NORMAL_DEGREE = 2;
+// The default finite-element degree
+static const int DEFAULT_FEM_DEGREE = 1;
+// The dimension of the system
+static const int DIMENSION = 3;
 
 PoissonReconLib::Parameters::Parameters()
 	: depth(8) //8
@@ -75,320 +58,764 @@ PoissonReconLib::Parameters::Parameters()
 #endif
 }
 
-static bool Reconstruct(Parameters params, const std::vector< std::pair< Pointf, TotalPointSampleDataf > >& inCorePoints, const TotalPointSampleDataf::Transform& xForm);
-
-
-template< class Real >
-XForm4x4< Real > GetPointXForm(OrientedPointStream< Real >& stream, Real scaleFactor)
-{
-	Point3D< Real > min, max;
-	stream.boundingBox(min, max);
-
-	Real scale = std::max< Real >(max[0] - min[0], std::max< Real >(max[1] - min[1], max[2] - min[2]));
-	scale *= scaleFactor;
-
-	XForm4x4< Real > tXForm = XForm4x4< Real >::Identity();
-	XForm4x4< Real > sXForm = XForm4x4< Real >::Identity();
-	Point3D< Real > center = (max + min) / 2;
-	for (int i = 0; i < 3; i++)
+template <typename Real>
+class PointData {
+public:
+	PointData() : normal{ 0, 0, 0 }, color{ 0, 0, 0 } {}
+	PointData(const Real _normal[3], const Real _color[3], Real scale = 1.0)
 	{
-		sXForm(i, i) = static_cast<Real>(1.0 / scale);
-		tXForm(3, i) = -center[i] + scale / 2;
+		normal[0] = scale * _normal[0];
+		normal[1] = scale * _normal[1];
+		normal[2] = scale * _normal[2];
+		color[0] = scale * _color[0];
+		color[1] = scale * _color[1];
+		color[2] = scale * _color[2];
+	}
+
+	PointData operator * (Real s) const
+	{
+		return PointData(normal, color, s);
+	}
+
+	PointData operator / (Real s) const
+	{
+		return PointData(normal, color, 1 / s);
+	}
+
+	PointData& operator += (const PointData& d)
+	{
+		normal[0] += d.normal[0];
+		normal[1] += d.normal[1];
+		normal[2] += d.normal[2];
+		color[0] += d.color[0];
+		color[1] += d.color[1];
+		color[2] += d.color[2];
+		return *this;
+	}
+	PointData& operator *= (Real s)
+	{
+		normal[0] *= s;
+		normal[1] *= s;
+		normal[2] *= s;
+		color[0] *= s;
+		color[1] *= s;
+		color[2] *= s;
+		return *this;
+	}
+
+public:
+	Real normal[3];
+	Real color[3];
+};
+
+template <typename _Real>
+class Vertex : public PointData<_Real>
+{
+public:
+
+	typedef _Real Real;
+
+	Vertex(const Point<Real, 3>& point)
+		: PointData<Real>()
+		, point(point)
+		, w(0)
+	{}
+
+	Vertex(const Point<Real, 3>& point, const PointData<Real>& data, double _w = 0.0)
+		: PointData<Real>(data.normal, data.color)
+		, point(point)
+		, w(_w)
+	{}
+
+	Vertex() : Vertex(Point<Real, 3>(0, 0, 0))
+	{}
+
+	Vertex& operator *= (Real s)
+	{
+		PointData<Real>::operator *= (s);
+		point *= s;
+		w *= s;
+
+		return *this;
+	}
+
+	Vertex& operator /= (Real s)
+	{
+		PointData<Real>::operator *= (1 / s);
+		point /= s;
+		w /= s;
+		return *this;
+	}
+
+	Vertex& operator+=(const Vertex& p)
+	{
+		PointData<Real>::operator += (p);
+		point += p.point;
+		w += p.w;
+
+		return *this;
+	}
+
+public:
+	Point<Real, 3> point;
+	double w;
+};
+
+template <typename Real>
+class PointStream : public InputPointStreamWithData<Real, DIMENSION, PointData<Real> >
+{
+public:
+	PointStream(const PoissonReconLib::ICloud<Real>& _cloud)
+		: cloud(_cloud), xform(nullptr), currentIndex(0)
+	{}
+
+	void reset(void) override
+	{
+		currentIndex = 0;
+	}
+
+	bool nextPoint(Point<Real, 3>& p, PointData<Real>& d) override
+	{
+		if (currentIndex >= cloud.size())
+		{
+			return false;
+		}
+		cloud.getPoint(currentIndex, p.coords);
+
+		if (xform != nullptr)
+		{
+			p = (*xform) * p;
+		}
+
+		if (cloud.hasNormals())
+		{
+			cloud.getNormal(currentIndex, d.normal);
+		}
+		else
+		{
+			d.normal[0] = d.normal[1] = d.normal[2];
+		}
+
+		if (cloud.hasColors())
+		{
+			cloud.getColor(currentIndex, d.color);
+		}
+		else
+		{
+			d.color[0] = d.color[1] = d.color[2];
+		}
+
+		currentIndex++;
+		return true;
+	}
+
+public:
+	const PoissonReconLib::ICloud<Real>& cloud;
+	XForm<Real, 4>* xform;
+	size_t currentIndex;
+};
+
+template <unsigned int Dim, class Real>
+struct FEMTreeProfiler {
+	FEMTree<Dim, Real>& tree;
+	double t;
+
+	FEMTreeProfiler(FEMTree<Dim, Real>& t) : tree(t) {}
+	void start(void) {
+		t = Time(), FEMTree<Dim, Real>::ResetLocalMemoryUsage();
+	}
+	void dumpOutput(const char* header) const {
+		FEMTree<Dim, Real>::MemoryUsage();
+		//if (header) {
+		//	utility::LogDebug("{} {} (s), {} (MB) / {} (MB) / {} (MB)", header,
+		//		Time() - t,
+		//		FEMTree<Dim, Real>::LocalMemoryUsage(),
+		//		FEMTree<Dim, Real>::MaxMemoryUsage(),
+		//		MemoryInfo::PeakMemoryUsageMB());
+		//}
+		//else {
+		//	utility::LogDebug("{} (s), {} (MB) / {} (MB) / {} (MB)", Time() - t,
+		//		FEMTree<Dim, Real>::LocalMemoryUsage(),
+		//		FEMTree<Dim, Real>::MaxMemoryUsage(),
+		//		MemoryInfo::PeakMemoryUsageMB());
+		//}
+	}
+};
+
+template <class Real, unsigned int Dim>
+XForm<Real, Dim + 1> GetBoundingBoxXForm(Point<Real, Dim> min,
+	Point<Real, Dim> max,
+	Real scaleFactor) {
+	Point<Real, Dim> center = (max + min) / 2;
+	Real scale = max[0] - min[0];
+	for (unsigned int d = 1; d < Dim; d++) {
+		scale = std::max<Real>(scale, max[d] - min[d]);
+	}
+	scale *= scaleFactor;
+	for (unsigned int i = 0; i < Dim; i++) {
+		center[i] -= scale / 2;
+	}
+	XForm<Real, Dim + 1> tXForm = XForm<Real, Dim + 1>::Identity(),
+		sXForm = XForm<Real, Dim + 1>::Identity();
+	for (unsigned int i = 0; i < Dim; i++) {
+		sXForm(i, i) = (Real)(1. / scale), tXForm(Dim, i) = -center[i];
 	}
 	return sXForm * tXForm;
 }
 
-template< class Real, int Degree, BoundaryType BType, class Vertex >
-bool Execute(	PoissonReconLib::Parameters params,
-				OrientedPointStream< Real >* pointStream,
-				bool withColors,
-				CoredVectorMeshData< Vertex >& mesh,
-				XForm4x4< Real >& iXForm)
+template <class Real, unsigned int Dim>
+XForm<Real, Dim + 1> GetBoundingBoxXForm(Point<Real, Dim> min,
+	Point<Real, Dim> max,
+	Real width,
+	Real scaleFactor,
+	int& depth) {
+	// Get the target resolution (along the largest dimension)
+	Real resolution = (max[0] - min[0]) / width;
+	for (unsigned int d = 1; d < Dim; d++) {
+		resolution = std::max<Real>(resolution, (max[d] - min[d]) / width);
+	}
+	resolution *= scaleFactor;
+	depth = 0;
+	while ((1 << depth) < resolution) {
+		depth++;
+	}
+
+	Point<Real, Dim> center = (max + min) / 2;
+	Real scale = (1 << depth) * width;
+
+	for (unsigned int i = 0; i < Dim; i++) {
+		center[i] -= scale / 2;
+	}
+	XForm<Real, Dim + 1> tXForm = XForm<Real, Dim + 1>::Identity(),
+		sXForm = XForm<Real, Dim + 1>::Identity();
+	for (unsigned int i = 0; i < Dim; i++) {
+		sXForm(i, i) = (Real)(1. / scale), tXForm(Dim, i) = -center[i];
+	}
+	return sXForm * tXForm;
+}
+
+template <class Real, unsigned int Dim>
+XForm<Real, Dim + 1> GetPointXForm(InputPointStream<Real, Dim>& stream,
+	Real width,
+	Real scaleFactor,
+	int& depth) {
+	Point<Real, Dim> min, max;
+	stream.boundingBox(min, max);
+	return GetBoundingBoxXForm(min, max, width, scaleFactor, depth);
+}
+
+template <class Real, unsigned int Dim>
+XForm<Real, Dim + 1> GetPointXForm(InputPointStream<Real, Dim>& stream,
+	Real scaleFactor) {
+	Point<Real, Dim> min, max;
+	stream.boundingBox(min, max);
+	return GetBoundingBoxXForm(min, max, scaleFactor);
+}
+
+template <unsigned int Dim, typename Real>
+struct ConstraintDual {
+	Real target, weight;
+	ConstraintDual(Real t, Real w) : target(t), weight(w) {}
+	CumulativeDerivativeValues<Real, Dim, 0> operator()(
+		const Point<Real, Dim>& p) const {
+		return CumulativeDerivativeValues<Real, Dim, 0>(target * weight);
+	};
+};
+
+template <unsigned int Dim, typename Real>
+struct SystemDual {
+	Real weight;
+	SystemDual(Real w) : weight(w) {}
+	CumulativeDerivativeValues<Real, Dim, 0> operator()(
+		const Point<Real, Dim>& p,
+		const CumulativeDerivativeValues<Real, Dim, 0>& dValues) const {
+		return dValues * weight;
+	};
+	CumulativeDerivativeValues<double, Dim, 0> operator()(
+		const Point<Real, Dim>& p,
+		const CumulativeDerivativeValues<double, Dim, 0>& dValues) const {
+		return dValues * weight;
+	};
+};
+
+template <unsigned int Dim>
+struct SystemDual<Dim, double> {
+	typedef double Real;
+	Real weight;
+	SystemDual(Real w) : weight(w) {}
+	CumulativeDerivativeValues<Real, Dim, 0> operator()(
+		const Point<Real, Dim>& p,
+		const CumulativeDerivativeValues<Real, Dim, 0>& dValues) const {
+		return dValues * weight;
+	};
+};
+
+template <typename Vertex,
+	typename Real,
+	typename SetVertexFunction,
+	unsigned int... FEMSigs,
+	typename... SampleData>
+	void ExtractMesh(
+		float datax,
+		bool linear_fit,
+		UIntPack<FEMSigs...>,
+		std::tuple<SampleData...>,
+		FEMTree<sizeof...(FEMSigs), Real>& tree,
+		const DenseNodeData<Real, UIntPack<FEMSigs...>>& solution,
+		Real isoValue,
+		const std::vector<typename FEMTree<sizeof...(FEMSigs),
+		Real>::PointSample>* samples,
+		std::vector< PointData<Real> >* sampleData,
+		const typename FEMTree<sizeof...(FEMSigs),
+		Real>::template DensityEstimator<WEIGHT_DEGREE>*
+		density,
+		const SetVertexFunction& SetVertex,
+		XForm<Real, sizeof...(FEMSigs) + 1> iXForm,
+		PoissonReconLib::IMesh<Real>& out_mesh)
 {
-	typedef typename Octree< Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator; 
-	typedef typename Octree< Real >::template InterpolationInfo< false > InterpolationInfo;
-	typedef OrientedPointStreamWithData< Real, Point3D< Real > > PointStreamWithData;
-	typedef TransformedOrientedPointStream< Real > XPointStream;
-	typedef TransformedOrientedPointStreamWithData< Real, Point3D< Real > > XPointStreamWithData;
-	Reset< Real >();
+	static const int Dim = sizeof...(FEMSigs);
+	typedef UIntPack<FEMSigs...> Sigs;
+	static const unsigned int DataSig =
+		FEMDegreeAndBType<DATA_DEGREE, BOUNDARY_FREE>::Signature;
+	typedef typename FEMTree<Dim,
+		Real>::template DensityEstimator<WEIGHT_DEGREE>
+		DensityEstimator;
 
-	//DGM: do this begore initializing the octree!!
-	OctNode< TreeNodeData >::SetAllocator(MEMORY_ALLOCATOR_BLOCK_SIZE);
+	FEMTreeProfiler<Dim, Real> profiler(tree);
 
-	Octree< Real > tree;
-	tree.threads = params.threads;
+	CoredMeshData<Vertex, node_index_type>* mesh;
+	mesh = new CoredVectorMeshData<Vertex, node_index_type>();
 
-	if (params.maxSolveDepth == 0)
-		params.maxSolveDepth = params.depth;
+	bool non_manifold = true;
+	bool polygon_mesh = false;
 
-	if (params.maxSolveDepth < 2)
-		return false;
-	int kernelDepth = params.kernelDepth != 0 ?  params.kernelDepth : params.maxSolveDepth-2;
-	if( kernelDepth > params.depth )
-		return false;
-	params.fullDepth = std::min(params.fullDepth, params.depth);
-
-	try
-	{
-		XForm4x4< Real > xForm = XForm4x4< Real >::Identity();
-		{
-			xForm = GetPointXForm(*pointStream, static_cast<Real>(params.scale));
+	profiler.start();
+	typename IsoSurfaceExtractor<Dim, Real, Vertex>::IsoStats isoStats;
+	if (sampleData) {
+		SparseNodeData<ProjectiveData<PointData<Real>, Real>,
+			IsotropicUIntPack<Dim, DataSig>>
+			_sampleData =
+			tree.template setMultiDepthDataField<DataSig, false>(
+				*samples, *sampleData, (DensityEstimator*)NULL);
+		for (const RegularTreeNode<Dim, FEMTreeNodeData, depth_and_offset_type>*
+			n = tree.tree().nextNode();
+			n; n = tree.tree().nextNode(n)) {
+			ProjectiveData<PointData<Real>, Real>* clr = _sampleData(n);
+			if (clr) (*clr) *= (Real)pow(datax, tree.depth(n));
 		}
-		iXForm = xForm.inverse();
+		isoStats = IsoSurfaceExtractor<Dim, Real, Vertex>::template Extract<
+			PointData<Real> >(Sigs(), UIntPack<WEIGHT_DEGREE>(),
+				UIntPack<DataSig>(), tree, density, &_sampleData,
+				solution, isoValue, *mesh, SetVertex, !linear_fit,
+				!non_manifold, polygon_mesh, false);
+	}
+	else {
+		isoStats = IsoSurfaceExtractor<Dim, Real, Vertex>::template Extract<
+			PointData<Real> >(Sigs(), UIntPack<WEIGHT_DEGREE>(),
+				UIntPack<DataSig>(), tree, density, NULL, solution,
+				isoValue, *mesh, SetVertex, !linear_fit,
+				!non_manifold, polygon_mesh, false);
+	}
 
-		std::vector< typename Octree< Real >::PointSample > samples;
-		std::vector< ProjectiveData< Point3D< Real >, Real > > sampleData;
+	mesh->resetIterator();
+	for (size_t vidx = 0; vidx < mesh->outOfCorePointCount(); ++vidx) {
+		Vertex v;
+		mesh->nextOutOfCorePoint(v);
+		v.point = iXForm * v.point;
 
-		if (withColors)
+		out_mesh.addVertex(v.point.coords);
+		out_mesh.addNormal(v.normal);
+		out_mesh.addColor(v.color);
+		out_mesh.addDensity(v.w);
+	}
+	for (size_t tidx = 0; tidx < mesh->polygonCount(); ++tidx) {
+		std::vector<CoredVertexIndex<node_index_type>> triangle;
+		mesh->nextPolygon(triangle);
+		if (triangle.size() == 3)
 		{
-			XPointStreamWithData _pointStream(xForm, *((PointStreamWithData*)pointStream));
-			int pointCount = tree.template init< Point3D< Real > >(
-				_pointStream,
-				params.depth,
-				params.confidence,
-				samples,
-				&sampleData);
+			out_mesh.addTriangle(triangle[0].idx, triangle[1].idx, triangle[2].idx);
 		}
 		else
 		{
-			XPointStream _pointStream(xForm, *pointStream);
-			int pointCount = tree.template init< Point3D< Real > >(
-				_pointStream,
-				params.depth,
-				params.confidence,
-				samples,
-				0);
-		}
-
-		DenseNodeData< Real, Degree > solution;
-		DensityEstimator* density = NULL;
-		{
-			int solveDepth = params.depth;
-
-			tree.resetNodeIndices();
-
-			// Get the kernel density estimator [If discarding, compute anew. Otherwise, compute once.]
-			density = tree.template setDensityEstimator< WEIGHT_DEGREE >(samples, kernelDepth, params.samplesPerNode);
-
-			// Transform the Hermite samples into a vector field
-			Real pointWeightSum = 0;
-			SparseNodeData< Point3D< Real >, NORMAL_DEGREE > normalInfo = tree.template setNormalField< NORMAL_DEGREE >(samples, *density, pointWeightSum, BType == BOUNDARY_NEUMANN);
-
-			if (!params.density)
-			{
-				delete density;
-				density = 0;
-			}
-
-			// Trim the tree and prepare for multigrid
-			{
-				std::vector< int > indexMap;
-
-				tree.template inalizeForBroodedMultigrid< NORMAL_DEGREE, Degree, BType >(params.fullDepth, typename Octree< Real >::template HasNormalDataFunctor< NORMAL_DEGREE >(normalInfo), &indexMap);
-
-				normalInfo.remapIndices(indexMap);
-				if (params.density)
-				{
-					density->remapIndices(indexMap);
-				}
-			}
-
-			// Add the FEM constraints
-			DenseNodeData< Real, Degree > constraints;
-			{
-				constraints = tree.template initDenseNodeData< Degree >();
-				tree.template addFEMConstraints< Degree, BType, NORMAL_DEGREE, BType >(FEMVFConstraintFunctor< NORMAL_DEGREE, BType, Degree, BType >(1., 0.), normalInfo, constraints, solveDepth);
-			}
-
-			// Free up the normal info [If we don't need it for subseequent iterations.]
-			normalInfo.clear();
-
-			// Add the interpolation constraints
-			InterpolationInfo* iInfo = NULL;
-			if (params.pointWeight > 0)
-			{
-				Real targetValue = static_cast<Real>(0.5);
-				iInfo = new InterpolationInfo(tree, samples, targetValue, params.adaptiveExp, static_cast<Real>(params.pointWeight) * pointWeightSum, (Real)0);
-				tree.template addInterpolationConstraints< Degree, BType >(*iInfo, constraints, solveDepth);
-			}
-
-			//DumpOutput("Leaf Nodes / Active Nodes / Ghost Nodes: %d / %d / %d\n", (int)tree.leaves(), (int)tree.nodes(), (int)tree.ghostNodes());
-			//DumpOutput("Memory Usage: %.3f MB\n", float(MemoryInfo::Usage()) / (1 << 20));
-
-			// Solve the linear system
-			double lowResIterMultiplier = 1.0;
-			{
-				typename Octree< Real >::SolverInfo solverInfo;
-				solverInfo.cgDepth = params.cgDepth;
-				solverInfo.iters = params.iters;
-				solverInfo.cgAccuracy = params.cgAccuracy;
-				solverInfo.verbose = false;
-				solverInfo.showResidual = params.showResidual;
-				solverInfo.lowResIterMultiplier = std::max< double >(1.0, lowResIterMultiplier);
-				solution = tree.template solveSystem< Degree, BType >(FEMSystemFunctor< Degree, BType >(0, 1., 0), iInfo, constraints, solveDepth, solverInfo);
-				if (iInfo)
-				{
-					delete iInfo;
-					iInfo = NULL;
-				}
-			}
-		}
-
-		Real isoValue = 0;
-		{
-			double valueSum = 0, weightSum = 0;
-			typename Octree< Real >::template MultiThreadedEvaluator< Degree, BType > evaluator(&tree, solution, params.threads);
-
-#pragma omp parallel for num_threads( params.threads ) reduction( + : valueSum , weightSum )
-			for (int j = 0; j < samples.size(); j++)
-			{
-				const ProjectiveData< OrientedPoint3D< Real >, Real >& sample = samples[j].sample;
-				if (sample.weight > 0)
-				{
-					weightSum += sample.weight;
-					valueSum += evaluator.value(sample.data.p / sample.weight, omp_get_thread_num(), samples[j].node) * sample.weight;
-				}
-			}
-			isoValue = static_cast<Real>(valueSum / weightSum);
-			//DumpOutput("Iso-Value: %e\n", isoValue);
-		}
-
-		SparseNodeData< ProjectiveData< Point3D< Real >, Real >, DATA_DEGREE >* colorData = NULL;
-		if (withColors)
-		{
-			colorData = new SparseNodeData< ProjectiveData< Point3D< Real >, Real >, DATA_DEGREE >();
-			*colorData = tree.template setDataField< DATA_DEGREE, false >(samples, sampleData, (DensityEstimator*)NULL);
-			for (const OctNode< TreeNodeData >* n = tree.tree().nextNode(); n; n = tree.tree().nextNode(n))
-			{
-				ProjectiveData< Point3D< Real >, Real >* clr = (*colorData)(n);
-				if (clr) (*clr) *= static_cast<Real>(pow(params.colorInterp, tree.depth(n)));
-			}
-		}
-
-		bool linearFit = false;
-		bool polygonMesh = false;
-		tree.template getMCIsoSurface< Degree, BType, WEIGHT_DEGREE, DATA_DEGREE >(
-			density,
-			colorData,
-			solution,
-			isoValue,
-			mesh,
-			!linearFit,
-			!params.nonManifold,
-			polygonMesh);
-
-		if (density)
-		{
-			delete density;
-			density = NULL;
-		}
-
-		//DumpOutput("Vertices / Polygons: %d / %d\n", mesh.outOfCorePointCount() + mesh.inCorePoints.size(), mesh.polygonCount());
-		if (colorData)
-		{
-			delete colorData;
-			colorData = NULL;
+			assert(false);
 		}
 	}
-	catch (const std::bad_alloc&)
+
+	delete mesh;
+}
+
+template <class Real>
+static Real ComputeNorm(const Real vec[3])
+{
+	return sqrt(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]);
+}
+
+template <class Real, typename... SampleData, unsigned int... FEMSigs>
+static void Execute(PointStream<Real>& pointStream,
+	PoissonReconLib::IMesh<Real>& out_mesh,
+	int depth,
+	Real width,
+	float scale,
+	bool linear_fit,
+	UIntPack<FEMSigs...>) {
+	static const int Dim = sizeof...(FEMSigs);
+	typedef UIntPack<FEMSigs...> Sigs;
+	typedef UIntPack<FEMSignature<FEMSigs>::Degree...> Degrees;
+	typedef UIntPack<FEMDegreeAndBType<
+		NORMAL_DEGREE, DerivativeBoundary<FEMSignature<FEMSigs>::BType,
+		1>::BType>::Signature...>
+		NormalSigs;
+	typedef typename FEMTree<Dim,
+		Real>::template DensityEstimator<WEIGHT_DEGREE>
+		DensityEstimator;
+	typedef typename FEMTree<Dim, Real>::template InterpolationInfo<Real, 0>
+		InterpolationInfo;
+
+	XForm<Real, Dim + 1> xForm, iXForm;
+	xForm = XForm<Real, Dim + 1>::Identity();
+
+	float datax = 32.f;
+	int base_depth = 0;
+	int base_v_cycles = 1;
+	float confidence = 0.f;
+	float point_weight = 2.f * DEFAULT_FEM_DEGREE;
+	float confidence_bias = 0.f;
+	float samples_per_node = 1.5f;
+	float cg_solver_accuracy = 1e-3f;
+	int full_depth = 5;
+	int iters = 8;
+	bool exact_interpolation = false;
+
+	double startTime = Time();
+	Real isoValue = 0;
+
+	FEMTree<Dim, Real> tree(MEMORY_ALLOCATOR_BLOCK_SIZE);
+	FEMTreeProfiler<Dim, Real> profiler(tree);
+
+	size_t pointCount;
+
+	Real pointWeightSum;
+	std::vector<typename FEMTree<Dim, Real>::PointSample> samples;
+	std::vector< PointData<Real> > sampleData;
+	DensityEstimator* density = NULL;
+	SparseNodeData<Point<Real, Dim>, NormalSigs>* normalInfo = NULL;
+	Real targetValue = (Real)0.5;
+
+	// Read in the samples (and color data)
 	{
-		//not enough memory
+		if (width > 0) {
+			xForm = GetPointXForm<Real, Dim>(pointStream, width,
+				static_cast<Real>(scale > 0 ? scale : 1.0),
+				depth) *
+				xForm;
+		}
+		else {
+			xForm = scale > 0 ? GetPointXForm<Real, Dim>(pointStream,
+				(Real)scale) *
+				xForm
+				: xForm;
+		}
+
+		pointStream.xform = &xForm;
+
+		{
+			auto ProcessDataWithConfidence = [&](const Point<Real, Dim>& p,
+				PointData<Real>& d) {
+				Real l = ComputeNorm<Real>(d.normal);
+				if (!l || l != l) return (Real)-1.;
+				return (Real)pow(l, confidence);
+			};
+			auto ProcessData = [](const Point<Real, Dim>& p, PointData<Real>& d) {
+				Real l = ComputeNorm<Real>(d.normal);
+				if (!l || l != l) return (Real)-1.;
+				d.normal[0] /= l;
+				d.normal[1] /= l;
+				d.normal[2] /= l;
+				return (Real)1.;
+			};
+			if (confidence > 0) {
+				pointCount = FEMTreeInitializer<Dim, Real>::template Initialize<
+					PointData<Real>>(tree.spaceRoot(), pointStream, depth,
+						samples, sampleData, true,
+						tree.nodeAllocators[0], tree.initializer(),
+						ProcessDataWithConfidence);
+			}
+			else {
+				pointCount = FEMTreeInitializer<Dim, Real>::template Initialize<
+					PointData<Real>>(tree.spaceRoot(), pointStream, depth,
+						samples, sampleData, true,
+						tree.nodeAllocators[0], tree.initializer(),
+						ProcessData);
+			}
+		}
+		iXForm = xForm.inverse();
+
+		//utility::LogDebug("Input Points / Samples: {} / {}", pointCount,
+		//	samples.size());
+	}
+
+	int kernelDepth = depth - 2;
+	if (kernelDepth < 0) {
+		//utility::LogError(
+		//	"[CreateFromPointCloudPoisson] depth (={}) has to be >= 2",
+		//	depth);
+	}
+
+	DenseNodeData<Real, Sigs> solution;
+	{
+		DenseNodeData<Real, Sigs> constraints;
+		InterpolationInfo* iInfo = NULL;
+		int solveDepth = depth;
+
+		tree.resetNodeIndices();
+
+		// Get the kernel density estimator
+		{
+			profiler.start();
+			density = tree.template setDensityEstimator<WEIGHT_DEGREE>(
+				samples, kernelDepth, samples_per_node, 1);
+			profiler.dumpOutput("#   Got kernel density:");
+		}
+
+		// Transform the Hermite samples into a vector field
+		{
+			profiler.start();
+			normalInfo = new SparseNodeData<Point<Real, Dim>, NormalSigs>();
+			std::function<bool(PointData<Real>, Point<Real, Dim>&)>
+				ConversionFunction =
+				[](PointData<Real> in, Point<Real, Dim>& out) {
+				// Point<Real, Dim> n = in.template data<0>();
+				Point<Real, Dim> n(in.normal[0], in.normal[1], in.normal[2]);
+				Real l = (Real)Length(n);
+				// It is possible that the samples have non-zero
+				// normals but there are two co-located samples
+				// with negative normals...
+				if (!l) return false;
+				out = n / l;
+				return true;
+			};
+			std::function<bool(PointData<Real>, Point<Real, Dim>&, Real&)>
+				ConversionAndBiasFunction = [&](PointData<Real> in,
+					Point<Real, Dim>& out,
+					Real& bias) {
+				// Point<Real, Dim> n = in.template data<0>();
+				Point<Real, Dim> n(in.normal[0], in.normal[1], in.normal[2]);
+				Real l = (Real)Length(n);
+				// It is possible that the samples have non-zero normals
+				// but there are two co-located samples with negative
+				// normals...
+				if (!l) return false;
+				out = n / l;
+				bias = (Real)(log(l) * confidence_bias /
+					log(1 << (Dim - 1)));
+				return true;
+			};
+			if (confidence_bias > 0) {
+				*normalInfo = tree.setDataField(
+					NormalSigs(), samples, sampleData, density,
+					pointWeightSum, ConversionAndBiasFunction);
+			}
+			else {
+				*normalInfo = tree.setDataField(
+					NormalSigs(), samples, sampleData, density,
+					pointWeightSum, ConversionFunction);
+			}
+			ThreadPool::Parallel_for(0, normalInfo->size(),
+				[&](unsigned int, size_t i) {
+				(*normalInfo)[i] *= (Real)-1.;
+			});
+			profiler.dumpOutput("#     Got normal field:");
+			//utility::LogDebug("Point weight / Estimated Area: {:e} / {:e}",
+			//	pointWeightSum, pointCount * pointWeightSum);
+		}
+
+		// Trim the tree and prepare for multigrid
+		{
+			profiler.start();
+			constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max()
+				? NORMAL_DEGREE
+				: Degrees::Max();
+			tree.template finalizeForMultigrid<MAX_DEGREE>(
+				full_depth,
+				typename FEMTree<Dim, Real>::template HasNormalDataFunctor<
+				NormalSigs>(*normalInfo),
+				normalInfo, density);
+			profiler.dumpOutput("#       Finalized tree:");
+		}
+
+		// Add the FEM constraints
+		{
+			profiler.start();
+			constraints = tree.initDenseNodeData(Sigs());
+			typename FEMIntegrator::template Constraint<
+				Sigs, IsotropicUIntPack<Dim, 1>, NormalSigs,
+				IsotropicUIntPack<Dim, 0>, Dim>
+				F;
+			unsigned int derivatives2[Dim];
+			for (unsigned int d = 0; d < Dim; d++) derivatives2[d] = 0;
+			typedef IsotropicUIntPack<Dim, 1> Derivatives1;
+			typedef IsotropicUIntPack<Dim, 0> Derivatives2;
+			for (unsigned int d = 0; d < Dim; d++) {
+				unsigned int derivatives1[Dim];
+				for (unsigned int dd = 0; dd < Dim; dd++)
+					derivatives1[dd] = dd == d ? 1 : 0;
+				F.weights[d]
+					[TensorDerivatives<Derivatives1>::Index(derivatives1)]
+				[TensorDerivatives<Derivatives2>::Index(
+					derivatives2)] = 1;
+			}
+			tree.addFEMConstraints(F, *normalInfo, constraints, solveDepth);
+			profiler.dumpOutput("#  Set FEM constraints:");
+		}
+
+		// Free up the normal info
+		delete normalInfo, normalInfo = NULL;
+
+		// Add the interpolation constraints
+		if (point_weight > 0) {
+			profiler.start();
+			if (exact_interpolation) {
+				iInfo = FEMTree<Dim, Real>::
+					template InitializeExactPointInterpolationInfo<Real, 0>(
+						tree, samples,
+						ConstraintDual<Dim, Real>(
+							targetValue,
+							(Real)point_weight * pointWeightSum),
+						SystemDual<Dim, Real>((Real)point_weight *
+							pointWeightSum),
+						true, false);
+			}
+			else {
+				iInfo = FEMTree<Dim, Real>::
+					template InitializeApproximatePointInterpolationInfo<
+					Real, 0>(
+						tree, samples,
+						ConstraintDual<Dim, Real>(
+							targetValue,
+							(Real)point_weight * pointWeightSum),
+						SystemDual<Dim, Real>((Real)point_weight *
+							pointWeightSum),
+						true, 1);
+			}
+			tree.addInterpolationConstraints(constraints, solveDepth, *iInfo);
+			profiler.dumpOutput("#Set point constraints:");
+		}
+
+		//utility::LogDebug(
+		//	"Leaf Nodes / Active Nodes / Ghost Nodes: {} / {} / {}",
+		//	tree.leaves(), tree.nodes(), tree.ghostNodes());
+		//utility::LogDebug("Memory Usage: {:.3f} MB",
+		//	float(MemoryInfo::Usage()) / (1 << 20));
+
+		// Solve the linear system
+		{
+			profiler.start();
+			typename FEMTree<Dim, Real>::SolverInfo sInfo;
+			sInfo.cgDepth = 0, sInfo.cascadic = true, sInfo.vCycles = 1,
+				sInfo.iters = iters, sInfo.cgAccuracy = cg_solver_accuracy,
+				sInfo.verbose = false/* utility::Logger::i().verbosity_level_ ==
+				utility::VerbosityLevel::Debug */,
+				sInfo.showResidual = false/*utility::Logger::i().verbosity_level_ ==
+				utility::VerbosityLevel::Debug*/,
+				sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE,
+				sInfo.sliceBlockSize = 1;
+			sInfo.baseDepth = base_depth, sInfo.baseVCycles = base_v_cycles;
+			typename FEMIntegrator::template System<Sigs,
+				IsotropicUIntPack<Dim, 1>>
+				F({ 0., 1. });
+			solution = tree.solveSystem(Sigs(), F, constraints, solveDepth,
+				sInfo, iInfo);
+			profiler.dumpOutput("# Linear system solved:");
+			if (iInfo) delete iInfo, iInfo = NULL;
+		}
+	}
+
+	{
+		profiler.start();
+		double valueSum = 0, weightSum = 0;
+		typename FEMTree<Dim, Real>::template MultiThreadedEvaluator<Sigs, 0>
+			evaluator(&tree, solution);
+		std::vector<double> valueSums(ThreadPool::NumThreads(), 0),
+			weightSums(ThreadPool::NumThreads(), 0);
+		ThreadPool::Parallel_for(
+			0, samples.size(), [&](unsigned int thread, size_t j) {
+			ProjectiveData<Point<Real, Dim>, Real>& sample =
+				samples[j].sample;
+			Real w = sample.weight;
+			if (w > 0)
+				weightSums[thread] += w,
+				valueSums[thread] +=
+				evaluator.values(sample.data / sample.weight,
+					thread, samples[j].node)[0] *
+				w;
+		});
+		for (size_t t = 0; t < valueSums.size(); t++)
+			valueSum += valueSums[t], weightSum += weightSums[t];
+		isoValue = (Real)(valueSum / weightSum);
+		profiler.dumpOutput("Got average:");
+		//utility::LogDebug("Iso-Value: {:e} = {:e} / {:e}", isoValue, valueSum,
+		//	weightSum);
+	}
+
+	auto SetVertex = [](Vertex<Real>& v, Point<Real, Dim> p, double w,
+		PointData<Real> d) {
+		v = Vertex<Real>(p, d, w);
+	};
+	ExtractMesh<Vertex<Real>, Real>(
+		datax, linear_fit, UIntPack<FEMSigs...>(),
+		std::tuple<SampleData...>(), tree, solution, isoValue, &samples,
+		&sampleData, density, SetVertex, iXForm, out_mesh);
+
+	if (density)
+	{
+		delete density;
+		density = nullptr;
+	}
+	//utility::LogDebug("#          Total Solve: {:9.1f} (s), {:9.1f} (MB)",
+	//	Time() - startTime, FEMTree<Dim, Real>::MaxMemoryUsage());
+}
+
+
+bool PoissonReconLib::Reconstruct(	const Parameters& params,
+									const ICloud<float>& inCloud,
+									IMesh<float>& outMesh )
+{
+	if (!inCloud.hasNormals())
+	{
+		//we need normals
 		return false;
 	}
-	catch (std::exception e)
+
+#ifdef WITH_OPENMP
+	ThreadPool::Init((ThreadPool::ParallelType)(int)ThreadPool::OPEN_MP,
+		std::thread::hardware_concurrency());
+#else
+	ThreadPool::Init((ThreadPool::ParallelType)(int)ThreadPool::THREAD_POOL,
+		std::thread::hardware_concurrency());
+#endif
+
+	PointStream<float> pointStream(inCloud);
+
+	switch (params.boundary)
 	{
-		//not enough memory
-		return false;
+	case Parameters::FREE:
+		typedef IsotropicUIntPack<DIMENSION, FEMDegreeAndBType</* Degree */ 1, BOUNDARY_FREE>::Signature> FEMSigsFree;
+		Execute<float>(pointStream, outMesh, params.depth, params.width, params.scale, params.linear_fit, FEMSigsFree());
+		break;
+	case Parameters::DIRICHLET:
+		typedef IsotropicUIntPack<DIMENSION, FEMDegreeAndBType</* Degree */ 1, BOUNDARY_DIRICHLET>::Signature> FEMSigsDirichlet;
+		Execute<float>(pointStream, outMesh, params.depth, params.width, params.scale, params.linear_fit, FEMSigsDirichlet());
+		break;
+	case Parameters::NEUMANN:
+		typedef IsotropicUIntPack<DIMENSION, FEMDegreeAndBType</* Degree */ 1, BOUNDARY_NEUMANN>::Signature> FEMSigsNeumann;
+		Execute<float>(pointStream, outMesh, params.depth, params.width, params.scale, params.linear_fit, FEMSigsNeumann());
+		break;
+	default:
+		assert(false);
+		break;
 	}
-	catch (...)
-	{
-		//not enough memory
-		return false;
-	}
+
+	ThreadPool::Terminate();
 
 	return true;
-}
-
-bool PoissonReconLib::Reconstruct(	Parameters params,
-									OrientedPointStreamWithData< float , Point3D< float > >* pointStream,
-									CoredVectorMeshData< PlyColorAndValueVertex< float > >& mesh,
-									XForm4x4< float >& iXForm)
-{
-	switch (params.boundary)
-	{
-	case Parameters::FREE:
-		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_FREE, PlyColorAndValueVertex< float > >(params, pointStream, true, mesh, iXForm);
-	case Parameters::DIRICHLET:
-		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_DIRICHLET, PlyColorAndValueVertex< float > >(params, pointStream, true, mesh, iXForm);
-	case Parameters::NEUMANN:
-		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_NEUMANN, PlyColorAndValueVertex< float > >(params, pointStream, true, mesh, iXForm);
-	default:
-		assert(false);
-		break;
-	}
-
-	return false;
-}
-
-bool PoissonReconLib::Reconstruct(	Parameters params,
-									OrientedPointStream< float >* pointStream,
-									CoredVectorMeshData< PlyValueVertex< float > >& mesh,
-									XForm4x4< float >& iXForm)
-{
-	switch (params.boundary)
-	{
-	case Parameters::FREE:
-		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_FREE, PlyValueVertex< float > >(params, pointStream, false, mesh, iXForm);
-	case Parameters::DIRICHLET:
-		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_DIRICHLET, PlyValueVertex< float > >(params, pointStream, false, mesh, iXForm);
-	case Parameters::NEUMANN:
-		return Execute<	float, BSPLINE_DEGREE, BOUNDARY_NEUMANN, PlyValueVertex< float > >(params, pointStream, false, mesh, iXForm);
-	default:
-		assert(false);
-		break;
-	}
-
-	return false;
-}
-
-bool PoissonReconLib::Reconstruct(	Parameters params,
-									OrientedPointStreamWithData< double , Point3D< double > >* pointStream,
-									CoredVectorMeshData< PlyColorAndValueVertex< double > >& mesh,
-									XForm4x4< double >& iXForm)
-{
-	switch (params.boundary)
-	{
-	case Parameters::FREE:
-		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_FREE, PlyColorAndValueVertex< double > >(params, pointStream, true, mesh, iXForm);
-	case Parameters::DIRICHLET:
-		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_DIRICHLET, PlyColorAndValueVertex< double > >(params, pointStream, true, mesh, iXForm);
-	case Parameters::NEUMANN:
-		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_NEUMANN, PlyColorAndValueVertex< double > >(params, pointStream, true, mesh, iXForm);
-	default:
-		assert(false);
-		break;
-	}
-
-	return false;
-}
-
-bool PoissonReconLib::Reconstruct(	Parameters params,
-									OrientedPointStream< double >* pointStream,
-									CoredVectorMeshData< PlyValueVertex< double > >& mesh,
-									XForm4x4< double >& iXForm)
-{
-	switch (params.boundary)
-	{
-	case Parameters::FREE:
-		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_FREE, PlyValueVertex< double > >(params, pointStream, false, mesh, iXForm);
-	case Parameters::DIRICHLET:
-		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_DIRICHLET, PlyValueVertex< double > >(params, pointStream, false, mesh, iXForm);
-	case Parameters::NEUMANN:
-		return Execute<	double, BSPLINE_DEGREE, BOUNDARY_NEUMANN, PlyValueVertex< double > >(params, pointStream, false, mesh, iXForm);
-	default:
-		assert(false);
-		break;
-	}
-
-	return false;
 }

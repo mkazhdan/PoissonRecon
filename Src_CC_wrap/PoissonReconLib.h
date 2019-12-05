@@ -18,15 +18,6 @@
 #ifndef CC_POISSON_RECON_LIB_WRAPPER
 #define CC_POISSON_RECON_LIB_WRAPPER
 
-#include "../Src/PointStream.h"
-
-//#define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
-//#define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
-//#define NORMAL_DEGREE 2							// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
-#define DEFAULT_FEM_DEGREE 1					// The default finite-element degree
-#define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
-#define DIMENSION 3								// The dimension of the system
-
 //! Wrapper to use PoissonRecon (Kazhdan et. al) as a library
 class PoissonReconLib
 {
@@ -86,7 +77,7 @@ public:
 		//! Pull factor for color interpolation
 		float colorInterp;
 
-		//DGM: the above parameters are not documented in PoissonRecon
+		//DGM: the parameters below are not documented in PoissonRecon
 
 		bool showResidual;
 		int kernelDepth;
@@ -95,7 +86,7 @@ public:
 		enum BoundaryType { FREE, DIRICHLET, NEUMANN };
 		BoundaryType boundary;
 
-		//DGM: the above parameters are hidden in PoissonRecon
+		//DGM: the below parameters are hidden in PoissonRecon
 
 		//! If this flag is enabled, the isosurface extraction does not add a planar polygon's barycenter in order to ensure that the output mesh is manifold
 		bool nonManifold;
@@ -103,38 +94,38 @@ public:
 		float cgAccuracy;
 		//! This flag specifies the exponent scale for the adaptive weighting
 		int adaptiveExp;
+
+		float width = 0;
+		bool linear_fit = false;
 	};
 
-	static const int Degree = DEFAULT_FEM_DEGREE;
-	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
-	typedef IsotropicUIntPack< DIMENSION, FEMDegreeAndBType< Degree, BType >::Signature > FEMSigs;
-	static const int Dim = sizeof(FEMSigs);
+	template <typename Real>
+	class ICloud
+	{
+	public:
+		virtual size_t size() const = 0;
+		virtual bool hasNormals() const = 0;
+		virtual bool hasColors() const = 0;
+		virtual void getPoint(size_t index, Real* coords) const = 0;
+		virtual void getNormal(size_t index, Real* coords) const = 0;
+		virtual void getColor(size_t index, Real* rgb) const = 0;
+	};
 
-	typedef Point< float, Dim > Pointf;
-	typedef Point< double, Dim > Pointd;
+	template <typename Real>
+	class IMesh
+	{
+	public:
+		virtual void addVertex(const Real* coords) = 0;
+		virtual void addNormal(const Real* coords) = 0;
+		virtual void addColor(const Real* rgb) = 0;
+		virtual void addDensity(double d) = 0;
+		virtual void addTriangle(size_t i1, size_t i2, size_t i3) = 0;
+	};
 
-	typedef PointStreamNormal< float, Dim > NormalPointSampleDataf;
-	typedef PointStreamColor< float > SampleDataf;
-	typedef MultiPointStreamData< float, SampleDataf > AdditionalPointSampleDataf;
-	typedef MultiPointStreamData< float, NormalPointSampleDataf, AdditionalPointSampleDataf > TotalPointSampleDataf;
 
-	static bool Reconstruct(Parameters params, const std::vector< std::pair< Pointf, TotalPointSampleDataf > >& inCorePoints, const TotalPointSampleDataf::Transform& xForm);
-
-	//typedef PointStreamColor< double > SampleDatad;
-	//BinaryInputPointStreamWithData
-
-	//typedef PointStreamNormal< float, 3 > NormalPointSampleData;
-
-	////! Main entry point (shortcut to Execute)
-	//static bool Reconstruct(Parameters params, OrientedPointStream< float >* pointStream, CoredVectorMeshData< PlyValueVertex< float > >& mesh, XForm4x4< float >& iXForm);
-	////! Main entry point (shortcut to Execute) for colored clouds
-	//static bool Reconstruct(Parameters params, OrientedPointStreamWithData< float, Point3D< float > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< float > >& mesh, XForm4x4< float >& iXForm);
-
-	////! Main entry point (shortcut to Execute)
-	//static bool Reconstruct(Parameters params, OrientedPointStream< double >* pointStream, CoredVectorMeshData< PlyValueVertex< double > >& mesh, XForm4x4< double >& iXForm);
-	////! Main entry point (shortcut to Execute) for colored clouds
-	//static bool Reconstruct(Parameters params, OrientedPointStreamWithData< double, Point3D< double > >* pointStream, CoredVectorMeshData< PlyColorAndValueVertex< double > >& mesh, XForm4x4< double >& iXForm);
-
+	static bool Reconstruct(const Parameters& params,
+							const PoissonReconLib::ICloud<float>& inCloud,
+							PoissonReconLib::IMesh<float>& ouMesh);
 };
 
 #endif // CC_POISSON_RECON_LIB_6_11_WRAPPER

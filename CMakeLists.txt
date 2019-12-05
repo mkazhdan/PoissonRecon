@@ -13,17 +13,14 @@ set( SAMPLE_PROJECT_VERSION_MAJOR 12 )
 set( SAMPLE_PROJECT_VERSION_MINOR 0 )
 
 file( GLOB header_list Src_CC_wrap/*.h )
-#list( APPEND header_list Src/Allocator.h Src/Array.h Src/BinaryNode.h Src/BSplineData.h Src/CmdLineParser.h Src/Factor.h Src/FunctionData.h Src/Geometry.h Src/MarchingCubes.h Src/MAT.h Src/MemoryUsage.h Src/MultiGridOctreeData.h Src/MyTime.h Src/Octree.h Src/Ply.h Src/PointStream.h Src/Polynomial.h Src/PPolynomial.h Src/SparseMatrix.h )
-#list( APPEND inline_list Src/Array.inl Src/BSplineData.inl Src/CmdLineParser.inl Src/FunctionData.inl Src/Geometry.inl Src/MAT.inl Src/MultiGridOctreeData.inl Src/MultiGridOctreeData.IsoSurface.inl Src/MultiGridOctreeData.SortedTreeNodes.inl Src/Octree.inl Src/PointStream.inl Src/Polynomial.inl Src/PPolynomial.inl Src/SparseMatrix.inl )
 file( GLOB source_list Src_CC_wrap/*.cpp )
 
-#add_library( ${PROJECT_NAME} STATIC ${header_list} ${inline_list} ${source_list} )
 add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} )
 
 # Add preprocessor definitions
 set_property( TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _CRT_SECURE_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS NOMINMAX )
 
-#option( POISSON_RECON_WITH_OPEN_MP "Check to compile PoissonRecon plugin with OpenMP support" OFF )
+option( POISSON_RECON_WITH_OPEN_MP "Check to compile PoissonRecon plugin with OpenMP support" OFF )
 if ( POISSON_RECON_WITH_OPEN_MP )
 	find_package(OpenMP)
 	if (OPENMP_FOUND)
