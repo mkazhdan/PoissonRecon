@@ -440,29 +440,15 @@ static bool Execute(PointStream<Real>& pointStream,
 					const PoissonReconLib::Parameters& params,
 					UIntPack<FEMSigs...> )
 {
-	if (params.depth < 2)
-	{
-		//depth should be greater than 2
-		assert(false);
-		return false;
-	}
-
 	static const int Dim = sizeof...(FEMSigs);
-
 	typedef UIntPack<FEMSigs...> Sigs;
 	typedef UIntPack<FEMSignature<FEMSigs>::Degree...> Degrees;
 	typedef UIntPack<FEMDegreeAndBType<NORMAL_DEGREE, DerivativeBoundary<FEMSignature<FEMSigs>::BType, 1>::BType>::Signature...> NormalSigs;
 	typedef typename FEMTree<Dim, Real>::template DensityEstimator<WEIGHT_DEGREE> DensityEstimator;
 	typedef typename FEMTree<Dim, Real>::template InterpolationInfo<Real, 0> InterpolationInfo;
 
-	//default parameters
+	// Compute scaling transformation (and optionally the depth)
 	int depth = params.depth;
-	const int full_depth = 5;
-	const int solve_depth = depth;
-	const bool exact_interpolation = false;
-	const Real target_value = static_cast<Real>(0.5);
-
-	// Compute scaling transformation
 	XForm<Real, Dim + 1> xForm = XForm<Real, Dim + 1>::Identity();
 	{
 		if (params.finestCellWidth > 0)
@@ -476,6 +462,19 @@ static bool Execute(PointStream<Real>& pointStream,
 		}
 		pointStream.xform = &xForm;
 	}
+
+	if (depth < 2)
+	{
+		//depth should be greater than 2
+		assert(false);
+		return false;
+	}
+
+	//default parameters
+	const int solve_depth = depth;
+	const int full_depth = 5;
+	const bool exact_interpolation = false;
+	const Real target_value = static_cast<Real>(0.5);
 
 	// Read in the samples (and color data)
 	FEMTree<Dim, Real> tree(MEMORY_ALLOCATOR_BLOCK_SIZE);
@@ -597,7 +596,7 @@ static bool Execute(PointStream<Real>& pointStream,
 
 		// Trim the tree and prepare for multigrid
 		{
-			constexpr int MAX_DEGREE = std::max<int>(NORMAL_DEGREE, Degrees::Max());
+			constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
 			
 			tree.template finalizeForMultigrid<MAX_DEGREE>( full_depth,
 															typename FEMTree<Dim, Real>::template HasNormalDataFunctor<NormalSigs>(*normalInfo),

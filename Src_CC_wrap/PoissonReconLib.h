@@ -18,6 +18,8 @@
 #ifndef CC_POISSON_RECON_LIB_WRAPPER
 #define CC_POISSON_RECON_LIB_WRAPPER
 
+#include <cstddef>
+
 //! Wrapper to use PoissonRecon (Kazhdan et. al) as a library
 class PoissonReconLib
 {
