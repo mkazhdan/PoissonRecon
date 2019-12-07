@@ -7,6 +7,8 @@ project( QPOISSON_RECON_LIB )
 #to remove very annoying "NO ARGUMENTS THAT DEPEND ON A TEMPLATE PARAMETER" errors with G++!
 if( UNIX OR MINGW )
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -w")
+elseif( MSVC )
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 endif()
 
 set( SAMPLE_PROJECT_VERSION_MAJOR 12 )
