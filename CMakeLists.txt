@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
 
@@ -18,6 +18,8 @@ file( GLOB header_list Src_CC_wrap/*.h )
 file( GLOB source_list Src_CC_wrap/*.cpp )
 
 add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} )
+
+target_include_directories( ${PROJECT_NAME} PRIVATE Src )
 
 # Add preprocessor definitions
 target_compile_definitions( ${PROJECT_NAME} PRIVATE _CRT_SECURE_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS NOMINMAX )

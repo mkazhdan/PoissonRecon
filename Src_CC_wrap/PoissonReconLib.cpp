@@ -20,18 +20,32 @@
 //PoissonRecon
 #include "../Src/FEMTree.h"
 
-#include <assert.h>
+#include "PointData.h"
 
-// The order of the B-Spline used to splat in data for color interpolation
-static const int DATA_DEGREE = 0;
-// The order of the B-Spline used to splat in the weights for density estimation
-static const int WEIGHT_DEGREE = 2;
-// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
-static const int NORMAL_DEGREE = 2;
-// The default finite-element degree
-static const int DEFAULT_FEM_DEGREE = 1;
-// The dimension of the system
-static const int DIMENSION = 3;
+#include <cassert>
+
+namespace {
+	// The order of the B-Spline used to splat in data for color interpolation
+	constexpr int DATA_DEGREE = 0;
+	// The order of the B-Spline used to splat in the weights for density estimation
+	constexpr int WEIGHT_DEGREE = 2;
+	// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
+	constexpr int NORMAL_DEGREE = 2;
+	// The default finite-element degree
+	constexpr int DEFAULT_FEM_DEGREE = 1;
+	// The dimension of the system
+	constexpr int DIMENSION = 3;
+
+	inline float ComputeNorm(const float vec[3])
+	{
+		return sqrt(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]);
+	}
+	
+	inline double ComputeNorm(const double vec[3])
+	{
+		return sqrt(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]);
+	}
+}
 
 PoissonReconLib::Parameters::Parameters()
 {
@@ -39,56 +53,6 @@ PoissonReconLib::Parameters::Parameters()
 	threads = omp_get_num_procs();
 #endif
 }
-
-template <typename Real>
-class PointData {
-public:
-	PointData() : normal{ 0, 0, 0 }, color{ 0, 0, 0 } {}
-	PointData(const Real _normal[3], const Real _color[3], Real scale = 1.0)
-	{
-		normal[0] = scale * _normal[0];
-		normal[1] = scale * _normal[1];
-		normal[2] = scale * _normal[2];
-		color[0] = scale * _color[0];
-		color[1] = scale * _color[1];
-		color[2] = scale * _color[2];
-	}
-
-	PointData operator * (Real s) const
-	{
-		return PointData(normal, color, s);
-	}
-
-	PointData operator / (Real s) const
-	{
-		return PointData(normal, color, 1 / s);
-	}
-
-	PointData& operator += (const PointData& d)
-	{
-		normal[0] += d.normal[0];
-		normal[1] += d.normal[1];
-		normal[2] += d.normal[2];
-		color[0] += d.color[0];
-		color[1] += d.color[1];
-		color[2] += d.color[2];
-		return *this;
-	}
-	PointData& operator *= (Real s)
-	{
-		normal[0] *= s;
-		normal[1] *= s;
-		normal[2] *= s;
-		color[0] *= s;
-		color[1] *= s;
-		color[2] *= s;
-		return *this;
-	}
-
-public:
-	Real normal[3];
-	Real color[3];
-};
 
 template <typename _Real>
 class Vertex : public PointData<_Real>
@@ -428,12 +392,6 @@ void ExtractMesh(	const PoissonReconLib::Parameters& params,
 	}
 }
 
-template <class Real>
-static Real ComputeNorm(const Real vec[3])
-{
-	return sqrt(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]);
-}
-
 template <class Real, typename... SampleData, unsigned int... FEMSigs>
 static bool Execute(PointStream<Real>& pointStream,
 					PoissonReconLib::IMesh<Real>& out_mesh,
@@ -491,7 +449,7 @@ static bool Execute(PointStream<Real>& pointStream,
 		{
 			auto ProcessDataWithConfidence = [&](const Point<Real, Dim>& p, PointData<Real>& d)
 			{
-				Real l = ComputeNorm<Real>(d.normal);
+				Real l = ComputeNorm(d.normal);
 				if (std::isnan(l) || l == 0)
 					return static_cast<Real>(-1.0);
 
@@ -504,7 +462,7 @@ static bool Execute(PointStream<Real>& pointStream,
 		{
 			auto ProcessData = [](const Point<Real, Dim>& p, PointData<Real>& d)
 			{
-				Real l = ComputeNorm<Real>(d.normal);
+				Real l = ComputeNorm(d.normal);
 				if (std::isnan(l) || l == 0)
 					return static_cast<Real>(-1.0);
 
