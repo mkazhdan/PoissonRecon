@@ -32,7 +32,7 @@ DAMAGE.
 template< unsigned int Dim >
 SortedTreeNodes< Dim >::SortedTreeNodes( void )
 {
-	_sliceStart = NullPointer( Pointer( int ) );
+	_sliceStart = NullPointer( Pointer( node_index_type ) );
 	treeNodes = NullPointer( TreeNode* );
 	_levels = 0;
 }
@@ -44,16 +44,16 @@ SortedTreeNodes< Dim >::~SortedTreeNodes( void )
 	DeletePointer( treeNodes );
 }
 template< unsigned int Dim >
-void SortedTreeNodes< Dim >::set( TreeNode& root , std::vector< int >* map )
+void SortedTreeNodes< Dim >::set( TreeNode& root , std::vector< node_index_type >* map )
 {
 	size_t sz = set( root );
 
 	if( map )
 	{
 		map->resize( sz , -1 );
-		for( int i=0 ; i<_sliceStart[_levels-1][(size_t)1<<(_levels-1)] ; i++ ) if( treeNodes[i]->nodeData.nodeIndex>=0 ) (*map)[ treeNodes[i]->nodeData.nodeIndex ] = i;
+		for( node_index_type i=0 ; i<_sliceStart[_levels-1][(size_t)1<<(_levels-1)] ; i++ ) if( treeNodes[i]->nodeData.nodeIndex>=0 ) (*map)[ treeNodes[i]->nodeData.nodeIndex ] = i;
 	}
-	for( int i=0 ; i<_sliceStart[_levels-1][(size_t)1<<(_levels-1)] ; i++ ) treeNodes[i]->nodeData.nodeIndex = i;
+	for( node_index_type i=0 ; i<_sliceStart[_levels-1][(size_t)1<<(_levels-1)] ; i++ ) treeNodes[i]->nodeData.nodeIndex = i;
 }
 template< unsigned int Dim >
 size_t SortedTreeNodes< Dim >::set( TreeNode& root )
@@ -65,11 +65,11 @@ size_t SortedTreeNodes< Dim >::set( TreeNode& root )
 	FreePointer( _sliceStart );
 	DeletePointer( treeNodes );
 
-	_sliceStart = AllocPointer< Pointer( int ) >( _levels );
+	_sliceStart = AllocPointer< Pointer( node_index_type ) >( _levels );
 	for( int l=0 ; l<_levels ; l++ )
 	{
-		_sliceStart[l] = AllocPointer< int >( ((size_t)1<<l)+1 );
-		memset( _sliceStart[l] , 0 , sizeof(int)*( ((size_t)1<<l)+1 ) );
+		_sliceStart[l] = AllocPointer< node_index_type >( ((size_t)1<<l)+1 );
+		memset( _sliceStart[l] , 0 , sizeof(node_index_type)*( ((size_t)1<<l)+1 ) );
 	}
 
 	// Count the number of nodes in each slice
@@ -86,7 +86,7 @@ size_t SortedTreeNodes< Dim >::set( TreeNode& root )
 
 	// Get the start index for each slice
 	{
-		int levelOffset = 0;
+		node_index_type levelOffset = 0;
 		for( int l=0 ; l<_levels ; l++ )
 		{
 			_sliceStart[l][0] = levelOffset;
@@ -113,3 +113,4 @@ size_t SortedTreeNodes< Dim >::set( TreeNode& root )
 	}
 	return sz;
 }
+

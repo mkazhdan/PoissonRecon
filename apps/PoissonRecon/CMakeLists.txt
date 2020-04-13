@@ -1,20 +1,18 @@
 cmake_minimum_required(VERSION 3.7)
-project(Poisson)
 
-set(PROJECT_SRCS
-${PROJECT_SOURCE_DIR}/src/PoissonReconApp.cpp
-)
+project(PoissonReconApp)
+
+set(PROJECT_SRCS ${PROJECT_SOURCE_DIR}/src/PoissonRecon.cpp)
 
 source_group("src" FILES ${PROJECT_SRCS})
 
-find_package( tinyxml2 REQUIRED )
+find_package(OpenMP REQUIRED)
 
 add_executable(${PROJECT_NAME} ${PROJECT_SRCS})
 
-target_link_libraries(${PROJECT_NAME} tinyxml2::tinyxml2 PoissonRecon)
+target_link_libraries(${PROJECT_NAME} PoissonRecon OpenMP::OpenMP_CXX)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER ${CMAKE_PROJECT_NAME}/apps)
 
-install(TARGETS ${PROJECT_NAME}
-        EXPORT ${CMAKE_PROJECT_NAME}Targets
-        DESTINATION bin)
+install(TARGETS ${PROJECT_NAME} EXPORT ${CMAKE_PROJECT_NAME}Targets DESTINATION
+                                                                    bin)

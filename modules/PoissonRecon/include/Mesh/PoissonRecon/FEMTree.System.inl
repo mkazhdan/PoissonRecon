@@ -189,19 +189,25 @@ Point< double , CDim > FEMIntegrator::Constraint< UIntPack< TSignatures ... > , 
 /////////////
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs >
-void FEMTree< Dim , Real >::setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< int > >& indices ) const
+void FEMTree< Dim , Real >::setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< size_t > >& indices ) const
 {
 	_setMultiColorIndices( UIntPack< FEMSigs ... >() , _sNodesBegin(depth) , _sNodesEnd(depth) , indices );
 }
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs >
-void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , int start , int end , std::vector< std::vector< int > >& indices ) const
+void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< size_t > >& indices ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	typedef UIntPack< ( 1 - BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree , FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > Moduli;
 	static const unsigned int Colors = WindowSize< Moduli >::Size;
 	indices.resize( Colors );
-	int count[ Colors ];
+	struct ColorCount
+	{
+		size_t count[ Colors ];
+		ColorCount( void ){ memset( count , 0 , sizeof(count) ); }
+	};
+	std::vector< ColorCount > counts( ThreadPool::NumThreads() );
+	size_t count[ Colors ];
 	memset( count , 0 , sizeof(count) );
 	auto MCIndex = [&] ( const FEMTreeNode* node )
 	{
@@ -210,17 +216,20 @@ void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , int
 		for( int dd=0 ; dd<Dim ; dd++ ) index = index * Moduli::Values[Dim-dd-1] + MOD( off[Dim-dd-1] , Moduli::Values[Dim-dd-1] );
 		return index;
 	};
-#pragma omp parallel for
-	for( int i=start ; i<end ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+	ThreadPool::Parallel_for( start , end , [&]( unsigned int thread , size_t i )
 	{
-		int idx = MCIndex( _sNodes.treeNodes[i] );
-#pragma omp atomic
-		count[idx]++;
+		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+		{
+			int idx = MCIndex( _sNodes.treeNodes[i] );
+			counts[thread].count[idx]++;
+		}
 	}
+	);
+	for( size_t t=0 ; t<counts.size() ; t++ ) for( int i=0 ; i<Colors ; i++) count[i] += counts[t].count[i];
 
 	for( int i=0 ; i<Colors ; i++ ) indices[i].reserve( count[i] ) , count[i]=0;
 
-	for( int i=start ; i<end ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+	for( node_index_type i=start ; i<end ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 	{
 		int idx = MCIndex( _sNodes.treeNodes[i] );
 		indices[idx].push_back( i - start );
@@ -242,37 +251,40 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 	double bNorm=0 , inRNorm=0 , outRNorm=0;
 	if( depth>=0 )
 	{
-		SparseMatrix< Real > M;
+		SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > M;
 		double t = Time();
 		Pointer( Real ) D = AllocPointer< Real >( _sNodesEnd( depth ) - _sNodesBegin( depth ) );
 		Pointer( T ) _constraints = AllocPointer< T >( _sNodesSize( depth ) );
 		_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , M , D , bsData , depth , _sNodesBegin( depth ) , _sNodesEnd( depth ) , prolongedSolution , _constraints , ccStencil , pcStencils , interpolationInfo... );
-#pragma omp parallel for
-		for( int i=_sNodesBegin(depth) ; i<_sNodesEnd(depth) ; i++ ) _constraints[ i - _sNodesBegin(depth) ] = constraints[ _sNodes.treeNodes[i]->nodeData.nodeIndex ] - _constraints[ i - _sNodesBegin(depth) ];
+		ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[ _sNodes.treeNodes[i]->nodeData.nodeIndex ] - _constraints[ i - _sNodesBegin(depth) ]; } );
 		{
-			int begin = _sNodesBegin( depth ) , end = _sNodesEnd( depth );
-			for( int i=begin ; i<end ; i++ ) if( M.rowSize( i-begin ) ) D[i-begin] *= sorWeights[i];
+			node_index_type begin = _sNodesBegin( depth ) , end = _sNodesEnd( depth );
+			for( node_index_type i=begin ; i<end ; i++ ) if( M.rowSize( i-begin ) ) D[i-begin] *= sorWeights[i];
 		}
 
 		systemTime += Time()-t;
 		// The list of multi-colored indices  for each in-memory slice
-		std::vector< std::vector< int > > mcIndices;
+		std::vector< std::vector< size_t > > mcIndices;
 		_setMultiColorIndices( UIntPack< FEMSigs ... >() , _sNodesBegin( depth ) , _sNodesEnd( depth ) , mcIndices );
 
 		ConstPointer( T ) B = _constraints;
 		Pointer( T ) X = GetPointer( &solution[0] + _sNodesBegin( depth ) , _sNodesSize( depth ) );
 		if( computeNorms )
-#pragma omp parallel for reduction( + : bNorm , inRNorm )
-			for( int j=0 ; j<M.rowNum ; j++ )
+		{
+			std::vector< double > bNorms( ThreadPool::NumThreads() , 0 ) , inRNorms( ThreadPool::NumThreads() , 0 );
+			ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
 			{
 				T temp = {};
-				ConstPointer( MatrixEntry< Real > ) start = M[j];
-				ConstPointer( MatrixEntry< Real > ) end = start + (unsigned long long)M.rowSizes[j];
-				ConstPointer( MatrixEntry< Real > ) e;
+				ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = M[j];
+				ConstPointer( MatrixEntry< Real , matrix_index_type > ) end = start + M.rowSize(j);
+				ConstPointer( MatrixEntry< Real , matrix_index_type > ) e;
 				for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
-				bNorm += Dot( B[j] , B[j] );
-				inRNorm += Dot( temp - B[j] , temp - B[j] );
+				bNorms[thread] += Dot( B[j] , B[j] );
+				inRNorms[thread] += Dot( temp - B[j] , temp - B[j] );
 			}
+			);
+			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) bNorm += bNorms[t] , inRNorm += inRNorms[t];
+		}
 
 		t = Time();
 		MemoryUsage();
@@ -281,16 +293,20 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 		solveTime += Time() - t;
 
 		if( computeNorms )
-#pragma omp parallel for reduction( + : outRNorm )
-			for( int j=0 ; j<M.rowNum ; j++ )
+		{
+			std::vector< double > outRNorms( ThreadPool::NumThreads() , 0 );
+			ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
 			{
 				T temp = {};
-				ConstPointer( MatrixEntry< Real > ) start = M[j];
-				ConstPointer( MatrixEntry< Real > ) end = start + (unsigned long long)M.rowSizes[j];
-				ConstPointer( MatrixEntry< Real > ) e;
+				ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = M[j];
+				ConstPointer( MatrixEntry< Real , matrix_index_type > ) end = start + M.rowSize(j);
+				ConstPointer( MatrixEntry< Real , matrix_index_type > ) e;
 				for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
-				outRNorm += Dot( temp-B[j] , temp-B[j] );
+				outRNorms[thread] += Dot( temp-B[j] , temp-B[j] );
 			}
+			);
+			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) outRNorm += outRNorms[t];
+		}
 		FreePointer( _constraints );
 	}
 	if( computeNorms ) stats.bNorm2 = bNorm , stats.inRNorm2 = inRNorm , stats.outRNorm2 = outRNorm;
@@ -307,6 +323,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 	PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > > pcStencils;
 	F.template setStencil< false >( ccStencil );
 	F.template setStencils< true >( pcStencils );
+
 	{
 		// Assuming Degree=2 and we are solving forward using two iterations, the pattern of relaxations should look like:
 		//      +--+--+--+--+--+
@@ -408,12 +425,12 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 		// The number of in-core blocks over which we either solve or compute residuals
 		int matrixBlocks = std::max< int >( 1 , std::min< int >( solveBlocks+2*residualOffset , blockEnd-blockBegin ) );
 		// The list of matrices for each in-memory block
-		Pointer( SparseMatrix< Real > ) _M = NewPointer< SparseMatrix< Real > >( matrixBlocks );
+		Pointer( SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > ) _M = NewPointer< SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > >( matrixBlocks );
 		Pointer( Pointer( Real ) ) _D = AllocPointer< Pointer( Real ) >( matrixBlocks );
 		std::vector< Pointer( T ) > _constraints( matrixBlocks );
 		for( int i=0 ; i<matrixBlocks ; i++ ) _D[i] = NullPointer( Real ) , _constraints[i] = NullPointer( T );
 		// The list of multi-colored indices  for each in-memory block
-		Pointer( std::vector< std::vector< int > > ) mcIndices = NewPointer< std::vector< std::vector< int > > >( solveBlocks );
+		Pointer( std::vector< std::vector< size_t > > ) mcIndices = NewPointer< std::vector< std::vector< size_t > > >( solveBlocks );
 		int dir = forward ? 1 : -1 , start = forward ? blockBegin : blockEnd-1 , end = forward ? blockEnd : blockBegin-1;
 		const BlockWindow FullWindow( blockBegin , blockEnd );
 		BlockWindow residualWindow( FullWindow.begin(forward) , FullWindow.begin(forward) - ( ColorModulus*iters - ( ColorModulus-1 ) ) * dir - 2*residualOffset*dir );
@@ -421,6 +438,15 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 		// If we are solving forward we start in a block S with S mod ColorModulus = ColorModulus-1
 		// and end in a block E with E mod ColorModulus = 0
 		while( MOD( solveWindow.begin(!forward) , ColorModulus )!=( forward ? ColorModulus-1 : 0 ) ) solveWindow -= dir , residualWindow -= dir;
+		size_t maxBlockSize = 0;
+		BlockWindow _residualWindow = residualWindow;
+		for( ; _residualWindow.end(!forward)*dir<FullWindow.end(forward)*dir ; _residualWindow += dir )
+		{
+			int b = _residualWindow.begin(!forward);
+			if( FullWindow.inBlock( b ) ) maxBlockSize = std::max< size_t >( maxBlockSize , _sNodesEnd( depth , BlockLast( b ) ) - _sNodesBegin( depth , BlockFirst( b ) ) );
+		}
+		if( maxBlockSize>std::numeric_limits< matrix_index_type >::max() ) ERROR_OUT( "more entries in a block than can be indexed in " , sizeof(matrix_index_type) , " bytes" );
+		for( int i=0 ; i<matrixBlocks ; i++ ) _constraints[i] = AllocPointer< T >( maxBlockSize ) , _D[i] = AllocPointer< Real >( maxBlockSize );
 		for( ; residualWindow.end(!forward)*dir<FullWindow.end(forward)*dir ; residualWindow += dir , solveWindow += dir )
 		{
 			double t;
@@ -435,33 +461,31 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 					int b = residualBlock , _b = MOD( b , matrixBlocks );
 
 					t = Time();
-					FreePointer( _D[_b] );
-					_D[_b] = AllocPointer< Real >( _sNodesEnd( depth , BlockLast( b ) ) - _sNodesBegin( depth , BlockFirst( b ) ) );
-					FreePointer( _constraints[_b] );
-					_constraints[_b] = AllocPointer< T >( _sNodesEnd( depth , BlockLast( b ) ) - _sNodesBegin( depth , BlockFirst( b ) ) );
 					_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , _M[_b] , _D[_b] , bsData , depth , _sNodesBegin( depth , BlockFirst( b ) ) , _sNodesEnd( depth , BlockLast( b ) ) , prolongedSolution , _constraints[_b] , ccStencil , pcStencils , interpolationInfo... );
-#pragma omp parallel for
-					for( int i=_sNodesBegin( depth , BlockFirst( b ) ) ; i<_sNodesEnd( depth , BlockLast( b ) ) ; i++ ) _constraints[_b][ i - _sNodesBegin( depth , BlockFirst( b ) ) ] = constraints[i] - _constraints[_b][ i - _sNodesBegin( depth , BlockFirst( b ) ) ];
+					size_t begin = _sNodesBegin( depth , BlockFirst( b ) ) , end = _sNodesEnd( depth , BlockLast( b ) );
+					ThreadPool::Parallel_for( begin , end , [&]( unsigned int , size_t i ){  _constraints[_b][ i-begin ] = constraints[i] - _constraints[_b][ i-begin ]; } );
 					{
-						int begin = _sNodesBegin( depth , BlockFirst( b ) ) , end = _sNodesEnd( depth , BlockLast( b ) );
-						for( int i=begin ; i<end ; i++ ) if( _M[_b].rowSize( i-begin ) ) _D[_b][i-begin] *= sorWeights[i];
+						node_index_type begin = _sNodesBegin( depth , BlockFirst( b ) ) , end = _sNodesEnd( depth , BlockLast( b ) );
+						for( node_index_type i=begin ; i<end ; i++ ) if( _M[_b].rowSize( i-begin ) ) _D[_b][i-begin] *= sorWeights[i];
 					}
 					systemTime += Time()-t;
 					if( computeNorms )
 					{
 						ConstPointer( T ) B = _constraints[_b];
 						ConstPointer( T ) X = XBlocks( depth , b , solution );
-#pragma omp parallel for reduction( + : bNorm , inRNorm )
-						for( int j=0 ; j<_M[_b].rowNum ; j++ )
+						std::vector< double > bNorms( ThreadPool::NumThreads() , 0 ) , inRNorms( ThreadPool::NumThreads() , 0 );
+						ThreadPool::Parallel_for( 0 , _M[_b].rows() , [&]( unsigned int thread , size_t j )
 						{
 							T temp = {};
-							ConstPointer( MatrixEntry< Real > ) start = _M[_b][j];
-							ConstPointer( MatrixEntry< Real > ) end = start + (unsigned long long)_M[_b].rowSizes[j];
-							ConstPointer( MatrixEntry< Real > ) e;
+							ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = _M[_b][j];
+							ConstPointer( MatrixEntry< Real , matrix_index_type  > ) end = start + _M[_b].rowSize(j);
+							ConstPointer( MatrixEntry< Real , matrix_index_type  > ) e;
 							for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
-							bNorm += Dot( B[j] , B[j] );
-							inRNorm += Dot( temp - B[j] , temp - B[j] );
+							bNorms[thread] += Dot( B[j] , B[j] );
+							inRNorms[thread] += Dot( temp - B[j] , temp - B[j] );
 						}
+						);
+						for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) bNorm += bNorms[t] , inRNorm += inRNorms[t];
 					}
 				}
 				t = Time();
@@ -492,16 +516,18 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 					int b = residualBlock , _b = MOD( b , matrixBlocks );
 					ConstPointer( T ) B = _constraints[_b];
 					ConstPointer( T ) X = XBlocks( depth , b , solution );
-#pragma omp parallel for reduction( + : outRNorm )
-					for( int j=0 ; j<_M[_b].rowNum ; j++ )
+					std::vector< double > outRNorms( ThreadPool::NumThreads() , 0 );
+					ThreadPool::Parallel_for( 0 , _M[_b].rows() , [&]( unsigned int thread , size_t j )
 					{
 						T temp = {};
-						ConstPointer( MatrixEntry< Real > ) start = _M[_b][j];
-						ConstPointer( MatrixEntry< Real > ) end = start + (unsigned long long)_M[_b].rowSizes[j];
-						ConstPointer( MatrixEntry< Real > ) e;
+						ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = _M[_b][j];
+						ConstPointer( MatrixEntry< Real , matrix_index_type > ) end = start + _M[_b].rowSize(j);
+						ConstPointer( MatrixEntry< Real , matrix_index_type > ) e;
 						for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
-						outRNorm += Dot( temp-B[j] , temp-B[j] );
+						outRNorms[thread] += Dot( temp-B[j] , temp-B[j] );
 					}
+					);
+					for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) outRNorm += outRNorms[t];
 				}
 			}
 		}
@@ -525,7 +551,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	int iter = 0;
 	Pointer( T ) X = GetPointer( &solution[0] + _sNodesBegin(depth) , _sNodesSize(depth) );
 	ConstPointer( T ) B = GetPointer( &constraints[0] + _sNodesBegin(depth) , _sNodesSize(depth) );
-	SparseMatrix< Real > M;
+	SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > M;
 
 	double& systemTime = stats.systemTime;
 	double&  solveTime = stats. solveTime;
@@ -539,16 +565,15 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	F.template setStencil< false >( ccStencil );
 	F.template setStencils< true >( pcStencils );
 	_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , M , NullPointer( Real ) , bsData , depth , _sNodesBegin( depth ) , _sNodesEnd( depth ) , prolongedSolution , _constraints , ccStencil , pcStencils , interpolationInfo... );
-#pragma omp parallel for
-	for( int i=_sNodesBegin(depth) ; i<_sNodesEnd(depth) ; i++ ) _constraints[ i - _sNodesBegin(depth) ] = constraints[i] - _constraints[ i - _sNodesBegin(depth) ];
+	ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[i] - _constraints[ i - _sNodesBegin(depth) ]; } );
 	systemTime = Time()-systemTime;
 	solveTime = Time();
 	// Solve the linear system
-	accuracy = Real( accuracy / 100000 ) * M.rowNum;
+	accuracy = Real( accuracy / 100000 ) * M.rows();
 	int dims[] = { ( _BSplineEnd< FEMSigs >( depth ) - _BSplineBegin< FEMSigs >( depth ) ) ... };
-	int nonZeroRows = 0;
-	for( int i=0 ; i<M.rowNum ; i++ ) if( M.rowSizes[i] ) nonZeroRows++;
-	int totalDim = 1;
+	size_t nonZeroRows = 0;
+	for( matrix_index_type i=0 ; i<(matrix_index_type)M.rows() ; i++ ) if( M.rowSize(i) ) nonZeroRows++;
+	size_t totalDim = 1;
 	for( int d=0 ; d<Dim ; d++ ) totalDim *= dims[d];
 	BoundaryType bTypes[] = { FEMSignature< FEMSigs >::BType ... };
 	bool hasPartitionOfUnity = true;
@@ -557,54 +582,58 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	double bNorm = 0 , inRNorm = 0 , outRNorm = 0;
 	if( computeNorms )
 	{
-#pragma omp parallel for reduction( + : bNorm , inRNorm )
-		for( int j=0 ; j<M.rowNum ; j++ )
+		std::vector< double > bNorms( ThreadPool::NumThreads() , 0 ) , inRNorms( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
 		{
 			T temp = {};
-			ConstPointer( MatrixEntry< Real > ) start = M[j];
-			ConstPointer( MatrixEntry< Real > ) end = start + (unsigned long long)M.rowSizes[j];
-			ConstPointer( MatrixEntry< Real > ) e;
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = M[j];
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) end = start + M.rowSize(j);
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) e;
 			for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
-			bNorm += Dot( B[j] , B[j] );
-			inRNorm += Dot( temp-B[j] , temp-B[j] );
+			bNorms[thread] += Dot( B[j] , B[j] );
+			inRNorms[thread] += Dot( temp-B[j] , temp-B[j] );
 		}
+		);
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) bNorm += bNorms[t] , inRNorm += inRNorms[t];
 	}
 
-	iters = std::min< int >( nonZeroRows , iters );
+	iters = (int)std::min< size_t >( nonZeroRows , iters );
 	struct SPDFunctor
 	{
 	protected:
-		const SparseMatrix< Real >& _M;
+		const SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& _M;
 		bool _addDCTerm;
 	public:
-		SPDFunctor( const SparseMatrix< Real >& M , bool addDCTerm ) : _M(M) , _addDCTerm(addDCTerm){ }
+		SPDFunctor( const SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& M , bool addDCTerm ) : _M(M) , _addDCTerm(addDCTerm){ }
 		void operator()( ConstPointer( T ) in , Pointer( T ) out ) const
 		{
 			_M.multiply( in , out );
 			if( _addDCTerm )
 			{
 				T average = {};
-				for( int i=0 ; i<_M.rowNum ; i++ ) average += in[i];
-				average /= _M.rowNum;
-				for( int i=0 ; i<_M.rowNum ; i++ ) out[i] += average;
+				for( matrix_index_type i=0 ; i<(matrix_index_type)_M.rows() ; i++ ) average += in[i];
+				average /= _M.rows();
+				for( matrix_index_type i=0 ; i<(matrix_index_type)_M.rows() ; i++ ) out[i] += average;
 			}
 		}
 	};
-	if( iters ) iter = SolveCG< SPDFunctor , T , Real >( SPDFunctor( M , addDCTerm ) , (int)M.rowNum , ( ConstPointer( T ) )B , iters , X , Real( accuracy ) , Dot );
+	if( iters ) iter = (int)SolveCG< SPDFunctor , T , Real >( SPDFunctor( M , addDCTerm ) , M.rows() , ( ConstPointer( T ) )B , iters , X , Real( accuracy ) , Dot );
 
 	solveTime = Time()-solveTime;
 	if( computeNorms )
 	{
-#pragma omp parallel for reduction( + : outRNorm )
-		for( int j=0 ; j<M.rowNum ; j++ )
+		std::vector< double > outRNorms( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
 		{
 			T temp = {};
-			ConstPointer( MatrixEntry< Real > ) start = M[j];
-			ConstPointer( MatrixEntry< Real > ) end = start + (unsigned long long)M.rowSizes[j];
-			ConstPointer( MatrixEntry< Real > ) e;
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = M[j];
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) end = start + M.rowSize(j);
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) e;
 			for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
-			outRNorm += Dot( temp-B[j] , temp-B[j] );
+			outRNorms[thread] += Dot( temp-B[j] , temp-B[j] );
 		}
+		);
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) outRNorm += outRNorms[t];
 		stats.bNorm2 = bNorm , stats.inRNorm2 = inRNorm , stats.outRNorm2 = outRNorm;
 	}
 	FreePointer( _constraints );
@@ -612,17 +641,18 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	MemoryUsage();
 	return iter;
 }
+
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
-void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > ,  typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
 	double& systemTime = stats.systemTime;
 	double&  solveTime = stats. solveTime;
 
-	std::vector< SparseMatrix< Real , int > > P( depth ) , R( depth ) , M( depth+1 );
+	std::vector< SparseMatrix< Real , matrix_index_type > > P( depth ) , R( depth ) , M( depth+1 );
 	std::vector< Pointer( Real ) > D( depth+1 );
 	std::vector< Pointer( T ) > B( depth+1 ) , X( depth+1 ) , MX( depth+1 );
-	std::vector< std::vector< std::vector< int > > > multiColorIndices( depth+1 );
+	std::vector< std::vector< std::vector< size_t > > > multiColorIndices( depth+1 );
 
 	systemTime = Time();
 	M.back() = systemMatrix< Real >( UIntPack< FEMSigs ... >() , F , depth , interpolationInfo ... );
@@ -654,19 +684,21 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > ,  typename
 	double bNorm = 0 , inRNorm = 0 , outRNorm = 0;
 	if( computeNorms )
 	{
-		const SparseMatrix< Real , int >& _M = M.back();
+		const SparseMatrix< Real , matrix_index_type >& _M = M.back();
 		ConstPointer( T ) _X = X.back();
-#pragma omp parallel for reduction( + : bNorm , inRNorm )
-		for( int j=0 ; j<_M.rowNum ; j++ )
+		std::vector< double > bNorms( ThreadPool::NumThreads() , 0 ) , inRNorms( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int thread , size_t j )
 		{
 			T temp = {};
-			ConstPointer( MatrixEntry< Real > ) start = _M[j];
-			ConstPointer( MatrixEntry< Real > ) end = start + (unsigned long long)_M.rowSizes[j];
-			ConstPointer( MatrixEntry< Real > ) e;
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = _M[j];
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) end = start + _M.rowSize(j);
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) e;
 			for( e=start ; e!=end ; e++ ) temp += _X[ e->N ] * e->Value;
-			bNorm += Dot( _B[j] , _B[j] );
-			inRNorm += Dot( temp-_B[j] , temp-_B[j] );
+			bNorms[thread] += Dot( _B[j] , _B[j] );
+			inRNorms[thread] += Dot( temp-_B[j] , temp-_B[j] );
 		}
+		);
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) bNorm += bNorms[t] , inRNorm += inRNorms[t];
 	}
 
 	for( int v=0 ; v<vCycles ; v++ )
@@ -677,7 +709,7 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > ,  typename
 			ConstPointer( T ) __B = d==depth ? _B : B[d];
 			for( int i=0 ; i<iters ; i++ ) M[d].gsIteration( multiColorIndices[d] , D[d] , __B , X[d] , true , true );
 			M[d].multiply( X[d] , MX[d] );
-			for( int i=0 ; i<M[d].rows() ; i++ ) MX[d][i] = __B[i] - MX[d][i];
+			for( matrix_index_type i=0 ; i<(matrix_index_type)M[d].rows() ; i++ ) MX[d][i] = __B[i] - MX[d][i];
 			R[d-1].multiply( MX[d] , B[d-1] );
 			memset( X[d-1] , 0 , sizeof( T )*M[d-1].rows() );
 		}
@@ -689,25 +721,25 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > ,  typename
 			struct SPDFunctor
 			{
 			protected:
-				const SparseMatrix< Real >& _M;
+				const SparseMatrix< Real , matrix_index_type >& _M;
 				bool _addDCTerm;
 			public:
-				SPDFunctor( const SparseMatrix< Real >& M , bool addDCTerm ) : _M(M) , _addDCTerm(addDCTerm){ }
+				SPDFunctor( const SparseMatrix< Real , matrix_index_type  >& M , bool addDCTerm ) : _M(M) , _addDCTerm(addDCTerm){ }
 				void operator()( ConstPointer( T ) in , Pointer( T ) out ) const
 				{
 					_M.multiply( in , out );
 					if( _addDCTerm )
 					{
 						T average = {};
-						for( int i=0 ; i<_M.rowNum ; i++ ) average += in[i];
-						average /= _M.rowNum;
-						for( int i=0 ; i<_M.rowNum ; i++ ) out[i] += average;
+						for( matrix_index_type i=0 ; i<(matrix_index_type)_M.rows() ; i++ ) average += in[i];
+						average /= _M.rows();
+						for( matrix_index_type i=0 ; i<(matrix_index_type)_M.rows() ; i++ ) out[i] += average;
 					}
 				}
 			};
-			int nonZeroRows = 0;
-			for( int i=0 ; i<M[d].rowNum ; i++ ) if( M[d].rowSizes[i] ) nonZeroRows++;
-			int totalDim = 1;
+			size_t nonZeroRows = 0;
+			for( matrix_index_type i=0 ; i<(matrix_index_type)M[d].rows() ; i++ ) if( M[d].rowSize(i) ) nonZeroRows++;
+			size_t totalDim = 1;
 			int dims[] = { ( _BSplineEnd< FEMSigs >( depth ) - _BSplineBegin< FEMSigs >( depth ) ) ... };
 			for( int dd=0 ; dd<Dim ; dd++ ) totalDim *= dims[dd];
 			BoundaryType bTypes[] = { FEMSignature< FEMSigs >::BType ... };
@@ -715,7 +747,7 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > ,  typename
 			for( int dd=0 ; dd<Dim ; dd++ ) hasPartitionOfUnity &= HasPartitionOfUnity( bTypes[dd] );
 			bool addDCTerm = ( nonZeroRows==totalDim && !ConstrainsDCTerm( interpolationInfo... ) && hasPartitionOfUnity && F.vanishesOnConstants() );
 
-			SolveCG< SPDFunctor , T , Real >( SPDFunctor( M[d] , addDCTerm ) , (int)M[d].rows() , ( ConstPointer( T ) )__B , nonZeroRows , X[d] , Real( cgAccuracy ) , Dot );
+			SolveCG< SPDFunctor , T , Real >( SPDFunctor( M[d] , addDCTerm ) , M[d].rows() , ( ConstPointer( T ) )__B , nonZeroRows , X[d] , Real( cgAccuracy ) , Dot );
 		}
 
 		// Prolongation
@@ -728,18 +760,20 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > ,  typename
 	}
 	if( computeNorms )
 	{
-		const SparseMatrix< Real , int >& _M = M.back();
+		const SparseMatrix< Real , matrix_index_type >& _M = M.back();
 		ConstPointer( T ) _X = X.back();
-#pragma omp parallel for reduction( + : outRNorm )
-		for( int j=0 ; j<_M.rowNum ; j++ )
+		std::vector< double > outRNorms( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int thread , size_t j )
 		{
 			T temp = {};
-			ConstPointer( MatrixEntry< Real > ) start = _M[j];
-			ConstPointer( MatrixEntry< Real > ) end = start + (unsigned long long)_M.rowSizes[j];
-			ConstPointer( MatrixEntry< Real > ) e;
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = _M[j];
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) end = start + _M.rowSize(j);
+			ConstPointer( MatrixEntry< Real , matrix_index_type > ) e;
 			for( e=start ; e!=end ; e++ ) temp += _X[ e->N ] * e->Value;
-			outRNorm += Dot( temp-_B[j] , temp-_B[j] );
+			outRNorms[thread] += Dot( temp-_B[j] , temp-_B[j] );
 		}
+		);
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) outRNorm += outRNorms[t];
 		stats.bNorm2 = bNorm , stats.inRNorm2 = inRNorm , stats.outRNorm2 = outRNorm;
 	}
 	solveTime = Time() - solveTime;
@@ -758,9 +792,16 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > ,  typename
 	}
 }
 
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
+template< unsigned int Dim , class Real >
+template< unsigned int ... FEMSigs >
+int FEMTree< Dim , Real >::_getMatrixRowSize( UIntPack< FEMSigs ... > , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors ) const
+#else // !__GNUC__ || __GNUC__ >=5
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs >
 int FEMTree< Dim , Real >::_getMatrixRowSize( const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors ) const
+#endif // __GNUC__ || __GNUC__ < 4
 {
 	typedef UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > OverlapSizes;
 
@@ -809,15 +850,7 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 	typedef UIntPack< ( -BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::SupportStart ) ... > RightPointSupportRadii;
 	typedef UIntPack<    BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::SupportSize    ... > SupportSizes;
 
-	if( !( FEMDegrees() >= IsotropicUIntPack< Dim , PointD >() ) )
-	{
-		fprintf( stderr , "[ERROR] FEMTree::_addPointValues: Insufficient derivatives: " );
-		IsotropicUIntPack< Dim , PointD >::Print( stderr );
-		fprintf( stderr , " > " );
-		FEMDegrees::Print( stderr );
-		fprintf( stderr , "\n" );
-		exit( 0 );
-	}
+	if( !( FEMDegrees() >= IsotropicUIntPack< Dim , PointD >() ) ) ERROR_OUT( "Insufficient derivatives" );
 	if( !interpolationInfo ) return;
 	const InterpolationInfo< T , PointD >& iInfo = *interpolationInfo;
 
@@ -888,7 +921,71 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , Pointer( MatrixEntry< Real > ) row , int offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , size_t idx , SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > &M , node_index_type offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+{
+	T constraint ={};
+	typedef UIntPack< ( -BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > OverlapRadii;
+	typedef UIntPack<    BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize    ... > OverlapSizes;
+
+	int count = 0;
+	const FEMTreeNode* node = neighbors.neighbors.data[ WindowIndex< OverlapSizes , OverlapRadii >::Index ];
+	Pointer( MatrixEntry< Real , matrix_index_type > ) row = M[idx];
+
+	LocalDepth d ; LocalOffset off;
+	_localDepthAndOffset( node , d , off );
+	if( d>0 && prolongedSolution )
+	{
+		int cIdx = (int)( node - node->parent->children );
+		constraint = _getConstraintFromProlongedSolution( UIntPack< FEMSigs ... >() , F , neighbors , pNeighbors , node , prolongedSolution , pcStencils.data[cIdx] , bsData , interpolationInfo... );
+	}
+
+	bool isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , UIntPack< FEMSignature< FEMSigs >::Degree ... >() , d , off );
+
+	StaticWindow< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > > pointValues;
+	memset( pointValues.data , 0 , sizeof(Real)*WindowSize< OverlapSizes >::Size );
+	_addPointValues( UIntPack< FEMSigs ... >() , pointValues , neighbors , bsData , interpolationInfo ... );
+	node_index_type nodeIndex = node->nodeData.nodeIndex;
+	if( isInterior ) // General case, so try to make fast
+	{
+		const FEMTreeNode* const * _nodes = neighbors.neighbors.data;
+		ConstPointer( double ) _stencil = ccStencil.data;
+		Real* _values = pointValues.data;
+		row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodeIndex-offset ) , (Real)( _values[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] + _stencil[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] ) );
+		for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( _nodes[i] ) )
+		{
+			if( i!=WindowIndex< OverlapSizes , OverlapRadii >::Index ) row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( _nodes[i]->nodeData.nodeIndex-offset ) , (Real)( _values[i] + _stencil[i] ) );
+		}
+	}
+	else
+	{
+		LocalDepth d ; LocalOffset off;
+		_localDepthAndOffset( node , d , off );
+		Real temp = (Real)F.ccIntegrate( off , off ) + pointValues.data[ WindowIndex< OverlapSizes , OverlapRadii >::Index ];
+
+		row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodeIndex-offset ) , temp );
+		LocalOffset _off;
+		WindowLoop< Dim >::Run
+		(
+			ZeroUIntPack< Dim >() , OverlapSizes() ,
+			[&]( int d , int i ){ _off[d] = off[d] - (int)OverlapRadii::Values[d] + i; } ,
+			[&]( const FEMTreeNode* _node , Real pointValue )
+		{
+			if( node!=_node && FEMIntegrator::IsValidFEMNode( UIntPack< FEMSigs ... >() , d , _off ) )
+			{
+				Real temp = (Real)F.ccIntegrate( _off , off ) + pointValue;
+				if( _isValidFEM1Node( _node ) ) row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( _node->nodeData.nodeIndex-offset ) , temp );
+			}
+		} ,
+			neighbors.neighbors() , pointValues()
+			);
+	}
+	M.setRowSize( idx , count );
+	return constraint;
+}
+
+template< unsigned int Dim , class Real >
+template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
+T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , Pointer( MatrixEntry< Real , matrix_index_type > ) row , node_index_type offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
 	T constraint ={};
 	typedef UIntPack< ( -BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > OverlapRadii;
@@ -909,16 +1006,16 @@ T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack
 	StaticWindow< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > > pointValues;
 	memset( pointValues.data , 0 , sizeof(Real)*WindowSize< OverlapSizes >::Size );
 	_addPointValues( UIntPack< FEMSigs ... >() , pointValues , neighbors , bsData , interpolationInfo ... );
-	int nodeIndex = node->nodeData.nodeIndex;
+	node_index_type nodeIndex = node->nodeData.nodeIndex;
 	if( isInterior ) // General case, so try to make fast
 	{
 		const FEMTreeNode* const * _nodes = neighbors.neighbors.data;
 		ConstPointer( double ) _stencil = ccStencil.data;
 		Real* _values = pointValues.data;
-		row[count++] = MatrixEntry< Real >( nodeIndex-offset , (Real)( _values[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] + _stencil[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] ) );
+		row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodeIndex-offset ) , (Real)( _values[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] + _stencil[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] ) );
 		for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( _nodes[i] ) )
 		{
-			if( i!=WindowIndex< OverlapSizes , OverlapRadii >::Index ) row[count++] = MatrixEntry< Real >( _nodes[i]->nodeData.nodeIndex-offset , (Real)( _values[i] + _stencil[i] ) );
+			if( i!=WindowIndex< OverlapSizes , OverlapRadii >::Index ) row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( _nodes[i]->nodeData.nodeIndex-offset ) , (Real)( _values[i] + _stencil[i] ) );
 		}
 	}
 	else
@@ -927,7 +1024,7 @@ T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack
 		_localDepthAndOffset( node , d , off );
 		Real temp = (Real)F.ccIntegrate( off , off ) + pointValues.data[ WindowIndex< OverlapSizes , OverlapRadii >::Index ];
 	
-		row[count++] = MatrixEntry< Real >( nodeIndex-offset , temp );
+		row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodeIndex-offset ) , temp );
 		LocalOffset _off;
 		WindowLoop< Dim >::Run
 		(
@@ -938,7 +1035,7 @@ T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack
 				if( node!=_node && FEMIntegrator::IsValidFEMNode( UIntPack< FEMSigs ... >() , d , _off ) )
 				{
 					Real temp = (Real)F.ccIntegrate( _off , off ) + pointValue;
-					if( _isValidFEM1Node( _node ) ) row[count++] = MatrixEntry< Real >( _node->nodeData.nodeIndex-offset , temp );
+					if( _isValidFEM1Node( _node ) ) row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( _node->nodeData.nodeIndex-offset ) , temp );
 				}
 			} ,
 			neighbors.neighbors() , pointValues()
@@ -955,7 +1052,7 @@ void FEMTree< Dim , Real >::_addProlongedPointValues( UIntPack< FEMSigs ... > , 
 #pragma message( "[WARNING] This code is broken" )
 #endif // SHOW_WARNINGS
 #if 1
-	fprintf( stderr , "[ERROR] Broken code\n" ) , exit( 0 );
+	ERROR_OUT( "Broken code" );
 #else
 	if( !interpolationInfo ) return;
 	const InterpolationInfo< T , PointD >& iInfo = *interpolationInfo;
@@ -1026,7 +1123,7 @@ void FEMTree< Dim , Real >::_addProlongedPointValues( UIntPack< FEMSigs ... > , 
 
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-int FEMTree< Dim , Real >::_setProlongedMatrixRow( const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , Pointer( MatrixEntry< Real > ) row , int offset , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+int FEMTree< Dim , Real >::_setProlongedMatrixRow( const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , Pointer( MatrixEntry< Real , matrix_index_type > ) row , node_index_type offset , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
 	typedef UIntPack< ( -BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > OverlapRadii;
 	typedef UIntPack<    BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize    ... > OverlapSizes;
@@ -1042,7 +1139,7 @@ int FEMTree< Dim , Real >::_setProlongedMatrixRow( const typename BaseFEMIntegra
 	memset( pointValues.data , 0 , sizeof(Real)*WindowSize< OverlapSizes >::Size );
 	_addProlongedPointValues( UIntPack< FEMSigs ... >() , pointValues() , neighbors , pNeighbors , bsData , interpolationInfo ... );
 
-	int nodeIndex = node->nodeData.nodeIndex;
+	node_index_type nodeIndex = node->nodeData.nodeIndex;
 
 	int start[Dim] , end[Dim];
 	_SetParentOverlapBounds( FEMDegrees() , FEMDegrees() , node , start , end );
@@ -1054,7 +1151,7 @@ int FEMTree< Dim , Real >::_setProlongedMatrixRow( const typename BaseFEMIntegra
 			[&]( int , int ){;} ,
 			[&]( const FEMTreeNode* node , const Real& pointValue , const Real& stencilValue )
 			{
-				if( _isValidFEM1Node( node ) ) row[count++] = MatrixEntry< Real >( node->nodeData.nodeIndex - offset , pointValue + stencilValue );
+			if( _isValidFEM1Node( node ) ) row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( node->nodeData.nodeIndex - offset ) , pointValue + stencilValue );
 			} ,
 			pNeighbors.neighbors() , pointValues() , stencil()
 		);
@@ -1073,7 +1170,7 @@ int FEMTree< Dim , Real >::_setProlongedMatrixRow( const typename BaseFEMIntegra
 				{
 					LocalDepth d ; LocalOffset _off;
 					_localDepthAndOffset( node , d , _off );
-					row[count++] = MatrixEntry< Real >( node->nodeData.nodeIndex - offset , (Real)F.pcIntegrate( _off , off ) + pointValue );
+					row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( node->nodeData.nodeIndex - offset ) , (Real)F.pcIntegrate( _off , off ) + pointValue );
 				}
 			} ,
 			pNeighbors.neighbors() , pointValues()
@@ -1251,53 +1348,59 @@ void FEMTree< Dim , Real >::_updateRestrictedIntegralConstraints( UIntPack< FEMS
 	// Get the stencil describing the Laplacian relating coefficients @(highDepth) with coefficients @(highDepth-1)
 	PCStencils< FEMDegrees > stencils;
 	F.template setStencils< true >(  stencils );
-	size_t start = _sNodesBegin(highDepth) , end = _sNodesEnd(highDepth) , range = end-start;
-	int lStart = _sNodesBegin(highDepth-1);
+	node_index_type start = _sNodesBegin(highDepth) , end = _sNodesEnd(highDepth);
+	node_index_type range = end-start;
+	node_index_type lStart = _sNodesBegin(highDepth-1);
 
 	// Iterate over the nodes @(highDepth)
-	std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+	std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( highDepth )-1 );
-#pragma omp parallel for
-	for( int i=_sNodesBegin(highDepth) ; i<_sNodesEnd(highDepth) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
 	{
-		ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-		FEMTreeNode* node = _sNodes.treeNodes[i];
-
-		// Offset the coarser constraints using the solution from the current resolutions.
-		int cIdx = (int)( node - node->parent->children );
-
+		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
-			typename FEMTreeNode::template ConstNeighbors< OverlapSizes > pNeighbors;
-			neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , node->parent , pNeighbors );
-			const DynamicWindow< double , OverlapSizes >& stencil = stencils.data[cIdx];
+			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
+			FEMTreeNode* node = _sNodes.treeNodes[i];
 
-			bool isInterior = _isInteriorlyOverlapped( FEMDegrees() , FEMDegrees() , node->parent );
-			LocalDepth d ; LocalOffset off;
-			_localDepthAndOffset( node , d , off );
+			// Offset the coarser constraints using the solution from the current resolutions.
+			int cIdx = (int)( node - node->parent->children );
 
-			// Offset the constraints using the solution from finer resolutions.
-			int start[Dim] , end[Dim];
-			_SetParentOverlapBounds( FEMDegrees() , FEMDegrees() , node , start , end );
-
-			T solution = fineSolution[ node->nodeData.nodeIndex ];
-			ConstPointer( FEMTreeNode * const ) nodes = pNeighbors.neighbors().data;
-			ConstPointer( double ) stencilValues = stencil.data;
-			if( isInterior )
 			{
-				for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
-					AddAtomic( restrictedConstraints[ nodes[i]->nodeData.nodeIndex ] , solution * (Real)stencilValues[i] );
-			}
-			else
-			{
-				for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
+				typename FEMTreeNode::template ConstNeighbors< OverlapSizes > pNeighbors;
+				neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , node->parent , pNeighbors );
+				const DynamicWindow< double , OverlapSizes >& stencil = stencils.data[cIdx];
+
+				bool isInterior = _isInteriorlyOverlapped( FEMDegrees() , FEMDegrees() , node->parent );
+				LocalDepth d ; LocalOffset off;
+				_localDepthAndOffset( node , d , off );
+
+				// Offset the constraints using the solution from finer resolutions.
+				int start[Dim] , end[Dim];
+				_SetParentOverlapBounds( FEMDegrees() , FEMDegrees() , node , start , end );
+
+				T solution = fineSolution[ node->nodeData.nodeIndex ];
+				ConstPointer( FEMTreeNode * const ) nodes = pNeighbors.neighbors().data;
+				ConstPointer( double ) stencilValues = stencil.data;
+				if( isInterior )
 				{
-					LocalDepth _d ; LocalOffset _off;
-					_localDepthAndOffset( nodes[i] , _d , _off );
-					AddAtomic( restrictedConstraints[ nodes[i]->nodeData.nodeIndex ] , solution * (Real)F.pcIntegrate( _off , off ) );
+					for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
+					{
+						AddAtomic( restrictedConstraints[ nodes[i]->nodeData.nodeIndex ] , solution * (Real)stencilValues[i] );
+					}
+				}
+				else
+				{
+					for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
+					{
+						LocalDepth _d ; LocalOffset _off;
+						_localDepthAndOffset( nodes[i] , _d , _off );
+						AddAtomic( restrictedConstraints[ nodes[i]->nodeData.nodeIndex ] , solution * (Real)F.pcIntegrate( _off , off ) );
+					}
 				}
 			}
 		}
 	}
+	);
 }
 
 template< unsigned int Dim , class Real >
@@ -1311,29 +1414,32 @@ void FEMTree< Dim , Real >::_setPointValuesFromProlongedSolution( LocalDepth hig
 	LocalDepth lowDepth = highDepth-1;
 	if( lowDepth<0 ) return;
 	// For every node at the current depth
-	std::vector< ConstPointSupportKey< FEMDegrees > > neighborKeys( omp_get_max_threads() );
+	std::vector< ConstPointSupportKey< FEMDegrees > > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
 
-#pragma omp parallel for
-	for( int i=_sNodesBegin(highDepth) ; i<_sNodesEnd(highDepth) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
 	{
-		ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ omp_get_thread_num() ];
-		if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
+		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
-			size_t begin , end;
-			interpolationInfo.range( _sNodes.treeNodes[i] , begin , end );
-			for( size_t pIndex=begin ; pIndex<end ; pIndex++ )
+			ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ thread ];
+			if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 			{
-				DualPointInfo< Dim , Real , T , PointD >& pData = interpolationInfo[ pIndex ];
-				neighborKey.getNeighbors( _sNodes.treeNodes[i]->parent );
+				size_t begin , end;
+				interpolationInfo.range( _sNodes.treeNodes[i] , begin , end );
+				for( size_t pIndex=begin ; pIndex<end ; pIndex++ )
+				{
+					DualPointInfo< Dim , Real , T , PointD >& pData = interpolationInfo[ pIndex ];
+					neighborKey.getNeighbors( _sNodes.treeNodes[i]->parent );
 #ifdef _MSC_VER
-				pData.dualValues = interpolationInfo( pIndex , _coarserFunctionValues< PointD , T , FEMSigs ... >( UIntPack< FEMSigs ... >() , pData.position , neighborKey , _sNodes.treeNodes[i] , bsData , prolongedSolution ) ) * pData.weight;
+					pData.dualValues = interpolationInfo( pIndex , _coarserFunctionValues< PointD , T , FEMSigs ... >( UIntPack< FEMSigs ... >() , pData.position , neighborKey , _sNodes.treeNodes[i] , bsData , prolongedSolution ) ) * pData.weight;
 #else // !_MSC_VER
-				pData.dualValues = interpolationInfo( pIndex , _coarserFunctionValues< PointD >( UIntPack< FEMSigs ... >() , pData.position , neighborKey , _sNodes.treeNodes[i] , bsData , prolongedSolution ) ) * pData.weight;
+					pData.dualValues = interpolationInfo( pIndex , _coarserFunctionValues< PointD >( UIntPack< FEMSigs ... >() , pData.position , neighborKey , _sNodes.treeNodes[i] , bsData , prolongedSolution ) ) * pData.weight;
 #endif // _MSC_VER
+				}
 			}
 		}
 	}
+	);
 }
 
 template< unsigned int Dim , class Real >
@@ -1351,39 +1457,40 @@ void FEMTree< Dim , Real >::_updateRestrictedInterpolationConstraints( const Poi
 	LocalDepth  lowDepth = highDepth-1;
 	if( lowDepth<0 ) return;
 
-	size_t start = _sNodesBegin(lowDepth) , end = _sNodesEnd(lowDepth);
-	std::vector< ConstPointSupportKey< FEMDegrees > > neighborKeys( omp_get_max_threads() );
+	node_index_type start = _sNodesBegin(lowDepth) , end = _sNodesEnd(lowDepth);
+	std::vector< ConstPointSupportKey< FEMDegrees > > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
-#pragma omp parallel for
-	for( int i=_sNodesBegin(lowDepth) ; i<_sNodesEnd(lowDepth) ; i++ ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
+	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 	{
-		ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ omp_get_thread_num() ];
-		PointEvaluatorState< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > peState;
-		const FEMTreeNode* node = _sNodes.treeNodes[i];
-
-		LocalDepth d ; LocalOffset off;
-		_localDepthAndOffset( node , d , off );
-		typename FEMTreeNode::template ConstNeighbors< SupportSizes >& neighbors = neighborKey.getNeighbors( node );
-		size_t begin , end;
-		interpolationInfo.range( node , begin , end );
-		for( size_t pIndex=begin ; pIndex<end ; pIndex++ )
+		if( _isValidSpaceNode( _sNodes.treeNodes[i] ) ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 		{
-			const DualPointInfo< Dim , Real , T , PointD >& pData = interpolationInfo[ pIndex ];
-			Point< Real , Dim > p = pData.position;
-			bsData.initEvaluationState( p , d , off , peState );
+			ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ thread ];
+			PointEvaluatorState< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > peState;
+			const FEMTreeNode* node = _sNodes.treeNodes[i];
+
+			LocalDepth d ; LocalOffset off;
+			_localDepthAndOffset( node , d , off );
+			typename FEMTreeNode::template ConstNeighbors< SupportSizes >& neighbors = neighborKey.getNeighbors( node );
+			size_t begin , end;
+			interpolationInfo.range( node , begin , end );
+			for( size_t pIndex=begin ; pIndex<end ; pIndex++ )
+			{
+				const DualPointInfo< Dim , Real , T , PointD >& pData = interpolationInfo[ pIndex ];
+				Point< Real , Dim > p = pData.position;
+				bsData.initEvaluationState( p , d , off , peState );
 
 #ifdef _MSC_VER
-			CumulativeDerivativeValues< T , Dim , PointD > dualValues = interpolationInfo( pIndex , _finerFunctionValues< PointD , T , FEMSigs ... >( UIntPack< FEMSigs ... >() , pData.position , neighborKey , node , bsData , solution ) ) * pData.weight;
+				CumulativeDerivativeValues< T , Dim , PointD > dualValues = interpolationInfo( pIndex , _finerFunctionValues< PointD , T , FEMSigs ... >( UIntPack< FEMSigs ... >() , pData.position , neighborKey , node , bsData , solution ) ) * pData.weight;
 #else // !_MSC_VER
-			CumulativeDerivativeValues< T , Dim , PointD > dualValues = interpolationInfo( pIndex , _finerFunctionValues< PointD >( UIntPack< FEMSigs ... >() , pData.position , neighborKey , node , bsData , solution ) ) * pData.weight;
+				CumulativeDerivativeValues< T , Dim , PointD > dualValues = interpolationInfo( pIndex , _finerFunctionValues< PointD >( UIntPack< FEMSigs ... >() , pData.position , neighborKey , node , bsData , solution ) ) * pData.weight;
 #endif // _MSC_VER
-			// Update constraints for all nodes @( depth-1 ) that overlap the point
-			int s[Dim];
-			WindowLoop< Dim >::Run
-			(
-				ZeroUIntPack< Dim >() , SupportSizes() ,
-				[&]( int d , int i ){ s[d] = i; } ,
-				[&]( const FEMTreeNode* node )
+				// Update constraints for all nodes @( depth-1 ) that overlap the point
+				int s[Dim];
+				WindowLoop< Dim >::Run
+				(
+					ZeroUIntPack< Dim >() , SupportSizes() ,
+					[&]( int d , int i ){ s[d] = i; } ,
+					[&]( const FEMTreeNode* node )
 				{
 					if( _isValidFEM1Node( node ) )
 					{
@@ -1395,10 +1502,12 @@ void FEMTree< Dim , Real >::_updateRestrictedInterpolationConstraints( const Poi
 						AddAtomic( restrictedConstraints[ node->nodeData.nodeIndex ] , temp );
 					}
 				} ,
-				neighbors.neighbors()
-			);
+					neighbors.neighbors()
+					);
+			}
 		}
 	}
+	);
 }
 
 template< unsigned int Dim , class Real >
@@ -1407,8 +1516,7 @@ DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::coarseCoeffi
 {
 	DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
 	memset( coarseCoefficients() , 0 , sizeof(Real)*_sNodesEnd(_maxDepth-1) );
-#pragma omp parallel for
-	for( int i=_sNodesBegin(0) ; i<_sNodesEnd(_maxDepth-1) ; i++ ) coarseCoefficients[i] = coefficients[i];
+	ThreadPool::Parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( unsigned int , size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
 	typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
 	for( LocalDepth d=1 ; d<_maxDepth ; d++ ) _upSample( UIntPack< FEMSigs ... >() , rp , d , coarseCoefficients() );
 	return coarseCoefficients;
@@ -1420,12 +1528,12 @@ DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::coarseCoeffi
 {
 	DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
 	memset( coarseCoefficients() , 0 , sizeof(C)*_sNodesEnd(_maxDepth-1) );
-#pragma omp parallel for
-	for( int i=_sNodesBegin(0) ; i<_sNodesEnd(_maxDepth-1) ; i++ )
+	ThreadPool::Parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( unsigned int , size_t i )
 	{
 		const C* c = coefficients( _sNodes.treeNodes[i] );
 		if( c ) coarseCoefficients[i] = *c;
 	}
+	);
 	typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
 	for( LocalDepth d=1 ; d<_maxDepth ; d++ ) _upSample( UIntPack< FEMSigs ... >() , rp , d , coarseCoefficients() );
 	return coarseCoefficients;
@@ -1502,33 +1610,32 @@ CumulativeDerivativeValues< T , Dim , PointD > FEMTree< Dim , Real >::_finerFunc
 
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , typename T , unsigned int ... PointDs >
-int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , int nBegin , int nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , node_index_type nBegin , node_index_type nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
 	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > FEMDegrees;
 	typedef UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > OverlapSizes;
 	typedef UIntPack< ( -BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > OverlapRadii;
 	size_t range = nEnd - nBegin;
-	matrix.resize( (int)range );
-	std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+	matrix.resize( range );
+	std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( depth ) );
-#pragma omp parallel for
-	for( int i=0 ; i<(int)range ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i+nBegin] ) )
+	ThreadPool::Parallel_for( 0 , range , [&]( unsigned int thread , size_t i )
 	{
-		ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-		FEMTreeNode* node = _sNodes.treeNodes[i+nBegin];
-		// Get the matrix row size	
-		typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors , pNeighbors;
-		neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , node , pNeighbors , neighbors );
-		int count = _getMatrixRowSize< FEMSigs ... >( neighbors );
-		// Allocate memory for the row
-		matrix.setRowSize( i , count );
-
-		// Set the row entries
-		if( constraints ) constraints[i] = _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F , pNeighbors , neighbors , matrix[i] , nBegin , pcStencils , ccStencil , bsData , prolongedSolution , interpolationInfo... );
-		else                               _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F , pNeighbors , neighbors , matrix[i] , nBegin , pcStencils , ccStencil , bsData , prolongedSolution , interpolationInfo... );
-		if( diagonalR ) diagonalR[i] = (Real)1. / matrix[i][0].Value;
+		if( _isValidFEM1Node( _sNodes.treeNodes[i+nBegin] ) )
+		{
+			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
+			FEMTreeNode* node = _sNodes.treeNodes[i+nBegin];
+			// Get the matrix row size	
+			typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors , pNeighbors;
+			neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , node , pNeighbors , neighbors );
+			// Set the row entries
+			if( constraints ) constraints[i] = _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F , pNeighbors , neighbors , i , matrix , nBegin , pcStencils , ccStencil , bsData , prolongedSolution , interpolationInfo... );
+			else                               _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F , pNeighbors , neighbors , i , matrix , nBegin , pcStencils , ccStencil , bsData , prolongedSolution , interpolationInfo... );
+			if( diagonalR ) diagonalR[i] = (Real)1. / matrix[i][0].Value;
+		}
+		else if( constraints ) constraints[i] = T();
 	}
-	else if( constraints ) constraints[i] = T();
+	);
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Why do we care if the node is not valid?" )
 #endif // SHOW_WARNINGS
@@ -1543,12 +1650,12 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-SparseMatrix< Real > FEMTree< Dim , Real >::systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	typedef typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > > BaseSystem;
-	if( depth<0 || depth>_maxDepth ) fprintf( stderr , "[ERROR] System depth out of bounds: %d <= %d <= %d\n" , 0 , depth , _maxDepth ) , exit( 0 );
-	SparseMatrix< Real > matrix;
+	if( depth<0 || depth>_maxDepth ) ERROR_OUT( "System depth out of bounds: 0 <= " , depth , " <= " , _maxDepth );
+	SparseMatrix< Real , matrix_index_type > matrix;
 	F.init( depth );
 	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( depth );
 
@@ -1561,31 +1668,39 @@ SparseMatrix< Real > FEMTree< Dim , Real >::systemMatrix( UIntPack< FEMSigs ... 
 	F.template setStencil< false >( stencil );
 
 	matrix.resize( _sNodesSize(depth) );
-	std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+	std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( depth ) );
-#pragma omp parallel for
-	for( int i=_sNodesBegin(depth) ; i<_sNodesEnd( depth ) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+	ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd( depth ) , [&]( unsigned int thread , size_t i )
 	{
-		int ii = i - _sNodesBegin(depth);
-		ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-		typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors;
-		neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , _sNodes.treeNodes[i] , neighbors );
+		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+		{
+			node_index_type ii = (node_index_type)i - _sNodesBegin(depth);
+			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
+			typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors;
+			neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , _sNodes.treeNodes[i] , neighbors );
 
-		matrix.setRowSize( ii , _getMatrixRowSize< FEMSigs ... >( neighbors ) );
-		_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F ,  neighbors , neighbors , matrix[ii] , _sNodesBegin(depth) , stencils , stencil , bsData , ( ConstPointer( T ) )NullPointer( T ) , interpolationInfo ... );
+#if defined( __GNUC__ ) && __GNUC__ < 5
+			#warning "you've got me gcc version<5"
+				matrix.setRowSize( ii , _getMatrixRowSize( UIntPack< FEMSigs ... >() , neighbors ) );
+#else // !__GNUC__ || __GNUC__ >=5
+			matrix.setRowSize( ii , _getMatrixRowSize< FEMSigs ... >( neighbors ) );
+#endif // __GNUC__ || __GNUC__ < 4
+			_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F ,  neighbors , neighbors , matrix[ii] , _sNodesBegin(depth) , stencils , stencil , bsData , ( ConstPointer( T ) )NullPointer( T ) , interpolationInfo ... );
+		}
 	}
+	);
 	return matrix;
 }
 
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-SparseMatrix< Real > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack<FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack<FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
-	if( highDepth<=0 || highDepth>_maxDepth ) fprintf( stderr , "[ERROR] System depth out of bounds: %d < %d <= %d\n" , 0 , highDepth , _maxDepth ) , exit( 0 );
+	if( highDepth<=0 || highDepth>_maxDepth ) ERROR_OUT( "System depth out of bounds: 0 < " , highDepth , " <= " , _maxDepth );
 
 	LocalDepth lowDepth = highDepth-1;
-	SparseMatrix< Real > matrix;
+	SparseMatrix< Real , matrix_index_type > matrix;
 	F.init( highDepth );
 	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( highDepth );
 	typedef UIntPack< ( -BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > OverlapRadii;
@@ -1595,30 +1710,33 @@ SparseMatrix< Real > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPack< FEM
 	F.template setStencils< true >( stencils );
 
 	matrix.resize( _sNodesSize(highDepth) );
-	std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+	std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( highDepth ) );
-#pragma omp parallel for
-	for( int i=_sNodesBegin(highDepth) ; i<_sNodesEnd(highDepth) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
 	{
-		int ii = i - _sNodesBegin(highDepth);
-		int cIdx = (int)( _sNodes.treeNodes[i]-_sNodes.treeNodes[i]->parent->children );
+		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+		{
+			node_index_type ii = i - _sNodesBegin(highDepth);
+			int cIdx = (int)( _sNodes.treeNodes[i]-_sNodes.treeNodes[i]->parent->children );
 
-		ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-		typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors , pNeighbors;
-		neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , _sNodes.treeNodes[i] , neighbors );
-		neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , _sNodes.treeNodes[i]->parent , pNeighbors );
+			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
+			typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors , pNeighbors;
+			neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , _sNodes.treeNodes[i] , neighbors );
+			neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , _sNodes.treeNodes[i]->parent , pNeighbors );
 
-		matrix.setRowSize( ii , _getProlongedMatrixRowSize< FEMSigs ... >( _sNodes.treeNodes[i] , pNeighbors ) );
-		_setProlongedMatrixRow< Real , PointDs ... >( F , neighbors , pNeighbors , matrix[ii] , _sNodesBegin(lowDepth) , stencils.data[cIdx] , bsData , interpolationInfo... );
+			matrix.setRowSize( ii , _getProlongedMatrixRowSize< FEMSigs ... >( _sNodes.treeNodes[i] , pNeighbors ) );
+			_setProlongedMatrixRow< Real , PointDs ... >( F , neighbors , pNeighbors , matrix[ii] , _sNodesBegin(lowDepth) , stencils.data[cIdx] , bsData , interpolationInfo... );
+		}
 	}
+	);
 	return matrix;
 }
 
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs >
-SparseMatrix< Real > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const
 {
-	SparseMatrix< Real > matrix;
+	SparseMatrix< Real , matrix_index_type > matrix;
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > FEMDegrees;
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... > UpSampleSizes;
@@ -1632,7 +1750,7 @@ SparseMatrix< Real > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FEMSigs 
 
 	typename EvaluationData::UpSampleEvaluator* upSampleEvaluators[] = { new typename BSplineEvaluationData< FEMSigs >::UpSampleEvaluator() ... };
 	for( int d=0 ; d<Dim ; d++ ) upSampleEvaluators[d]->set( lowDepth );
-	std::vector< UpSampleKey > neighborKeys( omp_get_max_threads() );
+	std::vector< UpSampleKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
 
 	DynamicWindow< double , UpSampleSizes > upSampleStencil;
@@ -1646,115 +1764,118 @@ SparseMatrix< Real > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FEMSigs 
 		upSampleStencil()
 	);
 
-#pragma omp parallel for
-	for( int i=_sNodesBegin(lowDepth) ; i<_sNodesEnd(lowDepth) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 	{
-		int _i = i - _sNodesBegin(lowDepth);
-		FEMTreeNode* pNode = _sNodes.treeNodes[i];
-
-		UpSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-		LocalDepth d ; LocalOffset off;
-		_localDepthAndOffset( pNode , d , off );
-		neighborKey.getNeighbors( pNode );
-		typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... > > neighbors;
-		neighborKey.getChildNeighbors( 0 , _localToGlobal( d ) , neighbors );
-
-
-		int rowSize = 0;
-		ConstPointer( FEMTreeNode * const ) nodes = neighbors.neighbors().data;
-		for( int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) ) rowSize++;
-
-		matrix.setRowSize( _i , rowSize );
-		matrix.rowSizes[_i] = 0;
-
-		// Want to make sure test if contained children are interior.
-		// This is more conservative because we are test that overlapping children are interior
-		bool isInterior = _isInteriorlyOverlapped( FEMDegrees() , FEMDegrees() , pNode );
-
-		if( isInterior )
+		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
+			node_index_type _i = (node_index_type)i - _sNodesBegin(lowDepth);
+			FEMTreeNode* pNode = _sNodes.treeNodes[i];
+
+			UpSampleKey& neighborKey = neighborKeys[ thread ];
+			LocalDepth d ; LocalOffset off;
+			_localDepthAndOffset( pNode , d , off );
+			neighborKey.getNeighbors( pNode );
+			typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... > > neighbors;
+			neighborKey.getChildNeighbors( 0 , _localToGlobal( d ) , neighbors );
+
+
+			int rowSize = 0;
 			ConstPointer( FEMTreeNode * const ) nodes = neighbors.neighbors().data;
-			ConstPointer( double ) stencilValues = upSampleStencil().data;
-			for( int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
-				matrix[_i][ matrix.rowSizes[_i]++ ] = MatrixEntry< Real >( nodes[i]->nodeData.nodeIndex - _sNodesBegin(highDepth) , (Real)stencilValues[i] );
-		}
-		else
-		{
-			double upSampleValues[Dim][ UpSampleSizes::Max() ];
+			for( int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) ) rowSize++;
 
-			WindowLoop< Dim >::Run
-			(
-				ZeroUIntPack< Dim >() , UpSampleSizes() ,
-				[&]( int d , int i ){ upSampleValues[d][i] = upSampleEvaluators[d]->value( off[d] , 2*off[d] + i + UpSampleStarts::Values[d] ); } ,
-				[&]( void ){}
-			);
+			matrix.setRowSize( _i , rowSize );
+			matrix.rowSizes[_i] = 0;
 
-			double values[Dim+1] ; values[0] = 1;
-			WindowLoop< Dim , Dim >::Run
-			(
-				ZeroUIntPack< Dim >() , UpSampleSizes() ,
-				[&]( int d , int i ){ values[d+1] = values[d] * upSampleValues[d][i]; } ,
-				[&]( const FEMTreeNode* node ){ if( _isValidFEM1Node( node ) ) matrix[_i][ matrix.rowSizes[_i]++ ] = MatrixEntry< Real >( node->nodeData.nodeIndex - _sNodesBegin(highDepth) , (Real)values[Dim] ); } ,
-				neighbors.neighbors()
-			);
+			// Want to make sure test if contained children are interior.
+			// This is more conservative because we are test that overlapping children are interior
+			bool isInterior = _isInteriorlyOverlapped( FEMDegrees() , FEMDegrees() , pNode );
+
+			if( isInterior )
+			{
+				ConstPointer( FEMTreeNode * const ) nodes = neighbors.neighbors().data;
+				ConstPointer( double ) stencilValues = upSampleStencil().data;
+				for( int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
+					matrix[_i][ matrix.rowSizes[_i]++ ] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodes[i]->nodeData.nodeIndex - _sNodesBegin(highDepth) ) , (Real)stencilValues[i] );
+			}
+			else
+			{
+				double upSampleValues[Dim][ UpSampleSizes::Max() ];
+
+				WindowLoop< Dim >::Run
+				(
+					ZeroUIntPack< Dim >() , UpSampleSizes() ,
+					[&]( int d , int i ){ upSampleValues[d][i] = upSampleEvaluators[d]->value( off[d] , 2*off[d] + i + UpSampleStarts::Values[d] ); } ,
+					[&]( void ){}
+				);
+
+				double values[Dim+1] ; values[0] = 1;
+				WindowLoop< Dim , Dim >::Run
+				(
+					ZeroUIntPack< Dim >() , UpSampleSizes() ,
+					[&]( int d , int i ){ values[d+1] = values[d] * upSampleValues[d][i]; } ,
+					[&]( const FEMTreeNode* node ){ if( _isValidFEM1Node( node ) ) matrix[_i][ matrix.rowSizes[_i]++ ] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( node->nodeData.nodeIndex - _sNodesBegin(highDepth) ) , (Real)values[Dim] ); } ,
+					neighbors.neighbors()
+				);
+			}
 		}
 	}
+	);
 	for( int d=0 ; d<Dim ; d++ ) delete upSampleEvaluators[d];
 	return matrix;
 }
 
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-SparseMatrix< Real > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , bool nonRefinableOnly , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , bool nonRefinableOnly , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
-	SparseMatrix< Real > M;
-	std::vector< SparseMatrix< Real > >                  systemMatrices( depth+1 );
-	std::vector< SparseMatrix< Real > >         prolongedSystemMatrices( depth   );
-	std::vector< std::vector< SparseMatrix< Real > > > upSampleMatrices( depth-1 );
+	SparseMatrix< Real , matrix_index_type > M;
+	std::vector< SparseMatrix< Real , matrix_index_type > >                  systemMatrices( depth+1 );
+	std::vector< SparseMatrix< Real , matrix_index_type > >         prolongedSystemMatrices( depth   );
+	std::vector< std::vector< SparseMatrix< Real , matrix_index_type > > > upSampleMatrices( depth-1 );
 
 	for( int d=0 ; d<depth-1 ; d++ ) upSampleMatrices[d].resize( depth );
-	unsigned int size = _sNodesEnd( depth );
+	node_index_type size = _sNodesEnd( depth );
 	for( int d=0 ; d<=depth ; d++ )
 	{
-		SparseMatrix< Real >& M = systemMatrices[d];
+		SparseMatrix< Real , matrix_index_type >& M = systemMatrices[d];
 		M.resize( size );
-		SparseMatrix< Real > _M = systemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d , interpolationInfo ... );
-#pragma omp parallel for
-		for( int i=0 ; i<_M.rows() ; i++ )
+		SparseMatrix< Real , matrix_index_type > _M = systemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d , interpolationInfo ... );
+		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
 		{
-			M.setRowSize( i + _sNodesBegin(d) , _M.rowSizes[i] );
-			for( int j=0 ; j<_M.rowSizes[i] ; j++ ) M[i+_sNodesBegin(d)][j] = MatrixEntry< Real >( _M[i][j].N + _sNodesBegin(d) , _M[i][j].Value );
+			M.setRowSize( (matrix_index_type)( i + _sNodesBegin(d) ) , _M.rowSize(i) );
+			for( int j=0 ; j<_M.rowSize(i) ; j++ ) M[i+_sNodesBegin(d)][j] = MatrixEntry< Real , matrix_index_type >( _M[i][j].N + (matrix_index_type)_sNodesBegin(d) , _M[i][j].Value );
 		}
+		);
 	}
 	for( int d=0 ; d<depth ; d++ )
 	{
-		SparseMatrix< Real >& M = prolongedSystemMatrices[d];
+		SparseMatrix< Real , matrix_index_type >& M = prolongedSystemMatrices[d];
 		M.resize( size );
-		SparseMatrix< Real > _M = prolongedSystemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d+1 , interpolationInfo ... );
-#pragma omp parallel for
-		for( int i=0 ; i<_M.rows() ; i++ )
+		SparseMatrix< Real , matrix_index_type > _M = prolongedSystemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d+1 , interpolationInfo ... );
+		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
 		{
-			M.setRowSize( i + _sNodesBegin(d+1) , _M.rowSizes[i] );
-			for( int j=0 ; j<_M.rowSizes[i] ; j++ ) M[i+_sNodesBegin(d+1)][j] = MatrixEntry< Real >( _M[i][j].N + _sNodesBegin(d) , _M[i][j].Value );
+			M.setRowSize( i + (matrix_index_type)_sNodesBegin(d+1) , _M.rowSize(i) );
+			for( int j=0 ; j<_M.rowSize(i) ; j++ ) M[i+_sNodesBegin(d+1)][j] = MatrixEntry< Real , matrix_index_type >( _M[i][j].N + (matrix_index_type)_sNodesBegin(d) , _M[i][j].Value );
 		}
+		);
 	}
 	for( int d=0 ; d<depth-1 ; d++ )
 	{
-		SparseMatrix< Real >& M = upSampleMatrices[d][d+1];
+		SparseMatrix< Real , matrix_index_type >& M = upSampleMatrices[d][d+1];
 		M.resize( size );
-		SparseMatrix< Real > _M = downSampleMatrix( UIntPack< FEMSigs ... >() , d+1 ).transpose( _sNodesSize( d+1 ) );
-#pragma omp parallel for
-		for( int i=0 ; i<_M.rows() ; i++ )
+		SparseMatrix< Real , matrix_index_type > _M = downSampleMatrix( UIntPack< FEMSigs ... >() , d+1 ).transpose( _sNodesSize( d+1 ) );
+		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
 		{
-			M.setRowSize( i + _sNodesBegin(d+1) , _M.rowSizes[i] );
-			for( int j=0 ; j<_M.rowSizes[i] ; j++ ) M[i+_sNodesBegin(d+1)][j] = MatrixEntry< Real >( _M[i][j].N + _sNodesBegin(d) , _M[i][j].Value );
+			M.setRowSize( i + (matrix_index_type)_sNodesBegin(d+1) , _M.rowSize(i) );
+			for( int j=0 ; j<_M.rowSize(i) ; j++ ) M[i+_sNodesBegin(d+1)][j] = MatrixEntry< Real , matrix_index_type >( _M[i][j].N + (matrix_index_type)_sNodesBegin(d) , _M[i][j].Value );
 		}
+		);
 		for( int dd=0 ; dd<d ; dd++ ) upSampleMatrices[dd][d+1] = upSampleMatrices[d][d+1] * upSampleMatrices[dd][d];
 	}
 
 	auto Matrix = [&]( int d1 , int d2 )
 	{
-		SparseMatrix< Real > _M;
+		SparseMatrix< Real , matrix_index_type > _M;
 		int _d1 = d1<d2 ? d1 : d2 , _d2 = d2<d1 ? d1 : d2;
 		if     ( _d1==_d2   ) _M =          systemMatrices[_d1];
 		else if( _d2==_d1+1 ) _M = prolongedSystemMatrices[_d2-1];
@@ -1768,34 +1889,39 @@ SparseMatrix< Real > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FEMSigs 
 		M += Matrix( d1 , d1 );
 		for( int d2=0 ; d2<=depth ; d2++ ) if( d1!=d2 )
 		{
-			SparseMatrix< Real > _M = Matrix( d1 , d2 );
-#pragma omp parallel for
-			for( int i=0 ; i<_M.rows() ; i++ ) if( _M.rowSizes[i] )
+			SparseMatrix< Real , matrix_index_type > _M = Matrix( d1 , d2 );
+			ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
 			{
-				size_t oldSize = M.rowSizes[i];
-				M.resetRowSize( i , oldSize + _M.rowSizes[i] );
-				for( int j=0 ; j<_M.rowSizes[i] ; j++ ) M[i][oldSize+j] = _M[i][j];
+				if( _M.rowSize(i) )
+				{
+					size_t oldSize = M.rowSize(i);
+					M.resetRowSize( i , oldSize + _M.rowSize(i) );
+					for( int j=0 ; j<_M.rowSize(i) ; j++ ) M[i][oldSize+j] = _M[i][j];
+				}
 			}
+			);
 		}
 	}
 	if( nonRefinableOnly )
 	{
 		_setRefinabilityFlags( UIntPack< FEMSigs ... >() );
 		_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
-#pragma omp parallel for
-		for( int i=0 ; i<M.rows() ; i++ )
+		ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int , size_t i )
+		{
 			if( ( _isRefinableNode( _sNodes.treeNodes[i] ) && _localDepth( _sNodes.treeNodes[i] )<depth ) || !_isValidFEM1Node( _sNodes.treeNodes[i] ) )
 			{
 				// Setting this to the (local) identity so it doesn't make the system singular.
 				M.resetRowSize( i , 1 );
-				M[i][0] = MatrixEntry< Real >( i , (Real)1. );
+				M[i][0] = MatrixEntry< Real , matrix_index_type >( i , (Real)1. );
 			}
 			else
 			{
 				int jj=0;
-				for( int j=0 ; j<M.rowSizes[i] ; j++ ) if( !( _isRefinableNode( _sNodes.treeNodes[ M[i][j].N ] ) && _localDepth( _sNodes.treeNodes[ M[i][j].N ] )<depth ) && _isValidFEM1Node( _sNodes.treeNodes[i] ) ) M[i][jj++] = M[i][j];
-				if( jj!=M.rowSizes[i] ) M.resetRowSize( i , jj );
+				for( int j=0 ; j<M.rowSize(i) ; j++ ) if( !( _isRefinableNode( _sNodes.treeNodes[ M[i][j].N ] ) && _localDepth( _sNodes.treeNodes[ M[i][j].N ] )<depth ) && _isValidFEM1Node( _sNodes.treeNodes[i] ) ) M[i][jj++] = M[i][j];
+				if( jj!=M.rowSize(i) ) M.resetRowSize( i , jj );
 			}
+		}
+		);
 	}
 	return M;
 }
@@ -1811,48 +1937,51 @@ void FEMTree< Dim , Real >::_downSample( UIntPack< FEMSigs ... > , typename Base
 	typedef typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineSupportSizes< Degrees >::UpSampleSize ... > > UpSampleNeighbors;
 	typedef UIntPack< BSplineSupportSizes< Degrees >::UpSampleSize ... > UpSampleSizes;
 
-	std::vector< UpSampleKey > neighborKeys( omp_get_max_threads() );
+	std::vector< UpSampleKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
 
 	( ( BaseRestrictionProlongation& )rp ).init( highDepth );
 	typename BaseRestrictionProlongation::UpSampleStencil upSampleStencil;
 	rp.setStencil( upSampleStencil );
 
-#pragma omp parallel for
-	for( int i=_sNodesBegin(lowDepth) ; i<_sNodesEnd(lowDepth) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 	{
-		FEMTreeNode* pNode = _sNodes.treeNodes[i];
-		UpSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-		LocalDepth d ; LocalOffset off;
-		_localDepthAndOffset( pNode , d , off );
-
-		neighborKey.getNeighbors( pNode );
-		UpSampleNeighbors neighbors;
-		neighborKey.getChildNeighbors( 0 , _localToGlobal( d ) , neighbors );
-
-		C& coarseConstraint = constraints[i];
-
-		// Want to make sure test if contained children are interior.
-		// This is more conservative because we are test that overlapping children are interior
-		bool isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< Degrees ... >() , UIntPack< Degrees ... >() , d , off );
-		if( isInterior )
+		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
-			Pointer( const FEMTreeNode* ) nodes = neighbors.neighbors().data;
-			Pointer( double ) stencilValues = upSampleStencil.data;
-			for( unsigned int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ )
-				if( _isValidFEM1Node( nodes[i] ) ) coarseConstraint += (C)( constraints[ nodes[i]->nodeData.nodeIndex ] * (Real)stencilValues[i] );
-		}
-		else
-		{
-			ConstPointer( FEMTreeNode * const ) nodes = neighbors.neighbors().data;
-			for( int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
+			FEMTreeNode* pNode = _sNodes.treeNodes[i];
+			UpSampleKey& neighborKey = neighborKeys[ thread ];
+			LocalDepth d ; LocalOffset off;
+			_localDepthAndOffset( pNode , d , off );
+
+			neighborKey.getNeighbors( pNode );
+			UpSampleNeighbors neighbors;
+			neighborKey.getChildNeighbors( 0 , _localToGlobal( d ) , neighbors );
+
+			C& coarseConstraint = constraints[i];
+
+			// Want to make sure test if contained children are interior.
+			// This is more conservative because we are test that overlapping children are interior
+			bool isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< Degrees ... >() , UIntPack< Degrees ... >() , d , off );
+			if( isInterior )
 			{
-				LocalDepth _d ; LocalOffset _off;
-				_localDepthAndOffset( nodes[i] , _d , _off );
-				coarseConstraint += (C)( constraints[ nodes[i]->nodeData.nodeIndex ] * (Real)rp.upSampleCoefficient( off , _off ) );
+				Pointer( const FEMTreeNode* ) nodes = neighbors.neighbors().data;
+				Pointer( double ) stencilValues = upSampleStencil.data;
+				for( unsigned int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ )
+					if( _isValidFEM1Node( nodes[i] ) ) coarseConstraint += (C)( constraints[ nodes[i]->nodeData.nodeIndex ] * (Real)stencilValues[i] );
+			}
+			else
+			{
+				ConstPointer( FEMTreeNode * const ) nodes = neighbors.neighbors().data;
+				for( int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
+				{
+					LocalDepth _d ; LocalOffset _off;
+					_localDepthAndOffset( nodes[i] , _d , _off );
+					coarseConstraint += (C)( constraints[ nodes[i]->nodeData.nodeIndex ] * (Real)rp.upSampleCoefficient( off , _off ) );
+				}
 			}
 		}
 	}
+	);
 }
 
 template< unsigned int Dim , class Real >
@@ -1868,56 +1997,59 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::supportWe
 	typename FEMIntegrator::template ScalarConstraint< UIntPack< FEMSigs ... > , ZeroUIntPack< Dim > , IsotropicUIntPack< Dim , FEMTrivialSignature > , ZeroUIntPack< Dim > > F( {1.} );
 	DenseNodeData< Real , UIntPack< FEMSigs ... > > weights = initDenseNodeData( UIntPack< FEMSigs ... >() );
 	typename BaseConstraint::CCStencil stencil;
-	std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+	std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( int d=0 ; d<=_maxDepth ; d++ )
 	{
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
-		( ( BaseSystem& )F ).init( d );
+		F.init( d );
 		F.template setStencil< false >( stencil );
-#pragma omp parallel for
-		for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+		ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 		{
-			ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
+			if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+			{
+				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 
-			FEMTreeNode* node = _sNodes.treeNodes[i];
-			typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors;
-			LocalOffset off;
-			{
-				LocalDepth d ; _localDepthAndOffset( node , d , off );
-			}
-			neighborKey.getNeighbors( LeftFEMCOverlapRadii() , RightFEMCOverlapRadii() , node , neighbors );
-			bool isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , ZeroUIntPack< Dim >() , d , off );
-			double sum=0 , totalSum=0;
-			if( isInterior )
-			{
-				ConstPointer( FEMTreeNode * const ) nodes = neighbors.neighbors().data;
-				ConstPointer( Point< double , 1 > ) stencilValues = stencil.data;
-				for( int i=0 ; i<WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree , 0 >::OverlapSize ... > >::Size ; i++ )
+				FEMTreeNode* node = _sNodes.treeNodes[i];
+				typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors;
+				LocalOffset off;
 				{
-					double s = stencilValues[i][0];
-					totalSum += s;
-					if( isValidSpaceNode( nodes[i] ) ) sum += s;
+					LocalDepth d ; _localDepthAndOffset( node , d , off );
 				}
-			}
-			else
-			{
-				static const int OverlapStart [] = { BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree , 0 >::OverlapStart ... };
-				LocalOffset _off;
-				WindowLoop< Dim >::Run
-				(
-					IsotropicUIntPack< Dim , 0 >() , OverlapSizes() ,
-					[&]( int d , int i ){ _off[d] = off[d]+i+OverlapStart[d]; } ,
-					[&]( const FEMTreeNode* node )
+				neighborKey.getNeighbors( LeftFEMCOverlapRadii() , RightFEMCOverlapRadii() , node , neighbors );
+				bool isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , ZeroUIntPack< Dim >() , d , off );
+				double sum=0 , totalSum=0;
+				if( isInterior )
+				{
+					ConstPointer( FEMTreeNode * const ) nodes = neighbors.neighbors().data;
+					ConstPointer( Point< double , 1 > ) stencilValues = stencil.data;
+					for( int i=0 ; i<WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree , 0 >::OverlapSize ... > >::Size ; i++ )
+					{
+						double s = stencilValues[i][0];
+						totalSum += s;
+						if( isValidSpaceNode( nodes[i] ) ) sum += s;
+					}
+				}
+				else
+				{
+					static const int OverlapStart [] = { BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree , 0 >::OverlapStart ... };
+					LocalOffset _off;
+					WindowLoop< Dim >::Run
+					(
+						IsotropicUIntPack< Dim , 0 >() , OverlapSizes() ,
+						[&]( int d , int i ){ _off[d] = off[d]+i+OverlapStart[d]; } ,
+						[&]( const FEMTreeNode* node )
 					{
 						double s = F.ccIntegrate( off , _off )[0];
 						totalSum += s;
 						if( isValidSpaceNode( node ) ) sum += s;
 					} ,
-					neighbors.neighbors()
-				);
+						neighbors.neighbors()
+						);
+				}
+				weights[i] = (Real)( sum / totalSum );
 			}
-			weights[i] = (Real)( sum / totalSum );
 		}
+		);
 	}
 	return weights;
 }
@@ -1942,11 +2074,10 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 	const int DownSampleStart[2][Dim] = { { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0Start ... } , { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1Start ... } };
 	const int   DownSampleEnd[2][Dim] = { { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0End   ... } , { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1End   ... } };
 
-	std::vector< UpSampleKey > neighborKeys( omp_get_max_threads() );
+	std::vector< UpSampleKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( _maxDepth-1 ) );
 
-#pragma omp parallel for
-	for( int i=_sNodesBegin(_maxDepth) ; i<_sNodesEnd(_maxDepth) ; i++ ) weights[i] = (Real)0.;
+	ThreadPool::Parallel_for( _sNodesBegin(_maxDepth) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i ){ weights[i] = (Real)0.; } );
 
 	for( int lowDepth=0 ; lowDepth<_maxDepth ; lowDepth++ )
 	{
@@ -1954,32 +2085,33 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 		typename BaseRestrictionProlongation::UpSampleStencil upSampleStencil;
 		rp.setStencil( upSampleStencil );
 
-#pragma omp parallel for
-		for( int i=_sNodesBegin(lowDepth) ; i<_sNodesEnd(lowDepth) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+		ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 		{
-			FEMTreeNode* pNode = _sNodes.treeNodes[i];
-			UpSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-			LocalDepth d ; LocalOffset pOff;
-			_localDepthAndOffset( pNode , d , pOff );
-
-			neighborKey.getNeighbors( pNode );
-			UpSampleNeighbors neighbors;
-			neighborKey.getChildNeighbors( 0 , _localToGlobal( d ) , neighbors );
-
-			double partialSum = 0 , totalSum = 0;
-
-			// Want to make sure test if contained children are interior.
-			// This is more conservative because we are test that overlapping children are interior
-			bool isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , UIntPack< FEMSignature< FEMSigs >::Degree ... >() , d , pOff );
-
-			LocalOffset cOff;
-			if( isInterior )
+			if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 			{
-				WindowLoop< Dim >::Run
-				(
-					IsotropicUIntPack< Dim , 0 >() , UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... >() ,
-					[&]( int d , int i ){ cOff[d] = UpSampleStart[d] + pOff[d]*2 + i; } ,
-					[&]( const FEMTreeNode* node , double stencilValue )
+				FEMTreeNode* pNode = _sNodes.treeNodes[i];
+				UpSampleKey& neighborKey = neighborKeys[ thread ];
+				LocalDepth d ; LocalOffset pOff;
+				_localDepthAndOffset( pNode , d , pOff );
+
+				neighborKey.getNeighbors( pNode );
+				UpSampleNeighbors neighbors;
+				neighborKey.getChildNeighbors( 0 , _localToGlobal( d ) , neighbors );
+
+				double partialSum = 0 , totalSum = 0;
+
+				// Want to make sure test if contained children are interior.
+				// This is more conservative because we are test that overlapping children are interior
+				bool isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , UIntPack< FEMSignature< FEMSigs >::Degree ... >() , d , pOff );
+
+				LocalOffset cOff;
+				if( isInterior )
+				{
+					WindowLoop< Dim >::Run
+					(
+						IsotropicUIntPack< Dim , 0 >() , UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... >() ,
+						[&]( int d , int i ){ cOff[d] = UpSampleStart[d] + pOff[d]*2 + i; } ,
+						[&]( const FEMTreeNode* node , double stencilValue )
 					{
 						if( FEMIntegrator::IsValidFEMNode( UIntPack< FEMSigs ... >() , lowDepth+1 , cOff ) )
 						{
@@ -1987,16 +2119,16 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 							if( _isValidFEM1Node( node ) ) partialSum += stencilValue;
 						}
 					} ,
-					neighbors.neighbors() , upSampleStencil()
-				);
-			}
-			else
-			{
-				WindowLoop< Dim >::Run
-				(
-					IsotropicUIntPack< Dim , 0 >() , UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... >() ,
-					[&]( int d , int i ){ cOff[d] = UpSampleStart[d] + pOff[d]*2 + i; } ,
-					[&]( const FEMTreeNode* node )
+						neighbors.neighbors() , upSampleStencil()
+						);
+				}
+				else
+				{
+					WindowLoop< Dim >::Run
+					(
+						IsotropicUIntPack< Dim , 0 >() , UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... >() ,
+						[&]( int d , int i ){ cOff[d] = UpSampleStart[d] + pOff[d]*2 + i; } ,
+						[&]( const FEMTreeNode* node )
 					{
 						if( FEMIntegrator::IsValidFEMNode( UIntPack< FEMSigs ... >() , lowDepth+1 , cOff ) )
 						{
@@ -2005,15 +2137,17 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 							if( _isValidFEM1Node( node ) ) partialSum += stencilValue;
 						}
 					} ,
-					neighbors.neighbors() 
-				);
+						neighbors.neighbors() 
+						);
+				}
+				weights[i] = (Real)( partialSum / totalSum );
 			}
-			weights[i] = (Real)( partialSum / totalSum );
 		}
+		);
 	}
 	if( prolongToChildren )
 	{
-		std::vector< DownSampleKey > neighborKeys( omp_get_max_threads() );
+		std::vector< DownSampleKey > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( _maxDepth-1 ) );
 
 		for( int lowDepth=_maxDepth-1 ; lowDepth>=0 ; lowDepth-- )
@@ -2022,47 +2156,48 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 			typename BaseRestrictionProlongation::DownSampleStencils downSampleStencils;
 			rp.setStencils( downSampleStencils );
 
-#pragma omp parallel for
-			for( int i=_sNodesBegin(lowDepth+1) ; i<_sNodesEnd(lowDepth+1) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+			ThreadPool::Parallel_for( _sNodesBegin(lowDepth+1) , _sNodesEnd(lowDepth+1) , [&]( unsigned int thread , size_t i )
 			{
-				FEMTreeNode *cNode = _sNodes.treeNodes[i];
-				int c = (int)( cNode-cNode->parent->children );
-
-				DownSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-				LocalDepth d ; LocalOffset cOff;
-				_localDepthAndOffset( cNode , d , cOff );
-				DownSampleNeighbors neighbors = neighborKey.getNeighbors( cNode->parent );
-				// Want to make sure test if contained children are interior.
-				// This is more conservative because we are test that overlapping children are interior
-				bool isInterior;
+				if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 				{
-					LocalDepth d ; LocalOffset pOff;
-					_localDepthAndOffset( cNode->parent , d , pOff );
-					isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , UIntPack< FEMSignature< FEMSigs >::Degree ... >() , d , pOff );
-				}
+					FEMTreeNode *cNode = _sNodes.treeNodes[i];
+					int c = (int)( cNode-cNode->parent->children );
 
-				typename BaseRestrictionProlongation::DownSampleStencil& downSampleStencil = downSampleStencils.data[c];
-				int start[Dim] , end[Dim];
-				for( int d=0 ; d<Dim ; d++ ) start[d] = DownSampleStart[(c>>d)&1][d] - DownSampleStart[0][d] , end[d] = - DownSampleStart[0][d] + DownSampleEnd[(c>>d)&1][d] + 1;
+					DownSampleKey& neighborKey = neighborKeys[ thread ];
+					LocalDepth d ; LocalOffset cOff;
+					_localDepthAndOffset( cNode , d , cOff );
+					DownSampleNeighbors neighbors = neighborKey.getNeighbors( cNode->parent );
+					// Want to make sure test if contained children are interior.
+					// This is more conservative because we are test that overlapping children are interior
+					bool isInterior;
+					{
+						LocalDepth d ; LocalOffset pOff;
+						_localDepthAndOffset( cNode->parent , d , pOff );
+						isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , UIntPack< FEMSignature< FEMSigs >::Degree ... >() , d , pOff );
+					}
 
-				double partialSum = 0 , totalSum = 0;
-				if( isInterior )
-				{
-					WindowLoop< Dim >::Run
-					(
-						start , end ,
-						[&]( int , int ){ } ,
-						[&]( const FEMTreeNode* node , double stencilValue ){ if( _isValidFEM1Node( node ) ) totalSum += stencilValue , partialSum += weights[ node->nodeData.nodeIndex ] * stencilValue; } ,
-						neighbors.neighbors() , downSampleStencil()
-					);
-				}
-				else
-				{
-					WindowLoop< Dim >::Run
-					(
-						start , end ,
-						[&]( int , int ){ } ,
-						[&]( const FEMTreeNode* node )
+					typename BaseRestrictionProlongation::DownSampleStencil& downSampleStencil = downSampleStencils.data[c];
+					int start[Dim] , end[Dim];
+					for( int d=0 ; d<Dim ; d++ ) start[d] = DownSampleStart[(c>>d)&1][d] - DownSampleStart[0][d] , end[d] = - DownSampleStart[0][d] + DownSampleEnd[(c>>d)&1][d] + 1;
+
+					double partialSum = 0 , totalSum = 0;
+					if( isInterior )
+					{
+						WindowLoop< Dim >::Run
+						(
+							start , end ,
+							[&]( int , int ){ } ,
+							[&]( const FEMTreeNode* node , double stencilValue ){ if( _isValidFEM1Node( node ) ) totalSum += stencilValue , partialSum += weights[ node->nodeData.nodeIndex ] * stencilValue; } ,
+							neighbors.neighbors() , downSampleStencil()
+						);
+					}
+					else
+					{
+						WindowLoop< Dim >::Run
+						(
+							start , end ,
+							[&]( int , int ){ } ,
+							[&]( const FEMTreeNode* node )
 						{
 							if( _isValidFEM1Node( node ) )
 							{
@@ -2072,11 +2207,13 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 								totalSum += stencilValue , partialSum += weights[ node->nodeData.nodeIndex ] * stencilValue;
 							}
 						} ,
-						neighbors.neighbors()
-					);
+							neighbors.neighbors()
+							);
+					}
+					weights[i] = (Real)( partialSum / totalSum );
 				}
-				weights[i] = (Real)( partialSum / totalSum );
 			}
+			);
 		}
 	}
 	return weights;
@@ -2093,7 +2230,7 @@ void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFE
 	typedef typename FEMTreeNode::template ConstNeighbors< UIntPack< ( - BSplineSupportSizes< Degrees >::DownSample0Start + BSplineSupportSizes< Degrees >::DownSample1End + 1 ) ... > > DownSampleNeighbors;
 	typedef UIntPack< ( - BSplineSupportSizes< Degrees >::DownSample0Start + BSplineSupportSizes< Degrees >::DownSample1End + 1 ) ... > DownSampleSizes;
 
-	std::vector< DownSampleKey > neighborKeys( omp_get_max_threads() );
+	std::vector< DownSampleKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
 
 	( ( BaseRestrictionProlongation& )rp ).init( highDepth );
@@ -2112,54 +2249,57 @@ void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFE
 	} 
 	);
 	// For Dirichlet constraints, can't get to all children from parents because boundary nodes are invalid
-#pragma omp parallel for
-	for( int i=_sNodesBegin(highDepth) ; i<_sNodesEnd(highDepth) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
 	{
-		FEMTreeNode *cNode = _sNodes.treeNodes[i];
-		int c = (int)( cNode-cNode->parent->children );
-
-		DownSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-		DownSampleNeighbors neighbors = neighborKey.getNeighbors( cNode->parent );
-		// Want to make sure test if contained children are interior.
-		// This is more conservative because we are test that overlapping children are interior
-		bool isInterior;
+		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
-			LocalDepth d ; LocalOffset off;
-			_localDepthAndOffset( cNode->parent , d , off );
-			isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< Degrees ... >() , UIntPack< Degrees ... >() , d , off );
-		}
+			FEMTreeNode *cNode = _sNodes.treeNodes[i];
+			int c = (int)( cNode-cNode->parent->children );
 
-		C& fineCoefficient = coefficients[ cNode->nodeData.nodeIndex ];
-
-		typename BaseRestrictionProlongation::DownSampleStencil& downSampleStencil = downSampleStencils.data[c];
-		unsigned int size = loopData.size[c];
-		const unsigned int* indices = loopData.indices[c];
-		Pointer( const FEMTreeNode* ) nodes = neighbors.neighbors().data;
-		Pointer( double ) downSampleValues = downSampleStencil.data;
-		if( isInterior )
-		{
-			for( unsigned int i=0 ; i<size ; i++ )
+			DownSampleKey& neighborKey = neighborKeys[ thread ];
+			DownSampleNeighbors neighbors = neighborKey.getNeighbors( cNode->parent );
+			// Want to make sure test if contained children are interior.
+			// This is more conservative because we are test that overlapping children are interior
+			bool isInterior;
 			{
-				unsigned int idx = indices[i];
-				if( _isValidFEM1Node( nodes[idx] ) ) fineCoefficient += (C)( coefficients[ nodes[idx]->nodeData.nodeIndex ] * (Real)downSampleValues[idx] );
+				LocalDepth d ; LocalOffset off;
+				_localDepthAndOffset( cNode->parent , d , off );
+				isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< Degrees ... >() , UIntPack< Degrees ... >() , d , off );
 			}
-		}
-		else
-		{
-			LocalDepth d ; LocalOffset off;
-			_localDepthAndOffset( cNode , d , off );
-			for( unsigned int i=0 ; i<size ; i++ )
+
+			C& fineCoefficient = coefficients[ cNode->nodeData.nodeIndex ];
+
+			typename BaseRestrictionProlongation::DownSampleStencil& downSampleStencil = downSampleStencils.data[c];
+			unsigned int size = loopData.size[c];
+			const unsigned int* indices = loopData.indices[c];
+			Pointer( const FEMTreeNode* ) nodes = neighbors.neighbors().data;
+			Pointer( double ) downSampleValues = downSampleStencil.data;
+			if( isInterior )
 			{
-				unsigned int idx = indices[i];
-				if( _isValidFEM1Node( nodes[idx] ) )
+				for( unsigned int i=0 ; i<size ; i++ )
 				{
-					LocalDepth _d ; LocalOffset _off;
-					_localDepthAndOffset( nodes[idx] , _d , _off );
-					fineCoefficient += (C)( coefficients[ nodes[idx]->nodeData.nodeIndex ] * (Real)rp.upSampleCoefficient( _off , off ) );
+					unsigned int idx = indices[i];
+					if( _isValidFEM1Node( nodes[idx] ) ) fineCoefficient += (C)( coefficients[ nodes[idx]->nodeData.nodeIndex ] * (Real)downSampleValues[idx] );
+				}
+			}
+			else
+			{
+				LocalDepth d ; LocalOffset off;
+				_localDepthAndOffset( cNode , d , off );
+				for( unsigned int i=0 ; i<size ; i++ )
+				{
+					unsigned int idx = indices[i];
+					if( _isValidFEM1Node( nodes[idx] ) )
+					{
+						LocalDepth _d ; LocalOffset _off;
+						_localDepthAndOffset( nodes[idx] , _d , _off );
+						fineCoefficient += (C)( coefficients[ nodes[idx]->nodeData.nodeIndex ] * (Real)rp.upSampleCoefficient( _off , off ) );
+					}
 				}
 			}
 		}
 	}
+	);
 }
 
 template< unsigned int Dim , class Real >
@@ -2296,15 +2436,15 @@ void FEMTree< Dim , Real >::_RegularGridUpSample( UIntPack< FEMSigs ... > , cons
 		const int *lowBegin , *lowEnd , *highBegin , *highEnd;
 		int _lowDim[Dim] , _highDim[Dim] , _begin[Dim] , _end[Dim];
 	};
-	std::vector< UpdateData > updateData( omp_get_max_threads() );
+	std::vector< UpdateData > updateData( ThreadPool::NumThreads() );
 	for( int i=0 ; i<updateData.size() ; i++ ) updateData[i].init( lowDepth , lowBegin , lowEnd , highBegin , highEnd );
 	WindowLoop< Dim >::RunParallel
 	(
 		Zero , highDim ,
-		[&]( int t , int d , int i ){ updateData[t].set( d , i ); } ,
-		[&]( int t )
+		[&]( unsigned int t , int d , size_t i ){ updateData[t].set( d , (int)i ); } ,
+		[&]( unsigned int t )
 		{
-			const UpdateData& data = updateData[t];
+		const UpdateData& data = updateData[t];
 			const long long highIdx = data.highIndex[Dim] , lowIndex = data.lowIndex[Dim];
 			const int c = data.c;
 			const bool isInterior = data.isInterior[Dim];
@@ -2363,7 +2503,7 @@ template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int 
 void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 {
 	int baseDepth = solverInfo.baseDepth;
-	if( baseDepth>getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) ) fprintf( stderr , "[ERROR] Base depth cannot excceed full depth: %d <= %d\n" , baseDepth , getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) ) , exit( 0 );
+	if( baseDepth>getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) ) ERROR_OUT( "Base depth cannot excceed full depth: " , baseDepth , " <= " , getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) );
 
 	static_assert( Dim==sizeof ... ( FEMSigs ) , "[ERROR] FEMTree:solveSystem: Dimensions and number of signatures don't match" );
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
@@ -2404,7 +2544,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	{
 		_bNorm2 = AllocPointer< double >( _maxDepth+1 );
 		memset( _bNorm2 , 0 , sizeof(double) * ( _maxDepth+1 ) );
-		for( LocalDepth d=baseDepth ; d<=maxSolveDepth ; d++ ) for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) _bNorm2[d] += Dot( _constraints[i] , _constraints[i] );
+		for( LocalDepth d=baseDepth ; d<=maxSolveDepth ; d++ ) for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) _bNorm2[d] += Dot( _constraints[i] , _constraints[i] );
 	}
 
 	auto UpdateProlongation = [&] ( int depth )
@@ -2416,8 +2556,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 			F.init( depth );
 			if( depth>baseDepth ) _upSample( UIntPack< FEMSigs ... >() , F.restrictionProlongation() , depth , _prolongedSolution );
 			// Add in the solution @(depth) to the prolonged solution
-#pragma omp parallel for
-			for( int i=_sNodesBegin(depth) ; i<_sNodesEnd(depth) ; i++ ) _prolongedSolution[i] += solution[i];
+			ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] += solution[i]; } );
 		}
 	};
 	auto UpdateRestriction = [&]( int depth , InterpolationInfo< T , PointDs >* ... interpolationInfo )
@@ -2442,21 +2581,20 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 		if( depth>baseDepth && _prolongedSolution ) _setPointValuesFromProlongedSolution( depth , bsData , ( ConstPointer( T ) )_prolongedSolution , interpolationInfo... );
 		// Update the constraints @(depth) using the restriced residual @(depth)
 		if( depth<_maxDepth && _restrictedConstraints )
-#pragma omp parallel for
-			for( int i=_sNodesBegin(depth) ; i<_sNodesEnd(depth) ; i++ ) _residualConstraints[i] -= _restrictedConstraints[i];
+			ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _residualConstraints[i] -= _restrictedConstraints[i]; } );
 	};
 	auto OutputSolverStats = [&] ( int cycle , int depth , const _SolverStats& sStats , bool showResidual , int actualIters )
 	{
 		if( solverInfo.verbose )
 		{
-			int femNodes = (int)validFEMNodes( UIntPack< FEMSigs ... >() , depth );
+			node_index_type femNodes = (node_index_type)validFEMNodes( UIntPack< FEMSigs ... >() , depth );
 			if( maxSolveDepth<10 )
 				if( solverInfo.vCycles<10 ) printf( "Cycle[%d] Depth[%d/%d]:\t" , cycle , depth , maxSolveDepth );
 				else                        printf( "Cycle[%2d] Depth[%d/%d]:\t" , cycle , depth , maxSolveDepth );
 			else 
 				if( solverInfo.vCycles<10 ) printf( "Cycle[%d] Depth[%2d/%d]:\t" , cycle , depth , maxSolveDepth );
 				else                        printf( "Cycle[%2d] Depth[%2d/%d]:\t" , cycle , depth , maxSolveDepth );
-			printf( "Updated constraints / Got system / Solved in: %6.3f / %6.3f / %6.3f\t(%.3f MB)\tNodes: %d\n" , sStats.constraintUpdateTime , sStats.systemTime , sStats.solveTime , _LocalMemoryUsage , femNodes );
+			printf( "Updated constraints / Got system / Solved in: %6.3f / %6.3f / %6.3f\t(%.3f MB)\tNodes: %llu\n" , sStats.constraintUpdateTime , sStats.systemTime , sStats.solveTime , _LocalMemoryUsage , (unsigned long long)femNodes );
 		}
 		if( solverInfo.showResidual && showResidual )
 		{
@@ -2473,12 +2611,12 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	int actualIters;
 	double t;
 
-	struct TrivialSORWeights{ Real operator[] ( int idx ) const { return (Real)1; } };
+	struct TrivialSORWeights{ Real operator[] ( node_index_type idx ) const { return (Real)1; } };
 	struct SORWeights
 	{
 		DenseNodeData< Real,  UIntPack< FEMSigs ... > > supportWeights , prolongationSupportWeights;
 		std::function< Real (Real,Real) > sorFunction;
-		Real operator[] ( int idx ) const
+		Real operator[] ( node_index_type idx ) const
 		{
 			if     ( supportWeights() && prolongationSupportWeights() ) return sorFunction( supportWeights[idx] , prolongationSupportWeights[idx] );
 			else if( supportWeights()                                 ) return sorFunction( supportWeights[idx] , 1                               );
@@ -2655,13 +2793,12 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		F.init( d );
 		F.template setStencil < false >( stencil  );
 		F.template setStencils< true  >( stencils );
-		std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
-#pragma omp parallel for
-		for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
+		ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d)  , [&]( unsigned int thread , size_t i )
 		{
 			if( d<maxDepth ) constraints[i] += _constraints[i];
-			ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
+			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 			FEMTreeNode* node = _sNodes.treeNodes[i];
 			int start[Dim] , end[] = { BSplineOverlapSizes< CDegrees , FEMDegrees >::OverlapSize ... };
 			memset( start , 0 , sizeof( start ) );
@@ -2717,12 +2854,12 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 				}
 				BaseFEMIntegrator::ParentOverlapBounds( UIntPack< CDegrees ... >() , UIntPack< FEMDegrees ... >() , d , off , start , end );
 			}
-			if( !_isValidFEM2Node( node ) ) continue;
+			if( !_isValidFEM2Node( node ) ) return;
 			const D* _data = coefficients( node );
-			if( !_data ) continue;
+			if( !_data ) return;
 			else if( d<maxDepth ) hasCoarserCoefficients = true;
 			const D& data = *_data;
-			if( _IsZero( data ) ) continue;
+			if( _IsZero( data ) ) return;
 
 			// Set the _constraints for the parents
 			if( d>0 )
@@ -2740,7 +2877,10 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 					for( unsigned int i=0 ; i<size ; i++ )
 					{
 						unsigned int idx = indices[i];
-						if( nodes[idx] ) AddAtomic( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot( stencilValues[idx] , data ) );
+						if( nodes[idx] )
+						{
+							AddAtomic( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot( stencilValues[idx] , data ) );
+						}
 					}
 				}
 				else
@@ -2757,6 +2897,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 				}
 			}
 		}
+		);
 		if( d>0 && d<maxDepth ) _downSample( UIntPack< FEMSigs ... >() , F.tRestrictionProlongation() , d , _constraints );
 		MemoryUsage();
 	}
@@ -2767,12 +2908,12 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		memset( _coefficients , 0 , sizeof(D) * _sNodesEnd(maxDepth-1) );
 		for( LocalDepth d=maxDepth-1 ; d>=0 ; d-- )
 		{
-#pragma omp parallel for
-			for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidFEM2Node( _sNodes.treeNodes[i] ) )
+			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int , size_t i )
 			{
 				const D* d = coefficients( _sNodes.treeNodes[i] );
 				if( d ) _coefficients[i] += *d;
 			}
+			);
 		}
 
 		// Coarse-to-fine up-sampling of coefficients
@@ -2780,60 +2921,64 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		// Compute the contribution from all coarser depths
 		for( LocalDepth d=1 ; d<=maxDepth ; d++ )
 		{
-			size_t start = _sNodesBegin( d ) , end = _sNodesEnd( d ) , range = end - start;
+			node_index_type start = _sNodesBegin( d ) , end = _sNodesEnd( d );
+			size_t range = end - start;
 			typename BaseConstraint::CPStencils stencils;
 			F.init( d );
 			F.template setStencils< false >( stencils );
-			std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d-1 ) );
 
-#pragma omp parallel for
-			for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 			{
-				ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-				FEMTreeNode* node = _sNodes.treeNodes[i];
-				int start[Dim] , end[Dim];
-				typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors;
-				typename FEMTreeNode::template ConstNeighbors< OverlapSizes > pNeighbors;
-				bool isInterior;
+				if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 				{
-					BaseFEMIntegrator::ParentOverlapBounds( UIntPack< FEMDegrees ... >() , UIntPack< CDegrees ... >() , (int)( node - node->parent->children ) , start , end );
-				}
-				{
-					LocalDepth d ; LocalOffset off ; _localDepthAndOffset( node->parent , d , off );
-					neighborKey.getNeighbors( LeftFEMCOverlapRadii() , RightFEMCOverlapRadii() , node->parent , pNeighbors );
-					isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMDegrees ... >() , UIntPack< CDegrees ... >() , d , off );
-				}
-				int cIdx = (int)( node - node->parent->children );
-				const typename BaseConstraint::CCStencil& _stencil = stencils.data[cIdx];
-
-				T constraint = {};
-
-				LocalDepth d ; LocalOffset off;
-				_localDepthAndOffset( node , d , off );
-				int corner = (int)( node - node->parent->children );
-				unsigned int size = femcLoopData.size[corner];
-				const unsigned int* indices = femcLoopData.indices[corner];
-				Pointer( const FEMTreeNode* ) nodes = pNeighbors.neighbors().data;
-				Pointer( Point< double , CDim > ) stencilValues = _stencil.data;
-				if( isInterior )
-					for( unsigned int i=0 ; i<size ; i++ )
+					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
+					FEMTreeNode* node = _sNodes.treeNodes[i];
+					int start[Dim] , end[Dim];
+					typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors;
+					typename FEMTreeNode::template ConstNeighbors< OverlapSizes > pNeighbors;
+					bool isInterior;
 					{
-						unsigned int idx = indices[i];
-						if( _isValidFEM2Node( nodes[idx] ) ) constraint += _StencilDot( stencilValues[idx] , _coefficients[ nodes[idx]->nodeData.nodeIndex ] );
+						BaseFEMIntegrator::ParentOverlapBounds( UIntPack< FEMDegrees ... >() , UIntPack< CDegrees ... >() , (int)( node - node->parent->children ) , start , end );
 					}
-				else
-					for( unsigned int i=0 ; i<size ; i++ )
 					{
-						unsigned int idx = indices[i];
-						if( _isValidFEM2Node( nodes[idx] ) )
+						LocalDepth d ; LocalOffset off ; _localDepthAndOffset( node->parent , d , off );
+						neighborKey.getNeighbors( LeftFEMCOverlapRadii() , RightFEMCOverlapRadii() , node->parent , pNeighbors );
+						isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMDegrees ... >() , UIntPack< CDegrees ... >() , d , off );
+					}
+					int cIdx = (int)( node - node->parent->children );
+					const typename BaseConstraint::CCStencil& _stencil = stencils.data[cIdx];
+
+					T constraint = {};
+
+					LocalDepth d ; LocalOffset off;
+					_localDepthAndOffset( node , d , off );
+					int corner = (int)( node - node->parent->children );
+					unsigned int size = femcLoopData.size[corner];
+					const unsigned int* indices = femcLoopData.indices[corner];
+					Pointer( const FEMTreeNode* ) nodes = pNeighbors.neighbors().data;
+					Pointer( Point< double , CDim > ) stencilValues = _stencil.data;
+					if( isInterior )
+						for( unsigned int i=0 ; i<size ; i++ )
 						{
-							LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset ( nodes[idx] , _d , _off );
-							constraint += _StencilDot( F.cpIntegrate( off , _off ) , _coefficients[ nodes[idx]->nodeData.nodeIndex ] );
+							unsigned int idx = indices[i];
+							if( _isValidFEM2Node( nodes[idx] ) ) constraint += _StencilDot( stencilValues[idx] , _coefficients[ nodes[idx]->nodeData.nodeIndex ] );
 						}
-					}
-				constraints[i] += constraint;
+					else
+						for( unsigned int i=0 ; i<size ; i++ )
+						{
+							unsigned int idx = indices[i];
+							if( _isValidFEM2Node( nodes[idx] ) )
+							{
+								LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset ( nodes[idx] , _d , _off );
+								constraint += _StencilDot( F.cpIntegrate( off , _off ) , _coefficients[ nodes[idx]->nodeData.nodeIndex ] );
+							}
+						}
+					constraints[i] += constraint;
+				}
 			}
+			);
 		}
 		FreePointer( _coefficients );
 	}
@@ -2858,48 +3003,62 @@ void FEMTree< Dim , Real >::addInterpolationConstraints( DenseNodeData< T , UInt
 
 		for( int d=0 ; d<=maxDepth ; d++ )
 		{
-			std::vector< PointSupportKey > neighborKeys( omp_get_max_threads() );
+			std::vector< PointSupportKey > neighborKeys( ThreadPool::NumThreads() );
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( maxDepth ) );
-#pragma omp parallel for
-			for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
+#ifdef SHOW_WARNINGS
+#pragma message( "[WARNING] Why do I have to wrap the template in a lambda?" )
+#endif // SHOW_WARNINGS
+			typedef PointEvaluatorState< UIntPack< FEMSigs ... > , IsotropicUIntPack< Dim , PointD > > _PointEvaluatorState;
+			auto WrapperLambda = []( const _PointEvaluatorState &eState , LocalOffset off )
 			{
-				PointEvaluatorState< UIntPack< FEMSigs ... > , IsotropicUIntPack< Dim , PointD > > eState;
-				FEMTreeNode* node = _sNodes.treeNodes[i];
-
-				PointSupportKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
-				typename FEMTreeNode::template ConstNeighbors< SupportSizes > neighbors;
-				neighborKey.getNeighbors( LeftPointSupportRadii() , RightPointSupportRadii() , node , neighbors );
-				LocalDepth d ; LocalOffset off;
-				_localDepthAndOffset( node , d , off );
-
-				size_t begin , end;
-				interpolationInfo.range( node , begin , end );
-				for( size_t pIndex=begin ; pIndex<end ; pIndex++ )
+				return eState.template dValues< Real , CumulativeDerivatives< Dim , PointD > >( off );
+			};
+			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+			{
+				if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 				{
-					const DualPointInfo< Dim , Real , T , PointD >& pData = interpolationInfo[ pIndex ];
-					Point< Real , Dim > p = pData.position;
-					evaluator.initEvaluationState( p , d , off , eState );
+					if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
+					{
+						_PointEvaluatorState eState;
+						FEMTreeNode* node = _sNodes.treeNodes[i];
 
-					int s[Dim];
-					WindowLoop< Dim >::Run
-					(
-						IsotropicUIntPack< Dim , 0 >() , SupportSizes() ,
-						[&]( int d , int i ){ s[d] = i; } ,
-						[&]( const FEMTreeNode* _node )
+						PointSupportKey& neighborKey = neighborKeys[ thread ];
+						typename FEMTreeNode::template ConstNeighbors< SupportSizes > neighbors;
+						neighborKey.getNeighbors( LeftPointSupportRadii() , RightPointSupportRadii() , node , neighbors );
+						LocalDepth d ; LocalOffset off;
+						_localDepthAndOffset( node , d , off );
+
+						size_t begin , end;
+						interpolationInfo.range( node , begin , end );
+						for( size_t pIndex=begin ; pIndex<end ; pIndex++ )
 						{
-							if( _isValidFEM1Node( _node ) )
+							const DualPointInfo< Dim , Real , T , PointD >& pData = interpolationInfo[ pIndex ];
+							Point< Real , Dim > p = pData.position;
+							evaluator.initEvaluationState( p , d , off , eState );
+
+							int s[Dim];
+							WindowLoop< Dim >::Run
+							(
+								IsotropicUIntPack< Dim , 0 >() , SupportSizes() ,
+								[&]( int d , int i ){ s[d] = i; } ,
+								[&]( const FEMTreeNode* _node )
 							{
-								LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset( _node , _d , _off );
-								CumulativeDerivativeValues< Real , Dim , PointD > values = eState.template dValues< Real , CumulativeDerivatives< Dim , PointD > >( _off );
-								T dot = {};
-								for( int s=0 ; s<CumulativeDerivatives< Dim , PointD >::Size ; s++ ) dot += pData.dualValues[s] * values[s];
-								AddAtomic( constraints[ _node->nodeData.nodeIndex ] , dot );
-							}
-						} ,
-						neighbors.neighbors()
-					);
+								if( _isValidFEM1Node( _node ) )
+								{
+									LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset( _node , _d , _off );
+									CumulativeDerivativeValues< Real , Dim , PointD > values = WrapperLambda( eState , _off );
+									T dot = {};
+									for( int s=0 ; s<CumulativeDerivatives< Dim , PointD >::Size ; s++ ) dot += pData.dualValues[s] * values[s];
+									AddAtomic( constraints[ _node->nodeData.nodeIndex ] , dot );
+								}
+							} ,
+								neighbors.neighbors()
+								);
+						}
+					}
 				}
 			}
+			);
 		}
 		MemoryUsage();
 	}
@@ -2921,15 +3080,17 @@ double FEMTree< Dim , Real >::_interpolationDot( UIntPack< FEMSigs1 ... > , UInt
 
 		size_t begin , end;
 		iInfo->range( _spaceRoot , begin , end );
-#pragma omp parallel for reduction( + : dot )
-		for( int i=(int)begin ; i<(int)end ; i++ )
+		std::vector< double > dots( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( begin , end , [&]( unsigned int thread , size_t i )
 		{
 			Point< Real , Dim > p = (*iInfo)[i].position;
 			Real w = (*iInfo)[i].weight;
-			CumulativeDerivativeValues< T , Dim , PointD > v1 = (*iInfo)( i , mt1.values( p , omp_get_thread_num() ) );
-			CumulativeDerivativeValues< T , Dim , PointD > v2 = mt2.values( p , omp_get_thread_num() );
-			for( int dd=0 ; dd<CumulativeDerivatives< Dim , PointD >::Size ; dd++ ) dot += Dot( v1[dd] , v2[dd] ) * w;
+			CumulativeDerivativeValues< T , Dim , PointD > v1 = (*iInfo)( i , mt1.values( p , thread ) );
+			CumulativeDerivativeValues< T , Dim , PointD > v2 = mt2.values( p , thread );
+			for( int dd=0 ; dd<CumulativeDerivatives< Dim , PointD >::Size ; dd++ ) dots[thread] += Dot( v1[dd] , v2[dd] ) * w;
 		}
+		);
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dot += dots[t];
 	}
 	return dot;
 }
@@ -2954,17 +3115,18 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			F.init( d );
 			F.template setStencil< false >( stencil );
 
-			std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
 
-#pragma omp parallel for reduction( + : dot )
-			for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
+			std::vector< double > dots( ThreadPool::NumThreads() , 0 );
+			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 			{
+				double &dot = dots[thread];
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
 				const T* _data1;
 				if( _isValidFEM1Node( node ) && ( _data1=coefficients1(node) ) )
 				{
-					ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
+					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 					typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors;
 					neighborKey.getNeighbors( LeftOverlapRadii() , RightOverlapRadii() , node , neighbors );
 					bool isInterior = _isInteriorlyOverlapped( UIntPack< Degrees1 ... >() , UIntPack< Degrees2 ... >() , node );
@@ -2995,6 +3157,8 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 					}
 				}
 			}
+			);
+			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dot += dots[t];
 		}
 	}
 	// Calculate the contribution from @(<depth,depth)
@@ -3009,28 +3173,29 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 		for( LocalDepth d=1 ; d<=_maxDepth ; d++ )
 		{
 			// Update the cumulative coefficients with the coefficients @(depth-1)
-#pragma omp parallel for
-			for( int i=_sNodesBegin(d-1) ; i<_sNodesEnd(d-1) ; i++ )
+			ThreadPool::Parallel_for( _sNodesBegin(d-1) , _sNodesEnd(d-1) , [&]( unsigned int , size_t i )
 			{
 				const T* _data1 = coefficients1( _sNodes.treeNodes[i] );
 				if( _data1 ) cumulative1[i] += *_data1;
 			}
+			);
 
 			typename BaseConstraint::PCStencils stencils;
 			F.init( d );
 			F.template setStencils< true >( stencils );
 
-			std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d-1 ) );
 
-#pragma omp parallel for reduction( + : dot )
-			for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
+			std::vector< double > dots( ThreadPool::NumThreads() , 0 );
+			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 			{
+				double &dot = dots[thread];
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
 				const T* _data2;
 				if( _isValidFEM2Node( node ) && ( _data2=coefficients2( node ) ) )
 				{
-					ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
+					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 					bool isInterior = _isInteriorlyOverlapped( UIntPack< Degrees1 ... >() , UIntPack< Degrees2 ... >() , node->parent );
 
 					LocalDepth d ; LocalOffset off;
@@ -3064,6 +3229,8 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 					);
 				}
 			}
+			);
+			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dot += dots[t];
 			// Up sample the cumulative coefficients for the next level
 			if( d<_maxDepth ) _upSample( UIntPack< FEMSigs1 ... >() , F.tRestrictionProlongation() , d , cumulative1() );
 		}
@@ -3084,18 +3251,19 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			F.init( d );
 			F.template setStencils< false >( stencils );
 
-			std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d-1 ) );
 
 			// Update the cumulative constraints @(depth-1) from @(depth)
-#pragma omp parallel for
-			for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
+			std::vector< double > dots( ThreadPool::NumThreads() , 0 );
+			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 			{
+				double &dot = dots[thread];
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
 				const T* _data1;
 				if( _isValidFEM1Node( node ) && ( _data1=coefficients1( node ) ) )
 				{
-					ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
+					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 					bool isInterior = _isInteriorlyOverlapped( UIntPack< Degrees2 ... >() , UIntPack< Degrees1 ... >() , node->parent );
 
 					LocalDepth d ; LocalOffset off;
@@ -3140,19 +3308,23 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 					);
 				}
 			}
+			);
+			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dot += dots[t];
 			// Update the dot-product using the cumulative constraints @(depth-1)
-#pragma omp parallel for reduction( + : dot )
-			for( int i=_sNodesBegin(d-1) ; i<_sNodesEnd(d-1) ; i++ )
+			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dots[t] = 0;
+			ThreadPool::Parallel_for( _sNodesBegin(d-1) , _sNodesEnd(d-1) , [&]( unsigned int thread , size_t i )
 			{
+				double &dot = dots[thread];
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
 				const T* _data2;
 				if( _isValidFEM2Node( node ) && ( _data2=coefficients2( node ) ) ) dot += Dot( cumulative2[ node->nodeData.nodeIndex ] , *_data2 );
 			}
+			);
+			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dot += dots[t];
 
 			// Down-sample the cumulative constraints from @(depth-1) to @(depth-2) for the next pass
-			if( d-1>0 ) _downSample( UIntPack< FEMSigs2 ... >() , F.cRestrictionProlongation() , d-1 , GetPointer( &cumulative2[0] , (int)cumulative2.size() ) );
+			if( d-1>0 ) _downSample( UIntPack< FEMSigs2 ... >() , F.cRestrictionProlongation() , d-1 , GetPointer( &cumulative2[0] , cumulative2.size() ) );
 		}
 	}
-
 	return dot;
 }
