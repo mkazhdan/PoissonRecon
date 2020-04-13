@@ -336,7 +336,6 @@ individual components of the surface reconstructor.
 </dl>
 </ul>
 
-
 <ul>
 <dl>
 <DETAILS>
@@ -432,7 +431,6 @@ individual components of the surface reconstructor.</dd>
 </DETAILS>
 </dl>
 </ul>
-
 
 <ul>
 <dl>

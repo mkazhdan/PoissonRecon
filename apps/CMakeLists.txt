@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.7)
+project(apps)
+
+add_subdirectory(AdaptiveTreeVisualization)
+add_subdirectory(ChunkPLY)
+add_subdirectory(EDTInHeat)
+add_subdirectory(ImageStitching)
+add_subdirectory(PointInterpolant)
+add_subdirectory(PoissonRecon)
+add_subdirectory(SSDRecon)
+add_subdirectory(SurfaceTrimmer)
+add_subdirectory(VoxelCompare)
