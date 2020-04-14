@@ -361,8 +361,12 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
   messageWriter( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh->outOfCorePointCount()+mesh->inCorePoints.size() ) , (unsigned long long)mesh->polygonCount() );
   std::string isoStatsString = isoStats.toString() + std::string( "\n" );
   messageWriter( isoStatsString.c_str() );
+
+  if( Verbose.set )
+  {
   if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
   else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
+  }
 
   std::vector< std::string > noComments;
   if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( Out.value , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , iXForm ) )
@@ -560,7 +564,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
     delete pointStream;
 
     messageWriter( "Input Points / Samples: %llu / %llu\n" , (unsigned long long)pointCount , (unsigned long long)samples->size() );
-    profiler.dumpOutput2( comments , "# Read input into tree:" );
+    if( Verbose.set ) profiler.dumpOutput2( comments , "# Read input into tree:" );
   }
   int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;
   if( kernelDepth>Depth.value )
@@ -581,7 +585,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
     {
       profiler.start();
       density = tree.template setDensityEstimator< WEIGHT_DEGREE >( *samples , kernelDepth , SamplesPerNode.value , 1 );
-      profiler.dumpOutput2( comments , "#   Got kernel density:" );
+      if( Verbose.set ) profiler.dumpOutput2( comments , "#   Got kernel density:" );
     }
 
     // Transform the Hermite samples into a vector field
@@ -609,8 +613,8 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
       };
       if( ConfidenceBias.value>0 ) *normalInfo = tree.setDataField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , ConversionAndBiasFunction );
       else                         *normalInfo = tree.setDataField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , ConversionFunction );      ThreadPool::Parallel_for( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
-      profiler.dumpOutput2( comments , "#     Got normal field:" );
-      messageWriter( "Point weight / Estimated Area: %g / %g\n" , pointWeightSum , pointCount*pointWeightSum );
+      if( Verbose.set ) profiler.dumpOutput2( comments , "#     Got normal field:" );
+      if( Verbose.set ) messageWriter( "Point weight / Estimated Area: %g / %g\n" , pointWeightSum , pointCount*pointWeightSum );
     }
 
 
@@ -622,7 +626,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
       profiler.start();
       constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
       tree.template finalizeForMultigrid< MAX_DEGREE >( FullDepth.value , typename FEMTree< Dim , Real >::template HasNormalDataFunctor< NormalSigs >( *normalInfo ) , normalInfo , density );
-      profiler.dumpOutput2( comments , "#       Finalized tree:" );
+      if( Verbose.set ) profiler.dumpOutput2( comments , "#       Finalized tree:" );
     }
     // Add the FEM constraints
     {
@@ -640,7 +644,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
         F.weights[d][ TensorDerivatives< Derivatives1 >::Index( derivatives1 ) ][ TensorDerivatives< Derivatives2 >::Index( derivatives2 ) ] = 1;
       }
       tree.addFEMConstraints( F , *normalInfo , constraints , solveDepth );
-      profiler.dumpOutput2( comments , "#  Set FEM constraints:" );
+      if( Verbose.set ) profiler.dumpOutput2( comments , "#  Set FEM constraints:" );
     }
 
     // Free up the normal info
@@ -653,7 +657,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
       if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 > ( tree , *samples , ConstraintDual< Dim , Real >( targetValue , (Real)PointWeight.value * pointWeightSum ) , SystemDual< Dim , Real >( (Real)PointWeight.value * pointWeightSum ) , true , false );
       else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( tree , *samples , ConstraintDual< Dim , Real >( targetValue , (Real)PointWeight.value * pointWeightSum ) , SystemDual< Dim , Real >( (Real)PointWeight.value * pointWeightSum ) , true , 1 );
       tree.addInterpolationConstraints( constraints , solveDepth , *iInfo );
-      profiler.dumpOutput2( comments , "#Set point constraints:" );
+      if( Verbose.set ) profiler.dumpOutput2( comments , "#Set point constraints:" );
     }
 
     messageWriter( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
@@ -667,7 +671,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
       sInfo.baseDepth = BaseDepth.value , sInfo.baseVCycles = BaseVCycles.value;
       typename FEMIntegrator::template System< Sigs , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
       solution = tree.solveSystem( Sigs() , F , constraints , solveDepth , sInfo , iInfo );
-      profiler.dumpOutput2( comments , "# Linear system solved:" );
+      if( Verbose.set ) profiler.dumpOutput2( comments , "# Linear system solved:" );
       if( iInfo ) delete iInfo , iInfo = NULL;
     }
   }
@@ -687,7 +691,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
     for( size_t t=0 ; t<valueSums.size() ; t++ ) valueSum += valueSums[t] , weightSum += weightSums[t];
     isoValue = (Real)( valueSum / weightSum );
     if( DataX.value<=0 || ( !Colors.set && !Normals.set ) ) delete samples , samples = NULL;
-    profiler.dumpOutput( "Got average:" );
+    if( Verbose.set ) profiler.dumpOutput( "Got average:" );
     messageWriter( "Iso-Value: %e = %g / %g\n" , isoValue , valueSum , weightSum );
   }
   if( Tree.set )
@@ -709,7 +713,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
     size_t resolution = 1;
     for( int d=0 ; d<Dim ; d++ ) resolution *= res;
     ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int , size_t i ){ values[i] -= isoValue; } );
-    profiler.dumpOutput( "Got grid:" );
+    if( Verbose.set ) profiler.dumpOutput( "Got grid:" );
     WriteGrid< Real , DIMENSION >( values , res , Grid.value );
     DeletePointer( values );
     if( Verbose.set )
