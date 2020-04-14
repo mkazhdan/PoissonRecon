@@ -112,6 +112,8 @@ PNGWriter::PNGWriter( const char* fileName , unsigned int width , unsigned int h
 	if( !_fp ) ERROR_OUT( "Failed to open file for writing: %s" , fileName );
 	png_init_io( _png_ptr , _fp );
 
+	const int Z_BEST_SPEED = 1;
+
 	png_set_compression_level( _png_ptr , Z_BEST_SPEED );
 
 	int pngColorType;
@@ -144,6 +146,6 @@ unsigned int PNGWriter::nextRow( const unsigned char* row )
 }
 unsigned int PNGWriter::nextRows( const unsigned char* rows , unsigned int rowNum )
 {
-	for( unsigned int r=0 ; r<rowNum ; r++ ) png_write_row( _png_ptr , (png_bytep)( rows + r * 3 * sizeof( unsigned char ) * _png_ptr->width ) );
+	for( unsigned int r=0 ; r<rowNum ; r++ ) png_write_row( _png_ptr , (png_bytep)( rows + r * 3 * sizeof( unsigned char ) * png_get_image_width( _png_ptr , _info_ptr ) ) );
 	return _currentRow += rowNum;
 }
