@@ -1,35 +1,45 @@
-cmake_minimum_required(VERSION 3.0)
-
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
+cmake_minimum_required( VERSION 3.10 )
 
 project( QPOISSON_RECON_LIB )
 
-#to remove very annoying "NO ARGUMENTS THAT DEPEND ON A TEMPLATE PARAMETER" errors with G++!
+add_library( ${PROJECT_NAME} STATIC )
+
+# To remove very annoying "NO ARGUMENTS THAT DEPEND ON A TEMPLATE PARAMETER" errors with G++!
 if( UNIX OR MINGW )
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -w")
+	target_compile_options( ${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fpermissive -w> )
 elseif( MSVC )
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+	target_compile_options( ${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/bigobj> )
 endif()
 
-set( SAMPLE_PROJECT_VERSION_MAJOR 12 )
-set( SAMPLE_PROJECT_VERSION_MINOR 0 )
+target_sources( ${PROJECT_NAME}
+	PUBLIC
+		${CMAKE_CURRENT_SOURCE_DIR}/Src_CC_wrap/PoissonReconLib.h
+		${CMAKE_CURRENT_SOURCE_DIR}/Src_CC_wrap/PointData.h
+	PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}/Src_CC_wrap/PoissonReconLib.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/Src_CC_wrap/PointData.cpp
+)
 
-file( GLOB header_list Src_CC_wrap/*.h )
-file( GLOB source_list Src_CC_wrap/*.cpp )
+target_include_directories( ${PROJECT_NAME}
+	PUBLIC
+		${CMAKE_CURRENT_SOURCE_DIR}/Src_CC_wrap
+	PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}/Src
+)
 
-add_library( ${PROJECT_NAME} STATIC ${header_list} ${source_list} )
+target_compile_definitions( ${PROJECT_NAME}
+	PRIVATE
+		_CRT_SECURE_NO_DEPRECATE
+		_CRT_SECURE_NO_WARNINGS
+		NOMINMAX
+)
 
-target_include_directories( ${PROJECT_NAME} PRIVATE Src )
-
-# Add preprocessor definitions
-target_compile_definitions( ${PROJECT_NAME} PRIVATE _CRT_SECURE_NO_DEPRECATE _CRT_SECURE_NO_WARNINGS NOMINMAX )
-
-option( POISSON_RECON_WITH_OPEN_MP "Check to compile PoissonRecon plugin with OpenMP support" OFF )
-if ( POISSON_RECON_WITH_OPEN_MP )
-	find_package(OpenMP)
-	if (OPENMP_FOUND)
-		set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-		set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+option( POISSON_RECON_WITH_OPEN_MP "Compile PoissonRecon plugin with OpenMP support" OFF )
+if( POISSON_RECON_WITH_OPEN_MP )
+	find_package( OpenMP )
+	
+	if( OpenMP_CXX_FOUND ) 
+		target_link_libraries( ${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX )
 		target_compile_definitions( ${PROJECT_NAME} PRIVATE WITH_OPENMP )
 	endif()
 endif ()
