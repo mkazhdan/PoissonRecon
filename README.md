@@ -663,10 +663,10 @@ individual components of the visualizer.
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>ChunkPly</b></font>:
-Decomposes a single mesh/point-set file into a set of chunks with prescribed bounding box widths.
+Decomposes a collection of mesh/point-set files into a set of chunks with prescribed bounding box widths.
 </SUMMARY>
-<dt><b>--in</b> &lt;<i>input ply file</i>&gt;
-</dt><dd> This string is the name of the file containing the geometry that is to be chunked.
+<dt><b>--in</b> &lt;<i>input geometry file count, geometry file #1, geometry file #2, ...</i>&gt;
+</dt><dd> These strings give the nubmer of geometry files (containing representing either a point cloud in 3D or a mesh) and the names of the individual files.
 
 </dd><dt>[<b>--out</b> &lt;<i>output ply file name/header</i>&gt;]
 </dt><dd> This string is the name of the file/header to which the chunks should be written. If the width of the chunk is <I>W</I>, the file containing the geometry inside the cube [<I>W</I>&middot;<i>i</I>,<i>W</i>&middot;(<i>i+1</i>)</I>]&times;[<I>W</I>&middot;<i>j</I>,<i>W</i>&middot;(<i>j+1</i>)</I>]&times;[<I>W</I>&middot;<i>k</I>,<i>W</i>&middot;(<i>k+1</i>)</I>]</I> will be named <I>&lt;output header&gt;.i.j.k.ply</i>.
@@ -687,9 +687,6 @@ The default value for this parameter is <i>0</i>, indicating that no padding sho
 
 </dd><dt>[<b>--values</b>]
 </dt><dd> Enabling this flag lets the chunking code know that, in the case that the input is a point cloud in raw ASCII/binary format, the points have scalar values associated with them.
-
-</dd><dt>[<b>--noNormals</b>]
-</dt><dd> Enabling this flag lets the chunking code know that, in the case that the input is a point cloud in raw ASCII/binary format, the points do not have have normal data.
 
 </dd><dt>[<b>--verbose</b>]
 </dt><dd> Enabling this flag provides a more verbose description of the running times and memory usages of
@@ -1030,7 +1027,8 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">Version 13.00</a>:
 <ol>
-<LI> Enabling passing in a constraint envelope to <I>PoissonRecon</I>, allowing one to define a region that is known to be outside the surface.
+<LI> Enabled passing in a constraint envelope to <I>PoissonRecon</I>, allowing one to define a region that is known to be outside the surface.
+<LI> Updated <I>ChunkPLY</I> to support processing of input points in either ASCII or binary format.
 </ol>
 
 </DETAILS>

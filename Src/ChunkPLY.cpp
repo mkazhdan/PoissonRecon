@@ -45,7 +45,8 @@ DAMAGE.
 #include "PointStream.h"
 #include "PointStreamData.h"
 
-cmdLineParameter< char* > In( "in" ) , Out( "out" );
+cmdLineParameters< char* > In( "in" );
+cmdLineParameter< char* > Out( "out" );
 cmdLineParameter< float > Width( "width" , -1.f ) , PadRadius( "radius" , 0.f );
 cmdLineParameterArray< float , 6 > BoundingBox( "bBox" );
 cmdLineReadable ASCII( "ascii" ) , Verbose( "verbose" ) , NoNormals( "noNormals" ) , Colors( "colors" ) , Values( "values" );
@@ -55,7 +56,7 @@ cmdLineReadable* params[] = { &In , &Out , &Width , &PadRadius , &ASCII , &Verbo
 void ShowUsage( char* ex )
 {
 	printf( "Usage: %s\n" , ex );
-	printf( "\t --%s <input ply file (vertices or polygons)>\n" , In.name );
+	printf( "\t --%s <input geometry file count, geometry file #1, geometry file #2, ... >\n" , In.name );
 	printf( "\t[--%s <output ply file name/header>]\n" , Out.name );
 	printf( "\t[--%s <chunk width>=%f]\n" , Width.name , Width.value );
 	printf( "\t[--%s <padding radius (as a fraction of the width)>=%f]\n" , PadRadius.name , PadRadius.value );
@@ -77,31 +78,47 @@ void PrintBoundingBox( Point< float , 3 > min , Point< float , 3 > max )
 }
 
 template< typename ... VertexData >
-void Read( const char *fileName , std::vector< PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > > &vertices , std::vector< std::vector< long long > > &polygons , int &ft , std::vector< std::string > &comments )
+void Read( char * const *fileNames , unsigned int fileNum , std::vector< PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > > &vertices , std::vector< std::vector< long long > > &polygons , int &ft , std::vector< std::string > &comments )
 {
-	char *ext = GetFileExtension( fileName );
 	typedef PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > Vertex;
-
-	if( !strcasecmp( ext , "ply" ) ) PlyReadPolygons< Vertex >( In.value , vertices , polygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , comments );
-	else
+	for( unsigned int i=0 ; i<fileNum ; i++ )
 	{
-		InputPointStreamWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > *pointStream;
-		if( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputPointStreamWithData< float , 3 , MultiPointStreamData< float , VertexData ... > >( fileName , MultiPointStreamData< float , VertexData ... >::ReadBinary );
-		else                               pointStream = new  ASCIIInputPointStreamWithData< float , 3 , MultiPointStreamData< float , VertexData ... > >( fileName , MultiPointStreamData< float , VertexData ... >::ReadASCII );
-		size_t count = 0;
-		Vertex v;
-		while( pointStream->nextPoint( v.point , v.data ) ) count++;
-		pointStream->reset();
-		vertices.resize( count );
-		polygons.resize( 0 );
-		comments.resize( 0 );
-		ft = PLY_BINARY_NATIVE;
+		std::vector< PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > > _vertices;
+		std::vector< std::vector< long long > > _polygons;
+		char *ext = GetFileExtension( fileNames[i] );
 
-		count = 0;
-		while( pointStream->nextPoint( vertices[count].point , vertices[count].data ) ) count++;
-		delete pointStream;
+		if( !strcasecmp( ext , "ply" ) ) PlyReadPolygons< Vertex >( fileNames[i] , _vertices , _polygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , comments );
+		else
+		{
+			InputPointStreamWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > *pointStream;
+			if( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputPointStreamWithData< float , 3 , MultiPointStreamData< float , VertexData ... > >( fileNames[i] , MultiPointStreamData< float , VertexData ... >::ReadBinary );
+			else                               pointStream = new  ASCIIInputPointStreamWithData< float , 3 , MultiPointStreamData< float , VertexData ... > >( fileNames[i] , MultiPointStreamData< float , VertexData ... >::ReadASCII );
+			size_t count = 0;
+			Vertex v;
+			while( pointStream->nextPoint( v.point , v.data ) ) count++;
+			pointStream->reset();
+			_vertices.resize( count );
+			comments.resize( 0 );
+			ft = PLY_BINARY_NATIVE;
+
+			count = 0;
+			while( pointStream->nextPoint( _vertices[count].point , _vertices[count].data ) ) count++;
+			delete pointStream;
+		}
+		delete[] ext;
+
+		long long vOffset = (long long)vertices.size();
+
+		vertices.reserve( vertices.size() + _vertices.size() );
+		for( int i=0 ; i<_vertices.size() ; i++ ) vertices.push_back( _vertices[i] );
+
+		polygons.reserve( polygons.size() + _polygons.size() );
+		for( int i=0 ; i<_polygons.size() ; i++ )
+		{
+			for( int j=0 ; j<_polygons[i].size() ; j++ ) _polygons[i][j] += vOffset;
+			polygons.push_back( _polygons[i] );
+		}
 	}
-	delete[] ext;
 }
 
 template< typename ... VertexData >
@@ -241,7 +258,7 @@ void Execute( void )
 
 	int ft;
 	std::vector< std::string > comments;
-	Read( In.value , vertices , polygons , ft , comments );
+	Read( In.values , In.count , vertices , polygons , ft , comments );
 	printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)vertices.size() , (unsigned long long)polygons.size() );
 	printf( "Time (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
 	printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
@@ -541,25 +558,37 @@ int main( int argc , char* argv[] )
 	Timer timer;
 
 	bool hasValue , hasNormal , hasColor;
-	char *ext = GetFileExtension( In.value );
-	if( !strcasecmp( ext , "ply" ) )
+	for( int i=0 ; i<In.count ; i++ )
 	{
-		typedef MultiPointStreamData< float , PointStreamValue< float > , PointStreamNormal< float , 3 > , PointStreamColor< float > > VertexData;
-		typedef PlyVertexWithData< float , 3 , VertexData > Vertex;
-		bool readFlags[ Vertex::PlyReadNum ];
-		if( !PlyReadHeader( In.value , Vertex::PlyReadProperties() , Vertex::PlyReadNum , readFlags ) ) ERROR_OUT( "Failed to read ply header: " , In.value );
+		bool _hasValue , _hasNormal , _hasColor;
+		char *ext = GetFileExtension( In.values[i] );
+		if( !strcasecmp( ext , "ply" ) )
+		{
+			typedef MultiPointStreamData< float , PointStreamValue< float > , PointStreamNormal< float , 3 > , PointStreamColor< float > > VertexData;
+			typedef PlyVertexWithData< float , 3 , VertexData > Vertex;
+			bool readFlags[ Vertex::PlyReadNum ];
+			if( !PlyReadHeader( In.values[i] , Vertex::PlyReadProperties() , Vertex::PlyReadNum , readFlags ) ) ERROR_OUT( "Failed to read ply header[ " , i , " ]: " , In.values[i] );
 
-		hasValue  = VertexData::ValidPlyReadProperties< 0 >( readFlags + 3 );
-		hasNormal = VertexData::ValidPlyReadProperties< 1 >( readFlags + 3 );
-		hasColor  = VertexData::ValidPlyReadProperties< 2 >( readFlags + 3 );
+			_hasValue  = VertexData::ValidPlyReadProperties< 0 >( readFlags + 3 );
+			_hasNormal = VertexData::ValidPlyReadProperties< 1 >( readFlags + 3 );
+			_hasColor  = VertexData::ValidPlyReadProperties< 2 >( readFlags + 3 );
+		}
+		else
+		{
+			_hasValue  = Values.set;
+			_hasNormal =!NoNormals.set;
+			_hasColor  = Colors.set;
+		}
+		delete[] ext;
+
+		if( !i ) hasValue = _hasValue , hasNormal = _hasNormal , hasColor = _hasColor;
+		else
+		{
+			if( hasValue !=_hasValue  ) WARN( "Inconsistent value trait"  ) , hasValue  = false;
+			if( hasColor !=_hasColor  ) WARN( "Inconsistent color trait"  ) , hasValue  = false;
+			if( hasNormal!=_hasNormal ) WARN( "Inconsistent normal trait" ) , hasNormal = false;
+		}
 	}
-	else
-	{
-		hasValue  = Values.set;
-		hasNormal =!NoNormals.set;
-		hasColor  = Colors.set;
-	}
-	delete[] ext;
 
 	if( hasValue )
 		if( hasColor )
