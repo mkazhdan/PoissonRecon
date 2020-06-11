@@ -37,10 +37,13 @@ DAMAGE.
 #include <type_traits>
 #include <cstddef>
 
+template< class C > class ConstArray;
+
 template< class C >
 class Array
 {
 	template< class D > friend class Array;
+	friend class ConstArray< C >;
 	void _assertBounds( std::ptrdiff_t idx ) const
 	{
 		if( idx<min || idx>=max )
@@ -290,6 +293,14 @@ public:
 		min = ( a.minimum() * szD ) / szC;
 		max = ( a.maximum() * szD ) / szC;
 		if( min*szC!=a.minimum()*szD || max*szC!=a.maximum()*szD ) ERROR_OUT( "Could not convert array [ " , a.minimum() , " , " , a.maximum() , " ] * " , szD , " => [ " , min , " , " , max , " ] * " , szC );
+	}
+	explicit operator Array< C >() const
+	{
+		Array< C > a;
+		a.data = const_cast< C * >( data );
+		a.min = minimum();
+		a.max = maximum();
+		return a;
 	}
 	static ConstArray FromPointer( const C* data , std::ptrdiff_t max )
 	{

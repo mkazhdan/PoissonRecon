@@ -34,7 +34,7 @@ DAMAGE.
 /////////////////////
 // FEMTreeNodeData //
 /////////////////////
-FEMTreeNodeData::FEMTreeNodeData( void ){ flags = 0; }
+FEMTreeNodeData::FEMTreeNodeData( void ){ flags = 0 , isGeometrySupported = false; }
 FEMTreeNodeData::~FEMTreeNodeData( void ) { }
 
 
@@ -64,13 +64,14 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( size_t
 	_nodeCount = 0;
 	_tree = FEMTreeNode::NewBrood( nodeAllocators.size() ? nodeAllocators[0] : NULL , _nodeInitializer );
 	_tree->template initChildren< false >( nodeAllocators.size() ? nodeAllocators[0] : NULL , _nodeInitializer ) , _spaceRoot = _tree->children;
+#pragma message( "[WARNING] _spaceRoot is the root of the tree until finalization" )
+	_spaceRoot->parent = NULL;
 	int offset[Dim];
 	for( int d=0 ; d<Dim ; d++ ) offset[d] = 0;
 	RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::ResetDepthAndOffset( _spaceRoot , 0 , offset );
 	_depthOffset = 0;
 	memset( _femSigs1 , -1 , sizeof( _femSigs1 ) );
 	memset( _femSigs2 , -1 , sizeof( _femSigs2 ) );
-	memset( _refinableSigs , -1 , sizeof( _refinableSigs ) );
 }
 template< unsigned int Dim , class Real >
 FEMTree< Dim , Real >::FEMTree( FILE* fp , XForm< Real , Dim+1 > &xForm , size_t blockSize ) : _nodeInitializer( *this )
@@ -244,45 +245,94 @@ typename FEMTree< Dim , Real >::LocalDepth FEMTree< Dim , Real >::getFullDepth( 
 }
 
 template< unsigned int Dim , class Real >
-template< unsigned int LeftRadius , unsigned int RightRadius , class ... DenseOrSparseNodeData > 
-void FEMTree< Dim , Real >::thicken( FEMTreeNode **nodes , size_t nodeCount, DenseOrSparseNodeData* ... data )
+template< unsigned int LeftRadius , unsigned int RightRadius , bool CreateNodes , typename ProcessingNodeFunctor , typename ... DenseOrSparseNodeData , typename InitializeFunctor >
+void FEMTree< Dim , Real >::processNeighbors( ProcessingNodeFunctor processingNode , std::tuple< DenseOrSparseNodeData *... > data , InitializeFunctor initialize )
 {
-	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
+	std::vector< FEMTreeNode * > nodes;
+	nodes.reserve( _spaceRoot->nodes() );
+	for( FEMTreeNode *node=_spaceRoot->nextNode() ; node ; node=_spaceRoot->nextNode(node) ) if( processingNode(node) ) nodes.push_back( node );
+	processNeighbors< LeftRadius , RightRadius , CreateNodes >( &nodes[0] , nodes.size() , data , initialize );
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int LeftRadius , unsigned int RightRadius , bool CreateNodes , typename ... DenseOrSparseNodeData , typename InitializeFunctor >
+void FEMTree< Dim , Real >::processNeighbors( FEMTreeNode **nodes , size_t nodeCount, std::tuple< DenseOrSparseNodeData *... > data , InitializeFunctor initialize )
+{
+	int maxDepth = 0;
+	for( size_t i=0 ; i<nodeCount ; i++ ) maxDepth = std::max( maxDepth , nodes[i]->depth() );
 	std::vector< node_index_type > map( _nodeCount );
 	for( node_index_type i=0 ; i<_nodeCount ; i++ ) map[i] = i;
+	typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< IsotropicUIntPack< Dim , LeftRadius > , IsotropicUIntPack< Dim , RightRadius > > NeighborKey;
+
+	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
+	//	typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< IsotropicUIntPack< Dim , LeftRadius > , IsotropicUIntPack< Dim , RightRadius > > neighborKey;
+	NeighborKey neighborKey;
+	neighborKey.set( maxDepth );
+	for( size_t i=0 ; i<nodeCount ; i++ )
 	{
-		int d=0 , off[Dim];
-		for( int d=0 ; d<Dim ; d++ ) off[d] = 0;
-		FEMTreeNode::ResetDepthAndOffset( _tree , d , off );
-	}
-	typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< IsotropicUIntPack< Dim , LeftRadius > , IsotropicUIntPack< Dim , RightRadius > > neighborKey;
-	neighborKey.set( _tree->maxDepth() );
-	for( size_t i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true , false >( nodes[i] , nodeAllocator , _nodeInitializer );
-	{
-		int d=0 , off[Dim];
-		for( int d=0 ; d<Dim ; d++ ) off[d] = 0;
-		FEMTreeNode::ResetDepthAndOffset( _spaceRoot , d , off );
+		auto neighbors = neighborKey.template getNeighbors< CreateNodes , false >( nodes[i] , nodeAllocator , _nodeInitializer );
+		for( unsigned int j=0 ; j<neighbors.neighbors.Size ; j++ ) if( neighbors.neighbors.data[j] ) initialize( neighbors.neighbors.data[j] );
 	}
 
-	_reorderDenseOrSparseNodeData( &map[0] , _nodeCount , data ... );
+	_reorderDenseOrSparseNodeData< 0 >( GetPointer( map ) , _nodeCount , data );
 }
+
 template< unsigned int Dim , class Real >
-template< unsigned int LeftRadius , unsigned int RightRadius , class IsThickenNode , class ... DenseOrSparseNodeData > 
-void FEMTree< Dim , Real >::thicken( IsThickenNode F , DenseOrSparseNodeData* ... data )
+template< unsigned int LeftRadius , unsigned int RightRadius , typename IsProcessingNodeFunctor , typename ProcessingKernel >
+void FEMTree< Dim , Real >::processNeighboringLeaves( IsProcessingNodeFunctor isProcessingNode , ProcessingKernel kernel , bool processSubTree )
 {
-	std::vector< FEMTreeNode* > nodes;
-	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) if( IsActiveNode( node ) && F( node ) ) nodes.push_back( node );
-	thicken< LeftRadius , RightRadius >( &nodes[0] , nodes.size() , data ... );
+	std::vector< FEMTreeNode * > nodes;
+	nodes.reserve( _spaceRoot->nodes() );
+	for( FEMTreeNode *node=_spaceRoot->nextNode() ; node ; node=_spaceRoot->nextNode(node) ) if( isProcessingNode(node) ) nodes.push_back( node );
+	processNeighboringLeaves< LeftRadius , RightRadius >( &nodes[0] , nodes.size() , kernel , processSubTree );
 }
 
 template< unsigned int Dim , class Real >
-template< unsigned int DensityDegree >
-typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMTree< Dim , Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension )
+template< unsigned int LeftRadius , unsigned int RightRadius , typename ProcessingKernel >
+void FEMTree< Dim , Real >::processNeighboringLeaves( FEMTreeNode **nodes , size_t nodeCount  , ProcessingKernel kernel , bool processSubTree )
+{
+#pragma message( "[WARNING] may process the same leaf multiple times, if it is coarser" )
+	typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< IsotropicUIntPack< Dim , LeftRadius > , IsotropicUIntPack< Dim , RightRadius > > NeighborKey;
+	// Suppose that we have a node at index I and we want the leaf nodes supported on the (possibly virtual) node K away
+	// Case 1: The K-th neighbor exists
+	// ---> Iterate over the leaf nodes of the sub-tree rooted at the K-th neighbor
+	// Case 2: The K-th neighbor does not exist
+	// ---> The index of the K-th neighbor is I+K
+	// ---> The index of the parent is floor( I/2 )
+	// ---> The index of the K-th neighbors parent is floor( (I+K)/2 )
+	// ---> The parent of the K-th neighbor is the [ floor( (I+k)/2 ) - floor( I/2 ) ]-th neighbor of the parent
+
+	std::function< void ( FEMTreeNode * ) > ProcessSubTree = [&]( FEMTreeNode *node )
+	{
+		if( node->children ) for( int c=0 ; c<(1<<Dim) ; c++ ) ProcessSubTree( node->children+c );
+		kernel( node );
+	};
+
+	unsigned int maxDepth=0;
+	for( size_t i=0 ; i<nodeCount ; i++ ) maxDepth = std::max( maxDepth , (unsigned int)nodes[i]->depth() );
+
+	std::vector< NeighborKey > neighborKeys( ThreadPool::NumThreads() );
+	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( maxDepth );
+
+	ThreadPool::Parallel_for( 0 , nodeCount , [&]( unsigned int t , size_t  i )
+	{
+		typedef StaticWindow< FEMTreeNode * , IsotropicUIntPack< Dim , LeftRadius+RightRadius+1 > > NeighborLeafNodes;
+		NeighborLeafNodes neighborLeafNodes;
+		neighborKeys[t].setLeafNeighbors( nodes[i] , neighborLeafNodes );
+		for( int i=0 ; i<NeighborLeafNodes::Size ; i++ ) if( neighborLeafNodes.data[i] )
+			if( processSubTree ) ProcessSubTree( neighborLeafNodes.data[i] );
+			else kernel( neighborLeafNodes.data[i] );
+	} );
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int CoDim , unsigned int DensityDegree >
+typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMTree< Dim , Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode )
 {
 	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	splatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( splatDepth , maxDepth ) );
-	DensityEstimator< DensityDegree >* _density = new DensityEstimator< DensityDegree >( splatDepth , coDimension );
+	DensityEstimator< DensityDegree >* _density = new DensityEstimator< DensityDegree >( splatDepth , CoDim , samplesPerNode );
 	DensityEstimator< DensityDegree >& density = *_density;
 	PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
 	densityKey.set( _localToGlobal( splatDepth ) );
@@ -301,8 +351,7 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 				if( d<=splatDepth && s.weight>0 )
 				{
 					Point< Real , Dim > p = s.data / s.weight;
-					Real w = s.weight / samplesPerNode;
-					_addWeightContribution< true >( nodeAllocator , density , node , p , densityKey , w );
+					_addWeightContribution< true , CoDim >( nodeAllocator , density , node , p , densityKey , s.weight );
 				}
 				sample += s;
 			}
@@ -312,8 +361,7 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 			if( d<=splatDepth && sample.weight>0 )
 			{
 				Point< Real , Dim > p = sample.data / sample.weight;
-				Real w = sample.weight / samplesPerNode;
-				_addWeightContribution< true >( nodeAllocator , density , node , p , densityKey , w );
+				_addWeightContribution< true , CoDim >( nodeAllocator , density , node , p , densityKey , sample.weight );
 			}
 		}
 		return sample;
@@ -326,7 +374,7 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 
 template< unsigned int Dim , class Real >
 template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
-SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< bool ( InData , OutData& ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction )
+SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , Real& pointWeightSum , std::function< bool ( InData , OutData& ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction )
 {
 	std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction = [&]( InData in , OutData &out , Real &bias )
 	{
@@ -337,13 +385,12 @@ SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setD
 		}
 		else return false;
 	};
-	return setDataField( UIntPack< DataSigs ... >() , samples , data , density , pointWeightSum , ConversionAndBiasFunction );
+	return setInterpolatedDataField( UIntPack< DataSigs ... >() , samples , data , density , minDepth , maxDepth , minDepthCutoff , pointWeightSum , ConversionAndBiasFunction );
 }
 template< unsigned int Dim , class Real >
 template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
-SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction )
+SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , Real& pointWeightSum , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction )
 {
-	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	typedef PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > DensityKey;
 	typedef UIntPack< FEMSignature< DataSigs >::Degree ... > DataDegrees;
 	typedef PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > > DataKey;
@@ -376,10 +423,10 @@ SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setD
 				Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[ thread ] : NULL;
 #if defined( __GNUC__ ) && __GNUC__ < 5
 				#warning "you've got me gcc version<5"
-					if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData >( nodeAllocator , *density , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+					if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData >( nodeAllocator , *density , minDepthCutoff , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , minDepth , maxDepth , Dim , depthBias ) * sample.weight );
 #else // !__GNUC__ || __GNUC__ >=5
-				if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData , DataSigs ... >( nodeAllocator , *density , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
-#endif // __GNUC__ || __GNUC__ < 4
+				if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData , DataSigs ... >( nodeAllocator , *density , minDepthCutoff , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , minDepth , maxDepth , Dim , depthBias ) * sample.weight );
+#endif // __GNUC__ && __GNUC__ < 5
 				else
 				{
 					Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
@@ -399,35 +446,10 @@ SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setD
 	MemoryUsage();
 	return dataField;
 }
-template< unsigned int Dim , class Real >
-template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
-SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real >::setSingleDepthDataField( const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density )
-{
-	LocalDepth maxDepth = _spaceRoot->maxDepth();
-	PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
-	PointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > > dataKey;
-	densityKey.set( _localToGlobal( maxDepth ) ) , dataKey.set( _localToGlobal( maxDepth ) );
 
-	SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > dataField;
-	for( node_index_type i=0 ; i<samples.size() ; i++ )
-	{
-		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
-		const Data& data = sampleData[i];
-		Point< Real , Dim > p = sample.weight==0 ? sample.data : sample.data / sample.weight;
-		if( !_InBounds(p) )
-		{
-			WARN( "Point is out of bounds" );
-			continue;
-		}
-		if( density ) _splatPointData< CreateNodes , false , DensityDegree , DataSig >( *density             , p , data * sample.weight , dataField , densityKey , dataKey , 0 , maxDepth , Dim );
-		else          _splatPointData< CreateNodes , false ,                 DataSig >( leaf( p , maxDepth ) , p , data * sample.weight , dataField , dataKey );
-	}
-	MemoryUsage();
-	return dataField;
-}
 template< unsigned int Dim , class Real >
 template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
-SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real >::setMultiDepthDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest )
+SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real >::setExtrapolatedDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest )
 {
 	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
@@ -452,10 +474,150 @@ SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig
 	MemoryUsage();
 	return dataField;
 }
+
 template< unsigned int Dim , class Real >
-template< unsigned int MaxDegree , class HasDataFunctor , class ... DenseOrSparseNodeData >
-void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data )
+template< unsigned int MaxDegree >
+void FEMTree< Dim , Real >::_supportApproximateProlongation( void )
 {
+	// Refine the tree so that if an active element exists @{d}, all supporting elements exist @{d-1}
+	const int OverlapRadius = -BSplineOverlapSizes< MaxDegree , MaxDegree >::OverlapStart;
+	typedef typename FEMTreeNode::template NeighborKey< IsotropicUIntPack< Dim , OverlapRadius > , IsotropicUIntPack< Dim , OverlapRadius > > NeighborKey;
+
+	std::vector< NeighborKey > neighborKeys( ThreadPool::NumThreads() );
+	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( _maxDepth-1 ) );
+
+	for( LocalDepth d=_maxDepth-1 ; d>_fullDepth ; d-- )
+	{
+		// Compute the set of nodes at depth d that have (non-ghost) children at depth d+1.
+		std::vector< FEMTreeNode* > nodes;
+		{
+			auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==d; };
+			for( FEMTreeNode* node=_tree->nextNode( NodeTerminationLambda , NULL ) ; node ; node=_tree->nextNode( NodeTerminationLambda , node ) ) if( _localDepth( node )==d && IsActiveNode( node->children ) ) nodes.push_back( node );
+		}
+
+		// Make sure that all finite elements whose support overlaps the support of the finite elements indexed by those nodes are in the tree.
+#pragma message( "[WARNING] This may be overkill as we only need to check if the support overlaps the support of the children" )
+		ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
+		{
+			NeighborKey& neighborKey = neighborKeys[ thread ];
+			FEMTreeNode *node = nodes[i];
+
+			// Create the neighbors if they are not already in the tree
+			neighborKey.template getNeighbors< true , true >( node , nodeAllocators.size() ? nodeAllocators[ thread ] : NULL , _nodeInitializer );
+
+			// Mark the neighbors as active
+			Pointer( FEMTreeNode* ) nodes = neighborKey.neighbors[ _localToGlobal(d) ].neighbors().data;
+			unsigned int size = neighborKey.neighbors[ _localToGlobal(d) ].neighbors.Size;
+			for( unsigned int i=0 ; i<size ; i++ ) SetGhostFlag( nodes[i] , false );
+		}
+		);
+	}
+}
+
+template< unsigned int Dim , typename Real >
+template< unsigned int SystemDegree >
+void FEMTree< Dim , Real >::_markNonBaseDirichletElements( void )
+{
+	const int LeftSupportRadius = -BSplineSupportSizes< SystemDegree >::SupportStart;
+	const int RightSupportRadius = BSplineSupportSizes< SystemDegree >::SupportEnd;
+	typedef typename FEMTreeNode::template NeighborKey< IsotropicUIntPack< Dim , LeftSupportRadius > , IsotropicUIntPack< Dim , RightSupportRadius > > SupportKey;
+	typedef StaticWindow< FEMTreeNode * , IsotropicUIntPack< Dim , LeftSupportRadius + RightSupportRadius + 1 > > NeighborLeaves;
+
+	std::vector< NeighborLeaves > neighborLeaves( ThreadPool::NumThreads() );
+	std::vector< SupportKey > supportKeys( ThreadPool::NumThreads() );
+	for( int i=0 ; i<supportKeys.size() ; i++ ) supportKeys[i].set( _localToGlobal( _maxDepth ) );
+
+	// Get the list of nodes @{_baseDepth)
+	std::vector< FEMTreeNode * > baseNodes;
+	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) if( _localDepth( node )==_baseDepth ) baseNodes.push_back( node );
+
+	// Process the sub-tree rooted at the node:
+	// -- For each non-ghost node in the sub-tree check if the finite element associated to the node is supported on a Dirichlet node.
+	//    If it is, mark the node as a Dirichlet element node.
+	std::function< void ( FEMTreeNode * , SupportKey & , NeighborLeaves & ) > ProcessSubTree = [&]( FEMTreeNode *node , SupportKey &supportKey , NeighborLeaves &neighborLeaves )
+	{
+		if( !node->nodeData.getGhostFlag() )
+		{
+			supportKey.setLeafNeighbors( node , neighborLeaves );
+			bool hasDirichletNeighbor = false;
+			for( int i=0 ; i<NeighborLeaves::Size ; i++ ) if( neighborLeaves.data[i] && neighborLeaves.data[i]->nodeData.getDirichletNodeFlag() ) hasDirichletNeighbor = true;
+			node->nodeData.setDirichletElementFlag( hasDirichletNeighbor );
+
+			if( node->children ) for( int c=0 ; c<(1<<Dim) ; c++ ) ProcessSubTree( node->children+c , supportKey , neighborLeaves );
+		}
+	};
+
+	ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int t , size_t i ){ ProcessSubTree( baseNodes[i] , supportKeys[t] , neighborLeaves[t] ); } );
+}
+
+template< unsigned int Dim , typename Real >
+template< unsigned int SystemDegree >
+void FEMTree< Dim , Real >::_markBaseDirichletElements( void )
+{
+	const int LeftSupportRadius = BSplineSupportSizes< SystemDegree >::SupportEnd;
+	const int RightSupportRadius = -BSplineSupportSizes< SystemDegree >::SupportStart;
+
+	typedef typename FEMTreeNode::template NeighborKey< IsotropicUIntPack< Dim , LeftSupportRadius > , IsotropicUIntPack< Dim , RightSupportRadius > > SupportKey;
+	std::vector< SupportKey > supportKeys( ThreadPool::NumThreads() );
+	for( int i=0 ; i<supportKeys.size() ; i++ ) supportKeys[i].set( _localToGlobal( _baseDepth ) );
+
+	std::vector< FEMTreeNode* > nodes;
+	auto TerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth(node)==_baseDepth; };
+	for( FEMTreeNode* node=_tree->nextNode( TerminationLambda , NULL ) ; node ; node=_tree->nextNode( TerminationLambda , node ) ) if( _localDepth( node )==_baseDepth && node->nodeData.getDirichletNodeFlag() ) nodes.push_back( node );
+
+	ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
+	{
+		SupportKey &supportKey = supportKeys[ thread ];
+		FEMTreeNode *node = nodes[i];
+		supportKey.getNeighbors( node );
+		for( LocalDepth d=0 ; d<=_baseDepth ; d++ )
+		{
+			Pointer( FEMTreeNode* ) _nodes = supportKey.neighbors[ _localToGlobal(d) ].neighbors().data;
+			unsigned int size = supportKey.neighbors[ _localToGlobal(d) ].neighbors.Size;
+			for( unsigned int i=0 ; i<size ; i++ ) if( _nodes[i] ) SetGhostFlag( _nodes[i] , false ) , _nodes[i]->nodeData.setDirichletElementFlag( true );
+		}
+	} );
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int MaxDegree , unsigned int SystemDegree , typename HasDataFunctor , typename IsDirichletLeafFunctor , typename ... InterpolationInfos , typename ... DenseOrSparseNodeData >
+void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth baseDepth , LocalDepth fullDepth , const HasDataFunctor hasData , const IsDirichletLeafFunctor isDirichletLeaf , std::tuple< InterpolationInfos *... > interpolationInfos , std::tuple< DenseOrSparseNodeData *... > data )
+{
+	std::function< void ( FEMTreeNode * ) > pushFullDirichletFlag = [&]( FEMTreeNode *node )
+	{
+		if( node->children )
+		{
+			if( node->nodeData.getDirichletNodeFlag() )
+			{
+				for( int c=0 ; c<(1<<Dim) ; c++ ) node->children[c].nodeData.setDirichletNodeFlag( true );
+				node->nodeData.setDirichletNodeFlag( false );
+			}
+			for( int c=0 ; c<(1<<Dim) ; c++ ) pushFullDirichletFlag( node->children + c );
+		}
+	};
+
+	std::function< bool ( FEMTreeNode * ) > pullPartialDirichletFlag = [&]( FEMTreeNode *node )
+	{
+		if( node->children )
+		{
+			bool childDirichlet = false;
+			for( int c=0 ; c<(1<<Dim) ; c++ ) childDirichlet |= pullPartialDirichletFlag( node->children + c );
+			node->nodeData.setDirichletNodeFlag( childDirichlet );
+		}
+		return node->nodeData.getDirichletNodeFlag();
+	};
+
+	std::function< void ( FEMTreeNode * , node_index_type , bool ) > pushDirichletFlag = [&]( FEMTreeNode *node , node_index_type newNodeIndex , bool isDirichletNode )
+	{
+		if( node->nodeData.nodeIndex>=newNodeIndex ) node->nodeData.setDirichletNodeFlag( isDirichletNode );
+		isDirichletNode = node->nodeData.getDirichletNodeFlag();
+		if( node->children ) for( int c=0 ; c<(1<<Dim) ; c++ ) pushDirichletFlag( node->children+c , newNodeIndex , isDirichletNode );
+	};
+
+	if( baseDepth>fullDepth ) ERROR_OUT( "Base depth cannot exceed full depth: " , baseDepth , " <= " , fullDepth );
+	_baseDepth = baseDepth;
+	_spaceRoot->parent = _tree;
+
 	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
 	_depthOffset = 1;
 	while( _localInset( 0 ) + BSplineEvaluationData< FEMDegreeAndBType< MaxDegree >::Signature >::Begin( 0 )<0 || _localInset( 0 ) + BSplineEvaluationData< FEMDegreeAndBType< MaxDegree >::Signature >::End( 0 )>(1<<_depthOffset) )
@@ -490,43 +652,60 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 	for( int d=0 ; d<Dim ; d++ ) off[d] = 0;
 	FEMTreeNode::ResetDepthAndOffset( _tree , d , off );
 	_maxDepth = _spaceRoot->maxDepth();
+	_fullDepth = std::min( fullDepth , _maxDepth );
+
+	// Mark leaf nodes that are Dirichlet constraints so they do not get clipped out.
+	// Need to do this before introducing new nodes into the tree  (since isDirichletLeaf depends on the structure at input).
+	for( FEMTreeNode *leaf=_spaceRoot->nextLeaf() ; leaf ; leaf=_spaceRoot->nextLeaf(leaf) ) leaf->nodeData.setDirichletNodeFlag( isDirichletLeaf( leaf ) );
+
 	// Make the low-resolution part of the tree be complete
-	fullDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( _maxDepth , fullDepth ) );
-	_setFullDepth< false >( IsotropicUIntPack< Dim , MaxDegree >() , nodeAllocator , fullDepth );
+	_setFullDepth< false >( IsotropicUIntPack< Dim , MaxDegree >() , nodeAllocator , _fullDepth );
+
+	// Mark new leaf nodes
+	pushFullDirichletFlag( _spaceRoot );
+
+	// Pull the Dirichlet designator from the leaves so that nodes are now marked if they contain (possibly partial Dirichlet constraints
+	pullPartialDirichletFlag( _spaceRoot );
+
+	// Use the node Dirichlet designators to set the coarser finite element Dirichlet designators
+	_markBaseDirichletElements< SystemDegree >();
+
 	// Clear all the flags and make everything that is not low-res a ghost node
-	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) node->nodeData.flags = 0 , SetGhostFlag< Dim >( node , _localDepth( node )>fullDepth );
+	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) node->nodeData.flags &= ( FEMTreeNodeData::SCRATCH_FLAG | FEMTreeNodeData::DIRICHLET_NODE_FLAG | FEMTreeNodeData::DIRICHLET_ELEMENT_FLAG ) , SetGhostFlag( node , _localDepth( node )>fullDepth );
 
-	// Set the ghost nodes for the high-res part of the tree
-	_clipTree( F , fullDepth );
+	// Clip off nodes that not have data and do not contain geometry or Dirichlet constraints below the exactDepth
+	_clipTree( [&]( const FEMTreeNode *node ){ return hasData(node) || ( ( node->nodeData.getDirichletNodeFlag() || node->nodeData.getDirichletElementFlag() ) && _localDepth(node)<=_baseDepth ); } , fullDepth );
 
-	const int OverlapRadius = -BSplineOverlapSizes< MaxDegree , MaxDegree >::OverlapStart;
-	int maxDepth = _tree->maxDepth( );
-	typedef typename FEMTreeNode::template NeighborKey< IsotropicUIntPack< Dim , OverlapRadius > , IsotropicUIntPack< Dim , OverlapRadius > > NeighborKey;
+	// It is possible for the tree to have become shallower after clipping
+	_maxDepth = _tree->maxDepth() - _depthOffset;
 
-	std::vector< NeighborKey > neighborKeys( ThreadPool::NumThreads() );
-	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( _maxDepth-1 ) );
+	node_index_type oldNodeCount = _nodeCount;
 
-	for( LocalDepth d=_maxDepth-1 ; d>=0 ; d-- )
-	{
-		std::vector< FEMTreeNode* > nodes;
-		auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==d; };
-		for( FEMTreeNode* node=_tree->nextNode( NodeTerminationLambda , NULL ) ; node ; node=_tree->nextNode( NodeTerminationLambda , node ) ) if( _localDepth( node )==d && IsActiveNode< Dim >( node->children ) ) nodes.push_back( node );
-		ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
-		{
-			NeighborKey& neighborKey = neighborKeys[ thread ];
-			FEMTreeNode* node = nodes[i];
-			neighborKey.template getNeighbors< true , true >( node , nodeAllocators.size() ? nodeAllocators[ thread ] : NULL , _nodeInitializer );
-			Pointer( FEMTreeNode* ) nodes = neighborKey.neighbors[ _localToGlobal(d) ].neighbors().data;
-			unsigned int size = neighborKey.neighbors[ _localToGlobal(d) ].neighbors.Size;
-			for( unsigned int i=0 ; i<size ; i++ ) SetGhostFlag< Dim >( nodes[i] , false );
-		}
-		);
-	}
+	// Refine the node so that finite elements @{depth-1} whose support overlaps finite elements @{depth} are in the tree
+	_supportApproximateProlongation< MaxDegree >();
+
+	// Mark new leaf nodes
+	pushDirichletFlag( _spaceRoot , oldNodeCount , _spaceRoot->nodeData.getDirichletNodeFlag() );
+	_markNonBaseDirichletElements< SystemDegree >();
+
+	std::vector< node_index_type > map;
+	_sNodes.set( *_tree , &map );
+	_setSpaceValidityFlags();
+	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) if( !IsActiveNode( node ) ) node->nodeData.nodeIndex = -1;
+	_reorderDenseOrSparseNodeData< 0 >( GetPointer( map ) , _sNodes.size() , data );
+	_reorderInterpolationInfo< 0 >( GetPointer( map ) , _sNodes.size() , interpolationInfos );
+	MemoryUsage();
+}
+
+template< unsigned int Dim , class Real >
+template< class ... DenseOrSparseNodeData >
+void FEMTree< Dim , Real >::resetIndices( std::tuple< DenseOrSparseNodeData *... > data )
+{
 	std::vector< node_index_type > map;
 	_sNodes.set( *_tree , &map );
 	_setSpaceValidityFlags();
 	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) if( !IsActiveNode< Dim >( node ) ) node->nodeData.nodeIndex = -1;
-	_reorderDenseOrSparseNodeData( &map[0] , _sNodes.size() , data ... );
+	_reorderDenseOrSparseNodeData< 0 >( &map[0] , _sNodes.size() , data );
 	MemoryUsage();
 }
 
@@ -582,75 +761,43 @@ void FEMTree< Dim , Real >::_setFEM2ValidityFlags( UIntPack< FEMSigs2 ... > ) co
 			if( isValidFEMNode( UIntPack< FEMSigs2 ... >() , _sNodes.treeNodes[i] ) ) _sNodes.treeNodes[i]->nodeData.flags |= FEMTreeNodeData::FEM_FLAG_2;
 		}
 }
-template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs >
-void FEMTree< Dim , Real >::_setRefinabilityFlags( UIntPack< FEMSigs ... > ) const
-{
-	bool needToReset;
-	unsigned int refinableSigs[] = { FEMSigs ... };
-	{
-		static std::mutex m;
-		std::lock_guard< std::mutex > lock(m);
-		needToReset = memcmp( refinableSigs , _refinableSigs , sizeof( _refinableSigs ) )!=0;
-		if( needToReset ) memcpy( _refinableSigs , refinableSigs , sizeof( _refinableSigs ) );
-	}
-	if( needToReset )
-	{
-		typedef typename FEMTreeNode::template ConstNeighborKey< UIntPack< ( - BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleStart ) ... > , UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleEnd ... > > UpSampleKey;
-		typedef typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... > > UpSampleNeighbors;
-		static const int UpSampleStart[] = { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleStart ... };
-		std::vector< UpSampleKey > neighborKeys( ThreadPool::NumThreads() );
-		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( _maxDepth ) );
 
-		for( int d=0 ; d<_maxDepth ; d++ )
-			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
-			{
-				UpSampleKey& neighborKey = neighborKeys[ thread ];
-
-				// Clear the refinability flag
-				const unsigned char MASK = ~( FEMTreeNodeData::REFINABLE_FLAG );
-				_sNodes.treeNodes[i]->nodeData.flags &= MASK;
-
-				LocalDepth d ; LocalOffset pOff;
-				_localDepthAndOffset( _sNodes.treeNodes[i] , d , pOff );
-
-				// Get the supporting child neighbors
-				neighborKey.getNeighbors( _sNodes.treeNodes[i] );
-				UpSampleNeighbors neighbors;
-				neighborKey.getChildNeighbors( 0 , _localToGlobal( d ) , neighbors );
-
-				// Check if the child neighbors exist (i.e. that the children nodes are not ghost-nodes if they correspond to valid coefficients)
-				bool refinable = true;
-				LocalOffset cOff;
-				WindowLoop< Dim >::Run
-				(
-					IsotropicUIntPack< Dim , 0 >() , UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... >() ,
-					[&]( int d , int i ){ cOff[d] = pOff[d]*2 + UpSampleStart[d] + i; } ,
-					[&]( const FEMTreeNode* node ){ if( GetGhostFlag< Dim >( node ) && FEMIntegrator::IsValidFEMNode( UIntPack< FEMSigs ... >() , d+1 , cOff ) ) refinable = false; } ,
-					neighbors.neighbors()
-				);
-				if( refinable ) _sNodes.treeNodes[i]->nodeData.flags |= FEMTreeNodeData::REFINABLE_FLAG;
-			}
-			);
-	}
-}
 template< unsigned int Dim , class Real >
 template< class HasDataFunctor >
 void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth fullDepth )
 {
-	std::vector< FEMTreeNode * > nodes;
+	std::vector< FEMTreeNode * > regularNodes;
 	auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==fullDepth; };
-	for( FEMTreeNode* temp=_tree->nextNode( NodeTerminationLambda , NULL ) ; temp ; temp=_tree->nextNode( NodeTerminationLambda , temp ) ) if( _localDepth( temp )==fullDepth ) nodes.push_back( temp );
-	ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int , size_t i )
+	for( FEMTreeNode* temp=_tree->nextNode( NodeTerminationLambda , NULL ) ; temp ; temp=_tree->nextNode( NodeTerminationLambda , temp ) ) if( _localDepth( temp )==fullDepth ) regularNodes.push_back( temp );
+
+	// Get the data status of each node
+	std::vector< char > nodeHasData( nodeCount() , 0 );
+	ThreadPool::Parallel_for( 0 , regularNodes.size() , [&]( unsigned int , size_t i )
 	{
-		for( FEMTreeNode* node=nodes[i]->nextNode() ; node ; node=nodes[i]->nextNode(node) ) if( node->children )
+		for( FEMTreeNode* node=regularNodes[i]->nextNode() ; node ; node=regularNodes[i]->nextNode(node) ) nodeHasData[node->nodeData.nodeIndex] = f( node ) ? 1 : 0;
+	} );
+
+	// Pull the data status from the leaves
+	std::function< char ( const FEMTreeNode * ) > PullHasDataFromChildren = [&]( const FEMTreeNode *node )
+	{
+		char hasData = nodeHasData[node->nodeData.nodeIndex];
+		if( node->children ) for( int c=0 ; c<(1<<Dim) ; c++ ) hasData |= PullHasDataFromChildren( node->children+c );
+		nodeHasData[node->nodeData.nodeIndex] = hasData;
+		return hasData;
+	};
+
+	ThreadPool::Parallel_for( 0 , regularNodes.size() , [&]( unsigned int , size_t i ){ PullHasDataFromChildren( regularNodes[i] ); } );
+
+	// Mark all children of a node as ghost if none of them have data
+	ThreadPool::Parallel_for( 0 , regularNodes.size() , [&]( unsigned int , size_t i )
+	{
+		for( FEMTreeNode* node=regularNodes[i]->nextNode() ; node ; node=regularNodes[i]->nextNode(node) ) if( node->children )
 		{
-			bool hasData = false;
-			for( int c=0 ; c<(1<<Dim) && !hasData ; c++ ) hasData |= f( node->children + c );
-			for( int c=0 ; c<(1<<Dim) ; c++ ) SetGhostFlag< Dim >( node->children+c , !hasData );
+			char childHasData = 0;
+			for( int c=0 ; c<(1<<Dim) ; c++ ) childHasData |= nodeHasData[node->children[c].nodeData.nodeIndex];
+			for( int c=0 ; c<(1<<Dim) ; c++ ) SetGhostFlag< Dim >( node->children+c , !childHasData );
 		}
-	}
-	);
+	} );
 }
 
 template< unsigned int Dim , class Real >

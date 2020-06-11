@@ -163,8 +163,11 @@ template< class Type >
 void cmdLineParameters< Type >::writeValue( char* str ) const
 {
 	char* temp=str;
+	cmdLineWriteValue< int >( count , temp );
+	temp = str + strlen( str );
 	for( int i=0 ; i<count ; i++ )
 	{
+		temp[0] = ' ' , temp++;
 		cmdLineWriteValue< Type >( values[i] , temp );
 		temp = str+strlen( str );
 	}

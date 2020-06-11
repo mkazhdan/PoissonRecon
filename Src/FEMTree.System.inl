@@ -237,8 +237,8 @@ void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , nod
 }
 
 template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
-int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , typename ... InterpolationInfos >
+int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	double& systemTime = stats.systemTime;
 	double&  solveTime = stats. solveTime;
@@ -251,11 +251,11 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 	double bNorm=0 , inRNorm=0 , outRNorm=0;
 	if( depth>=0 )
 	{
-		SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > M;
+		SystemMatrixType< FEMSigs ... > M;
 		double t = Time();
 		Pointer( Real ) D = AllocPointer< Real >( _sNodesEnd( depth ) - _sNodesBegin( depth ) );
 		Pointer( T ) _constraints = AllocPointer< T >( _sNodesSize( depth ) );
-		_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , M , D , bsData , depth , _sNodesBegin( depth ) , _sNodesEnd( depth ) , prolongedSolution , _constraints , ccStencil , pcStencils , interpolationInfo... );
+		_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , M , D , bsData , depth , _sNodesBegin( depth ) , _sNodesEnd( depth ) , prolongedSolution , _constraints , ccStencil , pcStencils , interpolationInfos );
 		ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[ _sNodes.treeNodes[i]->nodeData.nodeIndex ] - _constraints[ i - _sNodesBegin(depth) ]; } );
 		{
 			node_index_type begin = _sNodesBegin( depth ) , end = _sNodesEnd( depth );
@@ -315,10 +315,10 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 	return iters;
 }
 template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
-int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , unsigned int sliceBlockSize , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , typename ... InterpolationInfos >
+int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , unsigned int sliceBlockSize , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
-	if( sliceBlockSize<=0 ) return _solveFullSystemGS( UIntPack< FEMSigs ... >() , F , bsData , depth , solution , prolongedSolution , constraints , Dot , iters , coarseToFine , sorWeights , stats , computeNorms , interpolationInfo ... );
+	if( sliceBlockSize<=0 ) return _solveFullSystemGS( UIntPack< FEMSigs ... >() , F , bsData , depth , solution , prolongedSolution , constraints , Dot , iters , coarseToFine , sorWeights , stats , computeNorms , interpolationInfos );
 	CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > > ccStencil;
 	PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > > pcStencils;
 	F.template setStencil< false >( ccStencil );
@@ -425,7 +425,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 		// The number of in-core blocks over which we either solve or compute residuals
 		int matrixBlocks = std::max< int >( 1 , std::min< int >( solveBlocks+2*residualOffset , blockEnd-blockBegin ) );
 		// The list of matrices for each in-memory block
-		Pointer( SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > ) _M = NewPointer< SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > >( matrixBlocks );
+		Pointer( SystemMatrixType< FEMSigs ... > ) _M = NewPointer< SystemMatrixType< FEMSigs ... > >( matrixBlocks );
 		Pointer( Pointer( Real ) ) _D = AllocPointer< Pointer( Real ) >( matrixBlocks );
 		std::vector< Pointer( T ) > _constraints( matrixBlocks );
 		for( int i=0 ; i<matrixBlocks ; i++ ) _D[i] = NullPointer( Real ) , _constraints[i] = NullPointer( T );
@@ -461,7 +461,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 					int b = residualBlock , _b = MOD( b , matrixBlocks );
 
 					t = Time();
-					_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , _M[_b] , _D[_b] , bsData , depth , _sNodesBegin( depth , BlockFirst( b ) ) , _sNodesEnd( depth , BlockLast( b ) ) , prolongedSolution , _constraints[_b] , ccStencil , pcStencils , interpolationInfo... );
+					_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , _M[_b] , _D[_b] , bsData , depth , _sNodesBegin( depth , BlockFirst( b ) ) , _sNodesEnd( depth , BlockLast( b ) ) , prolongedSolution , _constraints[_b] , ccStencil , pcStencils , interpolationInfos );
 					size_t begin = _sNodesBegin( depth , BlockFirst( b ) ) , end = _sNodesEnd( depth , BlockLast( b ) );
 					ThreadPool::Parallel_for( begin , end , [&]( unsigned int , size_t i ){  _constraints[_b][ i-begin ] = constraints[i] - _constraints[_b][ i-begin ]; } );
 					{
@@ -545,13 +545,13 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 #undef MOD
 
 template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
-int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double accuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
+int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double accuracy , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	int iter = 0;
 	Pointer( T ) X = GetPointer( &solution[0] + _sNodesBegin(depth) , _sNodesSize(depth) );
 	ConstPointer( T ) B = GetPointer( &constraints[0] + _sNodesBegin(depth) , _sNodesSize(depth) );
-	SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > M;
+	SystemMatrixType< FEMSigs ... > M;
 
 	double& systemTime = stats.systemTime;
 	double&  solveTime = stats. solveTime;
@@ -564,7 +564,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > > pcStencils;
 	F.template setStencil< false >( ccStencil );
 	F.template setStencils< true >( pcStencils );
-	_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , M , NullPointer( Real ) , bsData , depth , _sNodesBegin( depth ) , _sNodesEnd( depth ) , prolongedSolution , _constraints , ccStencil , pcStencils , interpolationInfo... );
+	_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , M , NullPointer( Real ) , bsData , depth , _sNodesBegin( depth ) , _sNodesEnd( depth ) , prolongedSolution , _constraints , ccStencil , pcStencils , interpolationInfos );
 	ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[i] - _constraints[ i - _sNodesBegin(depth) ]; } );
 	systemTime = Time()-systemTime;
 	solveTime = Time();
@@ -578,7 +578,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	BoundaryType bTypes[] = { FEMSignature< FEMSigs >::BType ... };
 	bool hasPartitionOfUnity = true;
 	for( int d=0 ; d<Dim ; d++ ) hasPartitionOfUnity &= HasPartitionOfUnity( bTypes[d] );
-	bool addDCTerm = ( nonZeroRows==totalDim && !ConstrainsDCTerm( interpolationInfo... ) && hasPartitionOfUnity && F.vanishesOnConstants() );
+	bool addDCTerm = ( nonZeroRows==totalDim && !ConstrainsDCTerm( interpolationInfos ) && hasPartitionOfUnity && F.vanishesOnConstants() );
 	double bNorm = 0 , inRNorm = 0 , outRNorm = 0;
 	if( computeNorms )
 	{
@@ -601,10 +601,10 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	struct SPDFunctor
 	{
 	protected:
-		const SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& _M;
+		const SystemMatrixType< FEMSigs ... > &_M;
 		bool _addDCTerm;
 	public:
-		SPDFunctor( const SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& M , bool addDCTerm ) : _M(M) , _addDCTerm(addDCTerm){ }
+		SPDFunctor( const SystemMatrixType< FEMSigs ... > &M , bool addDCTerm ) : _M(M) , _addDCTerm(addDCTerm){ }
 		void operator()( ConstPointer( T ) in , Pointer( T ) out ) const
 		{
 			_M.multiply( in , out );
@@ -643,40 +643,58 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 }
 
 template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
-void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< typename T , unsigned int ... FEMSigs >
+void FEMTree< Dim , Real >::pushToBaseDepth( DenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients ) const
 {
+	Pointer( T ) prolongedCoefficients = AllocPointer< Real >( _sNodesEnd( _baseDepth ) );
+	for( LocalDepth d=1 ; d<=_baseDepth ; d++ )
+	{
+		SparseMatrix< Real , matrix_index_type > P = downSampleMatrix( UIntPack< FEMSigs ... >() , d ).transpose();
+		P.multiply( coefficients() + _sNodesBegin(d-1) , prolongedCoefficients + _sNodesBegin(d) );
+		for( node_index_type i=_sNodesBegin(d-1) ; i<_sNodesEnd(d-1) ; i++ ) coefficients[i] *= 0;
+		for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) coefficients[i] += prolongedCoefficients[i];
+	}
+	FreePointer( prolongedCoefficients );
+	for( node_index_type i=_sNodesBegin(_baseDepth) ; i<_sNodesEnd(_maxDepth) ; i++ ) if( _sNodes.treeNodes[i]->nodeData.getDirichletElementFlag() ) coefficients[i] *= 0;
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
+void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth maxSolveDepth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , std::tuple< InterpolationInfos *... > interpolationInfos ) const
+{
+	if( maxSolveDepth>_baseDepth ) ERROR_OUT( "Regular MG depth cannot exceed base depth: " , maxSolveDepth , " <= " , _baseDepth );
 	double& systemTime = stats.systemTime;
 	double&  solveTime = stats. solveTime;
 
-	std::vector< SparseMatrix< Real , matrix_index_type > > P( depth ) , R( depth ) , M( depth+1 );
-	std::vector< Pointer( Real ) > D( depth+1 );
-	std::vector< Pointer( T ) > B( depth+1 ) , X( depth+1 ) , MX( depth+1 );
-	std::vector< std::vector< std::vector< size_t > > > multiColorIndices( depth+1 );
+	std::vector< SparseMatrix< Real , matrix_index_type > > P( _baseDepth ) , R( _baseDepth ) , M( _baseDepth+1 );
+	std::vector< Pointer( Real ) > D( _baseDepth+1 );
+	std::vector< Pointer( T ) > B( _baseDepth+1 ) , X( _baseDepth+1 ) , MX( _baseDepth+1 );
+	std::vector< std::vector< std::vector< size_t > > > multiColorIndices( _baseDepth+1 );
 
 	systemTime = Time();
-	M.back() = systemMatrix< Real >( UIntPack< FEMSigs ... >() , F , depth , interpolationInfo ... );
-	for( int d=depth ; d>0 ; d-- )
+	M.back() = systemMatrix( UIntPack< FEMSigs ... >() , F , _baseDepth , interpolationInfos );
+	for( int d=_baseDepth ; d>0 ; d-- )
 	{
 		R[d-1] = downSampleMatrix( UIntPack< FEMSigs ... >() , d );
-		P[d-1] = R[d-1].transpose();
+		P[d-1] = R[d-1].transpose( M[d].rows() );
 		M[d-1] = R[d-1] * M[d] * P[d-1];
 	}
-	for( int d=0 ; d<=depth ; d++ )
+	for( int d=0 ; d<=_baseDepth ; d++ )
 	{
 		size_t dim = M[d].rows();
 		D[d]  = AllocPointer< Real >( dim );
 		MX[d] = AllocPointer< T >( dim );
 		M[d].setDiagonalR( D[d] );
 		setMultiColorIndices( UIntPack< FEMSigs ... >() , d , multiColorIndices[d] );
-		if( d<depth )
+		if( d<_baseDepth )
 		{
 			X[d]  = AllocPointer< T >( dim );
 			B[d]  = AllocPointer< T >( dim );
 		}
 	}
-	X.back() = solution + nodesBegin( depth );
-	ConstPointer( T ) _B = constraints + nodesBegin( depth );
+	X.back() = solution + nodesBegin( _baseDepth );
+	B.back() = ( Pointer( T ) )( constraints + nodesBegin( _baseDepth ) );
+	ConstPointer( T ) _B = constraints + nodesBegin( _baseDepth );
 	systemTime = Time() - systemTime;
 
 	solveTime = Time();
@@ -704,10 +722,10 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 	for( int v=0 ; v<vCycles ; v++ )
 	{
 		// Restriction
-		for( int d=depth ; d>0 ; d-- )
+		for( int d=_baseDepth ; d>0 ; d-- )
 		{
-			ConstPointer( T ) __B = d==depth ? _B : B[d];
-			for( int i=0 ; i<iters ; i++ ) M[d].gsIteration( multiColorIndices[d] , D[d] , __B , X[d] , true , true );
+			ConstPointer( T ) __B = d==_baseDepth ? _B : B[d];
+			if( d<=maxSolveDepth ) for( int i=0 ; i<iters ; i++ ) M[d].gsIteration( multiColorIndices[d] , D[d] , __B , X[d] , true , true );
 			M[d].multiply( X[d] , MX[d] );
 			for( matrix_index_type i=0 ; i<(matrix_index_type)M[d].rows() ; i++ ) MX[d][i] = __B[i] - MX[d][i];
 			R[d-1].multiply( MX[d] , B[d-1] );
@@ -717,7 +735,7 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 		// Base
 		{
 			int d = 0;
-			ConstPointer( T ) __B = d==depth ? _B : B[d];
+			ConstPointer( T ) __B = d==_baseDepth ? _B : B[d];
 			struct SPDFunctor
 			{
 			protected:
@@ -740,22 +758,23 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 			size_t nonZeroRows = 0;
 			for( matrix_index_type i=0 ; i<(matrix_index_type)M[d].rows() ; i++ ) if( M[d].rowSize(i) ) nonZeroRows++;
 			size_t totalDim = 1;
-			int dims[] = { ( _BSplineEnd< FEMSigs >( depth ) - _BSplineBegin< FEMSigs >( depth ) ) ... };
+			int dims[] = { ( _BSplineEnd< FEMSigs >( _baseDepth ) - _BSplineBegin< FEMSigs >( _baseDepth ) ) ... };
 			for( int dd=0 ; dd<Dim ; dd++ ) totalDim *= dims[dd];
 			BoundaryType bTypes[] = { FEMSignature< FEMSigs >::BType ... };
 			bool hasPartitionOfUnity = true;
 			for( int dd=0 ; dd<Dim ; dd++ ) hasPartitionOfUnity &= HasPartitionOfUnity( bTypes[dd] );
-			bool addDCTerm = ( nonZeroRows==totalDim && !ConstrainsDCTerm( interpolationInfo... ) && hasPartitionOfUnity && F.vanishesOnConstants() );
+			bool addDCTerm = ( nonZeroRows==totalDim && !ConstrainsDCTerm( interpolationInfos ) && hasPartitionOfUnity && F.vanishesOnConstants() );
 
 			SolveCG< SPDFunctor , T , Real >( SPDFunctor( M[d] , addDCTerm ) , M[d].rows() , ( ConstPointer( T ) )__B , nonZeroRows , X[d] , Real( cgAccuracy ) , Dot );
 		}
 
 		// Prolongation
-		for( int d=1 ; d<=depth ; d++ )
+		for( int d=1 ; d<=_baseDepth ; d++ )
 		{
-			ConstPointer( T ) __B = d==depth ? _B : B[d];
+			ConstPointer( T ) __B = d==_baseDepth ? _B : B[d];
 			P[d-1].multiply( X[d-1] , X[d] , MULTIPLY_ADD );
-			for( int i=0 ; i<iters ; i++ ) M[d].gsIteration( multiColorIndices[d] , D[d] , __B , X[d] , false , true );
+			for( matrix_index_type i=0 ; i<(matrix_index_type)M[d-1].rows() ; i++ ) X[d-1][i] *= 0;
+			if( d<=maxSolveDepth ) for( int i=0 ; i<iters ; i++ ) M[d].gsIteration( multiColorIndices[d] , D[d] , __B , X[d] , false , true );
 		}
 	}
 	if( computeNorms )
@@ -780,35 +799,16 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 
 	MemoryUsage();
 
-	for( int d=0 ; d<=depth ; d++ )
+	for( int d=0 ; d<=_baseDepth ; d++ )
 	{
 		FreePointer( D[d] );
 		FreePointer( MX[d] );
-		if( d<depth )
+		if( d<_baseDepth )
 		{
 			FreePointer( X[d] );
 			FreePointer( B[d] );
 		}
 	}
-}
-
-#if defined( __GNUC__ ) && __GNUC__ < 5
-#warning "you've got me gcc version<5"
-template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs >
-int FEMTree< Dim , Real >::_getMatrixRowSize( UIntPack< FEMSigs ... > , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors ) const
-#else // !__GNUC__ || __GNUC__ >=5
-template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs >
-int FEMTree< Dim , Real >::_getMatrixRowSize( const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors ) const
-#endif // __GNUC__ || __GNUC__ < 4
-{
-	typedef UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > OverlapSizes;
-
-	int count = 0;
-	const FEMTreeNode* const * _nodes = neighbors.neighbors.data;
-	for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( _nodes[i] ) ) count++;
-	return count;
 }
 
 template< unsigned int Dim , class Real >
@@ -887,25 +887,38 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 					values = peState.template dValues< Real , CumulativeDerivatives< Dim , PointD > >( off );
 				}
 				dualValues = iInfo( pIndex , values ) * pData.weight;
-				int start[Dim==1 ? 1 : Dim-1] , end[Dim==1 ? 1 : Dim-1];
-				// Compute the bounds of nodes which can be supported on the point
-				for( int d=0 ; d<Dim-1 ; d++ ) start[d] = idx[d] + (int)OverlapRadii::Values[d] - (int)LeftPointSupportRadii::Values[d] , end[d] = idx[d] + (int)OverlapRadii::Values[d] + (int)RightPointSupportRadii::Values[d] + 1;
-				WindowLoop< Dim , Dim-1 >::Run
-				(
-					start , end , 
-					[&]( int d , int i ){ _idx[d] = i - (int)OverlapRadii::Values[d] + off[d]; } ,
-					[&]( const WindowSlice< Real , UIntPack< OverlapSizes::template Get< Dim-1 >() > > pointValues , ConstWindowSlice< const FEMTreeNode* , UIntPack< OverlapSizes::template Get< Dim-1 >() > > neighbors )
-					{
-						Point< double , PointD+1 > partialDot = peState.template partialDotDValues< Real , CumulativeDerivatives< Dim , PointD > >( dualValues , _idx );
-						Pointer( Real ) _pointValues = pointValues.data + idx[Dim-1] + OverlapRadii::Values[Dim-1];
+				if( Dim==1 )
+				{
+					Point< double , PointD+1 > partialDot = peState.template partialDotDValues< Real , CumulativeDerivatives< Dim , PointD > >( dualValues , _idx );
+					Pointer( Real ) _pointValues = GetPointer( pointValues.data + idx[Dim-1] + OverlapRadii::Values[Dim-1] , - idx[Dim-1] - OverlapRadii::Values[Dim-1] , pointValues.Size - idx[Dim-1] - OverlapRadii::Values[Dim-1] );
 
-						int _i = idx[Dim-1] + (int)OverlapRadii::Values[Dim-1] - (int)LeftPointSupportRadii::Values[Dim-1];
-						const double (*splineValues)[PointD+1] = peState.template values< Dim-1 >();
-						for( unsigned int i=0 ; i<SupportSizes::Values[Dim-1] ; i++ ) if( _isValidFEM1Node( neighbors[ _i + i ] ) )
-							for( int d=0 ; d<=PointD ; d++ ) _pointValues[(int)i-(int)LeftPointSupportRadii::Values[Dim-1]] += (Real)( splineValues[i][d] * partialDot[d] );
-					} ,
-					pointValues() , neighbors.neighbors()
-				);
+					int _i = idx[Dim-1] + (int)OverlapRadii::Values[Dim-1] - (int)LeftPointSupportRadii::Values[Dim-1];
+					const double (*splineValues)[PointD+1] = peState.template values< Dim-1 >();
+					for( unsigned int i=0 ; i<SupportSizes::Values[Dim-1] ; i++ ) if( _isValidFEM1Node( neighbors.neighbors.data[ _i + i ] ) )
+						for( int d=0 ; d<=PointD ; d++ ) _pointValues[(int)i-(int)LeftPointSupportRadii::Values[Dim-1]] += (Real)( splineValues[i][d] * partialDot[d] );
+				}
+				else
+				{
+					int start[Dim==1 ? 1 : Dim-1] , end[Dim==1 ? 1 : Dim-1];
+					// Compute the bounds of nodes which can be supported on the point
+					for( int d=0 ; d<Dim-1 ; d++ ) start[d] = idx[d] + (int)OverlapRadii::Values[d] - (int)LeftPointSupportRadii::Values[d] , end[d] = idx[d] + (int)OverlapRadii::Values[d] + (int)RightPointSupportRadii::Values[d] + 1;
+					WindowLoop< Dim , Dim-1 >::Run
+					(
+						start , end , 
+						[&]( int d , int i ){ _idx[d] = i - (int)OverlapRadii::Values[d] + off[d]; } ,
+						[&]( const WindowSlice< Real , UIntPack< OverlapSizes::template Get< Dim-1 >() > > pointValues , ConstWindowSlice< const FEMTreeNode* , UIntPack< OverlapSizes::template Get< Dim-1 >() > > neighbors )
+						{
+							Point< double , PointD+1 > partialDot = peState.template partialDotDValues< Real , CumulativeDerivatives< Dim , PointD > >( dualValues , _idx );
+							Pointer( Real ) _pointValues = pointValues.data + idx[Dim-1] + OverlapRadii::Values[Dim-1];
+
+							int _i = idx[Dim-1] + (int)OverlapRadii::Values[Dim-1] - (int)LeftPointSupportRadii::Values[Dim-1];
+							const double (*splineValues)[PointD+1] = peState.template values< Dim-1 >();
+							for( unsigned int i=0 ; i<SupportSizes::Values[Dim-1] ; i++ ) if( _isValidFEM1Node( neighbors[ _i + i ] ) )
+								for( int d=0 ; d<=PointD ; d++ ) _pointValues[(int)i-(int)LeftPointSupportRadii::Values[Dim-1]] += (Real)( splineValues[i][d] * partialDot[d] );
+						} ,
+						pointValues() , neighbors.neighbors()
+					);
+				}
 			}
 		}
 	};
@@ -920,8 +933,8 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 }
 
 template< unsigned int Dim , class Real >
-template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , size_t idx , SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size > &M , node_index_type offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< typename T , unsigned int ... FEMSigs , typename ... InterpolationInfos , typename MatrixType >
+T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , size_t idx , MatrixType &M , node_index_type offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	T constraint ={};
 	typedef UIntPack< ( -BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > OverlapRadii;
@@ -929,21 +942,27 @@ T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack
 
 	int count = 0;
 	const FEMTreeNode* node = neighbors.neighbors.data[ WindowIndex< OverlapSizes , OverlapRadii >::Index ];
-	Pointer( MatrixEntry< Real , matrix_index_type > ) row = M[idx];
+	MatrixEntry< Real , matrix_index_type > row[ WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size ];
+
+	if( node->nodeData.getDirichletElementFlag() )
+	{
+		M.setRowSize( idx , count );
+		return constraint;
+	}
 
 	LocalDepth d ; LocalOffset off;
 	_localDepthAndOffset( node , d , off );
 	if( d>0 && prolongedSolution )
 	{
 		int cIdx = (int)( node - node->parent->children );
-		constraint = _getConstraintFromProlongedSolution( UIntPack< FEMSigs ... >() , F , neighbors , pNeighbors , node , prolongedSolution , pcStencils.data[cIdx] , bsData , interpolationInfo... );
+		constraint = _getConstraintFromProlongedSolution( UIntPack< FEMSigs ... >() , F , neighbors , pNeighbors , node , prolongedSolution , pcStencils.data[cIdx] , bsData , interpolationInfos );
 	}
 
 	bool isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , UIntPack< FEMSignature< FEMSigs >::Degree ... >() , d , off );
 
 	StaticWindow< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > > pointValues;
 	memset( pointValues.data , 0 , sizeof(Real)*WindowSize< OverlapSizes >::Size );
-	_addPointValues( UIntPack< FEMSigs ... >() , pointValues , neighbors , bsData , interpolationInfo ... );
+	_addPointValues< 0 >( UIntPack< FEMSigs ... >() , pointValues , neighbors , bsData , interpolationInfos );
 	node_index_type nodeIndex = node->nodeData.nodeIndex;
 	if( isInterior ) // General case, so try to make fast
 	{
@@ -951,7 +970,7 @@ T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack
 		ConstPointer( double ) _stencil = ccStencil.data;
 		Real* _values = pointValues.data;
 		row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodeIndex-offset ) , (Real)( _values[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] + _stencil[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] ) );
-		for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( _nodes[i] ) )
+		for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( _nodes[i] ) && !_nodes[i]->nodeData.getDirichletElementFlag() )
 		{
 			if( i!=WindowIndex< OverlapSizes , OverlapRadii >::Index ) row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( _nodes[i]->nodeData.nodeIndex-offset ) , (Real)( _values[i] + _stencil[i] ) );
 		}
@@ -969,78 +988,17 @@ T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack
 			ZeroUIntPack< Dim >() , OverlapSizes() ,
 			[&]( int d , int i ){ _off[d] = off[d] - (int)OverlapRadii::Values[d] + i; } ,
 			[&]( const FEMTreeNode* _node , Real pointValue )
-		{
-			if( node!=_node && FEMIntegrator::IsValidFEMNode( UIntPack< FEMSigs ... >() , d , _off ) )
 			{
-				Real temp = (Real)F.ccIntegrate( _off , off ) + pointValue;
-				if( _isValidFEM1Node( _node ) ) row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( _node->nodeData.nodeIndex-offset ) , temp );
-			}
-		} ,
+			if( node!=_node && _isValidFEM1Node( _node ) && !_node->nodeData.getDirichletElementFlag() )
+			{
+					row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( _node->nodeData.nodeIndex-offset ) , (Real)F.ccIntegrate( _off , off ) + pointValue );
+				}
+			} ,
 			neighbors.neighbors() , pointValues()
 			);
 	}
 	M.setRowSize( idx , count );
-	return constraint;
-}
-
-template< unsigned int Dim , class Real >
-template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-T FEMTree< Dim , Real >::_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , Pointer( MatrixEntry< Real , matrix_index_type > ) row , node_index_type offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
-{
-	T constraint ={};
-	typedef UIntPack< ( -BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > OverlapRadii;
-	typedef UIntPack<    BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize    ... > OverlapSizes;
-
-	int count = 0;
-	const FEMTreeNode* node = neighbors.neighbors.data[ WindowIndex< OverlapSizes , OverlapRadii >::Index ];
-	LocalDepth d ; LocalOffset off;
-	_localDepthAndOffset( node , d , off );
-	if( d>0 && prolongedSolution )
-	{
-		int cIdx = (int)( node - node->parent->children );
-		constraint = _getConstraintFromProlongedSolution( UIntPack< FEMSigs ... >() , F , neighbors , pNeighbors , node , prolongedSolution , pcStencils.data[cIdx] , bsData , interpolationInfo... );
-	}
-
-	bool isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , UIntPack< FEMSignature< FEMSigs >::Degree ... >() , d , off );
-
-	StaticWindow< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > > pointValues;
-	memset( pointValues.data , 0 , sizeof(Real)*WindowSize< OverlapSizes >::Size );
-	_addPointValues( UIntPack< FEMSigs ... >() , pointValues , neighbors , bsData , interpolationInfo ... );
-	node_index_type nodeIndex = node->nodeData.nodeIndex;
-	if( isInterior ) // General case, so try to make fast
-	{
-		const FEMTreeNode* const * _nodes = neighbors.neighbors.data;
-		ConstPointer( double ) _stencil = ccStencil.data;
-		Real* _values = pointValues.data;
-		row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodeIndex-offset ) , (Real)( _values[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] + _stencil[ WindowIndex< OverlapSizes , OverlapRadii >::Index ] ) );
-		for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( _nodes[i] ) )
-		{
-			if( i!=WindowIndex< OverlapSizes , OverlapRadii >::Index ) row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( _nodes[i]->nodeData.nodeIndex-offset ) , (Real)( _values[i] + _stencil[i] ) );
-		}
-	}
-	else
-	{
-		LocalDepth d ; LocalOffset off;
-		_localDepthAndOffset( node , d , off );
-		Real temp = (Real)F.ccIntegrate( off , off ) + pointValues.data[ WindowIndex< OverlapSizes , OverlapRadii >::Index ];
-	
-		row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodeIndex-offset ) , temp );
-		LocalOffset _off;
-		WindowLoop< Dim >::Run
-		(
-			ZeroUIntPack< Dim >() , OverlapSizes() ,
-			[&]( int d , int i ){ _off[d] = off[d] - (int)OverlapRadii::Values[d] + i; } ,
-			[&]( const FEMTreeNode* _node , Real pointValue )
-			{
-				if( node!=_node && FEMIntegrator::IsValidFEMNode( UIntPack< FEMSigs ... >() , d , _off ) )
-				{
-					Real temp = (Real)F.ccIntegrate( _off , off ) + pointValue;
-					if( _isValidFEM1Node( _node ) ) row[count++] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( _node->nodeData.nodeIndex-offset ) , temp );
-				}
-			} ,
-			neighbors.neighbors() , pointValues()
-		);
-	}
+	memcpy( M[idx] , row , sizeof( MatrixEntry< Real , matrix_index_type > ) * count );
 	return constraint;
 }
 
@@ -1122,8 +1080,8 @@ void FEMTree< Dim , Real >::_addProlongedPointValues( UIntPack< FEMSigs ... > , 
 }
 
 template< unsigned int Dim , class Real >
-template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-int FEMTree< Dim , Real >::_setProlongedMatrixRow( const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , Pointer( MatrixEntry< Real , matrix_index_type > ) row , node_index_type offset , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< typename T , unsigned int ... FEMSigs , typename ... InterpolationInfos >
+int FEMTree< Dim , Real >::_setProlongedMatrixRow( const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , Pointer( MatrixEntry< Real , matrix_index_type > ) row , node_index_type offset , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , std::tuple< InterpolationInfos *... > interpolationInfo ) const
 {
 	typedef UIntPack< ( -BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > OverlapRadii;
 	typedef UIntPack<    BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize    ... > OverlapSizes;
@@ -1137,7 +1095,7 @@ int FEMTree< Dim , Real >::_setProlongedMatrixRow( const typename BaseFEMIntegra
 	bool isInterior = _isInteriorlyOverlapped( FEMDegrees() , FEMDegrees() , node->parent );
 	StaticWindow< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > > pointValues;
 	memset( pointValues.data , 0 , sizeof(Real)*WindowSize< OverlapSizes >::Size );
-	_addProlongedPointValues( UIntPack< FEMSigs ... >() , pointValues() , neighbors , pNeighbors , bsData , interpolationInfo ... );
+	_addProlongedPointValues< 0 >( UIntPack< FEMSigs ... >() , pointValues() , neighbors , pNeighbors , bsData , interpolationInfo );
 
 	node_index_type nodeIndex = node->nodeData.nodeIndex;
 
@@ -1289,8 +1247,8 @@ T FEMTree< Dim , Real >::_getInterpolationConstraintFromProlongedSolution( const
 }
 
 template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs , typename T , unsigned int ... PointDs >
-T FEMTree< Dim , Real >::_getConstraintFromProlongedSolution( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename T , typename ... InterpolationInfos >
+T FEMTree< Dim , Real >::_getConstraintFromProlongedSolution( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > FEMDegrees;
 
@@ -1332,7 +1290,7 @@ T FEMTree< Dim , Real >::_getConstraintFromProlongedSolution( UIntPack< FEMSigs 
 
 		}
 	}
-	return constraint + _getInterpolationConstraintFromProlongedSolution( neighbors , node , prolongedSolution , bsData , interpolationInfo... );
+	return constraint + _getInterpolationConstraintFromProlongedSolution< 0 >( neighbors , node , prolongedSolution , bsData , interpolationInfos );
 }
 
 // Given the solution @( depth ) add to the met constraints @( depth-1 )
@@ -1518,7 +1476,7 @@ DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::coarseCoeffi
 	memset( coarseCoefficients() , 0 , sizeof(Real)*_sNodesEnd(_maxDepth-1) );
 	ThreadPool::Parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( unsigned int , size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
 	typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
-	for( LocalDepth d=1 ; d<_maxDepth ; d++ ) _upSample( UIntPack< FEMSigs ... >() , rp , d , coarseCoefficients() );
+	for( LocalDepth d=1 ; d<_maxDepth ; d++ ) _upSample( UIntPack< FEMSigs ... >() , rp , d , ( ConstPointer(C) )coarseCoefficients()+_sNodesBegin(d-1) , coarseCoefficients()+_sNodesBegin(d) );
 	return coarseCoefficients;
 }
 
@@ -1535,8 +1493,23 @@ DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::coarseCoeffi
 	}
 	);
 	typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
-	for( LocalDepth d=1 ; d<_maxDepth ; d++ ) _upSample( UIntPack< FEMSigs ... >() , rp , d , coarseCoefficients() );
+	for( LocalDepth d=1 ; d<_maxDepth ; d++ ) _upSample( UIntPack< FEMSigs ... >() , rp , d , coarseCoefficients()+_sNodesBegin(d-1) , coarseCoefficients()+_sNodesBegin(d) );
 	return coarseCoefficients;
+}
+
+template< unsigned int Dim , class Real >
+template< class C , unsigned int ... FEMSigs >
+DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::denseCoefficients( const SparseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const
+{
+	DenseNodeData< C , UIntPack< FEMSigs ... > > denseCoefficients( _sNodesEnd(_maxDepth) );
+	memset( denseCoefficients() , 0 , sizeof(C)*_sNodesEnd(_maxDepth) );
+	ThreadPool::Parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i )
+	{
+		const C* c = coefficients( _sNodes.treeNodes[i] );
+		if( c ) denseCoefficients[i] = *c;
+	}
+	);
+	return denseCoefficients;
 }
 
 template< unsigned int Dim , class Real >
@@ -1609,8 +1582,8 @@ CumulativeDerivativeValues< T , Dim , PointD > FEMTree< Dim , Real >::_finerFunc
 }
 
 template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs , typename T , unsigned int ... PointDs >
-int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , node_index_type nBegin , node_index_type nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename T , typename ... InterpolationInfos >
+int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SystemMatrixType< FEMSigs ... > &matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , node_index_type nBegin , node_index_type nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > FEMDegrees;
 	typedef UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > OverlapSizes;
@@ -1629,9 +1602,11 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 			typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors , pNeighbors;
 			neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , node , pNeighbors , neighbors );
 			// Set the row entries
-			if( constraints ) constraints[i] = _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F , pNeighbors , neighbors , i , matrix , nBegin , pcStencils , ccStencil , bsData , prolongedSolution , interpolationInfo... );
-			else                               _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F , pNeighbors , neighbors , i , matrix , nBegin , pcStencils , ccStencil , bsData , prolongedSolution , interpolationInfo... );
-			if( diagonalR ) diagonalR[i] = (Real)1. / matrix[i][0].Value;
+			if( constraints ) constraints[i] = _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F , pNeighbors , neighbors , i , matrix , nBegin , pcStencils , ccStencil , bsData , prolongedSolution , interpolationInfos );
+			else                               _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F , pNeighbors , neighbors , i , matrix , nBegin , pcStencils , ccStencil , bsData , prolongedSolution , interpolationInfos );
+			if( diagonalR )
+				if( _sNodes.treeNodes[i+nBegin]->nodeData.getDirichletElementFlag() ) diagonalR[i] = (Real)0.;
+				else                                                                  diagonalR[i] = (Real)1. / matrix[i][0].Value;
 		}
 		else if( constraints ) constraints[i] = T();
 	}
@@ -1649,8 +1624,8 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 }
 
 template< unsigned int Dim , class Real >
-template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	typedef typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > > BaseSystem;
@@ -1678,14 +1653,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::systemMatrix( UI
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 			typename FEMTreeNode::template ConstNeighbors< OverlapSizes > neighbors;
 			neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , _sNodes.treeNodes[i] , neighbors );
-
-#if defined( __GNUC__ ) && __GNUC__ < 5
-			#warning "you've got me gcc version<5"
-				matrix.setRowSize( ii , _getMatrixRowSize( UIntPack< FEMSigs ... >() , neighbors ) );
-#else // !__GNUC__ || __GNUC__ >=5
-			matrix.setRowSize( ii , _getMatrixRowSize< FEMSigs ... >( neighbors ) );
-#endif // __GNUC__ || __GNUC__ < 4
-			_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F ,  neighbors , neighbors , matrix[ii] , _sNodesBegin(depth) , stencils , stencil , bsData , ( ConstPointer( T ) )NullPointer( T ) , interpolationInfo ... );
+			_setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... >() , F ,  neighbors , neighbors , ii , matrix , _sNodesBegin(depth) , stencils , stencil , bsData , ( ConstPointer( Real ) )NullPointer( Real ) , interpolationInfos );
 		}
 	}
 	);
@@ -1693,8 +1661,8 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::systemMatrix( UI
 }
 
 template< unsigned int Dim , class Real >
-template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack<FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack<FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	if( highDepth<=0 || highDepth>_maxDepth ) ERROR_OUT( "System depth out of bounds: 0 < " , highDepth , " <= " , _maxDepth );
@@ -1725,7 +1693,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::prolongedSystemM
 			neighborKey.getNeighbors( OverlapRadii() , OverlapRadii() , _sNodes.treeNodes[i]->parent , pNeighbors );
 
 			matrix.setRowSize( ii , _getProlongedMatrixRowSize< FEMSigs ... >( _sNodes.treeNodes[i] , pNeighbors ) );
-			_setProlongedMatrixRow< Real , PointDs ... >( F , neighbors , pNeighbors , matrix[ii] , _sNodesBegin(lowDepth) , stencils.data[cIdx] , bsData , interpolationInfo... );
+			_setProlongedMatrixRow< Real >( F , neighbors , pNeighbors , matrix[ii] , _sNodesBegin(lowDepth) , stencils.data[cIdx] , bsData , interpolationInfos );
 		}
 	}
 	);
@@ -1733,11 +1701,10 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::prolongedSystemM
 }
 
 template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs >
-SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const
+template< unsigned int ... FEMSigs , typename ValidNodeFunctor >
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::_downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth , ValidNodeFunctor validNodeFunctor ) const
 {
 	SparseMatrix< Real , matrix_index_type > matrix;
-	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > FEMDegrees;
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... > UpSampleSizes;
 	typedef IntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleStart ... > UpSampleStarts;
@@ -1766,7 +1733,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::downSampleMatrix
 
 	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 	{
-		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+		if( validNodeFunctor( _sNodes.treeNodes[i] ) )
 		{
 			node_index_type _i = (node_index_type)i - _sNodesBegin(lowDepth);
 			FEMTreeNode* pNode = _sNodes.treeNodes[i];
@@ -1777,7 +1744,6 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::downSampleMatrix
 			neighborKey.getNeighbors( pNode );
 			typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... > > neighbors;
 			neighborKey.getChildNeighbors( 0 , _localToGlobal( d ) , neighbors );
-
 
 			int rowSize = 0;
 			ConstPointer( FEMTreeNode * const ) nodes = neighbors.neighbors().data;
@@ -1794,7 +1760,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::downSampleMatrix
 			{
 				ConstPointer( FEMTreeNode * const ) nodes = neighbors.neighbors().data;
 				ConstPointer( double ) stencilValues = upSampleStencil().data;
-				for( int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
+				for( int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ ) if( validNodeFunctor( nodes[i] ) )
 					matrix[_i][ matrix.rowSizes[_i]++ ] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodes[i]->nodeData.nodeIndex - _sNodesBegin(highDepth) ) , (Real)stencilValues[i] );
 			}
 			else
@@ -1813,7 +1779,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::downSampleMatrix
 				(
 					ZeroUIntPack< Dim >() , UpSampleSizes() ,
 					[&]( int d , int i ){ values[d+1] = values[d] * upSampleValues[d][i]; } ,
-					[&]( const FEMTreeNode* node ){ if( _isValidFEM1Node( node ) ) matrix[_i][ matrix.rowSizes[_i]++ ] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( node->nodeData.nodeIndex - _sNodesBegin(highDepth) ) , (Real)values[Dim] ); } ,
+					[&]( const FEMTreeNode* node ){ if( validNodeFunctor( node ) ) matrix[_i][ matrix.rowSizes[_i]++ ] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( node->nodeData.nodeIndex - _sNodesBegin(highDepth) ) , (Real)values[Dim] ); } ,
 					neighbors.neighbors()
 				);
 			}
@@ -1825,8 +1791,195 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::downSampleMatrix
 }
 
 template< unsigned int Dim , class Real >
-template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , bool nonRefinableOnly , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename ValidNodeFunctor >
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::_upSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth , ValidNodeFunctor validNodeFunctor ) const
+{
+	SparseMatrix< Real , matrix_index_type > matrix;
+	matrix.resize( _sNodesSize( highDepth ) );
+	LocalDepth lowDepth = highDepth-1;
+	if( lowDepth<0 ) return matrix;
+
+	typedef typename BaseFEMIntegrator::RestrictionProlongation< UIntPack< FEMSignature< FEMSigs >::Degree ... > > BaseRestrictionProlongation;
+	typedef typename FEMTreeNode::template ConstNeighborKey< UIntPack< - BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0Start ... > , UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1End ... > > DownSampleKey;
+	typedef typename FEMTreeNode::template ConstNeighbors< UIntPack< ( - BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0Start + BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1End + 1 ) ... > > DownSampleNeighbors;
+	typedef UIntPack< ( - BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0Start + BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1End + 1 ) ... > DownSampleSizes;
+
+	std::vector< DownSampleKey > neighborKeys( ThreadPool::NumThreads() );
+	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
+
+	typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
+	( ( BaseRestrictionProlongation& )rp ).init( highDepth );
+	typename BaseRestrictionProlongation::DownSampleStencils downSampleStencils;
+	rp.setStencils( downSampleStencils );
+
+	const int Start[2][Dim] = { { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0Start ... } , { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1Start ... } };
+	const int   End[2][Dim] = { { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0End   ... } , { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1End   ... } };
+
+	static const WindowLoopData< UIntPack< ( - BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0Start + BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1End + 1 ) ... > > loopData
+	( []( int c , int* start , int* end )
+	{
+		const int Start[2][Dim] = { { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0Start ... } , { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1Start ... } };
+		const int   End[2][Dim] = { { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample0End   ... } , { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::DownSample1End   ... } };
+		for( int d=0 ; d<Dim ; d++ ) start[d] = Start[(c>>d)&1][d] - Start[0][d] , end[d] = - Start[0][d] + End[(c>>d)&1][d] + 1;
+	} 
+	);
+
+	// For Dirichlet constraints, can't get to all children from parents because boundary nodes are invalid
+	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
+	{
+		if( validNodeFunctor( _sNodes.treeNodes[i] ) )
+		{
+			node_index_type _i = (node_index_type)i - _sNodesBegin(highDepth);
+
+			FEMTreeNode *cNode = _sNodes.treeNodes[i];
+			int c = (int)( cNode-cNode->parent->children );
+
+			DownSampleKey& neighborKey = neighborKeys[ thread ];
+			DownSampleNeighbors neighbors = neighborKey.getNeighbors( cNode->parent );
+			// Want to make sure test if contained children are interior.
+			// This is more conservative because we are test that overlapping children are interior
+			bool isInterior;
+			{
+				LocalDepth d ; LocalOffset off;
+				_localDepthAndOffset( cNode->parent , d , off );
+				isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , UIntPack< FEMSignature< FEMSigs >::Degree ... >() , d , off );
+			}
+
+			unsigned int size = loopData.size[c];
+			const unsigned int *indices = loopData.indices[c];
+			typename BaseRestrictionProlongation::DownSampleStencil& downSampleStencil = downSampleStencils.data[c];
+			Pointer( const FEMTreeNode* ) nodes = neighbors.neighbors().data;
+			Pointer( double ) downSampleValues = downSampleStencil.data;
+
+			int rowSize = 0;
+			for( unsigned int i=0 ; i<size ; i++ )
+			{
+				unsigned int idx = indices[i];
+				if( validNodeFunctor( nodes[idx] ) ) rowSize++;
+			}
+			matrix.setRowSize( _i , rowSize );
+			matrix.rowSizes[_i] = 0;
+
+
+			if( isInterior )
+			{
+				for( unsigned int i=0 ; i<size ; i++ )
+				{
+					unsigned int idx = indices[i];
+					if( validNodeFunctor( nodes[idx] ) ) matrix[_i][ matrix.rowSizes[_i]++ ] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodes[idx]->nodeData.nodeIndex - _sNodesBegin(lowDepth) ) , (Real)downSampleValues[idx] );
+				}
+			}
+			else
+			{
+				LocalDepth d ; LocalOffset off;
+				_localDepthAndOffset( cNode , d , off );
+				for( unsigned int i=0 ; i<size ; i++ )
+				{
+					unsigned int idx = indices[i];
+					if( validNodeFunctor( nodes[idx] ) )
+					{
+						LocalDepth _d ; LocalOffset _off;
+						_localDepthAndOffset( nodes[idx] , _d , _off );
+						matrix[_i][ matrix.rowSizes[_i]++ ] = MatrixEntry< Real , matrix_index_type >( (matrix_index_type)( nodes[idx]->nodeData.nodeIndex - _sNodesBegin(lowDepth) ) , (Real)rp.upSampleCoefficient( _off , off ) );
+					}
+				}
+			}
+		}
+	}
+	);
+	return matrix;
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int ... FEMSigs , typename ValidNodeFunctor >
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::_restrictSystemMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth , const SparseMatrix< Real , matrix_index_type > &highM , ValidNodeFunctor validNodeFunctor ) const
+{
+	SparseMatrix< Real , matrix_index_type > lowM , R , P;
+	LocalDepth lowDepth = highDepth-1;
+	if( lowDepth<0 ) return lowM;
+	R = _downSampleMatrix( UIntPack< FEMSigs ... >() , highDepth , validNodeFunctor );
+	P = _upSampleMatrix( UIntPack< FEMSigs ... >() , highDepth , validNodeFunctor );
+#if 1
+	static const int StartOffset[] = { BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ... };
+	static const unsigned int Size = WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size;
+
+	lowM.resize( _sNodesSize( lowDepth ) );
+
+	// Compute the window indices of all nodes at the coarser resolution
+	static const unsigned int StartOffsetIndex = GetWindowIndex( UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... >() , StartOffset );
+	std::vector< unsigned int > windowIndices( _sNodesSize(lowDepth) );
+	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
+	{
+		node_index_type _i = (node_index_type)i - _sNodesBegin(lowDepth);
+		LocalDepth d ; LocalOffset off;
+		_sNodes.treeNodes[i]->depthAndOffset( d , off );
+		windowIndices[_i] = GetWindowIndex( UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... >() , off );
+	} );
+
+	// Iterate over all low-depth nodes
+	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
+	{
+		if( validNodeFunctor( _sNodes.treeNodes[i] ) )
+		{
+			MatrixEntry< Real , matrix_index_type > row[Size];
+			for( int s=0 ; s<Size ; s++ ) row[s] = MatrixEntry< Real , matrix_index_type >( -1 , (Real)0 );
+
+			// Indices of the form "_X" are depth-local
+			node_index_type _i = (node_index_type)i - _sNodesBegin(lowDepth);
+
+			unsigned int _ii = windowIndices[_i] + StartOffsetIndex;
+			// Iterate over all child nodes
+			for( int j=0 ; j<R.rowSizes[_i] ; j++ )
+			{
+				node_index_type _j = (node_index_type)R[_i][j].N;
+				// Iterate over all neighbors of the child node
+				for( int k=0 ; k<highM.rowSizes[_j] ; k++ ) if( highM[_j][k].Value )
+				{
+					node_index_type _k = highM[_j][k].N;
+					Real _matrixValue = highM[_j][k].Value * R[_i][j].Value;
+					// Iterate over everything the neighbor node restrict to
+					for( int l=0 ; l<P.rowSizes[_k] ; l++ )
+					{
+						node_index_type _l = (node_index_type)P[_k][l].N;
+						Real __matrixValue = _matrixValue * P[_k][l].Value;
+						int ii = windowIndices[_l] - _ii;
+						row[ii].N = (matrix_index_type)_l;
+						row[ii].Value += __matrixValue;
+					}
+				}
+			}
+			int rowSize = 0;
+			for( int s=0 ; s<Size ; s++ ) if( row[s].N!=-1 ) rowSize++;
+			lowM.setRowSize( _i , rowSize );
+			lowM.rowSizes[_i] = 0;
+			for( int s=0 ; s<Size ; s++ ) if( row[s].N!=-1 ) lowM[_i][ lowM.rowSizes[_i]++ ] = row[s];
+		}
+	} );
+	return lowM;
+#else
+	return R * highM * P;
+#endif
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int ... FEMSigs >
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::upSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const
+{
+	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
+	return _upSampleMatrix( UIntPack< FEMSigs ... >() , highDepth , [&]( const FEMTreeNode *node ){ return _isValidFEM1Node( node ) && !node->nodeData.getDirichletElementFlag(); } );
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int ... FEMSigs >
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const
+{
+	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
+	return _downSampleMatrix( UIntPack< FEMSigs ... >() , highDepth , [&]( const FEMTreeNode *node ){ return _isValidFEM1Node( node ) && !node->nodeData.getDirichletElementFlag(); } );
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
+SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	SparseMatrix< Real , matrix_index_type > M;
 	std::vector< SparseMatrix< Real , matrix_index_type > >                  systemMatrices( depth+1 );
@@ -1839,7 +1992,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix
 	{
 		SparseMatrix< Real , matrix_index_type >& M = systemMatrices[d];
 		M.resize( size );
-		SparseMatrix< Real , matrix_index_type > _M = systemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d , interpolationInfo ... );
+		SparseMatrix< Real , matrix_index_type > _M = systemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d , interpolationInfos );
 		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
 		{
 			M.setRowSize( (matrix_index_type)( i + _sNodesBegin(d) ) , _M.rowSize(i) );
@@ -1851,7 +2004,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix
 	{
 		SparseMatrix< Real , matrix_index_type >& M = prolongedSystemMatrices[d];
 		M.resize( size );
-		SparseMatrix< Real , matrix_index_type > _M = prolongedSystemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d+1 , interpolationInfo ... );
+		SparseMatrix< Real , matrix_index_type > _M = prolongedSystemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d+1 , interpolationInfos );
 		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
 		{
 			M.setRowSize( i + (matrix_index_type)_sNodesBegin(d+1) , _M.rowSize(i) );
@@ -1902,32 +2055,12 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix
 			);
 		}
 	}
-	if( nonRefinableOnly )
-	{
-		_setRefinabilityFlags( UIntPack< FEMSigs ... >() );
-		_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
-		ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int , size_t i )
-		{
-			if( ( _isRefinableNode( _sNodes.treeNodes[i] ) && _localDepth( _sNodes.treeNodes[i] )<depth ) || !_isValidFEM1Node( _sNodes.treeNodes[i] ) )
-			{
-				// Setting this to the (local) identity so it doesn't make the system singular.
-				M.resetRowSize( i , 1 );
-				M[i][0] = MatrixEntry< Real , matrix_index_type >( i , (Real)1. );
-			}
-			else
-			{
-				int jj=0;
-				for( int j=0 ; j<M.rowSize(i) ; j++ ) if( !( _isRefinableNode( _sNodes.treeNodes[ M[i][j].N ] ) && _localDepth( _sNodes.treeNodes[ M[i][j].N ] )<depth ) && _isValidFEM1Node( _sNodes.treeNodes[i] ) ) M[i][jj++] = M[i][j];
-				if( jj!=M.rowSize(i) ) M.resetRowSize( i , jj );
-			}
-		}
-		);
-	}
 	return M;
 }
+
 template< unsigned int Dim , class Real >
-template< class C , unsigned int ... Degrees , unsigned int ... FEMSigs >
-void FEMTree< Dim , Real >::_downSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& rp , LocalDepth highDepth , Pointer( C ) constraints ) const
+template< class C , typename ArrayWrapper , unsigned int ... Degrees , unsigned int ... FEMSigs >
+void FEMTree< Dim , Real >::_downSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& rp , LocalDepth highDepth , ArrayWrapper finerConstraints , Pointer( C ) coarserConstraints ) const
 {
 	LocalDepth lowDepth = highDepth-1;
 	if( lowDepth<0 ) return;
@@ -1957,7 +2090,7 @@ void FEMTree< Dim , Real >::_downSample( UIntPack< FEMSigs ... > , typename Base
 			UpSampleNeighbors neighbors;
 			neighborKey.getChildNeighbors( 0 , _localToGlobal( d ) , neighbors );
 
-			C& coarseConstraint = constraints[i];
+			C &coarseConstraint = coarserConstraints[ i-_sNodesBegin(lowDepth) ];
 
 			// Want to make sure test if contained children are interior.
 			// This is more conservative because we are test that overlapping children are interior
@@ -1967,7 +2100,7 @@ void FEMTree< Dim , Real >::_downSample( UIntPack< FEMSigs ... > , typename Base
 				Pointer( const FEMTreeNode* ) nodes = neighbors.neighbors().data;
 				Pointer( double ) stencilValues = upSampleStencil.data;
 				for( unsigned int i=0 ; i<WindowSize< UpSampleSizes >::Size ; i++ )
-					if( _isValidFEM1Node( nodes[i] ) ) coarseConstraint += (C)( constraints[ nodes[i]->nodeData.nodeIndex ] * (Real)stencilValues[i] );
+					if( _isValidFEM1Node( nodes[i] ) ) coarseConstraint += (C)( finerConstraints[ nodes[i]->nodeData.nodeIndex - _sNodesBegin(highDepth) ] * (Real)stencilValues[i] );
 			}
 			else
 			{
@@ -1976,7 +2109,7 @@ void FEMTree< Dim , Real >::_downSample( UIntPack< FEMSigs ... > , typename Base
 				{
 					LocalDepth _d ; LocalOffset _off;
 					_localDepthAndOffset( nodes[i] , _d , _off );
-					coarseConstraint += (C)( constraints[ nodes[i]->nodeData.nodeIndex ] * (Real)rp.upSampleCoefficient( off , _off ) );
+					coarseConstraint += (C)( finerConstraints[ nodes[i]->nodeData.nodeIndex - _sNodesBegin(highDepth) ] * (Real)rp.upSampleCoefficient( off , _off ) );
 				}
 			}
 		}
@@ -2220,8 +2353,8 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 }
 
 template< unsigned int Dim , class Real >
-template< class C , unsigned int ... Degrees , unsigned int ... FEMSigs >
-void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& rp , LocalDepth highDepth , Pointer( C ) coefficients ) const
+template< class C , typename ArrayWrapper , unsigned int ... Degrees , unsigned int ... FEMSigs >
+void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& rp , LocalDepth highDepth , ArrayWrapper coarserCoefficients , Pointer( C ) finerCoefficients ) const
 {
 	LocalDepth lowDepth = highDepth-1;
 	if( lowDepth<0 ) return;
@@ -2267,7 +2400,7 @@ void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFE
 				isInterior = BaseFEMIntegrator::IsInteriorlyOverlapped( UIntPack< Degrees ... >() , UIntPack< Degrees ... >() , d , off );
 			}
 
-			C& fineCoefficient = coefficients[ cNode->nodeData.nodeIndex ];
+			C &fineCoefficient = finerCoefficients[ cNode->nodeData.nodeIndex - _sNodesBegin(highDepth) ];
 
 			typename BaseRestrictionProlongation::DownSampleStencil& downSampleStencil = downSampleStencils.data[c];
 			unsigned int size = loopData.size[c];
@@ -2279,7 +2412,7 @@ void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFE
 				for( unsigned int i=0 ; i<size ; i++ )
 				{
 					unsigned int idx = indices[i];
-					if( _isValidFEM1Node( nodes[idx] ) ) fineCoefficient += (C)( coefficients[ nodes[idx]->nodeData.nodeIndex ] * (Real)downSampleValues[idx] );
+					if( _isValidFEM1Node( nodes[idx] ) ) fineCoefficient += (C)( coarserCoefficients[ nodes[idx]->nodeData.nodeIndex - _sNodesBegin(lowDepth) ] * (Real)downSampleValues[idx] );
 				}
 			}
 			else
@@ -2293,7 +2426,7 @@ void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFE
 					{
 						LocalDepth _d ; LocalOffset _off;
 						_localDepthAndOffset( nodes[idx] , _d , _off );
-						fineCoefficient += (C)( coefficients[ nodes[idx]->nodeData.nodeIndex ] * (Real)rp.upSampleCoefficient( _off , off ) );
+						fineCoefficient += (C)( coarserCoefficients[ nodes[idx]->nodeData.nodeIndex - _sNodesBegin(lowDepth) ] * (Real)rp.upSampleCoefficient( _off , off ) );
 					}
 				}
 			}
@@ -2491,29 +2624,24 @@ void FEMTree< Dim , Real >::_RegularGridUpSample( UIntPack< FEMSigs ... > , cons
 
 
 template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
-DenseNodeData< T , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , TDotT Dot , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
+DenseNodeData< T , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , TDotT Dot , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	DenseNodeData< T , UIntPack< FEMSigs ... > > solution;
-	solveSystem( UIntPack< FEMSigs ... >() , F , constraints , solution , Dot , maxSolveDepth , solverInfo , interpolationInfo... );
+	solveSystem( UIntPack< FEMSigs ... >() , F , constraints , solution , Dot , maxSolveDepth , solverInfo , interpolationInfos );
 	return solution;
 }
 template< unsigned int Dim , class Real >
-template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
-void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
+void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
-	int baseDepth = solverInfo.baseDepth;
-	if( baseDepth>getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) ) ERROR_OUT( "Base depth cannot excceed full depth: " , baseDepth , " <= " , getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() ) );
-
 	static_assert( Dim==sizeof ... ( FEMSigs ) , "[ERROR] FEMTree:solveSystem: Dimensions and number of signatures don't match" );
+	if( maxSolveDepth>_maxDepth ) ERROR_OUT( "Solver depth cannot exceed maximum depth: " , maxSolveDepth , " <= " , _maxDepth );
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
-	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( sizeof...(PointDs)==0 ? 0 : maxSolveDepth );
+	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( sizeof...(InterpolationInfos)==0 ? 0 : maxSolveDepth );
 
-	maxSolveDepth = std::min< LocalDepth >( maxSolveDepth , _maxDepth );
-
-	bool clearSolution = solution.size()!=_sNodesEnd( _maxDepth );
-	if( clearSolution ) solution = initDenseNodeData< T >( UIntPack< FEMSigs ... >() ) , clearSolution = true;
-	bool simpleSolve = clearSolution && solverInfo.vCycles==1 && solverInfo.cascadic;
+	if( solverInfo.clearSolution ) solution = initDenseNodeData< T >( UIntPack< FEMSigs ... >() );
+	else if( solution.size()!=_sNodesEnd( _maxDepth ) ) ERROR_OUT( "Solution is the wrong size: " , solution.size() , " != " , _sNodesEnd(_maxDepth) );
 
 	// The initial estimate of the solution (may be empty or may come in with an initial guess)
 	Pointer( T ) _solution = solution();
@@ -2533,7 +2661,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	Pointer( T ) _prolongedSolution = AllocPointer< T >( _sNodesEnd( _maxDepth-1 ) );
 
 	memset( _prolongedSolution , 0 , sizeof(T) * _sNodesEnd( _maxDepth-1 ) );
-	if( !( clearSolution && solverInfo.vCycles==1 && solverInfo.cascadic ) )
+	if( !( solverInfo.clearSolution && solverInfo.vCycles==1 && solverInfo.cascadic ) )
 	{
 		_restrictedConstraints = AllocPointer< T >( _sNodesEnd( _maxDepth-1 ) );
 		memset( _restrictedConstraints , 0 , sizeof(T) * _sNodesEnd( _maxDepth-1 ) );
@@ -2544,41 +2672,46 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	{
 		_bNorm2 = AllocPointer< double >( _maxDepth+1 );
 		memset( _bNorm2 , 0 , sizeof(double) * ( _maxDepth+1 ) );
-		for( LocalDepth d=baseDepth ; d<=maxSolveDepth ; d++ ) for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) _bNorm2[d] += Dot( _constraints[i] , _constraints[i] );
+		for( LocalDepth d=_baseDepth ; d<=maxSolveDepth ; d++ ) for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) _bNorm2[d] += Dot( _constraints[i] , _constraints[i] );
 	}
 
 	auto UpdateProlongation = [&] ( int depth )
 	{
-		if( depth<_maxDepth && _prolongedSolution )
+		if     ( depth< _baseDepth ){}
+		else if( depth==_baseDepth ) ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] = solution[i]; } );
+		else if( depth< _maxDepth )
 		{
+			// Clear the prolonged solution @(depth)
 			memset( _prolongedSolution + _sNodesBegin( depth ) , 0 , sizeof( T ) * _sNodesSize( depth ) );
+
 			// Up-sample the prolonged solution @(depth-1) into the prolonged solution @(depth)
 			F.init( depth );
-			if( depth>baseDepth ) _upSample( UIntPack< FEMSigs ... >() , F.restrictionProlongation() , depth , _prolongedSolution );
+			_upSample( UIntPack< FEMSigs ... >() , F.restrictionProlongation() , depth , ( ConstPointer(T) )_prolongedSolution+_sNodesBegin(depth-1) , _prolongedSolution+_sNodesBegin(depth) );
+
 			// Add in the solution @(depth) to the prolonged solution
 			ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] += solution[i]; } );
 		}
+#pragma message( "[WARNING] Should this be here or in SetResidualConstraints" )
+		if( depth+1>_baseDepth && depth+1<=_maxDepth && _prolongedSolution ) _setPointValuesFromProlongedSolution< 0 >( depth+1 , bsData , ( ConstPointer( T ) )_prolongedSolution , interpolationInfos );
 	};
-	auto UpdateRestriction = [&]( int depth , InterpolationInfo< T , PointDs >* ... interpolationInfo )
+	auto UpdateRestriction = [&]( int depth )
 	{
-		if( depth>baseDepth && _restrictedConstraints )
+		if( depth>_baseDepth && _restrictedConstraints )
 		{
 			memset( _restrictedConstraints + _sNodesBegin( depth-1 ) , 0 , sizeof( T ) * _sNodesSize( depth-1 ) );
 			// Update the restricted constraints @(depth-1) based on the solution @(depth)
 			F.init( depth );
 			_updateRestrictedIntegralConstraints( UIntPack< FEMSigs ... >() , F , depth , ( ConstPointer(T) )_solution , _restrictedConstraints );
-			_updateRestrictedInterpolationConstraints( bsData , depth , ( ConstPointer( T ) )_solution , _restrictedConstraints , interpolationInfo... );
+			_updateRestrictedInterpolationConstraints< 0 >( bsData , depth , ( ConstPointer( T ) )_solution , _restrictedConstraints , interpolationInfos );
 			// Down-sample the restricted constraints @(depth) into the restricted constraints @(depth-1)
-			if( depth<_maxDepth ) _downSample( UIntPack< FEMSigs ... >() , F.restrictionProlongation() , depth , _restrictedConstraints );
+			if( depth<_maxDepth ) _downSample( UIntPack< FEMSigs ... >() , F.restrictionProlongation() , depth , ( ConstPointer(T) )_restrictedConstraints + _sNodesBegin(depth) , _restrictedConstraints + _sNodesBegin(depth-1) );
 		}
 	};
-	auto SetResidualConstraints = [&]( int depth , InterpolationInfo< T , PointDs >* ... interpolationInfo )
+	auto SetResidualConstraints = [&]( int depth )
 	{
 		// Copy the constraints
 		if( depth<_maxDepth ) memcpy( _residualConstraints + _sNodesBegin(depth) , _constraints + _sNodesBegin(depth) , sizeof( T ) * _sNodesSize(depth) );
 
-		// Update the constraints @(depth) using the prolonged solution @(depth-1)
-		if( depth>baseDepth && _prolongedSolution ) _setPointValuesFromProlongedSolution( depth , bsData , ( ConstPointer( T ) )_prolongedSolution , interpolationInfo... );
 		// Update the constraints @(depth) using the restriced residual @(depth)
 		if( depth<_maxDepth && _restrictedConstraints )
 			ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _residualConstraints[i] -= _restrictedConstraints[i]; } );
@@ -2587,7 +2720,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	{
 		if( solverInfo.verbose )
 		{
-			node_index_type femNodes = (node_index_type)validFEMNodes( UIntPack< FEMSigs ... >() , depth );
+			node_index_type femNodes = (node_index_type)validUnlockedFEMNodes( UIntPack< FEMSigs ... >() , depth );
 			if( maxSolveDepth<10 )
 				if( solverInfo.vCycles<10 ) printf( "Cycle[%d] Depth[%d/%d]:\t" , cycle , depth , maxSolveDepth );
 				else                        printf( "Cycle[%2d] Depth[%d/%d]:\t" , cycle , depth , maxSolveDepth );
@@ -2598,13 +2731,16 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 		}
 		if( solverInfo.showResidual && showResidual )
 		{
-			for( int d=baseDepth ; d<depth ; d++ ) printf( "  " );
-			printf( "%s: %.4e -> %.4e -> %.4e (%.1e) [%d]\n" , depth<=solverInfo.cgDepth ? "CG" : "GS" , sqrt( sStats.bNorm2 ) , sqrt( sStats.inRNorm2 ) , sqrt( sStats.outRNorm2 ) , sqrt( sStats.outRNorm2  / sStats.inRNorm2 ) , actualIters );
+			for( int d=_baseDepth ; d<depth ; d++ ) printf( "  " );
+			if     ( depth==_baseDepth )         printf( "MG x %d" , solverInfo.baseVCycles );
+			else if( depth<=solverInfo.cgDepth ) printf( "    CG" );
+			else                                 printf( "    GS" );
+			printf( ": %.4e -> %.4e -> %.4e (%.1e) [%d]\n" , sqrt( sStats.bNorm2 ) , sqrt( sStats.inRNorm2 ) , sqrt( sStats.outRNorm2 ) , sqrt( sStats.outRNorm2  / sStats.inRNorm2 ) , actualIters );
 		}
 	};
 
 	// Set the cumulative solution
-	if( !clearSolution ) for( LocalDepth d=baseDepth ; d<maxSolveDepth ; d++ ) UpdateProlongation( d );
+	if( !solverInfo.clearSolution ) for( LocalDepth d=_baseDepth ; d<maxSolveDepth ; d++ ) UpdateProlongation( d );
 
 	_SolverStats sStats;
 	bool showResidual;
@@ -2628,59 +2764,62 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	if( solverInfo.useSupportWeights ) sorWeights.supportWeights = supportWeights( UIntPack< FEMSigs ... >() );
 	if( solverInfo.useProlongationSupportWeights ) sorWeights.prolongationSupportWeights = prolongationWeights( UIntPack< FEMSigs ... >() , false );
 
-	auto SolveRestriction = [&]( int v , int depth , InterpolationInfo< T , PointDs >* ... interpolationInfo )
+	auto SolveRestriction = [&]( int v , int depth )
 	{
 		sorWeights.sorFunction = solverInfo.sorRestrictionFunction;
 		// The restriction phase
 		if( solverInfo.cascadic )
 		{
 			showResidual = false;
-			if( !clearSolution || v>0 ) for( LocalDepth d=depth ; d>=baseDepth ; d-- ) { F.init( d ) ; UpdateRestriction( d , interpolationInfo ... ); }
+			if( !solverInfo.clearSolution || v>0 ) for( LocalDepth d=depth ; d>=_baseDepth ; d-- ) { F.init( d ) ; UpdateRestriction( d ); }
 		}
 		else
 		{
 			bool coarseToFine = false;
-			for( LocalDepth d=depth ; d>=baseDepth ; d-- )
+			for( LocalDepth d=depth ; d>=_baseDepth ; d-- )
 			{
 				sStats.constraintUpdateTime = 0;
-				showResidual = ( d!=baseDepth );
+				showResidual = ( d!=_baseDepth );
 				int iters = solverInfo.iters( v , true , d );
 				t = Time();
 				F.init( d );
-				SetResidualConstraints( d , interpolationInfo... );
+				SetResidualConstraints( d );
 				sStats.constraintUpdateTime += Time()-t;
+				actualIters = iters;
 				// In the restriction phase we do not solve at the coarsest resolution since we will do so in the prolongation phase
-				if( d==baseDepth ) _solveRegularMG( UIntPack< FEMSigs ... >() , F , bsData , d , _solution , d==_maxDepth ? _constraints : _residualConstraints , Dot , solverInfo.baseVCycles , iters , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfo... );
+				if( d==_baseDepth ) _solveRegularMG( UIntPack< FEMSigs ... >() , F , bsData , std::min< LocalDepth >( _baseDepth , maxSolveDepth ) , _solution , d==_maxDepth ? _constraints : _residualConstraints , Dot , solverInfo.baseVCycles , iters , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfos );
 				else
 				{
-					if( d>solverInfo.cgDepth ) actualIters = _solveSystemGS( UIntPack< FEMSigs ... >() , Dim!=1 , F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine , solverInfo.sliceBlockSize , sorWeights , sStats , solverInfo.showResidual ,                         interpolationInfo... );
-					else                       actualIters = _solveSystemCG( UIntPack< FEMSigs ... >() ,          F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine ,                                          sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfo... );
+					if( d>solverInfo.cgDepth ) actualIters = _solveSystemGS( UIntPack< FEMSigs ... >() , Dim!=1 , F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine , solverInfo.sliceBlockSize , sorWeights , sStats , solverInfo.showResidual ,                         interpolationInfos );
+					else                       actualIters = _solveSystemCG( UIntPack< FEMSigs ... >() ,          F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine ,                                          sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfos );
 				}
 				t = Time();
-				UpdateRestriction( d , interpolationInfo... );
+				UpdateRestriction( d );
 				sStats.constraintUpdateTime += Time()-t;
 				OutputSolverStats( v , d , sStats , showResidual , actualIters );
 			}
 		}
 	};
-	auto SolveProlongation = [&]( int v , int depth , InterpolationInfo< T , PointDs >* ... interpolationInfo )
+
+	auto SolveProlongation = [&]( int v , int depth )
 	{
 		sorWeights.sorFunction = solverInfo.sorProlongationFunction;
 		showResidual = true;
 		bool coarseToFine = true;
-		for( LocalDepth d=baseDepth ; d<=depth ; d++ )
+		for( LocalDepth d=_baseDepth ; d<=depth ; d++ )
 		{
 			sStats.constraintUpdateTime = 0;
 			int iters = solverInfo.iters( v , false , d );
 			t = Time();
 			F.init( d );
-			SetResidualConstraints( d , interpolationInfo... );
+			SetResidualConstraints( d );
 			sStats.constraintUpdateTime += Time()-t;
-			if( d==baseDepth ) _solveRegularMG( UIntPack< FEMSigs ... >() , F , bsData , d , _solution , d==_maxDepth ? _constraints : _residualConstraints , Dot , solverInfo.baseVCycles , iters , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfo... );
+			actualIters = iters;
+			if( d==_baseDepth ) _solveRegularMG( UIntPack< FEMSigs ... >() , F , bsData , std::min< LocalDepth >( _baseDepth , maxSolveDepth ) , _solution , d==_maxDepth ? _constraints : _residualConstraints , Dot , solverInfo.baseVCycles , iters , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfos );
 			else
 			{
-				if( d>solverInfo.cgDepth ) actualIters = _solveSystemGS( UIntPack< FEMSigs ... >() , Dim!=1 , F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine , solverInfo.sliceBlockSize , sorWeights , sStats , solverInfo.showResidual , interpolationInfo... );
-				else                       actualIters = _solveSystemCG( UIntPack< FEMSigs ... >() ,          F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfo... );
+				if( d>solverInfo.cgDepth ) actualIters = _solveSystemGS( UIntPack< FEMSigs ... >() , Dim!=1 , F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine , solverInfo.sliceBlockSize , sorWeights , sStats , solverInfo.showResidual , interpolationInfos );
+				else                       actualIters = _solveSystemCG( UIntPack< FEMSigs ... >() ,          F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfos );
 			}
 			t = Time();
 			UpdateProlongation( d );
@@ -2693,36 +2832,36 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	{
 		if( solverInfo.wCycle )
 		{
-			for( int d=maxSolveDepth ; d>baseDepth ; d-- )
+			for( int d=maxSolveDepth ; d>_baseDepth ; d-- )
 			{
-				SolveRestriction ( v , d   , interpolationInfo ... );
-				SolveProlongation( v , d-1 , interpolationInfo ... );
+				SolveRestriction ( v , d   );
+				SolveProlongation( v , d-1 );
 			}
-			for( int d=baseDepth+1 ; d<=maxSolveDepth ; d++ )
+			for( int d=_baseDepth+1 ; d<=maxSolveDepth ; d++ )
 			{
-				SolveRestriction ( v , d-1 , interpolationInfo ... );
-				SolveProlongation( v , d   , interpolationInfo ... );
+				SolveRestriction ( v , d-1 );
+				SolveProlongation( v , d   );
 			}
 		}
 		else
 		{
-			SolveRestriction ( v , maxSolveDepth , interpolationInfo ... );
-			SolveProlongation( v , maxSolveDepth , interpolationInfo ... );
+			SolveRestriction ( v , std::max< LocalDepth >( _baseDepth , maxSolveDepth ) );
+			SolveProlongation( v , std::max< LocalDepth >( _baseDepth , maxSolveDepth ) );
 		}
 		if( solverInfo.showGlobalResidual==SHOW_GLOBAL_RESIDUAL_ALL || ( solverInfo.showGlobalResidual==SHOW_GLOBAL_RESIDUAL_LAST && v==solverInfo.vCycles-1 ) )
 		{
 			bool coarseToFine = false;
 			std::vector< double > rNorms( maxSolveDepth+1 );
-			for( LocalDepth d=maxSolveDepth ; d>=baseDepth ; d-- )
+			for( LocalDepth d=maxSolveDepth ; d>=_baseDepth ; d-- )
 			{
 				F.init( d );
-				SetResidualConstraints( d , interpolationInfo... );
-				_solveSystemGS( UIntPack< FEMSigs ... >() , Dim!=1 , F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , 0 , coarseToFine , solverInfo.sliceBlockSize , TrivialSORWeights() , sStats , true , interpolationInfo... );
-				UpdateRestriction( d , interpolationInfo... );
+				SetResidualConstraints( d );
+				_solveSystemGS( UIntPack< FEMSigs ... >() , Dim!=1 , F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , 0 , coarseToFine , solverInfo.sliceBlockSize , TrivialSORWeights() , sStats , true , interpolationInfos );
+				UpdateRestriction( d );
 				rNorms[d] = sqrt( sStats.outRNorm2 / _bNorm2[d] );
 			}
 			printf( "%3d" , v+1 );
-			for( int d=baseDepth ; d<=maxSolveDepth ; d++ ) printf( "\t%.4e" , rNorms[d] );
+			for( int d=_baseDepth ; d<=maxSolveDepth ; d++ ) printf( "\t%.4e" , rNorms[d] );
 			printf( "\n" );
 		}
 	}
@@ -2898,7 +3037,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 			}
 		}
 		);
-		if( d>0 && d<maxDepth ) _downSample( UIntPack< FEMSigs ... >() , F.tRestrictionProlongation() , d , _constraints );
+		if( d>0 && d<maxDepth ) _downSample( UIntPack< FEMSigs ... >() , F.tRestrictionProlongation() , d , ( ConstPointer(T) )_constraints + _sNodesBegin(d) , _constraints + _sNodesBegin(d-1) );
 		MemoryUsage();
 	}
 	FreePointer( _constraints );
@@ -2917,7 +3056,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		}
 
 		// Coarse-to-fine up-sampling of coefficients
-		for( LocalDepth d=1 ; d<maxDepth ; d++ ) _upSample( UIntPack< FEMSigs ... >() , F.tRestrictionProlongation() , d , _coefficients );
+		for( LocalDepth d=1 ; d<maxDepth ; d++ ) _upSample< D >( UIntPack< FEMSigs ... >() , F.tRestrictionProlongation() , d , ( ConstPointer(D) )_coefficients+_sNodesBegin(d-1) , _coefficients+_sNodesBegin(d) );
 		// Compute the contribution from all coarser depths
 		for( LocalDepth d=1 ; d<=maxDepth ; d++ )
 		{
@@ -2982,12 +3121,18 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		}
 		FreePointer( _coefficients );
 	}
+
+	ThreadPool::Parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i )
+	{
+		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) && _sNodes.treeNodes[i]->nodeData.getDirichletElementFlag() ) constraints[i] *= (Real)0;
+	} );
+
 	MemoryUsage();
 }
 
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int ... FEMSigs , unsigned int PointD >
-void FEMTree< Dim , Real >::addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD >& interpolationInfo ) const
+void FEMTree< Dim , Real >::_addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD > *interpolationInfo ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	typedef typename FEMIntegrator::template PointEvaluator< UIntPack< FEMSigs ... > , IsotropicUIntPack< Dim , PointD > > PointEvaluator;
@@ -3017,44 +3162,41 @@ void FEMTree< Dim , Real >::addInterpolationConstraints( DenseNodeData< T , UInt
 			{
 				if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 				{
-					if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
+					_PointEvaluatorState eState;
+					FEMTreeNode* node = _sNodes.treeNodes[i];
+
+					PointSupportKey& neighborKey = neighborKeys[ thread ];
+					typename FEMTreeNode::template ConstNeighbors< SupportSizes > neighbors;
+					neighborKey.getNeighbors( LeftPointSupportRadii() , RightPointSupportRadii() , node , neighbors );
+					LocalDepth d ; LocalOffset off;
+					_localDepthAndOffset( node , d , off );
+
+					size_t begin , end;
+					interpolationInfo->range( node , begin , end );
+					for( size_t pIndex=begin ; pIndex<end ; pIndex++ )
 					{
-						_PointEvaluatorState eState;
-						FEMTreeNode* node = _sNodes.treeNodes[i];
+						const DualPointInfo< Dim , Real , T , PointD >& pData = (*interpolationInfo)[ pIndex ];
+						Point< Real , Dim > p = pData.position;
+						evaluator.initEvaluationState( p , d , off , eState );
 
-						PointSupportKey& neighborKey = neighborKeys[ thread ];
-						typename FEMTreeNode::template ConstNeighbors< SupportSizes > neighbors;
-						neighborKey.getNeighbors( LeftPointSupportRadii() , RightPointSupportRadii() , node , neighbors );
-						LocalDepth d ; LocalOffset off;
-						_localDepthAndOffset( node , d , off );
-
-						size_t begin , end;
-						interpolationInfo.range( node , begin , end );
-						for( size_t pIndex=begin ; pIndex<end ; pIndex++ )
-						{
-							const DualPointInfo< Dim , Real , T , PointD >& pData = interpolationInfo[ pIndex ];
-							Point< Real , Dim > p = pData.position;
-							evaluator.initEvaluationState( p , d , off , eState );
-
-							int s[Dim];
-							WindowLoop< Dim >::Run
-							(
-								IsotropicUIntPack< Dim , 0 >() , SupportSizes() ,
-								[&]( int d , int i ){ s[d] = i; } ,
-								[&]( const FEMTreeNode* _node )
+						int s[Dim];
+						WindowLoop< Dim >::Run
+						(
+							IsotropicUIntPack< Dim , 0 >() , SupportSizes() ,
+							[&]( int d , int i ){ s[d] = i; } ,
+							[&]( const FEMTreeNode* _node )
 							{
-								if( _isValidFEM1Node( _node ) )
-								{
+							if( _isValidFEM1Node( _node ) && !_node->nodeData.getDirichletElementFlag() )
+							{
 									LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset( _node , _d , _off );
 									CumulativeDerivativeValues< Real , Dim , PointD > values = WrapperLambda( eState , _off );
 									T dot = {};
 									for( int s=0 ; s<CumulativeDerivatives< Dim , PointD >::Size ; s++ ) dot += pData.dualValues[s] * values[s];
 									AddAtomic( constraints[ _node->nodeData.nodeIndex ] , dot );
-								}
+							}
 							} ,
-								neighbors.neighbors()
-								);
-						}
+							neighbors.neighbors()
+						);
 					}
 				}
 			}
@@ -3232,7 +3374,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			);
 			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dot += dots[t];
 			// Up sample the cumulative coefficients for the next level
-			if( d<_maxDepth ) _upSample( UIntPack< FEMSigs1 ... >() , F.tRestrictionProlongation() , d , cumulative1() );
+			if( d<_maxDepth ) _upSample( UIntPack< FEMSigs1 ... >() , F.tRestrictionProlongation() , d , cumulative1()+_sNodesBegin(d-1) , cumulative1()+_sNodesBegin(d) );
 		}
 	}
 
@@ -3323,7 +3465,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dot += dots[t];
 
 			// Down-sample the cumulative constraints from @(depth-1) to @(depth-2) for the next pass
-			if( d-1>0 ) _downSample( UIntPack< FEMSigs2 ... >() , F.cRestrictionProlongation() , d-1 , GetPointer( &cumulative2[0] , cumulative2.size() ) );
+			if( d-1>0 ) _downSample( UIntPack< FEMSigs2 ... >() , F.cRestrictionProlongation() , d-1 , GetPointer( &cumulative2[0] , cumulative2.size() ) + _sNodesBegin(d-1) , GetPointer( &cumulative2[0] , cumulative2.size() ) + _sNodesBegin(d-2)  );
 		}
 	}
 	return dot;

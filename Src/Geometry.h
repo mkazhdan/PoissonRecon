@@ -107,10 +107,60 @@ public:
 		return p;
 	}
 	static Point CrossProduct( Point* points ){ return CrossProduct( ( const Point* )points ); }
+	friend std::ostream &operator << ( std::ostream &os , const Point &p )
+	{
+		os << "( ";
+		for( int d=0 ; d<Dim ; d++ )
+		{
+			if( d ) os << " , ";
+			os << p[d];
+		}
+		return os << " )";
+	}
 };
 template< class Real , unsigned int Dim > Point< Real , Dim > operator * ( Real r , Point< Real , Dim > p ){ return p*r; }
 template< class Real , unsigned int Dim > Point< Real , Dim > operator / ( Real r , Point< Real , Dim > p ){ return p/r; }
 
+/** This templated class represents a Ray.*/
+template< class Real , unsigned int Dim >
+class Ray
+{
+public:
+	/** The starting point of the ray */
+	Point< Real , Dim > position;
+
+	/** The direction of the ray */
+	Point< Real , Dim > direction;
+
+	/** The default constructor */
+	Ray( void ){}
+
+	/** The constructor settign the the position and direction of the ray */
+	Ray( const Point< Real , Dim > &p , const Point< Real , Dim > &d ) : position(p) , direction(d){}
+
+	/** This method computes the translation of the ray by p and returns the translated ray.*/
+	Ray  operator +  ( const Point< Real , Dim > &p ) const { return Ray( position+p , direction ); }
+
+	/** This method translates the current ray by p.*/
+	Ray &operator += ( const Point< Real , Dim > &p ){ position +=p ; return *this; }
+
+	/** This method computes the translation of the ray by -p and returns the translated ray.*/
+	Ray  operator -  ( const Point< Real , Dim > &p ) const { return Ray( position-p , direction ); }
+
+	/** This method translates the current ray by -p.*/
+	Ray &operator -= ( const Point< Real , Dim > &p ){ position -= p ; return *this; }
+
+	/** This method returns the point at a distance of t along the ray. */
+	Point< Real , Dim > operator() ( double t ) const { return position + direction * (Real)t; }
+};
+
+/** This function prints out the ray.*/
+template< class Real , unsigned int Dim >
+std::ostream &operator << ( std::ostream &stream , const Ray< Real , Dim > &ray )
+{
+	stream << "[ " << ray.position << " ] [ " << ray.direction << " ]";
+	return stream;
+}
 template< class Real , unsigned int _Columns , unsigned int _Rows >
 struct Matrix
 {
@@ -139,6 +189,37 @@ struct Matrix
 
 	template< typename T >
 	inline Point< T , Rows > operator* ( const Point< T , Columns >& p ) const { Point< T , Rows > q ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) q[r] += (T)( p[c] * coords[c][r] ) ; return q; }
+
+	template< unsigned int Cols >
+	inline Matrix< Real , Cols , Rows > operator * ( const Matrix< Real , Cols , Columns > &M ) const
+	{
+		Matrix< Real , Cols , Rows > prod;
+		for( unsigned int c=0 ; c<Cols ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) for( unsigned int i=0 ; i<Columns ; i++ ) prod(c,r) += coords[i][r] * M(c,i);
+		return prod;
+	}
+
+	inline Matrix< Real , Rows , Columns > transpose( void ) const
+	{
+		Matrix< Real , Rows , Columns > t;
+		for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) t(r,c) = coords[c][r];
+		return t;
+	}
+	friend std::ostream &operator << ( std::ostream &os , const Matrix &m )
+	{
+		os << "{ ";
+		for( int r=0 ; r<Rows ; r++ )
+		{
+			if( r ) os << " , ";
+			os << "{ ";
+			for( int c=0 ; c<Columns ; c++ )
+			{
+				if( c ) os << " , ";
+				os << m.coords[c][r];
+			}
+			os << " }";
+		}
+		return os << " }";
+	}
 };
 
 template< class Real , unsigned int Dim >
@@ -146,6 +227,10 @@ struct XForm
 {
 	Real coords[Dim][Dim];
 	XForm( void ) { memset( coords , 0 , sizeof(Real) * Dim * Dim ); }
+	XForm( const Matrix< Real , Dim , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ); }
+	XForm( const XForm &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ); }
+	XForm operator = ( const Matrix< Real , Dim , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ) ; return *this; }
+	XForm operator = ( const XForm< Real , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ) ; return *this; }
 	static XForm Identity( void )
 	{
 		XForm xForm;
@@ -223,6 +308,23 @@ struct XForm
 	inline XForm  operator -  ( const XForm& m ) const { return (*this)+(-m); }
 	inline XForm& operator /= ( Real s ){ return ( (*this)*=(Real)(1./s) ); }
 	inline XForm  operator /  ( Real s ) const { return (*this) * ( (Real)(1./s) ); }
+
+	friend std::ostream &operator << ( std::ostream &os , const XForm &x )
+	{
+		os << "{ ";
+		for( int r=0 ; r<Dim ; r++ )
+		{
+			if( r ) os << " , ";
+			os << "{ ";
+			for( int c=0 ; c<Dim ; c++ )
+			{
+				if( c ) os << " , ";
+				os << x.coords[c][r];
+			}
+			os << " }";
+		}
+		return os << " }";
+	}
 };
 template<>
 inline XForm< float , 1 > XForm< float , 1 >::inverse( void ) const
@@ -323,10 +425,143 @@ struct Simplex
 		return c / (K+1);
 	}
 	void split( Point< Real , Dim > pNormal , Real pOffset , std::vector< Simplex >& back , std::vector< Simplex >& front ) const;
+
+	template< unsigned int _K=K >
+	typename std::enable_if< _K==Dim-1 , Point< Real , Dim > >::type normal( void ) const
+	{
+		static_assert( K==Dim-1 , "[ERROR] Co-dimension is not one" );
+		Point< Real , Dim > d[Dim-1];
+		for( int k=1 ; k<Dim ; k++ ) d[k-1] = p[k] - p[0];
+		return Point< Real , Dim >::CrossProduct( d );
+	}
+	template< unsigned int _K=K >
+	typename std::enable_if< _K==Dim-1 , bool >::type intersect( Ray< Real , Dim > ray , Real &t , Real barycentricCoordinates[Dim] ) const
+	{
+		static_assert( K==Dim-1 , "[ERROR] Co-dimension is not one" );
+		Point< Real , Dim > n = normal();
+		Real denominator = Point< Real , Dim >::Dot( n , ray.direction );
+		if( denominator==0 ) return false;
+		// Solve for t s.t. < ray(t) , n > = < p[0] , n >
+		t = Point< Real , Dim >::Dot( n , p[0] - ray.position ) / denominator;
+		Point< Real,  Dim > q = ray(t);
+
+		// Let C be the matrix whose columns are the simplex vertices.
+		// Solve for the barycentric coordinates, b, minimizing:
+		//		E(b) = || C * b - q ||^2
+		//		     = b^t * C^t * C * b - 2 * b^t * C^t * q + || q ||^2
+		// Taking the gradient with respect to b gives:
+		//		   b = ( C^t * C )^{-1} * C^t * q
+		Matrix< Real , Dim-1 , Dim > C;
+		for( int c=0 ; c<Dim-1 ; c++ ) for( int r=0 ; r<Dim ; r++ ) C(c,r) = p[c+1][r] - p[0][r];
+		Matrix< Real , Dim , Dim-1 > C_t = C.transpose();
+		XForm< Real , Dim-1 > M = C_t * C;
+		Point< Real , Dim-1 > bc = M.inverse() * ( C_t * ( q - p[0] ) );
+		barycentricCoordinates[0] = (Real)1.;
+		for( unsigned int d=0 ; d<Dim-1 ; d++ ) barycentricCoordinates[d+1] = bc[d] , barycentricCoordinates[0] -= bc[d];
+		for( unsigned int d=0 ; d<Dim ; d++ ) if( barycentricCoordinates[d]<0 ) return false;
+		return true;
+	}
+
+	template< unsigned int _K=K >
+	static typename std::enable_if< _K==Dim-1 , bool >::type IsInterior( Point< Real , Dim > p , const std::vector< Simplex< Real , Dim , Dim-1 > > &simplices )
+	{
+		if( !simplices.size() ) ERROR_OUT( "No simplices provided" );
+
+		// Create a ray that intersecting the largest simplex
+		int idx;
+		{
+			Real maxMeasure = 0;
+			for( int i=0 ; i<simplices.size() ; i++ )
+			{
+				Real measure = simplices[i].squareMeasure();
+				if( measure>maxMeasure ) maxMeasure = measure , idx = i;
+			}
+		}
+		Ray< Real , Dim > ray( p , simplices[idx].center() - p );
+		Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
+		if( !l ) ERROR_OUT( "point is on simplex" );
+		l = (Real)sqrt(l);
+		ray.direction /= l;
+
+		// Make the assessment based on which side of the simplex the point p is
+		Real min_t = l;
+		bool isInside = Point< Real , Dim >::Dot( simplices[idx].normal() , ray.direction )*min_t>0;
+
+		// Look for intersections with closer simplices
+		for( size_t i=0 ; i<simplices.size() ; i++ )
+		{
+			Real t , barycentricCoordinates[ Dim ];
+			if( simplices[i].intersect( ray , t , barycentricCoordinates ) && t<min_t )	min_t = t , isInside = Point< Real , Dim >::Dot( simplices[i].normal() , ray.direction )*t>0;
+		}
+		return isInside;
+	}
+
+	template< unsigned int _K=K >
+	static typename std::enable_if< _K==Dim-1 , bool >::type IsInterior( Point< Real , Dim > p , const std::vector< Simplex< Real , Dim , Dim-1 > > &simplices , const std::vector< Point< Real , Dim > > &normals )
+	{
+		if( !simplices.size() ) ERROR_OUT( "No simplices provided" );
+
+#if 0
+		// A more conservative approach for ray-tracing, sending a ray for each simplex and using the consensus solution
+		Real insideMeasure = 0;
+		for( int idx=0 ; idx<simplices.size() ; idx++ )
+		{
+			Ray< Real , Dim > ray( p , simplices[idx].center() - p );
+			Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
+			if( !l ){ WARN( "point is on simplex" ) ; continue; }
+			l = (Real)sqrt(l);
+			ray.direction /= l;
+
+			// Make the assessment based on which side of the simplex the point p is
+			Real min_t = l;
+			bool isInside = Point< Real , Dim >::Dot( normals[idx] , ray.direction )*min_t>0;
+
+			// Look for intersections with closer simplices
+			for( size_t i=0 ; i<simplices.size() ; i++ )
+			{
+				Real t , barycentricCoordinates[ Dim ];
+				if( simplices[i].intersect( ray , t , barycentricCoordinates ) && t<min_t )	min_t = t , isInside = Point< Real , Dim >::Dot( normals[i] , ray.direction )*t>0;
+			}
+			Real measure = simplices[idx].measure();
+			if( isInside ) insideMeasure += measure;
+			else           insideMeasure -= measure;
+		}
+		return insideMeasure>0;
+#else
+		// Create a ray that intersecting the largest simplex
+		int idx;
+		{
+			Real maxMeasure = 0;
+			for( int i=0 ; i<simplices.size() ; i++ )
+			{
+				Real measure = simplices[i].squareMeasure();
+				if( measure>maxMeasure ) maxMeasure = measure , idx = i;
+			}
+		}
+		Ray< Real , Dim > ray( p , simplices[idx].center() - p );
+		Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
+		if( !l ) ERROR_OUT( "point is on simplex" );
+		l = (Real)sqrt(l);
+		ray.direction /= l;
+
+		// Make the assessment based on which side of the simplex the point p is
+		Real min_t = l;
+		bool isInside = Point< Real , Dim >::Dot( normals[idx] , ray.direction )*min_t>0;
+
+		// Look for intersections with closer simplices
+		for( size_t i=0 ; i<simplices.size() ; i++ )
+		{
+			Real t , barycentricCoordinates[ Dim ];
+			if( simplices[i].intersect( ray , t , barycentricCoordinates ) && t<min_t ) min_t = t , isInside = Point< Real , Dim >::Dot( normals[i] , ray.direction )*t>0;
+		}
+		return isInside;
+#endif
+	}
 };
 template< class Real , unsigned int Dim >
 struct Simplex< Real , Dim , 0 >
 {
+	static const unsigned int K=0;
 	Point< Real , Dim > p[1];
 	Point< Real , Dim >& operator[]( unsigned int k ){ return p[k]; }
 	const Point< Real , Dim >& operator[]( unsigned int k ) const { return p[k]; }
@@ -338,7 +573,49 @@ struct Simplex< Real , Dim , 0 >
 		if( Point< Real , Dim >::Dot( p[0] , pNormal ) < pOffset ) back.push_back( *this );
 		else                                                       front.push_back( *this );
 	}
+	template< unsigned int _K=K >
+	typename std::enable_if< _K==Dim-1 , bool >::type intersect( Ray< Real , Dim > ray , Real &t , Real barycentricCoordinates[Dim] ) const
+	{
+		static_assert( K==Dim-1 , "[ERROR] Co-dimension is not one" );
+		if( !ray.direction[0] ) return false;
+		// Solve for t s.t. ray(t) = p[0]
+		t = ( p[0][0] - ray.position[0] ) / ray.direction[0];
+		barycentricCoordinates[0] = (Real)1.;
+		return true;
+	}
+
+	template< unsigned int _K=0 >
+	static typename std::enable_if< _K==Dim-1 , bool >::type IsInterior( Point< Real , Dim > p , const std::vector< Simplex< Real , Dim , Dim-1 > > &simplices , const std::vector< Point< Real , Dim > > &normals )
+	{
+		if( !simplices.size() ) ERROR_OUT( "No simplices provided" );
+
+		Ray< Real , Dim > ray( p , simplices[0].center() - p );
+		Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
+		if( !l ) ERROR_OUT( "point is on simplex" );
+		l = (Real)sqrt(l);
+		ray.direction /= l;
+
+		// Make the assessment based on which side of the simplex the point p is
+		Real min_t = l;
+		bool isInside = Point< Real , Dim >::Dot( normals[0] , ray.direction )*min_t>0;
+
+		// Look for intersections with closer simplices
+		for( size_t i=0 ; i<simplices.size() ; i++ )
+		{
+			Real t , barycentricCoordinates[ Dim ];
+			if( simplices[i].intersect( ray , t , barycentricCoordinates ) && t<min_t ) min_t = t , isInside = Point< Real , Dim >::Dot( normals[i] , ray.direction )*t>0;
+		}
+		return isInside;
+	}
 };
+
+template< typename Real , unsigned int Dim , unsigned int K >
+std::ostream &operator << ( std::ostream &os , const Simplex< Real , Dim , K > &s )
+{
+	for( unsigned int k=0 ; k<K ; k++ ) os << s.p[k] << " , ";
+	return os << s.p[K];
+}
+
 template< class Real , unsigned int Dim > using Edge = Simplex< Real , Dim , 1 >;
 template< class Real , unsigned int Dim > using Triangle = Simplex< Real , Dim , 2 >;
 
@@ -364,6 +641,40 @@ protected:
 };
 template< typename Index > using EdgeIndex = SimplexIndex< 1 , Index >;
 template< typename Index > using TriangleIndex = SimplexIndex< 2 , Index >;
+
+template< typename Real , unsigned int Dim , unsigned int K >
+struct SimplicialComplex
+{
+	SimplicialComplex( const std::vector< Simplex< Real , Dim , K > > &simplices ) : _simplices( simplices ){}
+	virtual size_t size( void ) const { return _simplices.size(); }
+	virtual Simplex< Real , Dim , K > operator[]( size_t idx ) const { return _simplices[idx]; }
+protected:
+	SimplicialComplex( void ) :_simplices(__simplices) {}
+	const std::vector< Simplex< Real , Dim , K > > &_simplices;
+	const std::vector< Simplex< Real , Dim , K > > __simplices;
+};
+
+template< typename Real , unsigned int Dim , unsigned int K , typename IndexType >
+struct IndexedSimplicialComplex : public SimplicialComplex< Real , Dim , K >
+{
+	IndexedSimplicialComplex( const std::vector< Point< Real , Dim > > &vertices , const std::vector< SimplexIndex< K , IndexType > > &simplices ) : _vertices(vertices) , _simplices(simplices){}
+	IndexedSimplicialComplex( IndexedSimplicialComplex && isc )
+	{
+		std::swap( _vertices , isc._vertices );
+		std::swap( _simplices , isc._simplices );
+	}
+
+	size_t size( void ) const { return _simplices.size(); }
+	Simplex< Real , Dim , K > operator[]( size_t idx ) const
+	{
+		Simplex< Real , Dim , K > s;
+		for( unsigned int k=0 ; k<=K ; k++ ) s[k] = _vertices[ _simplices[idx][k] ];
+		return s;
+	}
+protected:
+	const std::vector< Point< Real , Dim > > &_vertices;
+	const std::vector< SimplexIndex< K , IndexType > > &_simplices;
+};
 
 template< typename Index >
 class CoredPointIndex

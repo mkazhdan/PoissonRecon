@@ -29,7 +29,7 @@ DAMAGE.
 #include "PreProcessor.h"
 
 #undef USE_DOUBLE				// If enabled, double-precesion is used
-#define DIMENSION 3				// The dimension of the system
+#define DEFAULT_DIMENSION 3		// The dimension of the system
 #define DEFAULT_FEM_DEGREE 1	// The default finite-element degree
 
 #include <stdio.h>
@@ -63,7 +63,7 @@ cmdLineParameter< int >
 	GSIterations( "iters" , 8 ) ,
 	Depth( "depth" , 8 ) ,
 	FullDepth( "fullDepth" , 5 ) ,
-	BaseDepth( "baseDepth" , 0 ) ,
+	BaseDepth( "baseDepth" ) ,
 	BaseVCycles( "baseVCycles" , 1 ) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef _OPENMP
@@ -117,7 +117,7 @@ void ShowUsage( char* ex )
 #endif // !FAST_COMPILE
 	printf( "\t[--%s <maximum reconstruction depth>=%d]\n" , Depth.name , Depth.value );
 	printf( "\t[--%s <full depth>=%d]\n" , FullDepth.name , FullDepth.value );
-	printf( "\t[--%s <coarse MG solver depth>=%d]\n" , BaseDepth.name , BaseDepth.value );
+	printf( "\t[--%s <coarse MG solver depth>]\n" , BaseDepth.name );
 	printf( "\t[--%s <coarse MG solver v-cycles>=%d]\n" , BaseVCycles.name , BaseVCycles.value );
 	printf( "\t[--%s <scale factor>=%f]\n" , Scale.name , Scale.value );
 	printf( "\t[--%s <diffusion time>=%.3e]\n" , DiffusionTime.name , DiffusionTime.value );
@@ -146,20 +146,20 @@ struct FEMTreeProfiler
 	void print( const char* header ) const
 	{
 		FEMTree< Dim , Real >::MemoryUsage();
-		if( header ) printf( "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %9.1f (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-		else         printf(    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %9.1f (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
+		if( header ) printf( "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
+		else         printf(    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
 	}
 	void dumpOutput( const char* header ) const
 	{
 		FEMTree< Dim , Real >::MemoryUsage();
-		if( header ) messageWriter( "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %9.1f (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-		else         messageWriter(    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %9.1f (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
+		if( header ) messageWriter( "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
+		else         messageWriter(    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
 	}
 	void dumpOutput2( std::vector< std::string >& comments , const char* header ) const
 	{
 		FEMTree< Dim , Real >::MemoryUsage();
-		if( header ) messageWriter( comments , "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %9.1f (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-		else         messageWriter( comments ,    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %9.1f (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
+		if( header ) messageWriter( comments , "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
+		else         messageWriter( comments ,    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
 	}
 };
 
@@ -218,6 +218,7 @@ void _Execute( int argc , char* argv[] )
 	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 0 > InterpolationInfo;
+	typedef typename FEMTree< Dim , Real >::FEMTreeNode FEMTreeNode;
 	std::vector< std::string > comments;
 	messageWriter( comments , "*****************************************\n" );
 	messageWriter( comments , "*****************************************\n" );
@@ -226,15 +227,14 @@ void _Execute( int argc , char* argv[] )
 	messageWriter( comments , "*****************************************\n" );
 	if( !Threads.set ) messageWriter( comments , "Running with %d threads\n" , Threads.value );
 
-
-	XForm< Real , Dim+1 > xForm , iXForm;
+	XForm< Real , Dim+1 > modelToUnitCube , unitCubeToModel;
 	if( InXForm.set )
 	{
 		FILE* fp = fopen( InXForm.value , "r" );
 		if( !fp )
 		{
 			WARN( "Could not open file for reading x-form: " , InXForm.value );
-			xForm = XForm< Real , Dim+1 >::Identity();
+			modelToUnitCube = XForm< Real , Dim+1 >::Identity();
 		}
 		else
 		{
@@ -242,12 +242,12 @@ void _Execute( int argc , char* argv[] )
 			{
 				float f;
 				if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read xform" );
-				xForm(i,j) = (Real)f;
+				modelToUnitCube(i,j) = (Real)f;
 			}
 			fclose( fp );
 		}
 	}
-	else xForm = XForm< Real , Dim+1 >::Identity();
+	else modelToUnitCube = XForm< Real , Dim+1 >::Identity();
 
 	char str[1024];
 	for( int i=0 ; params[i] ; i++ )
@@ -290,12 +290,12 @@ void _Execute( int argc , char* argv[] )
 			triangles.resize( _polygons.size() );
 			for( int i=0 ; i<triangles.size() ; i++ ) for( int j=0 ; j<Dim ; j++ ) triangles[i][j] = _polygons[i][j];
 		}
-		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = xForm * vertices[i];
-		XForm< Real , Dim+1 > _xForm = GetPointXForm< Real , Dim >( vertices , (Real)Scale.value );
-		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = _xForm * vertices[i];
-		xForm = _xForm * xForm;
+		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = modelToUnitCube * vertices[i];
+		XForm< Real , Dim+1 > _modelToUnitCube = GetPointXForm< Real , Dim >( vertices , (Real)Scale.value );
+		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = _modelToUnitCube * vertices[i];
+		modelToUnitCube = _modelToUnitCube * modelToUnitCube;
 		FEMTreeInitializer< Dim , Real >::Initialize( tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , true , tree.nodeAllocators , tree.initializer() );
-		iXForm = xForm.inverse();
+		unitCubeToModel = modelToUnitCube.inverse();
 		if( OutXForm.set )
 		{
 			FILE* fp = fopen( OutXForm.value , "w" );
@@ -304,7 +304,7 @@ void _Execute( int argc , char* argv[] )
 			{
 				for( int i=0 ; i<Dim+1 ; i++ )
 				{
-					for( int j=0 ; j<Dim+1 ; j++ ) fprintf( fp , " %f" , (float)iXForm(i,j) );
+					for( int j=0 ; j<Dim+1 ; j++ ) fprintf( fp , " %f" , (float)unitCubeToModel(i,j) );
 					fprintf( fp , "\n" );
 				}
 				fclose( fp );
@@ -329,17 +329,26 @@ void _Execute( int argc , char* argv[] )
 	// Thicken the tree around the mesh
 	{
 		profiler.start();
-		typename FEMTree< Dim , Real >::FEMTreeNode** nodes = new typename FEMTree< Dim , Real >::FEMTreeNode*[ geometrySamples.size() ];
+		FEMTreeNode** nodes = new FEMTreeNode*[ geometrySamples.size() ];
 		for( int i=0 ; i<geometrySamples.size() ; i++ ) nodes[i] = geometrySamples[i].node;
-		tree.template thicken< Degree >( nodes , (int)geometrySamples.size() );
+		tree.template processNeighbors< Degree , true >( nodes , (int)geometrySamples.size() , std::make_tuple() );
 		profiler.dumpOutput2( comments , "#       Thickened tree:" );
 		delete[] nodes;
+	}
+
+	InterpolationInfo *valueInfo = NULL;
+	if( ValueWeight.value>0 )
+	{
+		profiler.start();
+		if( ExactInterpolation.set ) valueInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 >( tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , false );
+		else                         valueInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 >( tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , 0 );
+		profiler.dumpOutput2( comments , "#Initialized point interpolation constraints:" );
 	}
 
 	// Finalize the topology of the tree
 	{
 		profiler.start();
-		tree.template finalizeForMultigrid< Degree >( FullDepth.value , typename FEMTree< Dim , Real >::TrivialHasDataFunctor() );
+		tree.template finalizeForMultigrid< Degree , Degree >( BaseDepth.value , FullDepth.value , typename FEMTree< Dim , Real >::TrivialHasDataFunctor() , []( const FEMTreeNode * ){ return false; } , std::make_tuple( valueInfo ) );
 		profiler.dumpOutput2( comments , "#       Finalized tree:" );
 	}
 
@@ -374,7 +383,7 @@ void _Execute( int argc , char* argv[] )
 			typename FEMIntegrator::template System< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > > F( { 1. , (double)DiffusionTime.value } );
 			heatSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , Depth.value , sInfo );
 		}
-		sInfo.baseDepth = BaseDepth.value , sInfo.baseVCycles = BaseVCycles.value;
+		sInfo.baseVCycles = BaseVCycles.value;
 		profiler.dumpOutput2( comments , "#   Heat system solved:" );
 	}
 
@@ -468,7 +477,6 @@ void _Execute( int argc , char* argv[] )
 	{
 		// Evaluate the gradients at the center of the leaf nodes
 		DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > > edtSolution , constraints;
-		InterpolationInfo *valueInfo = NULL;
 
 		// Add the FEM constraints
 		{
@@ -490,12 +498,10 @@ void _Execute( int argc , char* argv[] )
 		}
 
 		// Add the interpolation constraints
-		if( ValueWeight.value>0 )
+		if( valueInfo>0 )
 		{
 			profiler.start();
-			if( ExactInterpolation.set ) valueInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 >( tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , false );
-			else                         valueInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 >( tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , 0 );
-			tree.addInterpolationConstraints( constraints , Depth.value , *valueInfo );
+			tree.addInterpolationConstraints( constraints , Depth.value , std::make_tuple( valueInfo ) );
 			profiler.dumpOutput2( comments , "#Set point constraints:" );
 		}
 
@@ -505,14 +511,13 @@ void _Execute( int argc , char* argv[] )
 			typename FEMTree< Dim , Real >::SolverInfo sInfo;
 			sInfo.cgDepth = 0 , sInfo.cascadic = true , sInfo.vCycles = 1 , sInfo.cgAccuracy = CGSolverAccuracy.value , sInfo.verbose = Verbose.set , sInfo.showResidual = ShowResidual.set , sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE , sInfo.sliceBlockSize = 1;
 			sInfo.iters = GSIterations.value;
-			sInfo.baseDepth = BaseDepth.value , sInfo.baseVCycles = BaseVCycles.value;
+			sInfo.baseVCycles = BaseVCycles.value;
 			sInfo.useSupportWeights = true;
 			sInfo.sorRestrictionFunction  = [&]( Real w , Real ){ return (Real)( WeightScale.value * pow( w , WeightExponent.value ) ); }; 
 			typename FEMIntegrator::template System< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
-			edtSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , Depth.value , sInfo , valueInfo );
+			edtSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , Depth.value , sInfo , std::make_tuple( valueInfo ) );
 			profiler.dumpOutput2( comments , "#    EDT system solved:" );
 		}
-		if( valueInfo ) delete valueInfo , valueInfo = NULL;
 
 		{
 			auto GetAverageValueAndError = [&]( const FEMTree< Dim , Real >* tree , const DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >& coefficients , double& average , double& error )
@@ -545,11 +550,12 @@ void _Execute( int argc , char* argv[] )
 			if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Out.value );
 			FEMTree< Dim , Real >::WriteParameter( fp );
 			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fp );
-			tree.write( fp , xForm );
+			tree.write( fp , modelToUnitCube );
 			edtSolution.write( fp );
 			fclose( fp );
 		}
 	}
+	if( valueInfo ) delete valueInfo , valueInfo = NULL;
 }
 
 #ifndef FAST_COMPILE
@@ -594,14 +600,15 @@ int main( int argc , char* argv[] )
 	static const BoundaryType BType = BOUNDARY_FREE;
 
 	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
+	if( !BaseDepth.set ) BaseDepth.value = FullDepth.value;
 	if( BaseDepth.value>FullDepth.value )
 	{
 		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
-	_Execute< DIMENSION , Real , FEMDegreeAndBType< Degree , BType >::Signature >( argc , argv );
+	_Execute< DEFAULT_DIMENSION , Real , FEMDegreeAndBType< Degree , BType >::Signature >( argc , argv );
 #else // !FAST_COMPILE
-	Execute< DIMENSION , Real >( argc , argv );
+	Execute< DEFAULT_DIMENSION , Real >( argc , argv );
 #endif // FAST_COMPILE
 	if( Performance.set )
 	{

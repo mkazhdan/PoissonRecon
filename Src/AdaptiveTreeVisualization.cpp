@@ -39,6 +39,7 @@ DAMAGE.
 #include "Ply.h"
 #include "PointStreamData.h"
 #include "Image.h"
+#include "RegularGrid.h"
 
 cmdLineParameter< char* >
 	In( "in" ) ,
@@ -78,7 +79,6 @@ cmdLineReadable* params[] =
 	NULL
 };
 
-
 void ShowUsage( char* ex )
 {
 	printf( "Usage: %s\n" , ex );
@@ -103,31 +103,43 @@ void ShowUsage( char* ex )
 }
 
 template< typename Real , unsigned int Dim >
-void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
+void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned int res , XForm< Real , Dim+1 > voxelToModel , bool verbose )
 {
-	int resolution = 1;
-	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
-
 	char *ext = GetFileExtension( fileName );
 
 	if( Dim==2 && ImageWriter::ValidExtension( ext ) )
 	{
+		unsigned int totalResolution = 1;
+		for( int d=0 ; d<Dim ; d++ ) totalResolution *= res;
+
+		// Compute average
 		Real avg = 0;
 		std::vector< Real > avgs( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
+		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
 		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) avg += avgs[t];
-		avg /= (Real)resolution;
+		avg /= (Real)totalResolution;
 
+		// Compute standard deviation
 		Real std = 0;
 		std::vector< Real > stds( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
+		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
 		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) std += stds[t];
-		std = (Real)sqrt( std / resolution );
+		std = (Real)sqrt( std / totalResolution );
 
-		if( Verbose.set ) printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
+		if( verbose )
+		{
+			printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
+			printf( "Transform:\n" );
+			for( int i=0 ; i<Dim+1 ; i++ )
+			{
+				printf( "\t" );
+				for( int j=0 ; j<Dim+1 ; j++ ) printf( " %f" , voxelToModel(j,i) );
+				printf( "\n" );
+			}
+		}
 
-		unsigned char *pixels = new unsigned char[ resolution*3 ];
-		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
+		unsigned char *pixels = new unsigned char[ totalResolution*3 ];
+		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int , size_t i )
 		{
 			Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
 			v = (Real)( ( v + 1. ) / 2. * 256. );
@@ -138,30 +150,27 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		ImageWriter::Write( fileName , pixels , res , res , 3 );
 		delete[] pixels;
 	}
+	else if( !strcasecmp( ext , "iso" ) )
+	{
+		FILE *fp = fopen( fileName , "wb" );
+		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , fileName );
+		int r = (int)res;
+		fwrite( &r , sizeof(int) , 1 , fp );
+		size_t count = 1;
+		for( unsigned int d=0 ; d<Dim ; d++ ) count *= res;
+		fwrite( values , sizeof(Real) , count , fp );
+		fclose( fp );
+	}
 	else
 	{
-
-		FILE *fp = fopen( fileName , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: " , fileName );
-		else
-		{
-			fwrite( &res , sizeof(int) , 1 , fp );
-			if( typeid(Real)==typeid(float) ) fwrite( values , sizeof(float) , resolution , fp );
-			else
-			{
-				float *fValues = new float[resolution];
-				for( int i=0 ; i<resolution ; i++ ) fValues[i] = float( values[i] );
-				fwrite( fValues , sizeof(float) , resolution , fp );
-				delete[] fValues;
-			}
-			fclose( fp );
-		}
+		unsigned int _res[Dim];
+		for( int d=0 ; d<Dim ; d++ ) _res[d] = res;
+		RegularGrid< Real , Dim >::Write( fileName , _res , values , voxelToModel );
 	}
 	delete[] ext;
 }
-
 template< unsigned int Dim , class Real , unsigned int FEMSig >
-void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > xForm , FILE* fp )
+void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > modelToUnitCube , FILE* fp )
 {
 	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
@@ -187,10 +196,10 @@ void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > xForm ,
 		{
 			ThreadPool::Parallel_for( 0 , pointsRead , [&]( unsigned int thread , size_t j )
 			{
-				Point< Real , Dim > p = xForm * points[j];
+				Point< Real , Dim > p = modelToUnitCube * points[j];
 				bool inBounds = true;
 				for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) inBounds = false;
-				if( inBounds ) values[j] = evaluator.values( xForm * points[j] , thread )[0];
+				if( inBounds ) values[j] = evaluator.values( modelToUnitCube * points[j] , thread )[0];
 				else           values[j] = (Real)nan( "" );
 			}
 			);
@@ -207,7 +216,10 @@ void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > xForm ,
 		double t = Time();
 		Pointer( Real ) values = tree->template regularGridEvaluate< true >( coefficients , res , -1 , PrimalGrid.set );
 		if( Verbose.set ) printf( "Got grid: %.2f(s)\n" , Time()-t );
-		WriteGrid< Real , Dim >( values , res , OutGrid.value );
+		XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
+		if( PrimalGrid.set ) for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / (res-1) );
+		else                 for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / res ) , voxelToUnitCube( Dim , d ) = (Real)( 0.5 / res );
+		WriteGrid< Real , Dim >( OutGrid.value , values , res , modelToUnitCube.inverse() * voxelToUnitCube , Verbose.set );
 		DeletePointer( values );
 	}
 
@@ -217,71 +229,50 @@ void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > xForm ,
 		double t = Time();
 		typedef PlyVertex< Real , Dim > Vertex;
 		CoredFileMeshData< Vertex , node_index_type > mesh;
-		std::function< void ( Vertex& , Point< Real , Dim > , Real , Real ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real , Real ){ v.point = p; };
+		std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Real ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Point< Real , Dim > , Real , Real ){ v.point = p; };
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
-		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #else // !__GNUC__ || __GNUC__ >=5
-		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #endif // __GNUC__ || __GNUC__ < 4
 
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
 		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (unsigned long long)mesh.polygonCount() );
 
 		std::vector< std::string > comments;
-		if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , xForm.inverse() ) )
+		if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , modelToUnitCube.inverse() ) )
 			ERROR_OUT( "Could not write mesh to: " , OutMesh.value );
 	}
 }
 
+template< unsigned int Dim , class Real , BoundaryType BType >
+void Execute( FILE* fp , int degree , FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelToUnitCube )
+{
+	switch( degree )
+	{
+	case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BType >::Signature >( tree , modelToUnitCube , fp ) ; break;
+	case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BType >::Signature >( tree , modelToUnitCube , fp ) ; break;
+	case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BType >::Signature >( tree , modelToUnitCube , fp ) ; break;
+	case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BType >::Signature >( tree , modelToUnitCube , fp ) ; break;
+	default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
+	}
+}
 
 template< unsigned int Dim , class Real >
 void Execute( FILE* fp , int degree , BoundaryType bType )
 {
-	XForm< Real , Dim+1 > xForm;
-	FEMTree< Dim , Real > tree( fp , xForm , MEMORY_ALLOCATOR_BLOCK_SIZE );
+	XForm< Real , Dim+1 > modelToUnitCube;
+	FEMTree< Dim , Real > tree( fp , modelToUnitCube , MEMORY_ALLOCATOR_BLOCK_SIZE );
 
 	if( Verbose.set ) printf( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
 
 	switch( bType )
 	{
-	case BOUNDARY_FREE:
-	{
-		switch( degree )
-		{
-			case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BOUNDARY_FREE >::Signature >( &tree , xForm , fp ) ; break;
-			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >( &tree , xForm , fp ) ; break;
-			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >( &tree , xForm , fp ) ; break;
-			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >( &tree , xForm , fp ) ; break;
-			default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
-		}
-	}
-	break;
-	case BOUNDARY_NEUMANN:
-	{
-		switch( degree )
-		{
-			case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BOUNDARY_NEUMANN >::Signature >( &tree , xForm , fp ) ; break;
-			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >( &tree , xForm , fp ) ; break;
-			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >( &tree , xForm , fp ) ; break;
-			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >( &tree , xForm , fp ) ; break;
-			default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
-		}
-	}
-	break;
-	case BOUNDARY_DIRICHLET:
-	{
-		switch( degree )
-		{
-			case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BOUNDARY_DIRICHLET >::Signature >( &tree , xForm , fp ) ; break;
-			case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >( &tree , xForm , fp ) ; break;
-			case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >( &tree , xForm , fp ) ; break;
-			case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >( &tree , xForm , fp ) ; break;
-			default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
-		}
-	}
-	break;
+	case BOUNDARY_FREE:      return Execute< Dim , Real , BOUNDARY_FREE      >( fp , degree , &tree , modelToUnitCube );
+	case BOUNDARY_NEUMANN:   return Execute< Dim , Real , BOUNDARY_NEUMANN   >( fp , degree , &tree , modelToUnitCube );
+	case BOUNDARY_DIRICHLET: return Execute< Dim , Real , BOUNDARY_DIRICHLET >( fp , degree , &tree , modelToUnitCube );
 	default: ERROR_OUT( "Not a valid boundary type: " , bType );
 	}
 }

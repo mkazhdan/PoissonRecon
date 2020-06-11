@@ -136,6 +136,36 @@ struct BlockedVector
 	}
 	size_t push( void ){ return resize( _size+1 ); }
 
+	void write( FILE *fp ) const
+	{
+		fwrite( &_size , sizeof(size_t) , 1 , fp );
+		fwrite( &_defaultValue , sizeof(T) , 1 , fp );
+		fwrite( &_reservedBlocks , sizeof(size_t) , 1 , fp );
+		fwrite( &_allocatedBlocks , sizeof(size_t) , 1 , fp );
+		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) fwrite( _blocks[i] , sizeof(T) , _BlockSize , fp );
+	}
+
+	void read( FILE *fp )
+	{
+		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
+		DeletePointer( _blocks );
+
+		if( fread( &_size , sizeof(size_t) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _size" );
+		if( fread( &_defaultValue , sizeof(T) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _defaultValue" );
+		if( fread( &_reservedBlocks , sizeof(size_t) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _reservedBlocks" );
+		if( fread( &_allocatedBlocks , sizeof(size_t) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _allocatedBlocks" );
+
+		_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
+		if( !_blocks ) ERROR_OUT( "Failed to allocate _blocks: " , _reservedBlocks );
+		for( size_t i=0 ; i<_allocatedBlocks ; i++ )
+		{
+			_blocks[i] = NewPointer< T >( _BlockSize );
+			if( !_blocks[i] ) ERROR_OUT( "Failed to allocate _blocks[" , i , "]" );
+			if( fread( _blocks[i] , sizeof(T) , _BlockSize , fp )!=_BlockSize ) ERROR_OUT( "Failed to read _blocks[" , i , "]" );
+		}
+		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
+	}
+
 protected:
 	static const size_t _BlockSize = 1<<LogBlockSize;
 	static const size_t _Mask = (1<<LogBlockSize)-1;

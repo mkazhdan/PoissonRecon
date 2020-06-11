@@ -29,7 +29,7 @@ DAMAGE.
 #include "PreProcessor.h"
 
 #undef USE_DOUBLE
-#define DIMENSION 2
+#define DEFAULT_DIMENSION 2
 #define ROW_BLOCK_SIZE 16
 #define DEFAULT_FEM_DEGREE 1
 
@@ -64,11 +64,11 @@ cmdLineParameter< int >
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	GSIterations( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 6 ) ,
-	BaseDepth( "baseDepth" , 6 ) ,
+	BaseDepth( "baseDepth" ) ,
 	BaseVCycles( "baseVCycles" , 4 );
 cmdLineReadable
 	Verbose( "verbose" ) ,
-	ShowResidual( "residual" ) ,
+	ShowResidual( "showResidual" ) ,
 	Performance( "performance" );
 cmdLineParameter< float >
 	WeightScale   ( "wScl", 0.125f ) ,
@@ -110,7 +110,7 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <successive under-relaxation exponent>=%f]\n", WeightExponent.name , WeightExponent.value );
 	printf( "\t[--%s <maximum memory (in GB)>=%d]\n" , MaxMemoryGB.name , MaxMemoryGB.value );
 	printf( "\t[--%s]\n" , Performance.name );
-	printf( "\t[--%s <coarse MG solver depth>=%d]\n" , BaseDepth.name , BaseDepth.value );
+	printf( "\t[--%s <coarse MG solver depth>]\n" , BaseDepth.name );
 	printf( "\t[--%s <coarse MG solver v-cycles>=%d]\n" , BaseVCycles.name , BaseVCycles.value );
 	printf( "\t[--%s]\n" , ShowResidual.name );
 	printf( "\t[--%s]\n" , Verbose.name );
@@ -185,11 +185,11 @@ void ReadAndWrite( ImageReader* pixels , ImageReader* labels , ImageWriter* outp
 }
 
 template< class Real , unsigned int Colors >
-struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Real >::template DerivativeStream< Point< Real , Colors > >
+struct BufferedImageDerivativeStream : public FEMTreeInitializer< DEFAULT_DIMENSION , Real >::template DerivativeStream< Point< Real , Colors > >
 {
 	BufferedImageDerivativeStream( const unsigned int resolution[] , ImageReader* pixels , ImageReader* labels ) : _pixels( pixels ) , _labels( labels )
 	{
-		memcpy( _resolution , resolution , sizeof( unsigned int ) * DIMENSION );
+		memcpy( _resolution , resolution , sizeof( unsigned int ) * DEFAULT_DIMENSION );
 		for( int i=0 ; i<3 ; i++ )
 		{
 			_pixelRows[i] = new RGBPixel[ _resolution[0] ];
@@ -274,7 +274,7 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 	}
 protected:
 	int _r , _c , _dir;
-	unsigned int _resolution[DIMENSION];
+	unsigned int _resolution[DEFAULT_DIMENSION];
 	ImageReader *_pixels , *_labels;
 	RGBPixel *_pixelRows[3] , *_labelRows[3];
 	unsigned char *__pixelRow , *__labelRow;
@@ -295,15 +295,17 @@ void _Execute( void )
 	}
 	if( Verbose.set ) printf( "Resolution: %d x %d\n" , w , h );
 
-	static const unsigned int Dim = DIMENSION;
+	static const unsigned int Dim = DEFAULT_DIMENSION;
 	static const unsigned int Colors = 3;
 	static const unsigned int FEMSig = FEMDegreeAndBType< Degree , BOUNDARY_NEUMANN >::Signature;
+	typedef typename FEMTree< Dim , Real >::FEMTreeNode FEMTreeNode;
 
 	FEMTree< Dim , Real > tree( MEMORY_ALLOCATOR_BLOCK_SIZE );
 	std::vector< NodeSample< Dim , Point< Real , Colors > > > derivatives[Dim];
 	int maxDepth;
 	DenseNodeData< Point< Real , Colors > , IsotropicUIntPack< Dim , FEMSig > > constraints;
 	DenseNodeData< Point< Real , Colors > , IsotropicUIntPack< Dim , FEMSig > > solution;
+
 	{
 		Profiler p;
 		ImageReader* pixels = ImageReader::Get( In.values[0] );
@@ -319,6 +321,7 @@ void _Execute( void )
 				);
 			dStream.advance();
 		}
+
 		delete pixels;
 		delete labels;
 		{
@@ -326,9 +329,9 @@ void _Execute( void )
 			nodes.reserve( derivatives[0].size() + derivatives[1].size() );
 			for( int i=0 ; i<derivatives[0].size() ; i++ ) nodes.push_back( derivatives[0][i].node );
 			for( int i=0 ; i<derivatives[1].size() ; i++ ) nodes.push_back( derivatives[1][i].node );
-			tree.template thicken< 1 , 0 >( &nodes[0] , (int)nodes.size() );
+			tree.template processNeighbors< 1 , 0 , true >( &nodes[0] , (int)nodes.size() , std::make_tuple() );
 		}
-		tree.template finalizeForMultigrid< Degree >( FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* ){ return true; } );
+		tree.template finalizeForMultigrid< Degree , Degree >( BaseDepth.value , FullDepth.value , []( const FEMTreeNode * ){ return true; } , []( const FEMTreeNode * ){ return false; } , std::make_tuple() );
 		if( Verbose.set )
 		{
 			printf( "Valid FEM Nodes / Edges: %llu %llu\n" , (unsigned long long)tree.validFEMNodes( IsotropicUIntPack< Dim , FEMSig >() ) , (unsigned long long)( derivatives[0].size() + derivatives[1].size() ) );
@@ -377,7 +380,7 @@ void _Execute( void )
 		solution = tree.template initDenseNodeData< Point< Real , Colors > >( IsotropicUIntPack< Dim , FEMSig >() );
 		typename FEMTree< Dim , Real >::SolverInfo sInfo;
 		sInfo.cgDepth = 0 , sInfo.cascadic = false , sInfo.vCycles = 1 , sInfo.cgAccuracy = 0 , sInfo.verbose = Verbose.set , sInfo.showResidual = ShowResidual.set , sInfo.showGlobalResidual = false , sInfo.sliceBlockSize = ROW_BLOCK_SIZE;
-		sInfo.baseDepth = BaseDepth.value , sInfo.baseVCycles = BaseVCycles.value;
+		sInfo.baseVCycles = BaseVCycles.value;
 		sInfo.iters = GSIterations.value;
 
 		sInfo.useSupportWeights = true;
@@ -519,6 +522,7 @@ int main( int argc , char* argv[] )
 		ShowUsage( argv[0] );
 		return EXIT_FAILURE;
 	}
+	if( !BaseDepth.set ) BaseDepth.value = FullDepth.value;
 	if( BaseDepth.value>FullDepth.value )
 	{
 		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );

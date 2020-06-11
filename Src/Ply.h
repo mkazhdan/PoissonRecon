@@ -63,7 +63,6 @@ struct PlyFace
 {
 	unsigned int nr_vertices;
 	Index *vertices;
-	int segment;
 
 	static PlyProperty face_props[];
 };
@@ -132,6 +131,26 @@ protected:
 	static const PlyProperty _PlyProperties[];
 };
 
+template<>
+const PlyProperty PlyVertex< float , 1 , float >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PlyVertex< double , 1 , float >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PlyVertex< float , 1 , double >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_DOUBLE , PLY_FLOAT , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PlyVertex< double , 1 , double >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+};
 template<>
 const PlyProperty PlyVertex< float , 2 , float >::_PlyProperties[] =
 {

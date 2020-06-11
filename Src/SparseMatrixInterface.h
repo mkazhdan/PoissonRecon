@@ -90,5 +90,68 @@ public:
 template< class SPDFunctor , class T , typename Real , class TDotTFunctor > size_t SolveCG( const SPDFunctor& M , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot );
 template< class SPDFunctor , class Preconditioner , class T , typename Real , class TDotTFunctor > size_t SolveCG( const SPDFunctor& M , const Preconditioner& P , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot );
 
+template< typename T >
+struct AbstractArrayWrapper
+{
+	virtual T operator[]( size_t i ) const = 0;
+};
+template< typename T , typename AbstractArrayWrapper1 , typename AbstractArrayWrapper2 > struct _VectorSum;
+template< typename T , typename AbstractArrayWrapper1 , typename AbstractArrayWrapper2 > struct _VectorDifference;
+template< typename T , typename Real , typename const_iterator , typename _AbstractArrayWrapper > struct _VectorProduct;
+
+template< typename T , typename AbstractArrayWrapper1 , typename AbstractArrayWrapper2 >
+struct _VectorSum : public AbstractArrayWrapper< T >
+{
+	_VectorSum( const AbstractArrayWrapper1 &v1 , const AbstractArrayWrapper2 &v2 ) : _v1(v1) , _v2(v2)
+	{
+		//		static_assert( std::is_convertible< AbstractArrayWrapper1 , AbstractArrayWrapper< T > >::value || std::is_convertible< AbstractArrayWrapper1 , ConstPointer(T) >::value , "[ERROR] Bad AbstractArrayWrapper1" );
+		//		static_assert( std::is_convertible< AbstractArrayWrapper2 , AbstractArrayWrapper< T > >::value || std::is_convertible< AbstractArrayWrapper2 , ConstPointer(T) >::value , "[ERROR] Bad AbstractArrayWrapper2" );
+	}
+	T operator[] ( size_t i ) const { return _v1[i] + _v2[i]; }
+protected:
+	const AbstractArrayWrapper1 &_v1;
+	const AbstractArrayWrapper2 &_v2;
+};
+
+template< typename T , typename AbstractArrayWrapper1 , typename AbstractArrayWrapper2 >
+struct _VectorDifference : public AbstractArrayWrapper< T >
+{
+	_VectorDifference( const AbstractArrayWrapper1 &v1 , const AbstractArrayWrapper2 &v2 ) : _v1(v1) , _v2(v2)
+	{
+		//		static_assert( std::is_convertible< AbstractArrayWrapper1 , AbstractArrayWrapper< T > >::value || std::is_convertible< AbstractArrayWrapper1 , ConstPointer(T) >::value , "[ERROR] Bad AbstractArrayWrapper1" );
+		//		static_assert( std::is_convertible< AbstractArrayWrapper2 , AbstractArrayWrapper< T > >::value || std::is_convertible< AbstractArrayWrapper2 , ConstPointer(T) >::value , "[ERROR] Bad AbstractArrayWrapper2" );
+	}
+	T operator[] ( size_t i ) const { return _v1[i] - _v2[i]; }
+protected:
+	const AbstractArrayWrapper1 &_v1;
+	const AbstractArrayWrapper2 &_v2;
+};
+
+template< typename T , typename Real , typename const_iterator , typename _AbstractArrayWrapper >
+struct _VectorProduct : public AbstractArrayWrapper< T >
+{
+	_VectorProduct( const SparseMatrixInterface< Real , const_iterator > &M , const _AbstractArrayWrapper &v ) : _M(M) , _v(v)
+	{
+		//		static_assert( std::is_convertible< _AbstractArrayWrapper , AbstractArrayWrapper< T >  >::value || std::is_convertible< _AbstractArrayWrapper , ConstPointer(T) >::value , "[ERROR] Bad _AbstractArrayWrapper" );
+	}
+	T operator[] ( size_t i ) const
+	{
+		T t = {};
+		const_iterator e = _M.end( i );
+		for( const_iterator iter = _M.begin( i ) ; iter!=e ; iter++ ) t += _v[ iter->N ] * iter->Value;
+		return t;
+	}
+protected:
+	const SparseMatrixInterface< Real , const_iterator > &_M;
+	const _AbstractArrayWrapper &_v;
+};
+
+template< typename T , typename AbstractArrayWrapper1 , typename AbstractArrayWrapper2 >
+_VectorSum< T , AbstractArrayWrapper1 , AbstractArrayWrapper2 > VectorSum( const AbstractArrayWrapper1 &v1 , const AbstractArrayWrapper2 &v2 ){ return _VectorSum< T , AbstractArrayWrapper1 , AbstractArrayWrapper2 >( v1 , v2 ); }
+template< typename T , typename AbstractArrayWrapper1 , typename AbstractArrayWrapper2 >
+_VectorDifference< T , AbstractArrayWrapper1 , AbstractArrayWrapper2 > VectorDifference( const AbstractArrayWrapper1 &v1 , const AbstractArrayWrapper2 &v2 ){ return _VectorDifference< T , AbstractArrayWrapper1 , AbstractArrayWrapper2 >( v1 , v2 ); }
+template< typename T , typename Real , typename const_iterator , typename _AbstractArrayWrapper >
+_VectorProduct< T , Real , const_iterator , _AbstractArrayWrapper > VectorProduct( const SparseMatrixInterface< Real , const_iterator > &M , const _AbstractArrayWrapper &v ){ return _VectorProduct< T , Real , const_iterator , _AbstractArrayWrapper >( M , v ); }
+
 #include "SparseMatrixInterface.inl"
 #endif // SPARSE_MATRIX_INTERFACE_INCLUDED

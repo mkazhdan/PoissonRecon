@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 12.00)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 13.00)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#EXECUTABLES">executables</a>
@@ -27,10 +27,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">V12.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">V11.02</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">V11.01</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">V11.00</a>,
@@ -88,6 +89,13 @@ of the point's normal. (No information about the number of oriented point sample
 Otherwise, the file should be an ascii file with groups of 6,
 white space delimited, numbers: x-, y-, and z-coordinates of the point's position, followed
 by the x-, y- and z-coordinates of the point's normal. (No information about the number of oriented point samples should be specified.)<br> 
+</dd>
+
+<dt>[<b>--hull</b> &lt;<i>constraint hull</i>&gt;]
+</dt><dd> This string is the name of the file from which the constraint envelope will be read.<br>
+The file should be a water-tight triangle mesh in
+<a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, oriented so that the normals are pointing
+in the direction that should be outside of the reconstructed surface.<br>
 
 </dd><dt>[<b>--out</b> &lt;<i>output triangle mesh</i>&gt;]
 </dt><dd> This string is the name of the file to which the triangle mesh will be written. 
@@ -671,6 +679,18 @@ The default value for this parameter is <i>-1</i>, indicating that the input sho
 </dt><dd> This floating point value specifies the size of the padding region used, as a fraction of the total width of the cube.<BR>
 The default value for this parameter is <i>0</i>, indicating that no padding should be used.
 
+</dd><dt>[<b>--noNormals</b>]
+</dt><dd> Enabling this flag lets the chunking code know that, in the case that the input is a point cloud in raw ASCII/binary format, the points do not have normals associated with them..
+
+</dd><dt>[<b>--colors</b>]
+</dt><dd> Enabling this flag lets the chunking code know that, in the case that the input is a point cloud in raw ASCII/binary format, the points have color associatd with them.
+
+</dd><dt>[<b>--values</b>]
+</dt><dd> Enabling this flag lets the chunking code know that, in the case that the input is a point cloud in raw ASCII/binary format, the points have scalar values associated with them.
+
+</dd><dt>[<b>--noNormals</b>]
+</dt><dd> Enabling this flag lets the chunking code know that, in the case that the input is a point cloud in raw ASCII/binary format, the points do not have have normal data.
+
 </dd><dt>[<b>--verbose</b>]
 </dt><dd> Enabling this flag provides a more verbose description of the running times and memory usages of
 individual components of the visualizer.
@@ -725,6 +745,11 @@ This reconstruction can be chunked into cubes of size 4&times;4&times;4 by calli
 <blockquote><code>% ChunkPly --in eagle.ssd.color.trimmed.ply --out eagle.ssd.color.trimmed.chnks --width 4</code></blockquote>
 which partitions the reconstruction into 11 pieces.
 
+<li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/torso.zip"><b>Torso</b></a>:
+A set of 3,488,432 (torso.points.ply) and a depth hull (torso.hull.ply).<br>
+A reconstruction of the torso that constrains the reconstruction to be contained within the prescribed hull can be obtained by calling:
+<blockquote><code>% PoissonRecon --in torso.points.ply --hull torso.hull.ply --out torso.pr.ply --depth 10</code></blockquote>
+using the <b>--hull</b> flag to specify the water-tight mesh constraining the reconstruction.<BR>
 </li>
 
 </ol>
@@ -749,7 +774,7 @@ A set of 4 2D positions at which the fit function is to be evaluated (represente
 </ol>
 
 The function fitting the input samples can be by calling the point interpolant:
-<blockquote><code>% PointInterpolant --in quadratic.2D.fitting.samples --out quadratic.2D.tree --dim 2</code></blockquote>
+<blockquote><code>% PointInterpolant --in quadratic.2D.fitting.samples --tree quadratic.2D.tree --dim 2</code></blockquote>
 Then, the reconstructed function can be evaluated at the evaluation samples by calling the adaptive tree visualization:
 <blockquote><code>% AdaptiveTreeVisualization --in quadratic.2D.tree --samples quadratic.2D.evaluation.samples</code></blockquote>
 This will output the evaluation positions and values:
@@ -757,7 +782,7 @@ This will output the evaluation positions and values:
 <blockquote><CODE>0.5 0 0.25001</CODE></blockquote>
 <blockquote><CODE>0.5 0.5 0.500006</CODE></blockquote>
 <blockquote><CODE>2 2 nan</CODE></blockquote>
-Note that because the last evaluation position, (2,2), is outside the bounding box of the fitting samples, the function cannot be evaluated at this point and a value of "nan" is output.
+Note that because the (last) evaluation position (2,2) is outside the bounding box of the fitting samples, the function cannot be evaluated at this point and a value of "nan" is output.
 </DETAILS>
 </dl>
 </ul>
@@ -987,20 +1012,25 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Added the code for <I>ChunkPly</I> which breaks up large meshes and/or point-sets into chunks.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 11.01</a>:
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">Version 11.01</a>:
 <ol>
 <LI> Fixed bug with <I>_mktemp</I> that caused the code to crash on Windows machine with more than 26 cores.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 11.02</a>:
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">Version 11.02</a>:
 <ol>
 <LI> Added error handling for numerical imprecision issues arrising when too many samples fall into a leaf node.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 12.00</a>:
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">Version 12.00</a>:
 <ol>
 <LI> Added functionality enabling <I>AdaptiveTreeVisualization</I> to output the values of a function at prescribed sample positions.
 <LI> Added the implementation of <I>PointInterpolant</I> that fits a function to a discrete set of sample values.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">Version 13.00</a>:
+<ol>
+<LI> Enabling passing in a constraint envelope to <I>PoissonRecon</I>, allowing one to define a region that is known to be outside the surface.
 </ol>
 
 </DETAILS>

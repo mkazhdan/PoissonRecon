@@ -38,29 +38,135 @@ template< class Real , unsigned int DataDegree , unsigned int ... DataDegrees > 
 
 
 // evaluate the result of splatting along a plane and then evaluating at a point on the plane.
-template< unsigned int Degree > double GetScaleValue( void )
-{
-	double centerValues[Degree+1];
-	Polynomial< Degree >::BSplineComponentValues( 0.5 , centerValues );
-	double scaleValue = 0;
-	for( int i=0 ; i<=Degree ; i++ ) scaleValue += centerValues[i] * centerValues[i];
-	return 1./ scaleValue;
-}
 template< unsigned int Dim , class Real >
-template< bool ThreadSafe , unsigned int WeightDegree >
+template< unsigned int CoDim , unsigned int Degree >
+Real FEMTree< Dim , Real >::_GetScaleValue( Point< Real , Dim > p ) const
+{
+	static_assert( ( Dim>=CoDim) , "[ERROR] Co-dimension exceeds dimension" );
+	static const int PointSupportStart = -BSplineSupportSizes< Degree >::SupportEnd , PointSupportEnd = -BSplineSupportSizes< Degree >::SupportStart;
+	static const int PointSupportSize = PointSupportEnd - PointSupportStart + 1;
+	static const int BSplineSupportStart = BSplineSupportSizes< Degree >::SupportStart , BSplineSupportEnd = BSplineSupportSizes< Degree >::SupportEnd;
+	static const int BSplineSupportSize = BSplineSupportEnd - BSplineSupportStart + 1;
+	double splineValues[Dim][Degree+1];
+
+	// Evaluate the B-spline component functions at the position
+	for( int d=0 ; d<Dim ; d++ ) Polynomial< Degree >::BSplineComponentValues( p[d] , splineValues[d] );
+
+	StaticWindow< double , IsotropicUIntPack< Dim , PointSupportSize > > splatValues , densityValues;
+
+	// Get the values with which the center point splats into its neighbors
+	{
+		double scratch[Dim+1];
+		scratch[0] = 1.;
+		int idx[Dim];
+		WindowLoop< Dim >::Run
+		(
+			PointSupportStart , PointSupportEnd+1 ,
+			[&]( int d , int i ){ scratch[d+1] = scratch[d] * splineValues[d][i-PointSupportStart] ,  idx[d] = i; } ,
+			[&]( void )
+		{
+			int _idx[Dim];
+			for( int d=0 ; d<Dim ; d++ ) _idx[d] = idx[d] - PointSupportStart;
+			splatValues( _idx ) = scratch[ Dim ] , densityValues( _idx ) = 0;
+		}
+		);
+	}
+
+	// Splat from points along the hyperplane
+	// A point at node i will contribute to the evaluation of a point at node 0 if:
+	//		0 <= i + PointSupportEnd + BSplineSupportEnd
+	// and
+	//		0 >= i + PointSupportStart + BSplineSupportStart
+	// Or, equivalently:
+	//		- PointSupportEnd - BSplineSupportEnd <= i <= - PointSupportStart - BSplineSupportStart
+	{
+		int neighborPointIndex[Dim];
+		// Iterate over all points that can contribute
+		WindowLoop< Dim >::Run
+		(
+			- PointSupportEnd - BSplineSupportEnd , - PointSupportStart - BSplineSupportStart + 1 ,
+			[&]( int d , int i ){ neighborPointIndex[d] = i; } ,
+			[&]( void )
+		{
+			// Check that the neighboring point's node lies on the hyperplane
+			bool validNeighbor = true;
+			for( int d=0 ; d<CoDim ; d++ ) if( neighborPointIndex[d]!=0 ) validNeighbor = false;
+
+			if( validNeighbor )
+			{
+				int splineIndex[Dim] , _splineIndex[Dim];
+				// Iterate over all B-Splines supported on the neighboring point
+				WindowLoop< Dim >::Run
+				(
+					PointSupportStart , PointSupportEnd+1 ,
+					[&]( int d , int i ){ splineIndex[d] = neighborPointIndex[d] + i , _splineIndex[d] = i; } ,
+					[&]( void )
+				{
+					int idx[Dim] , _idx[Dim];
+					bool inRange = true;
+					for( int d=0 ; d<Dim ; d++ )
+					{
+						idx[d] = splineIndex[d] - PointSupportStart;
+						_idx[d] = _splineIndex[d] - PointSupportStart;
+						if( idx[d]<0 || idx[d]>=PointSupportSize ) inRange = false;
+					}
+					if( inRange ) densityValues( idx ) += splatValues( _idx );
+				}
+				);
+			}
+		}
+		);
+	}
+
+	double scaleValue = 0;
+	{
+		int idx[Dim];
+		WindowLoop< Dim >::Run
+		(
+			PointSupportStart , PointSupportEnd+1 ,
+			[&]( int d , int i ){ idx[d] = i - PointSupportStart; } ,
+			[&]( void ){ scaleValue += splatValues(idx) * densityValues(idx); }
+		);
+	}
+
+	return (Real)( 1./scaleValue );
+}
+
+// Evaluate the result of splatting along a hyper-plane of co-dimension CoDim through points in the interior of the node and then evaluating at those points.
+template< unsigned int Dim , class Real >
+template< unsigned int CoDim , unsigned int Degree > Real FEMTree< Dim , Real >::_GetScaleValue( unsigned int res ) const
+{
+	Point< Real , Dim > p;
+	Real dx = (Real)(1./res);
+	unsigned int count = 0;
+	Real scaleValueSum = 0;
+
+	WindowLoop< Dim >::Run
+	(
+		0 , res ,
+		[&]( int d , int i ){ p[d] = dx/2 + dx*i; } ,
+		[&]( void ){ count++ ; scaleValueSum += _GetScaleValue< CoDim , Degree >(p); }
+	);
+	return scaleValueSum / count;
+}
+
+template< unsigned int Dim , class Real >
+template< bool ThreadSafe , unsigned int CoDim , unsigned int WeightDegree >
 void FEMTree< Dim , Real >::_addWeightContribution( Allocator< FEMTreeNode > *nodeAllocator , DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight )
 {
-	static const double ScaleValue = GetScaleValue< WeightDegree >();
+	static const Real ScaleValue = _GetScaleValue< CoDim , WeightDegree >( 10 );
 	double values[ Dim ][ BSplineSupportSizes< WeightDegree >::SupportSize ];
 	typename FEMTreeNode::template Neighbors< IsotropicUIntPack< Dim , BSplineSupportSizes< WeightDegree >::SupportSize > >& neighbors = weightKey.template getNeighbors< true , ThreadSafe >( node , nodeAllocator , _nodeInitializer );
 
 	densityWeights.reserve( nodeCount() );
 
-	Point< Real , Dim > start;
-	Real w;
-	_startAndWidth( node , start , w );
-
-	for( int dim=0 ; dim<Dim ; dim++ ) Polynomial< WeightDegree >::BSplineComponentValues( ( position[dim]-start[dim] ) / w , values[dim] );
+	// Evaluate the B-spline components at the position
+	{
+		Point< Real , Dim > start;
+		Real w;
+		_startAndWidth( node , start , w );
+		for( int dim=0 ; dim<Dim ; dim++ ) Polynomial< WeightDegree >::BSplineComponentValues( ( position[dim]-start[dim] ) / w , values[dim] );
+	}
 
 	weight *= (Real)ScaleValue;
 	double scratch[Dim+1];
@@ -110,21 +216,43 @@ void FEMTree< Dim , Real >::_getSampleDepthAndWeight( const DensityEstimator< We
 {
 	const FEMTreeNode* temp = node;
 	while( _localDepth( temp )>densityWeights.kernelDepth() ) temp = temp->parent;
-	weight = _getSamplesPerNode( densityWeights , temp , position , weightKey );
-	if( weight>=(Real)1. ) depth = Real( _localDepth( temp ) + log( weight ) / log(double(1<<( Dim-densityWeights.coDimension() ))) );
+	// Goal:
+	// Find the depth d at which the number of samples per node is equal to densityWeights.samplesPerNode.
+	// Assume that the number of samples per node grows by a factor of 2^( Dim-CoDim ) as the depth is decreased by 1.
+	// That is:
+	//		SamplesPerNode( d ) = C / 2^( d * ( Dim - CoDim ) )
+	// So, given a target spd, we have:
+	//		spd = C / 2^( d * ( Dim - CoDim ) )
+	//		log( spd ) = log( C ) / log( 2^( d * ( Dim - CoDim ) ) )
+	//		log( spd ) = log( C ) - log( 2 ) * ( d * ( Dim - CoDim ) ) )
+	//		d = [ log( C ) - log( spd ) ] / [ log(2) * ( Dim-CoDim ) ]
+	// To get C, we note that if we know that we have spd_0 at depth d_0, this gives:
+	//		spd_0 = C / 2^( d_0 * ( Dim - CoDim ) )
+	//		C = spd_0 * 2^( d_0 * ( Dim - CoDim ) )
+	// Putting these together, we get:
+	//		d = [ log( spd_0 * 2^( d_0 * ( Dim - CoDim ) ) ) - log( spd ) ] / [ log(2) * ( Dim-CoDim ) ]
+	//		d = [ log( spd_0 ) - log( spd ) + log(2) * ( d_0 * ( Dim - CoDim ) ) ) ] / [ log(2) * ( Dim-CoDim ) ]
+	//		d = [ log( spd_0 / spd ) ] / [ log(2) * ( Dim-CoDim ) ]  + d_0
+
+	Real samplesPerNode = _getSamplesPerNode( densityWeights , temp , position , weightKey );
+	if( samplesPerNode>=densityWeights.samplesPerNode() ) depth = Real( _localDepth( temp ) + log( samplesPerNode / densityWeights.samplesPerNode() ) / ( log(2.) * ( Dim-densityWeights.coDimension() ) ) );
 	else
 	{
-		Real oldWeight , newWeight;
-		oldWeight = newWeight = weight;
-		while( newWeight<(Real)1. && _localDepth(temp) )
+		Real fineSamplesPerNode , coarseSamplesPerNode;
+		fineSamplesPerNode = coarseSamplesPerNode = samplesPerNode;
+		while( coarseSamplesPerNode<densityWeights.samplesPerNode() && _localDepth(temp) )
 		{
-			temp=temp->parent;
-			oldWeight = newWeight;
-			newWeight = _getSamplesPerNode( densityWeights , temp , position , weightKey );
+			temp = temp->parent;
+			fineSamplesPerNode = coarseSamplesPerNode;
+			coarseSamplesPerNode = _getSamplesPerNode( densityWeights , temp , position , weightKey );
 		}
-		depth = Real( _localDepth( temp ) + log( newWeight ) / log( newWeight / oldWeight ) );
+		// Rather than assuming that the number of samples per node scales by a factor of 2^(Dim-CoDim),
+		// use the fact that between the coarse and fine levels the samples per node scaled by coarseSamplesPerNode / fineSamplesPerNode
+		depth = Real( _localDepth( temp ) + log( coarseSamplesPerNode / densityWeights.samplesPerNode() ) / log( coarseSamplesPerNode / fineSamplesPerNode ) );
+		samplesPerNode = coarseSamplesPerNode;
 	}
-	weight = Real( pow( double(1<<( Dim-densityWeights.coDimension() )) , -double(depth) ) );
+	Real nodeWidth = (Real)( 1. / (1<<_localDepth(temp) ) );
+	weight = (Real)pow( nodeWidth , Dim-densityWeights.coDimension() ) / samplesPerNode;
 }
 template< unsigned int Dim , class Real >
 template< unsigned int WeightDegree , class PointSupportKey >
@@ -179,35 +307,37 @@ void FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAlloc
 }
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs >
-Real FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias )
+Real FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias )
 {
-	double dx;
-	V _v;
-	FEMTreeNode* temp;
-	double width;
-	Point< Real , Dim > myCenter;
-	for( int d=0 ; d<Dim ; d++ ) myCenter[d] = (Real)0.5;
-	Real myWidth = (Real)1.;
-	temp = _spaceRoot;
-	while( _localDepth( temp )<densityWeights.kernelDepth() )
-	{
-		if( !IsActiveNode< Dim >( temp->children ) ) break;
-		int cIndex = FEMTreeNode::ChildIndex( myCenter , position );
-		temp = temp->children + cIndex;
-		myWidth /= 2;
-		for( int d=0 ; d<Dim ; d++ )
-			if( (cIndex>>d) & 1 ) myCenter[d] += myWidth/2;
-			else                  myCenter[d] -= myWidth/2;
-	}
+	// Get the depth and weight at position
 	Real weight , depth;
-	_getSampleDepthAndWeight( densityWeights , temp , position , weightKey , depth , weight );
-	depth += depthBias;
+	FEMTreeNode *temp = _spaceRoot;
+	Point< Real , Dim > myCenter;
+	Real myWidth;
+	{
+		for( int d=0 ; d<Dim ; d++ ) myCenter[d] = (Real)0.5;
+		myWidth = (Real)1.;
+		while( _localDepth( temp )<densityWeights.kernelDepth() )
+		{
+			if( !IsActiveNode< Dim >( temp->children ) ) break;
+			int cIndex = FEMTreeNode::ChildIndex( myCenter , position );
+			temp = temp->children + cIndex;
+			myWidth /= 2;
+			for( int d=0 ; d<Dim ; d++ )
+				if( (cIndex>>d) & 1 ) myCenter[d] += myWidth/2;
+				else                  myCenter[d] -= myWidth/2;
+		}
+		_getSampleDepthAndWeight( densityWeights , temp , position , weightKey , depth , weight );
+		depth += depthBias;
+	}
+
+	if( depth<minDepthCutoff ) return 0;
 
 	if( depth<minDepth ) depth = Real(minDepth);
 	if( depth>maxDepth ) depth = Real(maxDepth);
-	int topDepth = int(ceil(depth));
+	int topDepth = (int)ceil(depth);
 
-	dx = 1.0-(topDepth-depth);
+	double dx = 1.0-(topDepth-depth);
 	if     ( topDepth<=minDepth ) topDepth = minDepth , dx = 1;
 	else if( topDepth> maxDepth ) topDepth = maxDepth , dx = 1;
 
@@ -223,28 +353,24 @@ Real FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAlloc
 			else                  myCenter[d] -= myWidth/2;
 	}
 
-	width = 1.0 / ( 1<<_localDepth( temp ) );
-	_v = v * weight / Real( pow( width , dim ) ) * Real( dx );
-#if defined( __GNUC__ ) && __GNUC__ < 5
-#warning "you've got me gcc version<5"
-	_splatPointData< CreateNodes , ThreadSafe , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
-#else // !__GNUC__ || __GNUC__ >=5
-	_splatPointData< CreateNodes , ThreadSafe , V ,  DataSigs ... >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
-#endif // __GNUC__ || __GNUC__ < 4
-	if( fabs(1.0-dx) > 1e-6 )
+	auto Splat = [&]( FEMTreeNode *node , Real dx )
 	{
-		dx = Real(1.0-dx);
-		temp = temp->parent;
-		width = 1.0 / ( 1<<_localDepth( temp ) );
-
-		_v = v * weight / Real( pow( width , dim ) ) * Real( dx );
+		double width = 1.0 / ( 1<<_localDepth( temp ) );
+		// Scale by:
+		//		weight: the area/volume associated with the sample
+		//		dx: the fraction of the sample splatted into the current depth
+		//		pow( width , -dim ): So that each sample is splatted with a unit volume
+		V _v = v * weight / Real( pow( width , dim ) ) * dx;
+		//		V _v = v / Length(v) * dx;
 #if defined( __GNUC__ ) && __GNUC__ < 5
-#warning "you've got me gcc version<5"
-		_splatPointData< CreateNodes , ThreadSafe , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
+		#warning "you've got me gcc version<5"
+			_splatPointData< CreateNodes , ThreadSafe , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
-		_splatPointData< CreateNodes , ThreadSafe , V , DataSigs ... >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
+		_splatPointData< CreateNodes , ThreadSafe , V ,  DataSigs ... >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #endif // __GNUC__ || __GNUC__ < 4
-	}
+	};
+	Splat( temp , (Real)dx );
+	if( fabs(1.-dx)>1e-6 ) Splat( temp->parent , (Real)(1.-dx) );
 	return weight;
 }
 template< unsigned int Dim , class Real >

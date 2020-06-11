@@ -488,6 +488,7 @@ FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD
 	for( int t=0 ; t<_pointNeighborKeys.size() ; t++ ) _pointNeighborKeys[t].set( tree->_localToGlobal( _tree->_maxDepth ) );
 	for( int t=0 ; t<_cornerNeighborKeys.size() ; t++ ) _cornerNeighborKeys[t].set( tree->_localToGlobal( _tree->_maxDepth ) );
 }
+
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , unsigned int PointD , typename T >
 template< unsigned int _PointD >
@@ -499,6 +500,7 @@ CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThr
 	nKey.getNeighbors( node );
 	return _tree->template _getValues< T , _PointD >( nKey , node , p , _coefficients() , _coarseCoefficients() , _evaluator , _tree->_maxDepth );
 }
+
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , unsigned int PointD , typename T >
 template< unsigned int _PointD >
@@ -524,11 +526,39 @@ CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThr
 	return _tree->template _getCornerValues< T , _PointD >( nKey , node , corner , _coefficients() , _coarseCoefficients() , _evaluator , _tree->_maxDepth , BaseFEMIntegrator::IsInteriorlySupported( UIntPack< FEMSigs ... >() , d , off ) );
 }
 
+//////////////////////////////////
+// MultiThreadedSparseEvaluator //
+//////////////////////////////////
+template< unsigned int Dim , class Real >
+template< unsigned int ... FEMSigs , typename T >
+FEMTree< Dim , Real >::MultiThreadedSparseEvaluator< UIntPack< FEMSigs ... > , T >::MultiThreadedSparseEvaluator( const FEMTree< Dim , Real >* tree , const SparseNodeData< T , FEMSignatures >& coefficients , int threads ) : _coefficients( coefficients ) , _tree( tree )
+{
+	tree->_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
+	_threads = std::max< int >( 1 , threads );
+	_pointNeighborKeys.resize( _threads );
+	_pointEvaluator = new typename FEMIntegrator::template PointEvaluator< UIntPack< FEMSigs ... > , ZeroUIntPack< Dim > >( _tree->_maxDepth );
+	for( int t=0 ; t<_pointNeighborKeys.size() ; t++ ) _pointNeighborKeys[t].set( tree->_localToGlobal( _tree->_maxDepth ) );
+}
 
+template< unsigned int Dim , class Real >
+template< unsigned int ... FEMSigs , typename T >
+T FEMTree< Dim , Real >::MultiThreadedSparseEvaluator< UIntPack< FEMSigs ... > , T >::value( Point< Real , Dim > p , int thread , const FEMTreeNode *node )
+{
+	if( !node ) node = _tree->leaf( p );
+	ConstPointSupportKey< FEMDegrees >& nKey = _pointNeighborKeys[thread];
+	nKey.getNeighbors( node );
+	return _tree->template _evaluate< T , SparseNodeData< T , FEMSignatures > , 0 >( _coefficients , p , _tree->_globalToLocal( node->depth() ) , *_pointEvaluator , nKey );
+}
 
 template< unsigned int Dim , class Real >
 template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
 V FEMTree< Dim , Real >::_evaluate( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const
+{
+	return _evaluate< V , Coefficients , D , DataSigs ... >( coefficients , p , _globalToLocal( dataKey.depth() ) , pointEvaluator , dataKey );
+}
+template< unsigned int Dim , class Real >
+template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
+V FEMTree< Dim , Real >::_evaluate( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const
 {
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	PointEvaluatorState< UIntPack< DataSigs ... > , ZeroUIntPack< Dim > > state;
@@ -537,11 +567,11 @@ V FEMTree< Dim , Real >::_evaluate( const Coefficients& coefficients , Point< Re
 	typedef PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > > DataKey;
 	V value = V();
 
-	for( int d=_localToGlobal( 0 ) ; d<=dataKey.depth() ; d++ )
+	for( int d=_localToGlobal( 0 ) ; d<=_localToGlobal( pointDepth ) ; d++ )
 	{
 		{
 			const FEMTreeNode* node = dataKey.neighbors[d].neighbors.data[ WindowIndex< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > , UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportEnd ... > >::Index ];
-			if( !node ) ERROR_OUT( "Point is not centered on a node" );
+			if( !node ) ERROR_OUT( "Point is not centered on a node: " , p , " " , WindowIndex< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > , UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportEnd ... > >::Index , " @ " , d );
 			pointEvaluator.initEvaluationState( p , _localDepth( node ) , state );
 		}
 		double scratch[Dim+1];

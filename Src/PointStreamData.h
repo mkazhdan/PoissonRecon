@@ -122,6 +122,15 @@ protected:
 	static const PlyProperty _PlyProperties[];
 };
 template<>
+const PlyProperty PointStreamPosition< float , 1 >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamPosition< double , 1 >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+};template<>
 const PlyProperty PointStreamPosition< float , 2 >::_PlyProperties[] =
 {
 	PlyProperty( "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
@@ -216,6 +225,16 @@ struct PointStreamNormal : public PointStreamData< Real , Point< Real , Dim > >
 	static bool ValidPlyReadProperties( const bool* flags ){ for( int d=0 ; d<Dim ; d++ ) if( !flags[d] ) return false ; return true ; }
 protected:
 	static const PlyProperty _PlyProperties[];
+};
+template<>
+const PlyProperty PointStreamNormal< float , 1 >::_PlyProperties[] =
+{
+	PlyProperty( "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamNormal< double , 1 >::_PlyProperties[] =
+{
+	PlyProperty( "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
 };
 template<>
 const PlyProperty PointStreamNormal< float , 2 >::_PlyProperties[] =

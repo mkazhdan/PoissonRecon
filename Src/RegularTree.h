@@ -37,6 +37,25 @@ DAMAGE.
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 struct RegularTreeNode
 {
+	struct DepthAndOffset
+	{
+		DepthAndOffsetType depth , offset[Dim];
+		DepthAndOffset( void ){ depth = 0 , memset( offset , 0 , sizeof(DepthAndOffsetType) * Dim ); }
+		DepthAndOffset( DepthAndOffsetType d , const DepthAndOffsetType off[] ){ depth = d , memcpy( offset , off , sizeof(DepthAndOffsetType) * Dim ); }
+		bool operator == ( const DepthAndOffset &doff ) const
+		{
+			if( depth!=doff.depth ) return false;
+			for( int d=0 ; d<Dim ; d++ ) if( offset[d]!=doff.offset[d] ) return false;
+			return true;
+		}
+
+		friend std::ostream &operator << ( std::ostream &os , const DepthAndOffset &depthAndOffset )
+		{
+			os << "( " << depthAndOffset.offset[0];
+			for( unsigned int d=1 ; d<Dim ; d++ ) os << " , " << depthAndOffset.offset[d];
+			return os << " ) @ " << depthAndOffset.depth;
+		}
+	};
 private:
 	DepthAndOffsetType _depth , _offset[Dim];
 	template< typename Initializer >
@@ -81,6 +100,7 @@ public:
 	void merge( RegularTreeNode* node , MergeFunctor& f );
 
 	void depthAndOffset( int& depth , int offset[Dim] ) const; 
+	DepthAndOffset depthAndOffset( void ) const;
 	void centerIndex( int index[Dim] ) const;
 	int depth( void ) const;
 	template< class Real > void centerAndWidth( Point< Real , Dim >& center , Real& width ) const;
@@ -282,6 +302,7 @@ public:
 			return getChildNeighbors< false , false , Real >( p , d , childNeighbors , NULL , initializer );
 		}
 
+		void setLeafNeighbors( RegularTreeNode *node , StaticWindow< RegularTreeNode * , UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > &leaves );
 	};
 
 	template< typename LeftPack , typename RightPack > struct ConstNeighborKey{};
@@ -333,6 +354,8 @@ public:
 		unsigned int getChildNeighbors( int cIdx , int d , NeighborType& childNeighbors ) const;
 		template< class Real >
 		unsigned int getChildNeighbors( Point< Real , Dim > p , int d , ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& childNeighbors ) const;
+
+		void setLeafNeighbors( const RegularTreeNode *node , StaticWindow< RegularTreeNode * , UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > &leaves );
 	};
 
 	int width( int maxDepth ) const;

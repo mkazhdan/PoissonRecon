@@ -385,9 +385,10 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 
 	A.resize( aRows );
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
+	const size_t One = 1;
 	ThreadPool::Parallel_for( 0 , At.rowNum , [&]( unsigned int , size_t i )
 	{
-		for( size_t j=0 ; j<At.rowSizes[i] ; j++ ) AddAtomic( A.rowSizes[ At[i][j].N ] , 1 );
+		for( size_t j=0 ; j<At.rowSizes[i] ; j++ ) AddAtomic( A.rowSizes[ At[i][j].N ] , One );
 	}
 	);
 
@@ -617,11 +618,12 @@ void SparseMatrix< T , IndexType , MaxRowSize >::resize( size_t rowNum )
 
 		if( rowNum )
 		{
-			_rowSizes = AllocPointer< size_t >( rowNum ) , memset( _rowSizes , 0 , sizeof(size_t)*rowNum );
+			_rowSizes = AllocPointer< size_t >( rowNum );
 			_entries = AllocPointer< MatrixEntry< T , IndexType > >( rowNum * MaxRowSize );
 			_maxRows = rowNum;
 		}
 	}
+	if( rowNum ) memset( _rowSizes , 0 , sizeof(size_t)*rowNum );
 }
 
 template< class T , class IndexType , size_t MaxRowSize >

@@ -202,6 +202,15 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::merge( RegularTreeN
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+inline typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::DepthAndOffset RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::depthAndOffset( void ) const
+{
+	DepthAndOffset doff;
+	doff.depth = _depth;
+	for( int d=0 ; d<Dim ; d++ ) doff.offset[d] = _offset[d];
+	return doff;
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 inline void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::depthAndOffset( int& depth , int offset[Dim] ) const
 {
 	depth = _depth;
@@ -660,6 +669,52 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 	}
 }
 
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::setLeafNeighbors( RegularTreeNode *node , StaticWindow< RegularTreeNode * , UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > &leaves )
+{
+	// Suppose that we have a node at index I and we want the leaf nodes supported on the (possibly virtual) node K away
+	// Case 1: The K-th neighbor exists
+	// ---> Iterate over the leaf nodes of the sub-tree rooted at the K-th neighbor
+	// Case 2: The K-th neighbor does not exist
+	// ---> The index of the K-th neighbor is I+K
+	// ---> The index of the parent is floor( I/2 )
+	// ---> The index of the K-th neighbors parent is floor( (I+K)/2 )
+	// ---> The parent of the K-th neighbor is the [ floor( (I+k)/2 ) - floor( I/2 ) ]-th neighbor of the parent
+
+	static const unsigned int _LeftRadii[] = { LeftRadii ... };
+	auto GetNeighborLeaf = [&]( unsigned int depth , const int index[Dim] , const int offset[Dim] )
+	{
+		//		unsigned int _index[Dim] , _offset[Dim] , __offset[Dim];
+		int _index[Dim] , _offset[Dim] , __offset[Dim];
+		for( int dim=0 ; dim<Dim ; dim++ ) _index[dim] = index[dim] , _offset[dim] = offset[dim];
+		for( int d=depth ; d>=0 ; d-- )
+		{
+			for( int dim=0 ; dim<Dim ; dim++ ) __offset[dim] = _offset[dim] + _LeftRadii[dim];
+			if( neighbors[d].neighbors( __offset ) ) return neighbors[d].neighbors( __offset );
+			else
+			{
+				for( int dim=0 ; dim<Dim ; dim++ )
+				{
+					_offset[dim] = ( ( _index[dim] + _offset[dim] ) >> 1 ) - ( _index[dim] >> 1 );
+					_index[dim] >>= 1;
+				}
+			}
+		}
+		return ( RegularTreeNode * )NULL;
+	};
+	getNeighbors( node );
+	int depth , index[Dim] , offset[Dim] , _offset[Dim];
+	node->depthAndOffset( depth , index );
+
+	WindowLoop< Dim >::Run
+	(
+		IsotropicUIntPack< Dim , 0 >() , UIntPack< ( LeftRadii + RightRadii + 1 ) ... >() ,
+		[&]( int d , int i ){ offset[d] = i , _offset[d] = i-_LeftRadii[d]; } ,
+		[&]( void ){ leaves( offset ) = GetNeighborLeaf( depth , index , _offset ); }
+	);
+}
+
 ///////////////////////////////////////
 // RegularTreeNode::ConstNeighborKey //
 ///////////////////////////////////////
@@ -834,4 +889,50 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighb
 	int cIdx = 0;
 	for( int d=0 ; d<Dim ; d++ ) if( p[d]>c[d] ) cIdx |= (1<<d);
 	return getChildNeighbors( cIdx , d , cNeighbors );
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::setLeafNeighbors( const RegularTreeNode *node , StaticWindow< RegularTreeNode * , UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > &leaves )
+{
+	// Suppose that we have a node at index I and we want the leaf nodes supported on the (possibly virtual) node K away
+	// Case 1: The K-th neighbor exists
+	// ---> Iterate over the leaf nodes of the sub-tree rooted at the K-th neighbor
+	// Case 2: The K-th neighbor does not exist
+	// ---> The index of the K-th neighbor is I+K
+	// ---> The index of the parent is floor( I/2 )
+	// ---> The index of the K-th neighbors parent is floor( (I+K)/2 )
+	// ---> The parent of the K-th neighbor is the [ floor( (I+k)/2 ) - floor( I/2 ) ]-th neighbor of the parent
+
+	static const unsigned int _LeftRadii[] = { LeftRadii ... };
+	auto GetNeighborLeaf = [&]( unsigned int depth , const int index[Dim] , const int offset[Dim] )
+	{
+		//		unsigned int _index[Dim] , _offset[Dim] , __offset[Dim];
+		int _index[Dim] , _offset[Dim] , __offset[Dim];
+		for( int dim=0 ; dim<Dim ; dim++ ) _index[dim] = index[dim] , _offset[dim] = offset[dim];
+		for( int d=depth ; d>=0 ; d-- )
+		{
+			for( int dim=0 ; dim<Dim ; dim++ ) __offset[dim] = _offset[dim] + _LeftRadii[dim];
+			if( neighbors[d].neighbors( __offset ) ) return neighbors[d].neighbors( __offset );
+			else
+			{
+				for( int dim=0 ; dim<Dim ; dim++ )
+				{
+					_offset[dim] = ( ( _index[dim] + _offset[dim] ) >> 1 ) - ( _index[dim] >> 1 );
+					_index[dim] >>= 1;
+				}
+			}
+		}
+		return ( RegularTreeNode * )NULL;
+	};
+	getNeighbors( node );
+	int depth , index[Dim] , offset[Dim] , _offset[Dim];
+	node->depthAndOffset( depth , index );
+
+	WindowLoop< Dim >::Run
+	(
+		IsotropicUIntPack< Dim , 0 >() , UIntPack< ( LeftRadii + RightRadii + 1 ) ... >() ,
+		[&]( int d , int i ){ offset[d] = i , _offset[d] = i-_LeftRadii[d]; } ,
+		[&]( void ){ leaves( offset ) = GetNeighborLeaf( depth , index , _offset ); }
+	);
 }
