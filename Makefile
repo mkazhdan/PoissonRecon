@@ -15,8 +15,8 @@ IS_SOURCE=ImageStitching.cpp
 AV_SOURCE=AdaptiveTreeVisualization.cpp
 CP_SOURCE=ChunkPLY.cpp
 
-COMPILER = gcc
-#COMPILER = clang
+COMPILER ?= gcc
+#COMPILER ?= clang
 
 ifeq ($(COMPILER),gcc)
 	CFLAGS += -fopenmp -Wno-deprecated -std=c++11 -pthread -Wno-invalid-offsetof
@@ -24,7 +24,7 @@ ifeq ($(COMPILER),gcc)
 else
 # 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++11 -Wno-invalid-offsetof
 # 	LFLAGS += -liomp5 -lstdc++
-	CFLAGS += -Wno-deprecated -std=c++11 -pthread -Wno-invalid-offsetof
+	CFLAGS += -Wno-deprecated -std=c++11 -pthread -Wno-invalid-offsetof -Wno-dangling-else
 	LFLAGS += -lstdc++
 endif
 #LFLAGS += -lz -lpng -ljpeg
@@ -153,33 +153,33 @@ make_dir:
 
 $(BIN)$(PR_TARGET): $(PR_OBJECTS)
 	cd PNG  && make
-	$(CXX) -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(SR_TARGET): $(SR_OBJECTS)
 	cd PNG  && make
-	$(CXX) -o $@ $(SR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(SR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(PI_TARGET): $(PI_OBJECTS)
 	cd PNG  && make
-	$(CXX) -o $@ $(PI_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(PI_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(ST_TARGET): $(ST_OBJECTS)
-	$(CXX) -o $@ $(ST_OBJECTS) $(LFLAGS)
+	$(CXX) -pthread -o $@ $(ST_OBJECTS) $(LFLAGS)
 
 $(BIN)$(EH_TARGET): $(EH_OBJECTS)
-	$(CXX) -o $@ $(EH_OBJECTS) $(LFLAGS)
+	$(CXX) -pthread -o $@ $(EH_OBJECTS) $(LFLAGS)
 
 $(BIN)$(IS_TARGET): $(IS_OBJECTS)
 	cd PNG  && make
-	$(CXX) -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(AV_TARGET): $(AV_OBJECTS)
 	cd PNG  && make
-	$(CXX) -o $@ $(AV_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(AV_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(CP_TARGET): $(CP_OBJECTS)
 	cd PNG  && make
-	$(CXX) -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)%.o: $(SRC)%.c
 	$(CC) -c -o $@ -I$(INCLUDE) $<

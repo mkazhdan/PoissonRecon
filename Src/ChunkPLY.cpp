@@ -273,7 +273,7 @@ void Execute( void )
 	if( BoundingBox.set )
 	{
 		Point< float , 3 > min( BoundingBox.values[0] , BoundingBox.values[1] , BoundingBox.values[2] );
-		Point< float , 3 > max( BoundingBox.values[4] , BoundingBox.values[5] , BoundingBox.values[6] );
+		Point< float , 3 > max( BoundingBox.values[3] , BoundingBox.values[4] , BoundingBox.values[5] );
 		auto InBoundingBox = [&]( Point< float , 3 > p )
 		{
 			return
