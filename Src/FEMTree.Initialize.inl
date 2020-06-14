@@ -865,7 +865,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 
 	// Rasterize the geometry into the tree
 	std::vector< NodeSimplices< Dim , Real > > nodeSimplices;
-	FEMTreeInitializer< Dim , Real >::template Initialize( *root , vertices , simplices , regularGridDepth , maxDepth , nodeSimplices , nodeAllocators , NodeInitializer );
+	FEMTreeInitializer< Dim , Real >::Initialize( *root , vertices , simplices , regularGridDepth , maxDepth , nodeSimplices , nodeAllocators , NodeInitializer );
 
 	// Mark all the nodes containing geometry
 	node_index_type nodeCount = 0;
