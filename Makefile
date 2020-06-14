@@ -46,10 +46,10 @@ ifeq ($(COMPILER),gcc)
 	CC=gcc
 	CXX=g++
 else
-	CC=clang-3.8
-	CXX=clang++-3.8
-#	CC=clang-3.5
-#	CXX=clang++-3.5
+	CC=clang
+	CXX=clang++
+#	CC=clang
+#	CXX=clang++
 endif
 
 MD=mkdir

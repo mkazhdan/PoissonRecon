@@ -498,7 +498,7 @@ void _Execute( int argc , char* argv[] )
 		}
 
 		// Add the interpolation constraints
-		if( valueInfo>0 )
+		if( valueInfo )
 		{
 			profiler.start();
 			tree.addInterpolationConstraints( constraints , Depth.value , std::make_tuple( valueInfo ) );
