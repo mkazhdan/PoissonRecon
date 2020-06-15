@@ -1,8 +1,8 @@
 JPG_TARGET=libmyjpg.a
 JPG_SOURCE=ckconfig.cpp jccolor.cpp jcmainct.cpp jcparam.cpp jctrans.cpp jdatasrc.cpp jdhuff.cpp jdmaster.cpp jdsample.cpp jfdctfst.cpp jidctint.cpp jquant1.cpp jcapimin.cpp jcdctmgr.cpp jcmarker.cpp jcphuff.cpp jdapimin.cpp jdcoefct.cpp jdinput.cpp jdmerge.cpp jdtrans.cpp jfdctint.cpp jidctred.cpp jquant2.cpp jcapistd.cpp jchuff.cpp jcmaster.cpp jcprepct.cpp jdapistd.cpp jdcolor.cpp jdmainct.cpp jdphuff.cpp jerror.cpp jidctflt.cpp jmemmgr.cpp jutils.cpp jccoefct.cpp jcinit.cpp jcomapi.cpp jcsample.cpp jdatadst.cpp jddctmgr.cpp jdmarker.cpp jdpostct.cpp jfdctflt.cpp jidctfst.cpp jmemnobs.cpp 
 
-COMPILER = gcc
-#COMPILER = clang
+COMPILER ?= gcc
+#COMPILER ?= clang
 
 CFLAGS += -Wno-deprecated -Wno-write-strings
 
@@ -20,10 +20,8 @@ ifeq ($(COMPILER),gcc)
 	CC=gcc
 	CXX=g++
 else
-	CC=clang-3.8
-	CXX=clang++-3.8
-#	CC=clang-3.5
-#	CXX=clang++-3.5
+	CC=clang
+	CXX=clang++
 endif
 
 MD=mkdir

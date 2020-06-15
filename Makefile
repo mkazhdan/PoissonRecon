@@ -48,8 +48,6 @@ ifeq ($(COMPILER),gcc)
 else
 	CC=clang
 	CXX=clang++
-#	CC=clang
-#	CXX=clang++
 endif
 
 MD=mkdir
@@ -152,15 +150,15 @@ make_dir:
 	$(MD) -p $(BIN)
 
 $(BIN)$(PR_TARGET): $(PR_OBJECTS)
-	cd PNG  && make
+	cd PNG  && make COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(SR_TARGET): $(SR_OBJECTS)
-	cd PNG  && make
+	cd PNG  && make COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(SR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(PI_TARGET): $(PI_OBJECTS)
-	cd PNG  && make
+	cd PNG  && make COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(PI_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(ST_TARGET): $(ST_OBJECTS)
@@ -170,15 +168,15 @@ $(BIN)$(EH_TARGET): $(EH_OBJECTS)
 	$(CXX) -pthread -o $@ $(EH_OBJECTS) $(LFLAGS)
 
 $(BIN)$(IS_TARGET): $(IS_OBJECTS)
-	cd PNG  && make
+	cd PNG  && make COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(AV_TARGET): $(AV_OBJECTS)
-	cd PNG  && make
+	cd PNG  && make COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(AV_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(CP_TARGET): $(CP_OBJECTS)
-	cd PNG  && make
+	cd PNG  && make COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)%.o: $(SRC)%.c

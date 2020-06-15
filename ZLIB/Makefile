@@ -1,8 +1,8 @@
 ZLIB_TARGET=libmyz.a
 ZLIB_SOURCE=adler32.c compress.c crc32.c deflate.c gzio.c infblock.c infcodes.c inffast.c inflate.c inftrees.c infutil.c trees.c uncompr.c zutil.c
 
-COMPILER = gcc
-#COMPILER = clang
+COMPILER ?= gcc
+#COMPILER ?= clang
 
 CFLAGS += -Wno-deprecated -Wno-write-strings
 
@@ -20,10 +20,8 @@ ifeq ($(COMPILER),gcc)
 	CC=gcc
 	CXX=g++
 else
-	CC=clang-3.8
-	CXX=clang++-3.8
-#	CC=clang-3.5
-#	CXX=clang++-3.5
+	CC=clang
+	CXX=clang++
 endif
 
 MD=mkdir
