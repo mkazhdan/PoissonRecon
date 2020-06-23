@@ -890,7 +890,7 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 				if( Dim==1 )
 				{
 					Point< double , PointD+1 > partialDot = peState.template partialDotDValues< Real , CumulativeDerivatives< Dim , PointD > >( dualValues , _idx );
-					Pointer( Real ) _pointValues = GetPointer( pointValues.data + idx[Dim-1] + OverlapRadii::Values[Dim-1] , - idx[Dim-1] - OverlapRadii::Values[Dim-1] , pointValues.Size - idx[Dim-1] - OverlapRadii::Values[Dim-1] );
+					Pointer( Real ) _pointValues = GetPointer( pointValues.data + idx[Dim-1] + OverlapRadii::Values[Dim-1] , - idx[Dim-1] - (int)OverlapRadii::Values[Dim-1] , pointValues.Size - idx[Dim-1] - (int)OverlapRadii::Values[Dim-1] );
 
 					int _i = idx[Dim-1] + (int)OverlapRadii::Values[Dim-1] - (int)LeftPointSupportRadii::Values[Dim-1];
 					const double (*splineValues)[PointD+1] = peState.template values< Dim-1 >();
@@ -1966,7 +1966,7 @@ template< unsigned int ... FEMSigs >
 SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::upSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
-	return _upSampleMatrix( UIntPack< FEMSigs ... >() , highDepth , [&]( const FEMTreeNode *node ){ return _isValidFEM1Node( node ) && !node->nodeData.getDirichletElementFlag(); } );
+	return _upSampleMatrix( UIntPack< FEMSigs ... >() , highDepth , [&]( const FEMTreeNode *node ){ return _isValidFEM1Node( node ) && ( _localDepth(node)<_baseDepth || !node->nodeData.getDirichletElementFlag() ); } );
 }
 
 template< unsigned int Dim , class Real >
@@ -1974,7 +1974,7 @@ template< unsigned int ... FEMSigs >
 SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
-	return _downSampleMatrix( UIntPack< FEMSigs ... >() , highDepth , [&]( const FEMTreeNode *node ){ return _isValidFEM1Node( node ) && !node->nodeData.getDirichletElementFlag(); } );
+	return _downSampleMatrix( UIntPack< FEMSigs ... >() , highDepth , [&]( const FEMTreeNode *node ){ return _isValidFEM1Node( node ) && ( _localDepth(node)<_baseDepth || !node->nodeData.getDirichletElementFlag() ); } );
 }
 
 template< unsigned int Dim , class Real >
@@ -2677,6 +2677,8 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 
 	auto UpdateProlongation = [&] ( int depth )
 	{
+		if( depth==_maxDepth ) return;
+
 		if     ( depth< _baseDepth ){}
 		else if( depth==_baseDepth ) ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] = solution[i]; } );
 		else if( depth< _maxDepth )
