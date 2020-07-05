@@ -26,7 +26,7 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <A HREF="https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/">[Crane, Weischedel, and Wardetzky, 2013]</a>,
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuan, Rusinkiewicz, and Hoppe, 2020]</a>
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/AdaptiveSolvers.x64.zip">Win64</a><br>
