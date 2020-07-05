@@ -24,7 +24,9 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
 <a href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>,
 <A HREF="https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/">[Crane, Weischedel, and Wardetzky, 2013]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuan, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/AdaptiveSolvers.x64.zip">Win64</a><br>
@@ -74,7 +76,9 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <SUMMARY>
 <font size="+1"><b>PoissonRecon</b></font>:
 Reconstructs a triangle mesh from a set of oriented 3D points by solving a Poisson system (solving a 3D Laplacian system with positional value constraints) <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
 </dt><dd> This string is the name of the file from which the point set will be read.<br>
