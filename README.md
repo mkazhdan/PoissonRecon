@@ -91,7 +91,7 @@ white space delimited, numbers: x-, y-, and z-coordinates of the point's positio
 by the x-, y- and z-coordinates of the point's normal. (No information about the number of oriented point samples should be specified.)<br> 
 </dd>
 
-<dt>[<b>--hull</b> &lt;<i>constraint hull</i>&gt;]
+<dt>[<b>--envelope</b> &lt;<i>constraint envelope</i>&gt;]
 </dt><dd> This string is the name of the file from which the constraint envelope will be read.<br>
 The file should be a water-tight triangle mesh in
 <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, oriented so that the normals are pointing
@@ -666,7 +666,7 @@ individual components of the visualizer.
 Decomposes a collection of mesh/point-set files into a set of chunks with prescribed bounding box widths.
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input geometry file count, geometry file #1, geometry file #2, ...</i>&gt;
-</dt><dd> These strings give the nubmer of geometry files (containing representing either a point cloud in 3D or a mesh) and the names of the individual files.
+</dt><dd> These white-space separated strings give the number of geometry files (containing representing either a point cloud in 3D or a mesh) and the names of the individual files.
 
 </dd><dt>[<b>--out</b> &lt;<i>output ply file name/header</i>&gt;]
 </dt><dd> This string is the name of the file/header to which the chunks should be written. If the width of the chunk is <I>W</I>, the file containing the geometry inside the cube [<I>W</I>&middot;<i>i</I>,<i>W</i>&middot;(<i>i+1</i>)</I>]&times;[<I>W</I>&middot;<i>j</I>,<i>W</i>&middot;(<i>j+1</i>)</I>]&times;[<I>W</I>&middot;<i>k</I>,<i>W</i>&middot;(<i>k+1</i>)</I>]</I> will be named <I>&lt;output header&gt;.i.j.k.ply</i>.
@@ -743,10 +743,10 @@ This reconstruction can be chunked into cubes of size 4&times;4&times;4 by calli
 which partitions the reconstruction into 11 pieces.
 
 <li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/torso.zip"><b>Torso</b></a>:
-A set of 3,488,432 (torso.points.ply) and a depth hull (torso.hull.ply).<br>
-A reconstruction of the torso that constrains the reconstruction to be contained within the prescribed hull can be obtained by calling:
-<blockquote><code>% PoissonRecon --in torso.points.ply --hull torso.hull.ply --out torso.pr.ply --depth 10</code></blockquote>
-using the <b>--hull</b> flag to specify the water-tight mesh constraining the reconstruction.<BR>
+A set of 3,488,432 (torso.points.ply) and an envelope (torso.envelope.ply).<br>
+A reconstruction of the torso that constrains the reconstruction to be contained within the envelope can be obtained by calling:
+<blockquote><code>% PoissonRecon --in torso.points.ply --envelope torso.envelope.ply --out torso.pr.ply --depth 10</code></blockquote>
+using the <b>--envelope</b> flag to specify the water-tight mesh constraining the reconstruction.<BR>
 </li>
 
 </ol>

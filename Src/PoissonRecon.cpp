@@ -69,8 +69,8 @@ cmdLineParameter< char* >
 	TempDir( "tempDir" ) ,
 	Grid( "grid" ) ,
 	Tree( "tree" ) ,
-	Hull( "hull" ) ,
-	HullGrid( "hullGrid" ),
+	Envelope( "envelope" ) ,
+	EnvelopeGrid( "envelopeGrid" ),
 	Transform( "xForm" );
 
 cmdLineReadable
@@ -96,7 +96,7 @@ cmdLineParameter< int >
 	Depth( "depth" , 8 ) ,
 	KernelDepth( "kernelDepth" ) ,
 	SolveDepth( "solveDepth" ) ,
-	HullDepth( "hullDepth" ) ,
+	EnvelopeDepth( "envelopeDepth" ) ,
 	Iters( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 5 ) ,
 	BaseDepth( "baseDepth" ) ,
@@ -133,12 +133,12 @@ cmdLineReadable* params[] =
 #endif // !FAST_COMPILE
 	&In , &Depth , &Out , &Transform ,
 	&SolveDepth ,
-	&Hull ,
-	&HullGrid ,
+	&Envelope ,
+	&EnvelopeGrid ,
 	&Width ,
 	&Scale , &Verbose , &CGSolverAccuracy , &NoComments ,
 	&KernelDepth , &SamplesPerNode , &Confidence , &NonManifold , &PolygonMesh , &ASCII , &ShowResidual ,
-	&HullDepth ,
+	&EnvelopeDepth ,
 	&NoDirichletErode ,
 	&ConfidenceBias ,
 	&BaseDepth , &BaseVCycles ,
@@ -169,10 +169,10 @@ void ShowUsage(char* ex)
 {
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input points>\n" , In.name );
-	printf( "\t[--%s <input hull>\n" , Hull.name );
+	printf( "\t[--%s <input envelope>\n" , Envelope.name );
 	printf( "\t[--%s <ouput triangle mesh>]\n" , Out.name );
 	printf( "\t[--%s <ouput grid>]\n" , Grid.name );
-	printf( "\t[--%s <output hull grid>\n" , HullGrid.name );
+	printf( "\t[--%s <output envelope grid>\n" , EnvelopeGrid.name );
 	printf( "\t[--%s <ouput fem tree>]\n" , Tree.name );
 #ifndef FAST_COMPILE
 	printf( "\t[--%s <b-spline degree>=%d]\n" , Degree.name , Degree.value );
@@ -183,7 +183,7 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <maximum solution depth>=%d]\n" , SolveDepth.name , SolveDepth.value );
 	printf( "\t[--%s <grid width>]\n" , Width.name );
 	printf( "\t[--%s <full depth>=%d]\n" , FullDepth.name , FullDepth.value );
-	printf( "\t[--%s <hull depth>=%d]\n" , HullDepth.name , HullDepth.value );
+	printf( "\t[--%s <envelope depth>=%d]\n" , EnvelopeDepth.name , EnvelopeDepth.value );
 	printf( "\t[--%s <coarse MG solver depth>]\n" , BaseDepth.name );
 	printf( "\t[--%s <coarse MG solver v-cycles>=%d]\n" , BaseVCycles.name , BaseVCycles.value );
 	printf( "\t[--%s <scale factor>=%f]\n" , Scale.name , Scale.value );
@@ -640,8 +640,8 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			messageWriter( "Point weight / Estimated Measure: %g / %g\n" , pointWeightSum , pointCount*pointWeightSum );
 		}
 
-		// Get the geometry designators indicating if the space node are interior to, exterior to, or contain the hull boundary
-		if( Hull.set )
+		// Get the geometry designators indicating if the space node are interior to, exterior to, or contain the envelope boundary
+		if( Envelope.set )
 		{
 			profiler.start();
 			{
@@ -656,7 +656,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 				};
 				MakeComplete( &tree.spaceRoot() , BaseDepth.value );
 
-				// Read in the hull geometry
+				// Read in the envelope geometry
 				std::vector< Point< Real , Dim > > vertices;
 				std::vector< SimplexIndex< Dim-1 , node_index_type > > simplices;
 				{
@@ -664,7 +664,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 					std::vector< std::vector< int > > polygons;
 					std::vector< std::string > comments;
 					int file_type;
-					PlyReadPolygons( Hull.value , _vertices , polygons , PlyVertex< Real , Dim >::PlyReadProperties() , PlyVertex< Real , Dim >::PlyReadNum , file_type , comments );
+					PlyReadPolygons( Envelope.value , _vertices , polygons , PlyVertex< Real , Dim >::PlyReadProperties() , PlyVertex< Real , Dim >::PlyReadNum , file_type , comments );
 					vertices.resize( _vertices.size() );
 					for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = modelToUnitCube * _vertices[i].point;
 					simplices.resize( polygons.size() );
@@ -673,7 +673,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 						else for( int j=0 ; j<Dim ; j++ ) simplices[i][j] = polygons[i][j];
 				}
 				// Get the interior/boundary/exterior designators
-				geometryNodeDesignators = FEMTreeInitializer< Dim , Real >::template GetGeometryNodeDesignators( &tree.spaceRoot() , vertices , simplices , BaseDepth.value , HullDepth.value , tree.nodeAllocators , tree.initializer() );
+				geometryNodeDesignators = FEMTreeInitializer< Dim , Real >::template GetGeometryNodeDesignators( &tree.spaceRoot() , vertices , simplices , BaseDepth.value , EnvelopeDepth.value , tree.nodeAllocators , tree.initializer() );
 
 				// Make nodes in the support of the vector field @{ExactDepth} interior
 				if( !NoDirichletErode.set )
@@ -746,7 +746,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 					FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( &tree.spaceRoot() , geometryNodeDesignators , BaseDepth.value );
 				}
 			}
-			profiler.dumpOutput2( comments , "#               Initialized hull constraints:" );
+			profiler.dumpOutput2( comments , "#               Initialized envelope constraints:" );
 		}
 
 		if( !Density.set ) delete density , density = NULL;
@@ -770,12 +770,12 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			if( geometryNodeDesignators.size() ) tree.template finalizeForMultigrid< MAX_DEGREE , Degrees::Max() >( BaseDepth.value , FullDepth.value , hasDataFunctor , [&]( const FEMTreeNode *node ){ return node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() && geometryNodeDesignators[node]==GeometryNodeType::EXTERIOR; } , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , density , &geometryNodeDesignators ) );
 			else                                 tree.template finalizeForMultigrid< MAX_DEGREE , Degrees::Max() >( BaseDepth.value , FullDepth.value , hasDataFunctor , []( const FEMTreeNode * ){ return false; } , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , density ) );
 
-			if( geometryNodeDesignators.size() && HullGrid.set )
+			if( geometryNodeDesignators.size() && EnvelopeGrid.set )
 			{
 				FEMTreeInitializer< Dim , Real >::PushGeometryNodeDesignatorsToFiner( &tree.spaceRoot() , geometryNodeDesignators );
 				FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( &tree.spaceRoot() , geometryNodeDesignators );
 
-				auto WriteHullGrid = [&]( bool showFinest )
+				auto WriteEnvelopeGrid = [&]( bool showFinest )
 				{
 					int res = 0;
 					DenseNodeData< Real , IsotropicUIntPack< Dim , FEMTrivialSignature > > coefficients = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMTrivialSignature >() );
@@ -797,11 +797,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 					XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
 					for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / res ) , voxelToUnitCube( Dim , d ) = (Real)( 0.5 / res );
 
-					WriteGrid< Real , DEFAULT_DIMENSION >( HullGrid.value , values , res , unitCubeToModel * voxelToUnitCube , Verbose.set );
+					WriteGrid< Real , DEFAULT_DIMENSION >( EnvelopeGrid.value , values , res , unitCubeToModel * voxelToUnitCube , Verbose.set );
 					DeletePointer( values );
 				};
 
-				WriteHullGrid( true );
+				WriteEnvelopeGrid( true );
 			}
 
 			profiler.dumpOutput2( comments , "#       Finalized tree:" );
@@ -1029,16 +1029,16 @@ int main( int argc , char* argv[] )
 		KernelDepth.value = Depth.value;
 	}
 
-	if( !HullDepth.set ) HullDepth.value = BaseDepth.value;
-	if( HullDepth.value>Depth.value )
+	if( !EnvelopeDepth.set ) EnvelopeDepth.value = BaseDepth.value;
+	if( EnvelopeDepth.value>Depth.value )
 	{
-		WARN( HullDepth.name , " can't be greater than " , Depth.name , ": " , HullDepth.value , " <= " , Depth.value );
-		HullDepth.value = Depth.value;
+		WARN( EnvelopeDepth.name , " can't be greater than " , Depth.name , ": " , EnvelopeDepth.value , " <= " , Depth.value );
+		EnvelopeDepth.value = Depth.value;
 	}
-	if( HullDepth.value<BaseDepth.value )
+	if( EnvelopeDepth.value<BaseDepth.value )
 	{
-		WARN( HullDepth.name , " can't be less than " , BaseDepth.name , ": " , HullDepth.value , " >= " , BaseDepth.value );
-		HullDepth.value = BaseDepth.value;
+		WARN( EnvelopeDepth.name , " can't be less than " , BaseDepth.name , ": " , EnvelopeDepth.value , " >= " , BaseDepth.value );
+		EnvelopeDepth.value = BaseDepth.value;
 	}
 
 #ifdef USE_DOUBLE
