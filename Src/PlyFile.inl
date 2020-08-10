@@ -611,9 +611,9 @@ nprops   - number of properties
 returns a list of properties, or NULL if the file doesn't contain that elem
 ******************************************************************************/
 
-std::vector< PlyProperty * > PlyFile::get_element_description( const std::string &elem_name , size_t &nelems )
+std::vector< PlyProperty > PlyFile::get_element_description( const std::string &elem_name , size_t &nelems )
 {
-	std::vector< PlyProperty * > prop_list;
+	std::vector< PlyProperty > prop_list;
 
 	/* find information about the element */
 	PlyElement *elem = find_element( elem_name );
@@ -622,7 +622,7 @@ std::vector< PlyProperty * > PlyFile::get_element_description( const std::string
 
 	/* make a copy of the element's property list */
 	prop_list.resize( elem->props.size() );
-	for( int i=0 ; i<elem->props.size() ; i++ ) prop_list[i] = new PlyProperty( elem->props[i].prop );
+	for( int i=0 ; i<elem->props.size() ; i++ ) prop_list[i] = elem->props[i].prop;
 
 	/* return this duplicate property list */
 	return prop_list;

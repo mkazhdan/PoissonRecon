@@ -41,6 +41,8 @@ DAMAGE.
 #include "CmdLineParser.h"
 #include "PPolynomial.h"
 #include "FEMTree.h"
+#include "Ply.h"
+#include "VertexFactory.h"
 
 MessageWriter messageWriter;
 
@@ -280,13 +282,9 @@ void _Execute( int argc , char* argv[] )
 		std::vector< TriangleIndex< node_index_type > > triangles;
 		{
 			int file_type;
-			std::vector< PlyVertex< float , Dim > > _vertices;
 			std::vector< std::vector< int > > _polygons;
 			std::vector< std::string > comments;
-			if( !PlyReadPolygons( In.value , _vertices , _polygons , PlyVertex< float , Dim >::PlyReadProperties() , PlyVertex< float , Dim >::PlyReadNum , file_type , comments ) )
-				ERROR_OUT( "Failed to read ply file: " , In.value );
-			vertices.resize( _vertices.size() );
-			for( int i=0 ; i<vertices.size() ; i++ ) for( int d=0 ; d<Dim ; d++ ) vertices[i][d] = _vertices[i].point[d];
+			PLY::ReadPolygons( In.value , VertexFactory::PositionFactory< Real , Dim >() , vertices , _polygons , file_type , comments );
 			triangles.resize( _polygons.size() );
 			for( int i=0 ; i<triangles.size() ; i++ ) for( int j=0 ; j<Dim ; j++ ) triangles[i][j] = _polygons[i][j];
 		}

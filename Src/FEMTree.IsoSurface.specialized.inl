@@ -191,11 +191,14 @@ protected:
 		template< unsigned int D , unsigned int K >
 		struct HyperCubeTables< D , K >
 		{
-			static unsigned int CellOffset[ HyperCube::Cube< D >::template ElementNum< K >() ][ HyperCube::Cube< D >::template IncidentCubeNum< K >() ];
-			static unsigned int IncidentElementCoIndex[ HyperCube::Cube< D >::template ElementNum< K >() ][ HyperCube::Cube< D >::template IncidentCubeNum< K >() ];
-			static unsigned int CellOffsetAntipodal[ HyperCube::Cube< D >::template ElementNum< K >() ];
-			static typename HyperCube::Cube< D >::template IncidentCubeIndex< K > IncidentCube[ HyperCube::Cube< D >::template ElementNum< K >() ];
-			static typename HyperCube::Direction Directions[ HyperCube::Cube< D >::template ElementNum< K >() ][ D ];
+			static constexpr unsigned int IncidentCubeNum = HyperCube::Cube< D >::template IncidentCubeNum< K >();
+			static constexpr unsigned int ElementNum = HyperCube::Cube< D >::template ElementNum< K >();
+			static unsigned int CellOffset[ ElementNum ][ IncidentCubeNum ];
+			static unsigned int IncidentElementCoIndex[ ElementNum ][ IncidentCubeNum ];
+			static unsigned int CellOffsetAntipodal[ ElementNum ];
+			static typename HyperCube::Cube< D >::template IncidentCubeIndex< K > IncidentCube[ ElementNum ];
+			static typename HyperCube::Direction Directions[ ElementNum ][ D ];
+
 			static void SetTables( void )
 			{
 				for( typename HyperCube::Cube< D >::template Element< K > e ; e<HyperCube::Cube< D >::template ElementNum< K >() ; e++ )
@@ -214,8 +217,12 @@ protected:
 		template< unsigned int D , unsigned int K1 , unsigned int K2 >
 		struct HyperCubeTables< D , K1 , K2 >
 		{
-			static typename HyperCube::Cube< D >::template Element< K2 > OverlapElements[ HyperCube::Cube< D >::template ElementNum< K1 >() ][ HyperCube::Cube< D >::template OverlapElementNum< K1 , K2 >() ];
-			static bool Overlap[ HyperCube::Cube< D >::template ElementNum< K1 >() ][ HyperCube::Cube< D >::template ElementNum< K2 >() ];
+			static constexpr unsigned int ElementNum1 = HyperCube::Cube< D >::template ElementNum< K1 >();
+			static constexpr unsigned int ElementNum2 = HyperCube::Cube< D >::template ElementNum< K2 >();
+			static constexpr unsigned int OverlapElementNum = HyperCube::Cube< D >::template OverlapElementNum< K1 , K2 >();
+			static typename HyperCube::Cube< D >::template Element< K2 > OverlapElements[ ElementNum1 ][ OverlapElementNum ];
+			static bool Overlap[ ElementNum1 ][ ElementNum2 ];
+
 			static void SetTables( void )
 			{
 				for( typename HyperCube::Cube< D >::template Element< K1 > e ; e<HyperCube::Cube< D >::template ElementNum< K1 >() ; e++ )
@@ -964,7 +971,7 @@ protected:
 										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
 										if( !edgeSet )
 										{
-											mesh.addOutOfCorePoint( vertex );
+											mesh.addOutOfCoreVertex( vertex );
 											edgeSet = 1;
 											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset , vertex );
 											sValues.edgeKeys[ vIndex ] = key;
@@ -1066,7 +1073,7 @@ protected:
 										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
 										if( !edgeSet )
 										{
-											mesh.addOutOfCorePoint( vertex );
+											mesh.addOutOfCoreVertex( vertex );
 											edgeSet = 1;
 											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset , vertex );
 											xValues.edgeKeys[ vIndex ] = key;
@@ -1683,7 +1690,7 @@ protected:
 					if( (i+1)%polygon.size()!=j && (j+1)%polygon.size()!=i )
 					{
 						Vertex v1 = polygon[i].second , v2 = polygon[j].second;
-						for( int k=0 ; k<3 ; k++ ) if( v1.point[k]==v2.point[k] ) isCoplanar = true;
+						for( int k=0 ; k<3 ; k++ ) if( v1.template get<0>()[k]==v2.template get<0>()[k] ) isCoplanar = true;
 					}
 			if( isCoplanar )
 			{
@@ -1694,7 +1701,7 @@ protected:
 				node_index_type cIdx;
 				{
 					std::lock_guard< std::mutex > lock( _pointInsertionMutex );
-					cIdx = mesh.addOutOfCorePoint( c );
+					cIdx = mesh.addOutOfCoreVertex( c );
 					vOffset++;
 				}
 				for( unsigned i=0 ; i<polygon.size() ; i++ )
@@ -1709,7 +1716,7 @@ protected:
 			else
 			{
 				std::vector< Point< Real , Dim > > vertices( polygon.size() );
-				for( unsigned int i=0 ; i<polygon.size() ; i++ ) vertices[i] = polygon[i].second.point;
+				for( unsigned int i=0 ; i<polygon.size() ; i++ ) vertices[i] = polygon[i].second.template get<0>();
 				std::vector< TriangleIndex< node_index_type > > triangles = MinimalAreaTriangulation< node_index_type , Real , Dim >( ( ConstPointer( Point< Real , Dim > ) )GetPointer( vertices ) , (node_index_type)vertices.size() );
 				if( triangles.size()!=polygon.size()-2 ) ERROR_OUT( "Minimal area triangulation failed:" , triangles.size() , " != " , polygon.size()-2 );
 				for( unsigned int i=0 ; i<triangles.size() ; i++ )
@@ -1868,18 +1875,17 @@ public:
 template< class Real , class Vertex > std::mutex IsoSurfaceExtractor< 3 , Real , Vertex >::_pointInsertionMutex;
 template< class Real , class Vertex > std::atomic< size_t > IsoSurfaceExtractor< 3 , Real , Vertex >::_BadRootCount;
 
-
 template< class Real , class Vertex > template< unsigned int D , unsigned int K >
-unsigned int IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::CellOffset[ HyperCube::Cube< D >::template ElementNum< K >() ][ HyperCube::Cube< D >::template IncidentCubeNum< K >() ];
+unsigned int IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::CellOffset[ ElementNum ][ IncidentCubeNum ];
 template< class Real , class Vertex > template< unsigned int D , unsigned int K >
-unsigned int IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::IncidentElementCoIndex[ HyperCube::Cube< D >::template ElementNum< K >() ][ HyperCube::Cube< D >::template IncidentCubeNum< K >() ];
+unsigned int IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::IncidentElementCoIndex[ ElementNum ][ IncidentCubeNum ];
 template< class Real , class Vertex > template< unsigned int D , unsigned int K >
-unsigned int IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::CellOffsetAntipodal[ HyperCube::Cube< D >::template ElementNum< K >() ];
+unsigned int IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::CellOffsetAntipodal[ ElementNum ];
 template< class Real , class Vertex > template< unsigned int D , unsigned int K >
-typename HyperCube::Cube< D >::template IncidentCubeIndex < K > IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::IncidentCube[ HyperCube::Cube< D >::template ElementNum< K >() ];
+typename HyperCube::Cube< D >::template IncidentCubeIndex < K > IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::IncidentCube[ ElementNum ];
 template< class Real , class Vertex > template< unsigned int D , unsigned int K >
-typename HyperCube::Direction IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::Directions[ HyperCube::Cube< D >::template ElementNum< K >() ][ D ];
+typename HyperCube::Direction IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::Directions[ ElementNum ][ D ];
 template< class Real , class Vertex > template< unsigned int D , unsigned int K1 , unsigned int K2 >
-typename HyperCube::Cube< D >::template Element< K2 > IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K1 , K2 >::OverlapElements[ HyperCube::Cube< D >::template ElementNum< K1 >() ][ HyperCube::Cube< D >::template OverlapElementNum< K1 , K2 >() ];
+typename HyperCube::Cube< D >::template Element< K2 > IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K1 , K2 >::OverlapElements[ ElementNum1 ][ OverlapElementNum ];
 template< class Real , class Vertex > template< unsigned int D , unsigned int K1 , unsigned int K2 >
-bool IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K1 , K2 >::Overlap[ HyperCube::Cube< D >::template ElementNum< K1 >() ][ HyperCube::Cube< D >::template ElementNum< K2 >() ];
+bool IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K1 , K2 >::Overlap[ ElementNum1 ][ ElementNum2 ];

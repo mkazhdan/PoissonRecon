@@ -135,7 +135,7 @@ void BaseFEMIntegrator::System< UIntPack< TDegrees ... > >::setStencils( PCStenc
 template< unsigned int ... TDegrees >
 void BaseFEMIntegrator::RestrictionProlongation< UIntPack< TDegrees ... > >::setStencil( UpSampleStencil & stencil ) const
 {
-	static const int Dim = sizeof ... ( TDegrees );
+	static constexpr int Dim = sizeof ... ( TDegrees );
 	int highCenter = ( 1<<_highDepth )>>1;
 	int pOff[Dim] , cOff[Dim];
 	static const int upSampleStart[] = { BSplineSupportSizes< TDegrees >::UpSampleStart ... };
@@ -145,7 +145,7 @@ void BaseFEMIntegrator::RestrictionProlongation< UIntPack< TDegrees ... > >::set
 template< unsigned int ... TDegrees >
 void BaseFEMIntegrator::RestrictionProlongation< UIntPack< TDegrees ... > >::setStencils( DownSampleStencils& stencils ) const
 {
-	static const int Dim = sizeof ... ( TDegrees );
+	static constexpr int Dim = sizeof ... ( TDegrees );
 	// [NOTE] We want the center to be at the first node of the brood, which is not the case when childDepth is 1.
 	int highCenter = ( 1<<_highDepth )>>1 ; highCenter = ( highCenter>>1 )<<1;	
 	int pOff[Dim] , cOff[Dim];
@@ -1183,7 +1183,9 @@ T FEMTree< Dim , Real >::_getInterpolationConstraintFromProlongedSolution( const
 	{
 		int s[Dim];
 #if defined( _WIN32 ) || defined( _WIN64 )
+#ifdef SHOW_WARNINGS
 #pragma message ( "[WARNING] You've got me MSVC" )
+#endif // SHOW_WARNINGS
 		auto  UpdateFunction = [&]( int d , int i ){ s[d] = (int)SupportSizes::Values[d] - 1 - ( i - (int)OverlapRadii::Values[d] + (int)LeftSupportRadii::Values[d] ); };
 		auto ProcessFunction = [&]( const FEMTreeNode* pNode )
 		{
@@ -2693,7 +2695,9 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 			// Add in the solution @(depth) to the prolonged solution
 			ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] += solution[i]; } );
 		}
+#ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Should this be here or in SetResidualConstraints" )
+#endif // SHOW_WARNINGS
 		if( depth+1>_baseDepth && depth+1<=_maxDepth && _prolongedSolution ) _setPointValuesFromProlongedSolution< 0 >( depth+1 , bsData , ( ConstPointer( T ) )_prolongedSolution , interpolationInfos );
 	};
 	auto UpdateRestriction = [&]( int depth )
@@ -2972,7 +2976,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 						if( _isValidFEM2Node( nodes[j] ) )
 						{
 							const D* _data = coefficients( nodes[j] );
-							if( _data ) constraints[i] += _StencilDot( stencilValues[j] , *_data );
+							if( _data ) constraints[i] += _StencilDot< double , T , CDim >( stencilValues[j] , *_data );
 						}
 					}
 				}
@@ -2988,7 +2992,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 							if( _data )
 							{
 								LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset( nodes[j] , _d , _off );
-								constraints[i] += _StencilDot( F.ccIntegrate( off , _off ) , *_data );
+								constraints[i] += _StencilDot< double , T , CDim >( F.ccIntegrate( off , _off ) , *_data );
 							}
 						}
 					}
@@ -3020,7 +3024,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 						unsigned int idx = indices[i];
 						if( nodes[idx] )
 						{
-							AddAtomic( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot( stencilValues[idx] , data ) );
+							AddAtomic( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot< double , T , CDim >( stencilValues[idx] , data ) );
 						}
 					}
 				}
@@ -3032,7 +3036,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 						if( nodes[idx] )
 						{
 							LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset( nodes[idx] , _d , _off );
-							AddAtomic( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot( F.pcIntegrate( _off , off ) , data ) );
+							AddAtomic( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot< double , T , CDim >( F.pcIntegrate( _off , off ) , data ) );
 						}
 					}
 				}
@@ -3104,7 +3108,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 						for( unsigned int i=0 ; i<size ; i++ )
 						{
 							unsigned int idx = indices[i];
-							if( _isValidFEM2Node( nodes[idx] ) ) constraint += _StencilDot( stencilValues[idx] , _coefficients[ nodes[idx]->nodeData.nodeIndex ] );
+							if( _isValidFEM2Node( nodes[idx] ) ) constraint += _StencilDot< double , T , CDim >( stencilValues[idx] , _coefficients[ nodes[idx]->nodeData.nodeIndex ] );
 						}
 					else
 						for( unsigned int i=0 ; i<size ; i++ )
@@ -3113,7 +3117,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 							if( _isValidFEM2Node( nodes[idx] ) )
 							{
 								LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset ( nodes[idx] , _d , _off );
-								constraint += _StencilDot( F.cpIntegrate( off , _off ) , _coefficients[ nodes[idx]->nodeData.nodeIndex ] );
+								constraint += _StencilDot< double , T , CDim >( F.cpIntegrate( off , _off ) , _coefficients[ nodes[idx]->nodeData.nodeIndex ] );
 							}
 						}
 					constraints[i] += constraint;
@@ -3422,7 +3426,9 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 					_SetParentOverlapBounds( UIntPack< Degrees1 ... >() , UIntPack< Degrees2 ... >() , node , start , end );
 
 #ifdef __clang__
+#ifdef SHOW_WARNINGS
 #pragma message ( "[WARNING] You've got me clang" )
+#endif // SHOW_WARNINGS
 					std::function< void (int,int) > updateFunction = [](int,int){};
 #endif // __clang__
 

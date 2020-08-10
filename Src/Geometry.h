@@ -39,12 +39,80 @@ DAMAGE.
 #include <io.h>
 #endif // _WIN32
 
+// An empty type
+template< typename Real >
+struct EmptyVectorType
+{
+	EmptyVectorType& operator += ( const EmptyVectorType& p ){ return *this; }
+	EmptyVectorType& operator -= ( const EmptyVectorType& p ){ return *this; }
+	EmptyVectorType& operator *= ( Real s )                  { return *this; }
+	EmptyVectorType& operator /= ( Real s )                  { return *this; }
+	EmptyVectorType  operator +  ( const EmptyVectorType& p ) const { EmptyVectorType _p = *this ; _p += p ; return _p; }
+	EmptyVectorType  operator -  ( const EmptyVectorType& p ) const { EmptyVectorType _p = *this ; _p -= p ; return _p; }
+	EmptyVectorType  operator *  ( Real s )                   const { EmptyVectorType _p = *this ; _p *= s ; return _p; }
+	EmptyVectorType  operator /  ( Real s )                   const { EmptyVectorType _p = *this ; _p /= s ; return _p; }
+
+	friend std::ostream &operator << ( std::ostream &os , const EmptyVectorType &v ){ return os; }
+};
+template< typename Real > EmptyVectorType< Real > operator * ( Real s , EmptyVectorType< Real > v ){ return v*s; }
+
+template< typename _Real , typename ... VectorTypes >
+struct VectorTypeUnion
+{
+protected:
+	typedef std::tuple< VectorTypes ... > _VectorTuple;
+public:
+	typedef _Real Real;
+	template< unsigned int I > using VectorType = typename std::tuple_element< I , _VectorTuple >::type;
+	template< unsigned int I >       VectorType< I >& get( void )       { return std::get< I >( _vectorTypeTuple ); }
+	template< unsigned int I > const VectorType< I >& get( void ) const { return std::get< I >( _vectorTypeTuple ); }
+
+	VectorTypeUnion& operator += ( const VectorTypeUnion& p ){ _add<0>( p ) ; return *this; }
+	VectorTypeUnion& operator -= ( const VectorTypeUnion& p ){ _sub<0>( p ) ; return *this; }
+	VectorTypeUnion& operator *= ( Real s )                  { _mul<0>( s ) ; return *this; }
+	VectorTypeUnion& operator /= ( Real s )                  { _div<0>( s ) ; return *this; }
+	VectorTypeUnion  operator +  ( const VectorTypeUnion& p ) const { VectorTypeUnion _p = *this ; _p += p ; return _p; }
+	VectorTypeUnion  operator -  ( const VectorTypeUnion& p ) const { VectorTypeUnion _p = *this ; _p -= p ; return _p; }
+	VectorTypeUnion  operator *  ( Real s )                   const { VectorTypeUnion _p = *this ; _p *= s ; return _p; }
+	VectorTypeUnion  operator /  ( Real s )                   const { VectorTypeUnion _p = *this ; _p /= s ; return _p; }
+
+	VectorTypeUnion( void ){}
+	VectorTypeUnion( const VectorTypes & ... vectors ){ _set< 0 >( vectors ... ); }
+
+	friend std::ostream &operator << ( std::ostream &os , const VectorTypeUnion &v )
+	{
+		os << "{ ";
+		v._streamOut< 0 >( os );
+		os << " }";
+		return os;
+	}
+protected:
+	std::tuple< VectorTypes ... > _vectorTypeTuple;
+	template< unsigned int I , typename _Vector , typename ... _Vectors > void _set( const _Vector &vector , const _Vectors & ... vectors ){ get< I >() = vector ; _set< I+1 >( vectors ... ); }
+	template< unsigned int I , typename _Vector                         > void _set( const _Vector &vector                                ){ get< I >() = vector ;                             }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _add( const VectorTypeUnion& p ){ get<I>() += p.get<I>() ; _add< I+1 >( p ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _add( const VectorTypeUnion& p ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _sub( const VectorTypeUnion& p ){ get<I>() -= p.get<I>() ; _sub< I+1 >( p ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _sub( const VectorTypeUnion& p ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _mul( Real s ){ get<I>() *= s ; _mul< I+1 >( s ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _mul( Real s ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _div( Real s ){ get<I>() /= s ; _div< I+1 >( s ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _div( Real s ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _streamOut( std::ostream &os ) const { os << get<I>() ; if( I!=sizeof...(VectorTypes)-1 ) os << " , "; _streamOut< I+1 >( os ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _streamOut( std::ostream &os ) const { }
+};
+template< typename Real , typename ... Vectors >
+VectorTypeUnion< Real , Vectors ... > operator * ( Real s , VectorTypeUnion< Real , Vectors ... > vu ){ return vu * s; }
+
 template< class Real > Real Random( void );
 
 template< class Real , unsigned int Dim > struct XForm;
 
+
+template< typename Real , unsigned int ... Dims > struct Point;
+
 template< class Real , unsigned int Dim >
-struct Point
+struct Point< Real , Dim >
 {
 	void _init( unsigned int d )
 	{
@@ -72,7 +140,6 @@ public:
 	inline       Real& operator[] ( unsigned int i )       { return coords[i]; }
 	inline const Real& operator[] ( unsigned int i ) const { return coords[i]; }
 	inline Point  operator - ( void ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = - coords[d] ; return q; }
-
 
 	template< class _Real > inline Point& operator += ( Point< _Real , Dim > p )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] += (Real)p.coords[d] ; return *this; }
 	template< class _Real > inline Point  operator +  ( Point< _Real , Dim > p ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] + (Real)p.coords[d] ; return q; }
@@ -107,6 +174,7 @@ public:
 		return p;
 	}
 	static Point CrossProduct( Point* points ){ return CrossProduct( ( const Point* )points ); }
+
 	friend std::ostream &operator << ( std::ostream &os , const Point &p )
 	{
 		os << "( ";
@@ -120,6 +188,87 @@ public:
 };
 template< class Real , unsigned int Dim > Point< Real , Dim > operator * ( Real r , Point< Real , Dim > p ){ return p*r; }
 template< class Real , unsigned int Dim > Point< Real , Dim > operator / ( Real r , Point< Real , Dim > p ){ return p/r; }
+
+// This class represents a point whose is size is allocated dynamically.
+// The size can be set by:
+// 1. Construction
+// 2. Copying
+// 3. Adding / subtracting (if the size has not been set yet)
+template< class Real >
+struct Point< Real >
+{
+	Point( void ) : _coords(NULL) , _dim(0){}
+	Point( size_t dim ) : _coords(NULL) , _dim(0) { if( dim ){ _resize( (unsigned int)dim ) ; memset( _coords , 0 , sizeof(Real)*_dim ); } }
+	Point( const Point &p ) : _coords(NULL) , _dim(0) { if( p._dim ){ _resize( p._dim ) ; memcpy( _coords , p._coords , sizeof(Real)*_dim ); } }
+	~Point( void ){ delete[] _coords ; _coords = NULL; }
+
+	Point &operator = ( const Point &p )
+	{
+		if( !_dim ){ _resize( p._dim ) ; memcpy( _coords , p._coords , sizeof(Real)*_dim ); }
+		else if( _dim==p._dim ) memcpy( _coords , p._coords , sizeof(Real)*_dim );
+		else ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
+		return *this;
+	}
+
+	unsigned int dim( void ) const { return _dim; }
+	Real &operator[]( size_t idx ){ return _coords[idx]; }
+	const Real &operator[]( size_t idx ) const { return _coords[idx]; }
+
+
+	Point& operator += ( const Point& p )
+	{
+		if( !_dim ){ _resize( p._dim ) ; for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] = p._coords[i]; }
+		else if( _dim==p._dim ) for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] += p._coords[i];
+		else ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
+		return *this;
+	}
+	Point& operator -= ( const Point& p )
+	{
+		if( !_dim ){ _resize( p._dim ) ; for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] = -p._coords[i]; }
+		else if( _dim==p._dim ) for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] -= p._coords[i];
+		else ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
+		return *this;
+	}
+	Point& operator *= ( Real s )
+	{
+		for( unsigned int i=0 ; i<_dim ; i++ ) (*this)[i] *=  s;
+		return *this;
+	}
+	Point& operator /= ( Real s )
+	{
+		for( unsigned int i=0 ; i<_dim ; i++ ) (*this)[i] /=  s;
+		return *this;
+	}
+	Point operator +  ( const Point& p ) const { Point _p = *this ; _p += p ; return _p; }
+	Point operator -  ( const Point& p ) const { Point _p = *this ; _p -= p ; return _p; }
+	Point operator *  ( Real s )         const { Point _p = *this ; _p *= s ; return _p; }
+	Point operator /  ( Real s )         const { Point _p = *this ; _p /= s ; return _p; }
+
+	static Real Dot( const Point &p1 , const Point &p2 )
+	{
+		Real dot;
+		if( p1._dim!=p2._dim ) ERROR_OUT( "Dimensions differ: " , p1._dim , " != " , p2._dim );
+		for( size_t d=0 ; d<p1._dim ; d++ ) dot += p1[d] * p2[d];
+		return dot;
+	}
+	static Real SquareNorm( const Point& p ){ return Dot( p , p ); }
+
+	friend std::ostream &operator << ( std::ostream &os , const Point &p )
+	{
+		os << "( ";
+		for( size_t i=0 ; i<p._dim ; i++ )
+		{
+			if( i ) os << " , ";
+			os << p[i];
+		}
+		return os << " )";
+	}
+protected:
+	Real *_coords;
+	unsigned int _dim;
+	void _resize( unsigned int dim ){ if( dim ){ _coords = new Real[dim] ; _dim = dim; } }
+};
+template< class Real > Point< Real > operator * ( Real s , Point< Real > p ){ return p*s; }
 
 /** This templated class represents a Ray.*/
 template< class Real , unsigned int Dim >
@@ -161,6 +310,7 @@ std::ostream &operator << ( std::ostream &stream , const Ray< Real , Dim > &ray 
 	stream << "[ " << ray.position << " ] [ " << ray.direction << " ]";
 	return stream;
 }
+
 template< class Real , unsigned int _Columns , unsigned int _Rows >
 struct Matrix
 {
@@ -558,7 +708,9 @@ struct Simplex
 #endif
 	}
 };
-template< class Real , unsigned int Dim >
+
+
+template< class Real , unsigned int Dim >	
 struct Simplex< Real , Dim , 0 >
 {
 	static const unsigned int K=0;
@@ -608,13 +760,13 @@ struct Simplex< Real , Dim , 0 >
 		return isInside;
 	}
 };
-
 template< typename Real , unsigned int Dim , unsigned int K >
 std::ostream &operator << ( std::ostream &os , const Simplex< Real , Dim , K > &s )
 {
 	for( unsigned int k=0 ; k<K ; k++ ) os << s.p[k] << " , ";
 	return os << s.p[K];
 }
+
 
 template< class Real , unsigned int Dim > using Edge = Simplex< Real , Dim , 1 >;
 template< class Real , unsigned int Dim > using Triangle = Simplex< Real , Dim , 2 >;
@@ -636,7 +788,7 @@ protected:
 	template< class ... Ints > void _init( unsigned int k , Index v , Ints ... values )
 	{
 		idx[k] = v;
-		if( k<=K ) _init( k+1 , values ... );
+		if( k<K ) _init( k+1 , values ... );
 	}
 };
 template< typename Index > using EdgeIndex = SimplexIndex< 1 , Index >;
@@ -676,17 +828,6 @@ protected:
 	const std::vector< SimplexIndex< K , IndexType > > &_simplices;
 };
 
-template< typename Index >
-class CoredPointIndex
-{
-public:
-	Index index;
-	char inCore;
-
-	bool operator == (const CoredPointIndex& cpi) const {return (index==cpi.index) && (inCore==cpi.inCore);};
-	bool operator != (const CoredPointIndex& cpi) const {return (index!=cpi.index) || (inCore!=cpi.inCore);};
-};
-template< typename Index > struct CoredEdgeIndex{ CoredPointIndex< Index > idx[2]; };
 
 template< typename Index >
 class TriangulationEdge
@@ -704,237 +845,6 @@ public:
 	Index eIndex[3];
 };
 
-template< typename Index >
-struct CoredVertexIndex
-{
-	Index idx;
-	bool inCore;
-};
-
-template< class Vertex , typename Index >
-class CoredCurveData
-{
-public:
-	std::vector< Vertex > inCorePoints;
-	virtual void resetIterator( void ) = 0;
-
-	virtual Index addOutOfCorePoint( const Vertex& p ) = 0;
-	virtual Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p ) = 0;
-	virtual void addEdge_s( unsigned int thread , CoredVertexIndex< Index > v1 , CoredVertexIndex< Index > v2 ) = 0;
-	virtual void addEdge_s( unsigned int thread , Index v1 , Index v2 ) = 0;
-
-	virtual Index nextOutOfCorePoint( Vertex& p )=0;
-	virtual Index nextEdge( CoredVertexIndex< Index >& v1 , CoredVertexIndex< Index >& v2 ) = 0;
-
-	virtual size_t outOfCorePointCount(void)=0;
-	virtual size_t edgeCount( void ) = 0;
-};
-
-template< class Vertex , typename Index >
-class CoredMeshData
-{
-public:
-	virtual ~CoredMeshData( void ){}
-	std::vector< Vertex > inCorePoints;
-	virtual void resetIterator( void ) = 0;
-
-	virtual Index addOutOfCorePoint( const Vertex& p ) = 0;
-	virtual Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p ) = 0;
-	virtual void addPolygon_s( unsigned int thread , const std::vector< CoredVertexIndex< Index > >& vertices ) = 0;
-	virtual void addPolygon_s( unsigned int thread , const std::vector< Index >& vertices ) = 0;
-
-	virtual Index nextOutOfCorePoint( Vertex& p )=0;
-	virtual Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices ) = 0;
-
-	virtual size_t outOfCorePointCount( void )=0;
-	virtual size_t polygonCount( void ) = 0;
-};
-
-template< class Vertex , typename Index >
-class CoredVectorCurveData : public CoredCurveData< Vertex , Index >
-{
-	std::vector< Vertex > oocPoints;
-	std::vector< std::pair< Index , Index > > edges;
-	unsigned int threadIndex;
-	Index edgeIndex;
-	Index oocPointIndex;
-public:
-	CoredVectorCurveData( void );
-
-	void resetIterator( void );
-
-	Index addOutOfCorePoint( const Vertex& p );
-	Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p );
-	void addEdge_s( unsigned int thread , CoredVertexIndex< Index > v1 , CoredVertexIndex< Index > v2 );
-	void addEdge_s( unsigned int thread , Index v1 , Index v2 );
-
-	Index nextOutOfCorePoint( Vertex& p );
-	Index nextEdge( CoredVertexIndex< Index > &v1 , CoredVertexIndex< Index > &v2 );
-
-	size_t outOfCorePointCount( void );
-	size_t edgeCount( void );
-};
-template< class Vertex , typename Index >
-class CoredVectorMeshData : public CoredMeshData< Vertex , Index >
-{
-	std::vector< Vertex > oocPoints;
-	std::vector< std::vector< std::vector< Index > > > polygons;
-	unsigned int threadIndex;
-	Index polygonIndex;
-	Index oocPointIndex;
-public:
-	CoredVectorMeshData( void );
-
-	void resetIterator( void );
-
-	Index addOutOfCorePoint( const Vertex& p );
-	Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p );
-	void addPolygon_s( unsigned int thread , const std::vector< CoredVertexIndex< Index > >& vertices );
-	void addPolygon_s( unsigned int thread , const std::vector< Index >& vertices );
-
-	Index nextOutOfCorePoint( Vertex& p );
-	Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices );
-
-	size_t outOfCorePointCount( void );
-	size_t polygonCount( void );
-};
-class BufferedReadWriteFile
-{
-	bool tempFile;
-	FILE* _fp;
-	char *_buffer , _fileName[1024];
-	size_t _bufferIndex , _bufferSize;
-public:
-	BufferedReadWriteFile( const char* fileName=NULL , const char* fileHeader="" , unsigned int bufferSize=(1<<20) )
-	{
-		_bufferIndex = 0;
-		_bufferSize = bufferSize;
-		if( fileName ) strcpy( _fileName , fileName ) , tempFile = false , _fp = fopen( _fileName , "w+b" );
-		else
-		{
-			if( fileHeader && strlen(fileHeader) ) sprintf( _fileName , "%sXXXXXX" , fileHeader );
-			else strcpy( _fileName , "XXXXXX" );
-#ifdef _WIN32
-			_mktemp( _fileName );
-			_fp = fopen( _fileName , "w+b" );
-#else // !_WIN32
-			_fp = fdopen( mkstemp( _fileName ) , "w+b" );
-#endif // _WIN32
-			tempFile = true;
-		}
-		if( !_fp ) ERROR_OUT( "Failed to open file: " , _fileName );
-		_buffer = (char*) malloc( _bufferSize );
-	}
-	~BufferedReadWriteFile( void )
-	{
-		free( _buffer );
-		fclose( _fp );
-		if( tempFile ) remove( _fileName );
-	}
-	bool write( const void* data , size_t size )
-	{
-		if( !size ) return true;
-		const char* _data = (char*) data;
-		size_t sz = _bufferSize - _bufferIndex;
-		while( sz<=size )
-		{
-			memcpy( _buffer+_bufferIndex , _data , sz );
-			fwrite( _buffer , 1 , _bufferSize , _fp );
-			_data += sz;
-			size -= sz;
-			_bufferIndex = 0;
-			sz = _bufferSize;
-		}
-		if( size )
-		{
-			memcpy( _buffer+_bufferIndex , _data , size );
-			_bufferIndex += size;
-		}
-		return true;
-	}
-	bool read( void* data , size_t size )
-	{
-		if( !size ) return true;
-		char *_data = (char*) data;
-		size_t sz = _bufferSize - _bufferIndex;
-		while( sz<=size )
-		{
-			if( size && !_bufferSize ) return false;
-			memcpy( _data , _buffer+_bufferIndex , sz );
-			_bufferSize = fread( _buffer , 1 , _bufferSize , _fp );
-			_data += sz;
-			size -= sz;
-			_bufferIndex = 0;
-			if( !size ) return true;
-			sz = _bufferSize;
-		}
-		if( size )
-		{
-			if( !_bufferSize ) return false;
-			memcpy( _data , _buffer+_bufferIndex , size );
-			_bufferIndex += size;
-		}
-		return true;
-	}
-	void reset( void )
-	{
-		if( _bufferIndex ) fwrite( _buffer , 1 , _bufferIndex , _fp );
-		_bufferIndex = 0;
-		fseek( _fp , 0 , SEEK_SET );
-		_bufferIndex = 0;
-		_bufferSize = fread( _buffer , 1 , _bufferSize , _fp );
-	}
-};
-template< class Vertex , typename Index >
-class CoredFileCurveData : public CoredCurveData< Vertex , Index >
-{
-	BufferedReadWriteFile *oocPointFile;
-	Index oocPoints;
-	std::vector< BufferedReadWriteFile* > edgeFiles;
-	unsigned int threadIndex;
-public:
-	CoredFileCurveData( const char* fileHeader="" );
-	~CoredFileCurveData( void );
-
-	void resetIterator( void );
-
-	Index addOutOfCorePoint( const Vertex& p );
-	Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p );
-	void addEdge_s( unsigned int thread , CoredVertexIndex< Index > v1 , CoredVertexIndex< Index > v2 );
-	void addEdge_s( unsigned int thread , Index v1 , Index v2 );
-
-	Index nextOutOfCorePoint( Vertex& p );
-	Index nextEdge( CoredVertexIndex< Index > &v1 , CoredVertexIndex< Index > &v2 );
-
-	size_t outOfCorePointCount( void );
-	size_t edgeCount( void );
-};
-
-template< class Vertex , typename Index >
-class CoredFileMeshData : public CoredMeshData< Vertex , Index >
-{
-	BufferedReadWriteFile *oocPointFile;
-	Index oocPoints;
-	std::vector< Index > polygons;
-	std::vector< BufferedReadWriteFile* > polygonFiles;
-	unsigned int threadIndex;
-public:
-	CoredFileMeshData( const char* fileHeader="" );
-	~CoredFileMeshData( void );
-
-	void resetIterator( void );
-
-	Index addOutOfCorePoint( const Vertex& p );
-	Index addOutOfCorePoint_s( unsigned int thread , const Vertex& p );
-	void addPolygon_s( unsigned int thread , const std::vector< CoredVertexIndex< Index > >& vertices );
-	void addPolygon_s( unsigned int thread , const std::vector< Index >& vertices );
-
-	Index nextOutOfCorePoint( Vertex& p );
-	Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices );
-
-	size_t outOfCorePointCount( void );
-	size_t polygonCount( void );
-};
 #include "Geometry.inl"
 
 #endif // GEOMETRY_INCLUDED

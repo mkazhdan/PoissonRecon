@@ -31,7 +31,6 @@ DAMAGE.
 #define NEW_CHUNKS
 #define DISABLE_PARALLELIZATION
 
-// -80,-130,40
 #include <stdio.h>
 #include <stdlib.h>
 #include <algorithm>
@@ -42,8 +41,8 @@ DAMAGE.
 #include "CmdLineParser.h"
 #include "Geometry.h"
 #include "Ply.h"
-#include "PointStream.h"
-#include "PointStreamData.h"
+#include "VertexStream.h"
+#include "VertexFactory.h"
 
 cmdLineParameters< char* > In( "in" );
 cmdLineParameter< char* > Out( "out" );
@@ -77,32 +76,41 @@ void PrintBoundingBox( Point< float , 3 > min , Point< float , 3 > max )
 	printf( " ]" );
 }
 
-template< typename ... VertexData >
-void Read( char * const *fileNames , unsigned int fileNum , std::vector< PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > > &vertices , std::vector< std::vector< long long > > &polygons , int &ft , std::vector< std::string > &comments )
+template< typename Real , unsigned int Dim , typename VertexDataFactory >
+using FullVertexFactory = VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexDataFactory >;
+template< typename Real , unsigned int Dim , typename VertexDataFactory >
+using VertexType = typename FullVertexFactory< Real , Dim , VertexDataFactory >::VertexType;
+
+
+template< typename VertexDataFactory >
+void Read( char *const *fileNames , unsigned int fileNum , VertexDataFactory vertexDataFactory , std::vector< VertexType< float , 3 , VertexDataFactory > > &vertices , std::vector< std::vector< long long > > &polygons , int &ft , std::vector< std::string > &comments )
 {
-	typedef PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > Vertex;
+	typedef float Real;
+	static constexpr unsigned int Dim = 3;
+	FullVertexFactory< Real , Dim , VertexDataFactory > vertexFactory( VertexFactory::PositionFactory< Real , Dim >() , vertexDataFactory );
+
 	for( unsigned int i=0 ; i<fileNum ; i++ )
 	{
-		std::vector< PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > > _vertices;
+		std::vector< VertexType< Real , Dim , VertexDataFactory > > _vertices;
 		std::vector< std::vector< long long > > _polygons;
 		char *ext = GetFileExtension( fileNames[i] );
 
-		if( !strcasecmp( ext , "ply" ) ) PlyReadPolygons< Vertex >( fileNames[i] , _vertices , _polygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , comments );
+		if( !strcasecmp( ext , "ply" ) ) PLY::ReadPolygons( fileNames[i] , vertexFactory , _vertices , _polygons , ft , comments );
 		else
 		{
-			InputPointStreamWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > *pointStream;
-			if( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputPointStreamWithData< float , 3 , MultiPointStreamData< float , VertexData ... > >( fileNames[i] , MultiPointStreamData< float , VertexData ... >::ReadBinary );
-			else                               pointStream = new  ASCIIInputPointStreamWithData< float , 3 , MultiPointStreamData< float , VertexData ... > >( fileNames[i] , MultiPointStreamData< float , VertexData ... >::ReadASCII );
+			InputDataStream< VertexType< Real , Dim , VertexDataFactory > > *pointStream;
+			if( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputDataStream< FullVertexFactory< Real , Dim , VertexDataFactory > >( fileNames[i] , vertexFactory );
+			else                               pointStream = new  ASCIIInputDataStream< FullVertexFactory< Real , Dim , VertexDataFactory > >( fileNames[i] , vertexFactory );
 			size_t count = 0;
-			Vertex v;
-			while( pointStream->nextPoint( v.point , v.data ) ) count++;
+			VertexType< Real , Dim , VertexDataFactory > v;
+			while( pointStream->next( v ) ) count++;
 			pointStream->reset();
 			_vertices.resize( count );
 			comments.resize( 0 );
 			ft = PLY_BINARY_NATIVE;
 
 			count = 0;
-			while( pointStream->nextPoint( _vertices[count].point , _vertices[count].data ) ) count++;
+			while( pointStream->next( _vertices[count++] ) );
 			delete pointStream;
 		}
 		delete[] ext;
@@ -121,36 +129,32 @@ void Read( char * const *fileNames , unsigned int fileNum , std::vector< PlyVert
 	}
 }
 
-template< typename ... VertexData >
-void WritePoints( const char *fileName , int ft , const std::vector< PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > > &vertices , const std::vector< std::string > &comments )
+template< typename VertexDataFactory >
+void WritePoints( const char *fileName , int ft , VertexDataFactory vertexDataFactory , const std::vector< VertexType< float , 3 , VertexDataFactory > > &vertices , const std::vector< std::string > &comments )
 {
+	typedef float Real;
+	static constexpr unsigned int Dim = 3;
+	FullVertexFactory< Real , Dim , VertexDataFactory > vertexFactory( VertexFactory::PositionFactory< Real , Dim >() , vertexDataFactory );
 	char *ext = GetFileExtension( fileName );
-	typedef MultiPointStreamData< float , VertexData ... > StreamData;
-	if( !strcasecmp( ext , "ply" ) )
-	{
-		typedef PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > Vertex;
 
-		PLYOutputPointStreamWithData< float , 3 , StreamData > pointStream( fileName , vertices.size() , ft , StreamData::PlyWriteProperties() , StreamData::PlyWriteNum );
-		for( size_t i=0 ; i<vertices.size() ; i++ ) pointStream.nextPoint( vertices[i].point , vertices[i].data );
-	}
-	else if( !strcasecmp( ext , "bnpts" ) )
-	{
-		BinaryOutputPointStreamWithData< float , 3 , StreamData > pointStream( fileName , StreamData::WriteBinary );
-		for( size_t i=0 ; i<vertices.size() ; i++ ) pointStream.nextPoint( vertices[i].point , vertices[i].data );
-	}
-	else
-	{
-		ASCIIOutputPointStreamWithData< float , 3 , StreamData > pointStream( fileName , StreamData::WriteASCII );
-		for( size_t i=0 ; i<vertices.size() ; i++ ) pointStream.nextPoint( vertices[i].point , vertices[i].data );
-	}
+	OutputDataStream< VertexType< Real , Dim , VertexDataFactory > > *pointStream;
+
+	if     ( !strcasecmp( ext , "ply"   ) ) pointStream = new    PLYOutputDataStream< FullVertexFactory< Real , Dim , VertexDataFactory > >( fileName , vertexFactory , vertices.size() , ft );
+	else if( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryOutputDataStream< FullVertexFactory< Real , Dim , VertexDataFactory > >( fileName , vertexFactory );
+	else                                    pointStream = new  ASCIIOutputDataStream< FullVertexFactory< Real , Dim , VertexDataFactory > >( fileName , vertexFactory );
+	for( size_t i=0 ; i<vertices.size() ; i++ ) pointStream->next( vertices[i] );
+	delete pointStream;
+
 	delete[] ext;
 }
 
 
-template< typename ... VertexData >
-void WriteMesh( const char *fileName , int ft , const std::vector< PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > > &vertices , const std::vector< std::vector< long long > > &polygons , const std::vector< std::string > &comments )
+template< typename VertexDataFactory >
+void WriteMesh( const char *fileName , int ft , VertexDataFactory vertexDataFactory , const std::vector< VertexType< float , 3 , VertexDataFactory > > &vertices , const std::vector< std::vector< long long > > &polygons , const std::vector< std::string > &comments )
 {
-	typedef PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > Vertex;
+	typedef float Real;
+	static constexpr unsigned int Dim = 3;
+	FullVertexFactory< Real , Dim , VertexDataFactory > vertexFactory( VertexFactory::PositionFactory< Real , Dim >() , vertexDataFactory );
 
 	char *ext = GetFileExtension( fileName );
 	if( strcasecmp( ext , "ply" ) ) ERROR_OUT( "Can only output mesh to .ply file" );
@@ -167,7 +171,7 @@ void WriteMesh( const char *fileName , int ft , const std::vector< PlyVertexWith
 			outPolygons[i].resize( polygons[i].size() );
 			for( int j=0 ; j<polygons[i].size() ; j++ ) outPolygons[i][j] = (unsigned int)polygons[i][j];
 		}
-		if( !PlyWritePolygons< Vertex >( fileName , vertices , outPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) ) ERROR_OUT( "Could not write mesh to: " , fileName );
+		PLY::WritePolygons( fileName , vertexFactory , vertices , outPolygons , ft , comments );
 	}
 	else
 	{
@@ -178,36 +182,36 @@ void WriteMesh( const char *fileName , int ft , const std::vector< PlyVertexWith
 			outPolygons[i].resize( polygons[i].size() );
 			for( int j=0 ; j<polygons[i].size() ; j++ ) outPolygons[i][j] = (int)polygons[i][j];
 		}
-		if( !PlyWritePolygons< Vertex >( fileName , vertices , outPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) ) ERROR_OUT( "Could not write mesh to: " , fileName );
+		PLY::WritePolygons( fileName , vertexFactory , vertices , outPolygons , ft , comments );
 	}
 }
 
-template< typename Vertex >
-void GetBoundingBox( const std::vector< Vertex > &vertices , Point< float , 3 > &min , Point< float , 3 > &max )
+template< typename VertexDataFactory >
+void GetBoundingBox( const std::vector< VertexType< float , 3 , VertexDataFactory > > &vertices , Point< float , 3 > &min , Point< float , 3 > &max )
 {
-	min = max = vertices[0].point;
+	min = max = vertices[0].template get<0>();
 	for( size_t i=0 ; i<vertices.size() ; i++ ) for( unsigned int d=0 ; d<3 ; d++ )
 	{
-		min[d] = std::min< float >( min[d] , vertices[i].point[d] );
-		max[d] = std::max< float >( max[d] , vertices[i].point[d] );
+		min[d] = std::min< float >( min[d] , vertices[i].template get<0>()[d] );
+		max[d] = std::max< float >( max[d] , vertices[i].template get<0>()[d] );
 	}
 }
 
-template< typename Vertex >
-void GetSubPoints( const std::vector< Vertex > &vertices , Point< float , 3 > min , Point< float , 3 > max , std::vector< Vertex > &subVertices )
+template< typename VertexDataFactory >
+void GetSubPoints( const std::vector< VertexType< float , 3 , VertexDataFactory > > &vertices , Point< float , 3 > min , Point< float , 3 > max , std::vector< VertexType< float , 3 , VertexDataFactory > > &subVertices )
 {
 	subVertices.resize( 0 );
 
 	for( size_t i=0 ; i<vertices.size() ; i++ )
 	{
 		bool inside = true;
-		for( unsigned int d=0 ; d<3 ; d++ ) if( vertices[i].point[d]<min[d] || vertices[i].point[d]>=max[d] ) inside = false;
+		for( unsigned int d=0 ; d<3 ; d++ ) if( vertices[i].template get<0>()[d]<min[d] || vertices[i].template get<0>()[d]>=max[d] ) inside = false;
 		if( inside ) subVertices.push_back( vertices[i] );
 	}
 }
 
-template< typename Vertex >
-void GetSubVertices( const std::vector< Vertex > &vertices , std::vector< std::vector< long long > > &polygons , std::vector< Vertex > &subVertices )
+template< typename VertexDataFactory >
+void GetSubVertices( const std::vector< VertexType< float , 3 , VertexDataFactory > > &vertices , std::vector< std::vector< long long > > &polygons , std::vector< VertexType< float , 3 , VertexDataFactory > > &subVertices )
 {
 	subVertices.resize( 0 );
 	long long count = 0;
@@ -229,15 +233,15 @@ void GetSubVertices( const std::vector< Vertex > &vertices , std::vector< std::v
 	}
 }
 
-template< typename Vertex >
-void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std::vector< long long > > &polygons , Point< float , 3 > min , Point< float , 3 > max , std::vector< Vertex > &subVertices , std::vector< std::vector< long long > > &subPolygons )
+template< typename VertexDataFactory >
+void GetSubMesh( const std::vector< VertexType< float , 3 , VertexDataFactory > > &vertices , const std::vector< std::vector< long long > > &polygons , Point< float , 3 > min , Point< float , 3 > max , std::vector< VertexType< float , 3 , VertexDataFactory > > &subVertices , std::vector< std::vector< long long > > &subPolygons )
 {
 	subPolygons.resize( 0 );
 
 	for( size_t i=0 ; i<polygons.size() ; i++ )
 	{
 		Point< float , 3 > center;
-		for( size_t j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
+		for( size_t j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].template get<0>();
 		center /= (float)polygons[i].size();
 		bool inside = true;
 		for( unsigned int d=0 ; d<3 ; d++ ) if( center[d]<min[d] || center[d]>=max[d] ) inside = false;
@@ -247,24 +251,25 @@ void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std:
 	GetSubVertices( vertices , subPolygons , subVertices );
 }
 
-template< typename ... VertexData >
-void Execute( void )
+template< typename VertexDataFactory >
+void Execute( VertexDataFactory vertexDataFactory )
 {
+	typedef float Real;
+	static constexpr unsigned int Dim = 3;
 	Timer timer;
 	double t = Time();
-	typedef PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > Vertex;
-	std::vector< Vertex > vertices;
+	std::vector< VertexType< Real , Dim , VertexDataFactory > > vertices;
 	std::vector< std::vector< long long > > polygons;
 
 	int ft;
 	std::vector< std::string > comments;
-	Read( In.values , In.count , vertices , polygons , ft , comments );
+	Read( In.values , In.count , vertexDataFactory , vertices , polygons , ft , comments );
 	printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)vertices.size() , (unsigned long long)polygons.size() );
 	printf( "Time (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
 	printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 
 	Point< float , 3 > min , max;
-	GetBoundingBox( vertices , min , max );
+	GetBoundingBox< VertexDataFactory >( vertices , min , max );
 	PrintBoundingBox( min , max ) ; printf( "\n" );
 
 	float width = Width.value;
@@ -292,7 +297,7 @@ void Execute( void )
 				for( size_t i=0 ; i<polygons.size() ; i++ )
 				{
 					Point< float , 3 > center;
-					for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
+					for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].template get<0>();
 					center /= polygons[i].size();
 					if( InBoundingBox( center ) ) polygonCount++;
 				}
@@ -302,7 +307,7 @@ void Execute( void )
 			for( size_t i=0 ; i<polygons.size() ; i++ )
 			{
 				Point< float , 3 > center;
-				for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
+				for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].template get<0>();
 				center /= polygons[i].size();
 				if( InBoundingBox( center ) ) _polygons.push_back( polygons[i] );
 			}
@@ -313,8 +318,8 @@ void Execute( void )
 			if( Out.set )
 				if( _polygons.size() )
 				{
-					std::vector< Vertex > _vertices;
-					GetSubVertices( vertices , _polygons , _vertices );
+					std::vector< VertexType< Real , Dim , VertexDataFactory > > _vertices;
+					GetSubVertices< VertexDataFactory >( vertices , _polygons , _vertices );
 
 					if( Verbose.set )
 					{
@@ -322,24 +327,24 @@ void Execute( void )
 						printf( "\t\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)_vertices.size() , (unsigned long long)_polygons.size() );
 					}
 
-					WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , _polygons , comments );
+					WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertexDataFactory , _vertices , _polygons , comments );
 				}
 				else WARN( "no polygons in bounding box" );
 		}
 		else
 		{
-			std::vector< Vertex > _vertices;
+			std::vector< VertexType< Real , Dim , VertexDataFactory > > _vertices;
 
 			Timer timer;
 #ifdef NEW_CHUNKS
 			{
 				size_t vertexCount = 0;
-				for( size_t i=0 ; i<vertices.size() ; i++ ) if( InBoundingBox( vertices[i].point ) ) vertexCount++;
+				for( size_t i=0 ; i<vertices.size() ; i++ ) if( InBoundingBox( vertices[i].template get<0>() ) ) vertexCount++;
 				_vertices.reserve( vertexCount );
 			}
 #endif // NEW_CHUNKS
 
-			for( size_t i=0 ; i<vertices.size() ; i++ ) if( InBoundingBox( vertices[i].point ) ) _vertices.push_back( vertices[i] );
+			for( size_t i=0 ; i<vertices.size() ; i++ ) if( InBoundingBox( vertices[i].template get<0>() ) ) _vertices.push_back( vertices[i] );
 			printf( "\tChunked vertices:\n" );
 			printf( "\t\tTime (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
 			printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
@@ -353,7 +358,7 @@ void Execute( void )
 						printf( "\t\t\tPoints: %llu\n" , (unsigned long long)_vertices.size() );
 					}
 
-					WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , comments );
+					WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertexDataFactory , _vertices , comments );
 				}
 				else WARN( "no vertices in bounding box" );
 		}
@@ -402,7 +407,7 @@ void Execute( void )
 				for( size_t i=0 ; i<polygons.size() ; i++ )
 				{
 					Point< float , 3 > center;
-					for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
+					for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].template get<0>();
 					center /= polygons[i].size();
 					SetRange( center , range );
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
@@ -414,7 +419,7 @@ void Execute( void )
 			for( size_t i=0 ; i<polygons.size() ; i++ )
 			{
 				Point< float , 3 > center;
-				for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
+				for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].template get<0>();
 				center /= polygons[i].size();
 				SetRange( center , range );
 				for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
@@ -432,8 +437,8 @@ void Execute( void )
 #endif // DISABLE_PARALLELIZATION
 				for( int i=0 ; i<_polygons.size() ; i++ ) if( _polygons[i].size() )
 				{
-					std::vector< Vertex > _vertices;
-					GetSubVertices( vertices , _polygons[i] , _vertices );
+					std::vector< VertexType< Real , Dim , VertexDataFactory > > _vertices;
+					GetSubVertices< VertexDataFactory >( vertices , _polygons[i] , _vertices );
 					std::stringstream stream;
 					int x , y , z;
 					Index3D( i , x , y , z );
@@ -453,14 +458,14 @@ void Execute( void )
 						printf( "\t\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
 					}
 
-					WriteMesh( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , _vertices , _polygons[i] , comments );
+					WriteMesh( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , vertexDataFactory , _vertices , _polygons[i] , comments );
 					vCount += _vertices.size() , pCount += _polygons[i].size();
 				}
 			}
 		}
 		else
 		{
-			std::vector< std::vector< Vertex > > _vertices( size[0]*size[1]*size[2] );
+			std::vector< std::vector< VertexType< Real , Dim , VertexDataFactory > > > _vertices( size[0]*size[1]*size[2] );
 			Range range;
 
 			Timer timer;
@@ -469,7 +474,7 @@ void Execute( void )
 				std::vector< size_t > vertexCounts( size[0]*size[1]*size[2] , 0 );
 				for( size_t i=0 ; i<vertices.size() ; i++ )
 				{
-					SetRange( vertices[i].point , range );
+					SetRange( vertices[i].template get<0>() , range );
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
 						vertexCounts[ Index1D(x,y,z) ]++;
 				}
@@ -479,7 +484,7 @@ void Execute( void )
 
 			for( size_t i=0 ; i<vertices.size() ; i++ )
 			{
-				SetRange( vertices[i].point , range );
+				SetRange( vertices[i].template get<0>() , range );
 				for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
 					_vertices[ Index1D(x,y,z) ].push_back( vertices[i] );
 			}
@@ -512,7 +517,7 @@ void Execute( void )
 						printf( "\t\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
 					}
 
-					WritePoints( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , _vertices[i] , comments );
+					WritePoints( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , vertexDataFactory , _vertices[i] , comments );
 					vCount += _vertices[i].size();
 				}
 			}
@@ -533,13 +538,16 @@ void Execute( void )
 	{
 		if( Out.set )
 		{
-			if( polygons.size() ) WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , polygons , comments );
-			else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , comments );
+			if( polygons.size() ) WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertexDataFactory , vertices , polygons , comments );
+			else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertexDataFactory , vertices , comments );
 		}
 	}
 }
 int main( int argc , char* argv[] )
 {
+	typedef float Real;
+	static constexpr unsigned int Dim = 3;
+
 	cmdLineParse( argc-1 , &argv[1] , params );
 #ifdef USE_SEG_FAULT_HANDLER
 	WARN( "using seg-fault handler" );
@@ -557,53 +565,52 @@ int main( int argc , char* argv[] )
 	}
 	Timer timer;
 
-	bool hasValue , hasNormal , hasColor;
+	bool isPly;
 	for( int i=0 ; i<In.count ; i++ )
 	{
-		bool _hasValue , _hasNormal , _hasColor;
 		char *ext = GetFileExtension( In.values[i] );
-		if( !strcasecmp( ext , "ply" ) )
-		{
-			typedef MultiPointStreamData< float , PointStreamValue< float > , PointStreamNormal< float , 3 > , PointStreamColor< float > > VertexData;
-			typedef PlyVertexWithData< float , 3 , VertexData > Vertex;
-			bool readFlags[ Vertex::PlyReadNum ];
-			if( !PlyReadHeader( In.values[i] , Vertex::PlyReadProperties() , Vertex::PlyReadNum , readFlags ) ) ERROR_OUT( "Failed to read ply header[ " , i , " ]: " , In.values[i] );
-
-			_hasValue  = VertexData::ValidPlyReadProperties< 0 >( readFlags + 3 );
-			_hasNormal = VertexData::ValidPlyReadProperties< 1 >( readFlags + 3 );
-			_hasColor  = VertexData::ValidPlyReadProperties< 2 >( readFlags + 3 );
-		}
-		else
-		{
-			_hasValue  = Values.set;
-			_hasNormal =!NoNormals.set;
-			_hasColor  = Colors.set;
-		}
+		bool _isPly = strcasecmp( ext , "ply" )==0;
+		if( !i ) isPly = _isPly;
+		else if( isPly!=_isPly ) ERROR_OUT( "All files must be of the same type" );
 		delete[] ext;
-
-		if( !i ) hasValue = _hasValue , hasNormal = _hasNormal , hasColor = _hasColor;
-		else
+	}
+	if( isPly )
+	{
+		VertexFactory::PositionFactory< Real , Dim > factory;
+		bool *readFlags = new bool[ factory.plyReadNum() ];
+		VertexFactory::DynamicFactory< Real > *remainingProperties = NULL;
+		for( int i=0 ; i<In.count ; i++ )
 		{
-			if( hasValue !=_hasValue  ) WARN( "Inconsistent value trait"  ) , hasValue  = false;
-			if( hasColor !=_hasColor  ) WARN( "Inconsistent color trait"  ) , hasValue  = false;
-			if( hasNormal!=_hasNormal ) WARN( "Inconsistent normal trait" ) , hasNormal = false;
+			std::vector< PlyProperty > unprocessedProperties;
+			PLY::ReadVertexHeader( In.values[i] , factory , readFlags , unprocessedProperties );
+			if( !factory.plyValidReadProperties( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
+			VertexFactory::DynamicFactory< Real > _remainingProperties( unprocessedProperties );
+			if( !i ) remainingProperties = new VertexFactory::DynamicFactory< Real >( _remainingProperties );
+			else if( (*remainingProperties)!=(_remainingProperties) ) ERROR_OUT( "Remaining properties differ" );
 		}
+		delete[] readFlags;
+		if( !remainingProperties || !remainingProperties->size() ) Execute( VertexFactory::EmptyFactory< Real >() );
+		else Execute( *remainingProperties );
+		delete remainingProperties;
+	}
+	else
+	{
+		if( Values.set )
+			if( Colors.set )
+				if( !NoNormals.set ) Execute( VertexFactory::Factory< Real , VertexFactory::ValueFactory< Real > , VertexFactory::NormalFactory< Real , Dim > , VertexFactory::RGBColorFactory< Real > >() );
+				else                 Execute( VertexFactory::Factory< Real , VertexFactory::ValueFactory< Real > ,                                              VertexFactory::RGBColorFactory< Real > >() );
+			else
+				if( !NoNormals.set ) Execute( VertexFactory::Factory< Real , VertexFactory::ValueFactory< Real > , VertexFactory::NormalFactory< Real , Dim >                                     >() );
+				else                 Execute(                                VertexFactory::ValueFactory< Real >                                                                                 () );
+		else
+			if( Colors.set )
+				if( !NoNormals.set ) Execute( VertexFactory::Factory< Real ,                                     VertexFactory::NormalFactory< Real , Dim > , VertexFactory::RGBColorFactory< Real > >() );
+				else                 Execute(                                                                                                                 VertexFactory::RGBColorFactory< Real >  () );
+			else
+				if( !NoNormals.set ) Execute(                                                                  VertexFactory::NormalFactory< Real , Dim >                                      () );
+				else                 Execute( VertexFactory::EmptyFactory< Real >() );
 	}
 
-	if( hasValue )
-		if( hasColor )
-			if( hasNormal ) Execute< PointStreamValue< float > , PointStreamNormal< float , 3 > , PointStreamColor< float > >();
-			else            Execute< PointStreamValue< float > ,                                  PointStreamColor< float > >();
-		else
-			if( hasNormal ) Execute< PointStreamValue< float > , PointStreamNormal< float , 3 >                             >();
-			else            Execute< PointStreamValue< float >                                                              >();
-	else
-		if( hasColor )
-			if( hasNormal ) Execute< PointStreamNormal< float , 3 > , PointStreamColor< float > >();
-			else            Execute<                                  PointStreamColor< float > >();
-		else
-			if( hasNormal ) Execute< PointStreamNormal< float , 3 >                             >();
-			else            Execute<                                                            >();
 	printf( "Time (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
 	printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 

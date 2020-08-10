@@ -19,12 +19,12 @@ COMPILER ?= gcc
 #COMPILER ?= clang
 
 ifeq ($(COMPILER),gcc)
-	CFLAGS += -fopenmp -Wno-deprecated -std=c++11 -pthread -Wno-invalid-offsetof
+	CFLAGS += -fopenmp -Wno-deprecated -std=c++14 -pthread -Wno-invalid-offsetof
 	LFLAGS += -lgomp -lstdc++ -lpthread
 else
-# 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++11 -Wno-invalid-offsetof
+# 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++14 -Wno-invalid-offsetof
 # 	LFLAGS += -liomp5 -lstdc++
-	CFLAGS += -Wno-deprecated -std=c++11 -pthread -Wno-invalid-offsetof -Wno-dangling-else
+	CFLAGS += -Wno-deprecated -std=c++14 -pthread -Wno-invalid-offsetof -Wno-dangling-else
 	LFLAGS += -lstdc++
 endif
 #LFLAGS += -lz -lpng -ljpeg

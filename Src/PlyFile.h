@@ -79,6 +79,31 @@ WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 
 #define PLY_STRIP_COMMENT_HEADER 0
 
+const std::string PlyTypes[]
+{
+	"start type" ,
+	"char" ,
+	"short" ,
+	"int" ,
+	"long long " ,
+	"unsigned char" ,
+	"unsigned short" ,
+	"unsigned int" ,
+	"unsigned long long" ,
+	"float" ,
+	"double" ,
+	"int8" ,
+	"unsigned int8" ,
+	"int16" ,
+	"unsigned int16" ,
+	"int32" ,
+	"unsigned int32" ,
+	"int64" ,
+	"unsigned int64" ,
+	"float32" ,
+	"float64"
+};
+
 /* description of a property */
 struct PlyProperty
 {
@@ -96,6 +121,11 @@ struct PlyProperty
 	PlyProperty( const std::string &n ) : PlyProperty( n , 0 , 0 , 0 , 0 , 0 , 0 , 0 ){ }
 	PlyProperty( void ) : external_type(0) , internal_type(0) , offset(0) , is_list(0) , count_external(0) , count_internal(0) , count_offset(0){ }
 };
+
+std::ostream &operator << ( std::ostream &os , PlyProperty p )
+{
+	return os << "{ " << p.name << " , " << PlyTypes[ p.external_type ] << " , " << PlyTypes[ p.internal_type ] << " , " << p.offset << " }";
+}
 
 struct PlyStoredProperty
 {
@@ -180,7 +210,7 @@ struct PlyFile
 	void add_comment ( const std::string & );
 	void add_obj_info( const std::string & );
 
-	std::vector< PlyProperty * > get_element_description( const std::string & , size_t & );
+	std::vector< PlyProperty > get_element_description( const std::string & , size_t & );
 	void get_element_setup( const std::string & , int , PlyProperty * );
 	int get_property( const std::string & , const PlyProperty * );
 	void describe_other_properties( const PlyOtherProp & , int );

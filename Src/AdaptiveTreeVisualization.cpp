@@ -37,7 +37,7 @@ DAMAGE.
 #include "PPolynomial.h"
 #include "FEMTree.h"
 #include "Ply.h"
-#include "PointStreamData.h"
+#include "VertexFactory.h"
 #include "Image.h"
 #include "RegularGrid.h"
 
@@ -45,6 +45,7 @@ cmdLineParameter< char* >
 	In( "in" ) ,
 	Samples( "samples" ) ,
 	OutMesh( "mesh" ) ,
+	OutTree( "tree" ) ,
 	OutGrid( "grid" );
 
 cmdLineReadable
@@ -64,7 +65,10 @@ cmdLineParameter< int >
 #endif // _OPENMP
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() );
+	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ,
+	TreeScale( "treeScale" , 1 ) ,
+	TreeDepth( "treeDepth" , -1 );
+
 
 cmdLineParameter< float >
 	IsoValue( "iso" , 0.f );
@@ -75,6 +79,7 @@ cmdLineReadable* params[] =
 	&Samples ,
 	&OutMesh , &NonManifold , &PolygonMesh , &FlipOrientation , &ASCII , &NonLinearFit , &IsoValue ,
 	&OutGrid , &PrimalGrid ,
+	&OutTree , &TreeScale , &TreeDepth ,
 	&Threads ,
 	&Verbose , 
 	&ParallelType ,
@@ -90,6 +95,9 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s sample positions>]\n" , Samples.name );
 	printf( "\t[--%s <ouput triangle mesh>]\n" , OutMesh.name );
 	printf( "\t[--%s <ouput grid>]\n" , OutGrid.name );
+	printf( "\t[--%s <ouput tree grid>]\n" , OutTree.name );
+	printf( "\t[--%s <tree scale factor>=%d]\n" , TreeScale.name , TreeScale.value );
+	printf( "\t[--%s <tree depth>=%d]\n" , TreeDepth.name , TreeDepth.value );
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
@@ -107,7 +115,7 @@ void ShowUsage( char* ex )
 }
 
 template< typename Real , unsigned int Dim >
-void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned int res , XForm< Real , Dim+1 > voxelToModel , bool verbose )
+void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned int res , XForm< Real , Dim+1 > voxelToModel , bool verbose , bool normalize=true )
 {
 	char *ext = GetFileExtension( fileName );
 
@@ -185,18 +193,19 @@ void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > modelTo
 	// Evaluate at the sample positions
 	if( Samples.set )
 	{
-		InputPointStream< Real , Dim > *pointStream;
+		InputDataStream< Point< Real , Dim > > *pointStream;
+		typedef VertexFactory::PositionFactory< Real , Dim > InFactory;
 		char* ext = GetFileExtension( Samples.value );
-		if     ( !strcasecmp( ext , "bpts" ) ) pointStream = new BinaryInputPointStream< Real , Dim >( Samples.value );
-		else if( !strcasecmp( ext , "ply"  ) ) pointStream = new    PLYInputPointStream< Real , Dim >( Samples.value );
-		else                                   pointStream = new  ASCIIInputPointStream< Real , Dim >( Samples.value );
+		if     ( !strcasecmp( ext , "bpts" ) ) pointStream = new BinaryInputDataStream< InFactory >( Samples.value , InFactory() );
+		else if( !strcasecmp( ext , "ply"  ) ) pointStream = new    PLYInputDataStream< InFactory >( Samples.value , InFactory() );
+		else                                   pointStream = new  ASCIIInputDataStream< InFactory >( Samples.value , InFactory() );
 		delete[] ext;
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tree , coefficients );
 		static const unsigned int CHUNK_SIZE = 1024;
 		Point< Real , Dim > points[ CHUNK_SIZE ];
 		Real values[ CHUNK_SIZE ];
 		size_t pointsRead;
-		while( ( pointsRead=pointStream->nextPoints( points , CHUNK_SIZE ) ) )
+		while( ( pointsRead=pointStream->next( points , CHUNK_SIZE ) ) )
 		{
 			ThreadPool::Parallel_for( 0 , pointsRead , [&]( unsigned int thread , size_t j )
 			{
@@ -227,27 +236,142 @@ void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > modelTo
 		DeletePointer( values );
 	}
 
+	// Output the tree
+	if( OutTree.set )
+	{
+		DenseNodeData< Real , IsotropicUIntPack< Dim , FEMTrivialSignature > > _coefficients = tree->initDenseNodeData( IsotropicUIntPack< Dim , FEMTrivialSignature >() );
+		ThreadPool::Parallel_for( 0 , _coefficients.size() , [&]( unsigned int , size_t i ){ _coefficients[i] = 0; } );
+
+		if( TreeDepth.value!=-1 )
+		{
+			ThreadPool::Parallel_for
+			(
+				tree->nodesBegin(TreeDepth.value) , tree->nodesEnd(TreeDepth.value) ,
+				[&]( unsigned int , size_t i )
+			{
+				const typename FEMTree< Dim , Real >::FEMTreeNode *node = tree->node( (node_index_type)i );
+				if( tree->isValidFEMNode( IsotropicUIntPack< Dim , FEMTrivialSignature >() , node ) ) _coefficients[ node ] = (Real)i;
+			}
+			);
+		}
+		else
+		{
+			ThreadPool::Parallel_for
+			(
+				tree->nodesBegin(0) , tree->nodesEnd( tree->depth() ) ,
+				[&]( unsigned int , size_t i )
+			{
+				const typename FEMTree< Dim , Real >::FEMTreeNode *node = tree->node( (node_index_type)i );
+				if( tree->isValidFEMNode( IsotropicUIntPack< Dim , FEMTrivialSignature >() , node ) && !tree->isValidFEMNode( IsotropicUIntPack< Dim , FEMTrivialSignature >() , node->children ) )
+					_coefficients[ node ] = (Real)i;
+			}
+			);
+		}
+		int res = 0;
+		double t = Time();
+		Pointer( Real ) values = tree->template regularGridEvaluate< true >( _coefficients , res , -1 , false );
+		if( Verbose.set ) printf( "Got grid: %.2f(s)\n" , Time()-t );
+
+		int _res = res * TreeScale.value + 1;
+		size_t count = 1;
+		for( int d=0 ; d<Dim ; d++ ) count *= _res;
+
+		Pointer( Real ) dValues = NewPointer< Real >( count );
+
+		// In the original indexing, index i corresponds to the position
+		//		i -> (i+0.5)/res
+		// In the new indexing, index j corresponds to the position
+		//		j -> j/(_res-1)
+		// The two neighbors of index j are:
+		//		j0 = j/(_res-1) - 1/(2*scale)
+		//		j1 = j/(_res-1) + 1/(2*scale)
+
+		{
+			bool boundary[Dim+1];
+			int idx[Dim] , idx0[Dim] , idx1[Dim];
+			boundary[0] = false;
+
+			auto Index = [&]( const int i[] , unsigned int r )
+			{
+				size_t index = 0;
+				for( int d=Dim-1 ; d>=0 ; d-- ) index = index*r + (size_t)i[d];
+				return index;
+			};
+			auto _Index = [&]( const int i[] , unsigned int r )
+			{
+				size_t index = 0;
+				for( int d=Dim-1 ; d>=0 ; d-- )
+				{
+					std::cout << index << " * " << r << " + " << i[d] << " = ";
+					index = index*r + (size_t)i[d];
+					std::cout <<index << std::endl;
+				}
+				return index;
+			};
+
+			WindowLoop< Dim >::Run
+			(
+				0 , _res ,
+				[&]( int d , int i )
+			{
+				idx [d] = i;
+				idx0[d] = (int)floor( ( (double)i/(_res-1) - 1./(2.*TreeScale.value*res ) ) * res );
+				idx1[d] = (int)floor( ( (double)i/(_res-1) + 1./(2.*TreeScale.value*res ) ) * res );
+				boundary[d+1] = boundary[d] || idx0[d]==-1 || idx1[d]==res;
+			} ,
+				[&]( void )
+			{
+				if( !boundary[Dim] )
+				{
+					Real v1 = values[ Index( idx0 , res ) ];
+					int _idx[Dim];
+					for( int d=0 ; d<Dim ; d++ ) _idx[d] = idx0[d];
+					for( int d=0 ; d<Dim ; d++ )
+					{
+						_idx[d] = idx1[d];
+						Real v2 = values[ Index( _idx , res ) ];
+						_idx[d] = idx0[d];
+						if( v1!=v2 ) boundary[Dim] = true;
+					}
+				}
+				dValues[ Index( idx , _res ) ] = (Real)( boundary[Dim] ? 0 : 1 );
+			}
+			);
+		}
+
+		XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
+		if( PrimalGrid.set ) for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / (res-1) );
+		else                 for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / res ) , voxelToUnitCube( Dim , d ) = (Real)( 0.5 / res );
+		WriteGrid< Real , Dim >( OutTree.value , dValues , _res , modelToUnitCube.inverse() * voxelToUnitCube , Verbose.set , false );
+		DeletePointer( values );
+		DeletePointer( dValues );
+	}
+
 	// Output the mesh
 	if( OutMesh.set )
 	{
 		double t = Time();
-		typedef PlyVertex< Real , Dim > Vertex;
-		CoredFileMeshData< Vertex , node_index_type > mesh;
-		std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Real ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Point< Real , Dim > , Real , Real ){ v.point = p; };
+		typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > > FullVertexFactory;
+		typedef typename FullVertexFactory::VertexType VertexType;
+		FullVertexFactory vertexFactory;
+		CoredFileMeshData< node_index_type , FullVertexFactory > mesh( vertexFactory );
+		std::function< void ( VertexType& , Point< Real , Dim > , Point< Real , Dim > , Real , Real ) > SetVertex = []( VertexType& v , Point< Real , Dim > p , Point< Real , Dim > , Real , Real ){ v.template get<0>() = p; };
 #if defined( __GNUC__ ) && __GNUC__ < 5
+#ifdef SHOW_WARNINGS
 #warning "you've got me gcc version<5"
+#endif // SHOW_WARNINGS
 		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
-		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		IsoSurfaceExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #else // !__GNUC__ || __GNUC__ >=5
-		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		IsoSurfaceExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #endif // __GNUC__ || __GNUC__ < 4
 
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
-		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (unsigned long long)mesh.polygonCount() );
+		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh.outOfCoreVertexNum()+mesh.inCoreVertices.size() ) , (unsigned long long)mesh.polygonNum() );
 
 		std::vector< std::string > comments;
-		if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , modelToUnitCube.inverse() ) )
-			ERROR_OUT( "Could not write mesh to: " , OutMesh.value );
+		typename FullVertexFactory::Transform unitCubeToModelTransform( modelToUnitCube.inverse() );
+		PLY::WritePolygons< FullVertexFactory , node_index_type , Real , Dim >( OutMesh.value , FullVertexFactory() , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , unitCubeToModelTransform );
 	}
 }
 

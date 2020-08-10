@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 13.00)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 13.50)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#EXECUTABLES">executables</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">V13.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">V12.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">V11.02</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">V11.01</a>,
@@ -168,11 +169,11 @@ The default value for this parameter is 8.
 </dt><dd> Enabling this flag tells the reconstructor to output vertex normals, computed from the gradients of the implicit function.
 
 </dd><dt>[<b>--colors</b>]
-</dt><dd> Enabling this flag tells the reconstructor to read in color values with the input points and extrapolate those to the vertices of the output.
+</dt><dd> If the input points are in ASCII/binary format and contain color values, this flag lets the reconstruction code know that (1) each sample is represented by nine floating point values instead of the expected six, and that (2) color values should be output with the vertices of the reconstructed surface. (For input samples in the .ply format, the presence of color information, as well as any other additional per-sample data, is automatically determined from the file header.)
 
 </dd><dt>[<b>--data</b> &lt;<i>pull factor</i>&gt;]
-</dt><dd> If <B>--colors</B> is specified, this floating point value specifies the relative importance
-of finer color estimates over lower ones.<BR>
+</dt><dd> If the input points have additional data (e.g. color) that is to be sampled at the output vertices, this floating point value specifies the relative importance
+of finer data over lower data in performing the extrapolation.<BR>
 The default value for this parameter is 32.
 
 </dd><dt>[<b>--confidence</b> &lt;<i>normal confidence exponent</i>&gt;]
@@ -302,11 +303,11 @@ The default value for this parameter is 8.
 </dt><dd> Enabling this flag tells the reconstructor to output vertex normals, computed from the gradients of the implicit function.
 
 </dd><dt>[<b>--colors</b>]
-</dt><dd> Enabling this flag tells the reconstructor to read in color values with the input points and extrapolate those to the vertices of the output.
+</dt><dd> If the input points are in ASCII/binary format and contain color values, this flag lets the reconstruction code know that (1) each sample is represented by nine floating point values instead of the expected six, and that (2) color values should be output with the vertices of the reconstructed surface. (For input samples in the .ply format, the presence of color information, as well as any other additional per-sample data, is automatically determined from the file header.)
 
 </dd><dt>[<b>--data</b> &lt;<i>pull factor</i>&gt;]
-</dt><dd> If <B>--colors</B> is specified, this floating point value specifies the relative importance
-of finer color estimates over lower ones.<BR>
+</dt><dd> If the input points have additional data (e.g. color) that is to be sampled at the output vertices, this floating point value specifies the relative importance
+of finer data over lower data in performing the extrapolation.<BR>
 The default value for this parameter is 32.
 
 </dd><dt>[<b>--confidence</b> &lt;<i>normal confidence exponent</i>&gt;]
@@ -734,16 +735,16 @@ By default, the Poisson surface reconstructor uses degree-2 B-splines. A more ef
 
 <li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.points.ply"><b>Eagle</b></a>:
 A set of 796,825 oriented point samples with color (represented in PLY format) was obtained in the EPFL <a href="http://lgg.epfl.ch/statues.php">Scanning 3D Statues from Photos</a> course.<br>
-A reconstruction of the eagle that extrapolates the color values from the input samples can be obtained by calling:
-<blockquote><code>% PoissonRecon --in eagle.points.ply --out eagle.pr.color.ply --depth 10 --colors</code></blockquote>
-using the <b>--colors</b> flag to indicate that color extrapolation should be used.<BR>
+A reconstruction of the eagle can be obtained by calling:
+<blockquote><code>% PoissonRecon --in eagle.points.ply --out eagle.pr.ply --depth 10</code></blockquote>
+(with the RGBA color properties automatically detected from the .ply header).<BR>
 A reconstruction of the eagle that does not close up the holes can be obtained by first calling:
-<blockquote><code>% SSDRecon --in eagle.points.ply --out eagle.ssd.color.ply --depth 10 --colors --density</code></blockquote>
+<blockquote><code>% SSDRecon --in eagle.points.ply --out eagle.ssd.ply --depth 10 --density</code></blockquote>
 using the <b>--density</b> flag to indicate that density estimates should be output with the vertices of the mesh, and then calling:
-<blockquote><code>% SurfaceTrimmer --in eagle.ssd.color.ply --out eagle.ssd.color.trimmed.ply --trim 7</code></blockquote>
+<blockquote><code>% SurfaceTrimmer --in eagle.ssd.ply --out eagle.ssd.trimmed.ply --trim 7</code></blockquote>
 to remove all subsets of the surface where the sampling density corresponds to a depth smaller than 7.<BR>
 This reconstruction can be chunked into cubes of size 4&times;4&times;4 by calling:
-<blockquote><code>% ChunkPly --in eagle.ssd.color.trimmed.ply --out eagle.ssd.color.trimmed.chnks --width 4</code></blockquote>
+<blockquote><code>% ChunkPly --in 1 eagle.ssd.trimmed.ply --out eagle.ssd.trimmed.chnks --width 4</code></blockquote>
 which partitions the reconstruction into 11 pieces.
 
 <li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/torso.zip"><b>Torso</b></a>:
@@ -1033,6 +1034,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <ol>
 <LI> Enabled passing in a constraint envelope to <I>PoissonRecon</I>, allowing one to define a region that is known to be outside the surface.
 <LI> Updated <I>ChunkPLY</I> to support processing of input points in either ASCII or binary format.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/">Version 13.50</a>:
+<ol>
+<LI> Enabled support for automatically detecting attirbutes of input point cloud (in addition to positions and normals) when provided in .ply format.
 </ol>
 
 </DETAILS>

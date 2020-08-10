@@ -363,7 +363,9 @@ Real FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAlloc
 		V _v = v * weight / Real( pow( width , dim ) ) * dx;
 		//		V _v = v / Length(v) * dx;
 #if defined( __GNUC__ ) && __GNUC__ < 5
-		#warning "you've got me gcc version<5"
+#ifdef SHOW_WARNINGS
+#warning "you've got me gcc version<5"
+#endif // SHOW_WARNINGS
 			_splatPointData< CreateNodes , ThreadSafe , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
 		_splatPointData< CreateNodes , ThreadSafe , V ,  DataSigs ... >( nodeAllocator , temp , position , _v , dataInfo , dataKey );

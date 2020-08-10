@@ -64,7 +64,9 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( size_t
 	_nodeCount = 0;
 	_tree = FEMTreeNode::NewBrood( nodeAllocators.size() ? nodeAllocators[0] : NULL , _nodeInitializer );
 	_tree->template initChildren< false >( nodeAllocators.size() ? nodeAllocators[0] : NULL , _nodeInitializer ) , _spaceRoot = _tree->children;
+#ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] _spaceRoot is the root of the tree until finalization" )
+#endif // SHOW_WARNINGS
 	_spaceRoot->parent = NULL;
 	int offset[Dim];
 	for( int d=0 ; d<Dim ; d++ ) offset[d] = 0;
@@ -291,7 +293,9 @@ template< unsigned int Dim , class Real >
 template< unsigned int LeftRadius , unsigned int RightRadius , typename ProcessingKernel >
 void FEMTree< Dim , Real >::processNeighboringLeaves( FEMTreeNode **nodes , size_t nodeCount  , ProcessingKernel kernel , bool processSubTree )
 {
+#ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] may process the same leaf multiple times, if it is coarser" )
+#endif // SHOW_WARNINGS
 	typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< IsotropicUIntPack< Dim , LeftRadius > , IsotropicUIntPack< Dim , RightRadius > > NeighborKey;
 	// Suppose that we have a node at index I and we want the leaf nodes supported on the (possibly virtual) node K away
 	// Case 1: The K-th neighbor exists
@@ -422,7 +426,9 @@ SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setI
 				out *= sample.weight;
 				Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[ thread ] : NULL;
 #if defined( __GNUC__ ) && __GNUC__ < 5
-				#warning "you've got me gcc version<5"
+#ifdef SHOW_WARNINGS
+#warning "you've got me gcc version<5"
+#endif // SHOW_WARNINGS
 					if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData >( nodeAllocator , *density , minDepthCutoff , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , minDepth , maxDepth , Dim , depthBias ) * sample.weight );
 #else // !__GNUC__ || __GNUC__ >=5
 				if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData , DataSigs ... >( nodeAllocator , *density , minDepthCutoff , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , minDepth , maxDepth , Dim , depthBias ) * sample.weight );
@@ -431,7 +437,9 @@ SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setI
 				{
 					Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
 #if defined( __GNUC__ ) && __GNUC__ < 5
-					#warning "you've got me gcc version<5"
+#ifdef SHOW_WARNINGS
+#warning "you've got me gcc version<5"
+#endif // SHOW_WARNINGS
 						_splatPointData< true , true , OutData >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , out / (Real)pow( width , Dim ) , dataField , oneKey ? *( (DataKey*)&densityKey ) : dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
 					_splatPointData< true , true , OutData , DataSigs ... >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , out / (Real)pow( width , Dim ) , dataField , oneKey ? *( (DataKey*)&densityKey ) : dataKey );
@@ -496,7 +504,9 @@ void FEMTree< Dim , Real >::_supportApproximateProlongation( void )
 		}
 
 		// Make sure that all finite elements whose support overlaps the support of the finite elements indexed by those nodes are in the tree.
+#ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] This may be overkill as we only need to check if the support overlaps the support of the children" )
+#endif // SHOW_WARNINGS
 		ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
 		{
 			NeighborKey& neighborKey = neighborKeys[ thread ];

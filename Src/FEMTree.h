@@ -48,7 +48,7 @@ DAMAGE.
 #include "MyMiscellany.h"
 #include "BSplineData.h"
 #include "Geometry.h"
-#include "PointStream.h"
+#include "VertexStream.h"
 #include "RegularTree.h"
 #include "SparseMatrix.h"
 #include "BlockedVector.h"
@@ -2597,8 +2597,30 @@ struct FEMTreeInitializer
 	static size_t Initialize( FEMTreeNode& root , int maxDepth , std::function< bool ( int , int[] ) > Refine , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 
 	// Initialize the tree using a point stream
-	static size_t Initialize( FEMTreeNode& root , InputPointStream< Real , Dim >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
-	template< class Data > static size_t Initialize( FEMTreeNode& root , InputPointStreamWithData< Real , Dim , Data >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< Data >& sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim >& , Data& ) > ProcessData = []( const Point< Real , Dim >& , Data& ){ return (Real)1.; } );
+	template< typename Data >
+	struct InputPointStream
+	{
+		typedef Data DataType;
+		typedef VectorTypeUnion< Real , Point< Real , Dim > , Data > PointAndDataType;
+		typedef InputDataStream< PointAndDataType > StreamType;
+		static       Point< Real , Dim > &GetPoint(       PointAndDataType &pd ){ return pd.template get<0>(); }
+		static const Point< Real , Dim > &GetPoint( const PointAndDataType &pd ){ return pd.template get<0>(); }
+		static       DataType &GetData(       PointAndDataType &pd ){ return pd.template get<1>(); }
+		static const DataType &GetData( const PointAndDataType &pd ){ return pd.template get<1>(); }
+
+		static void BoundingBox( StreamType &stream , Point< Real , Dim >& min , Point< Real , Dim >& max )
+		{
+			PointAndDataType p;
+			for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::numeric_limits< Real >::infinity() , max[d] = -std::numeric_limits< Real >::infinity();
+			while( stream.next( p ) ) for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( min[d] , p.template get<0>()[d] ) , max[d] = std::max< Real >( max[d] , p.template get<0>()[d] );
+			stream.reset();
+		}
+	};
+
+	template< typename Data >
+	static size_t Initialize( FEMTreeNode& root , typename InputPointStream< Data >::StreamType &pointStream , int maxDepth , std::vector< PointSample >& samplePoints ,                                                                                                         Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< typename Data >
+	static size_t Initialize( FEMTreeNode& root , typename InputPointStream< Data >::StreamType &pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< typename InputPointStream< Data >::DataType > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ) > ProcessData = []( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ){ return (Real)1.; } );
 
 	// Initialize the tree using simplices
 	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer );

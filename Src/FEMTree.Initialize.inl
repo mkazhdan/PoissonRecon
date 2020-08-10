@@ -44,7 +44,8 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& node , int max
 }
 
 template< unsigned int Dim , class Real >
-size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPointStream< Real , Dim >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+template< typename AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , typename InputPointStream< AuxData >::StreamType &pointStream , int maxDepth , std::vector< PointSample >& samplePoints , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
 	auto Leaf = [&]( FEMTreeNode& root , Point< Real , Dim > p , int maxDepth )
 	{
@@ -124,8 +125,8 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPo
 }
 
 template< unsigned int Dim , class Real >
-template< class Data >
-size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPointStreamWithData< Real , Dim , Data >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< Data >& sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim >& , Data& ) > ProcessData )
+template< typename AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , typename InputPointStream< AuxData >::StreamType &pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< typename InputPointStream< AuxData >::DataType > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , typename InputPointStream< AuxData >::DataType & ) > ProcessData )
 {
 	auto Leaf = [&]( FEMTreeNode& root , Point< Real , Dim > p , int maxDepth )
 	{
@@ -153,11 +154,11 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPo
 	size_t outOfBoundPoints = 0 , badData = 0 , pointCount = 0;
 	{
 		std::vector< node_index_type > nodeToIndexMap;
-		Point< Real , Dim > p;
-		Data d;
-
-		while( pointStream.nextPoint( p , d ) )
+		typename InputPointStream< AuxData >::PointAndDataType pd;
+		while( pointStream.next( pd ) )
 		{
+			Point< Real , Dim > p = pd.template get<0>();
+			typename InputPointStream< AuxData >::DataType d = InputPointStream< AuxData >::GetData( pd );
 			Real weight = ProcessData( p , d );
 			if( weight<=0 ){ badData++ ; continue; }
 			FEMTreeNode* temp = Leaf( root , p , maxDepth );
@@ -173,9 +174,14 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPo
 					nodeToIndexMap[ nodeIndex ] = idx;
 					samplePoints.resize( idx+1 ) , samplePoints[idx].node = temp;
 					sampleData.resize( idx+1 );
+					samplePoints[idx].sample = ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
+					sampleData[idx] = d*weight;
 				}
-				samplePoints[idx].sample += ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
-				sampleData[ idx ] += d*weight;
+				else
+				{
+					samplePoints[idx].sample += ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
+					sampleData[ idx ] += d*weight;
+				}
 			}
 			else
 			{

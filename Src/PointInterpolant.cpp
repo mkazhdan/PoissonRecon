@@ -44,7 +44,7 @@ DAMAGE.
 #include "PPolynomial.h"
 #include "FEMTree.h"
 #include "Ply.h"
-#include "PointStreamData.h"
+#include "VertexFactory.h"
 #include "Image.h"
 #include "RegularGrid.h"
 
@@ -246,57 +246,62 @@ XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real
 	return sXForm * tXForm;
 }
 
-template< class Real , unsigned int Dim >
-XForm< Real , Dim+1 > GetPointXForm( InputPointStream< Real , Dim >& stream , Real width , Real scaleFactor , int& depth )
+template< typename Real , unsigned int Dim , typename FunctionValueType >
+using InputPointStreamInfo = typename FEMTreeInitializer< Dim , Real >::template InputPointStream< FunctionValueType >;
+
+template< typename Real , unsigned int Dim , typename FunctionValueType >
+using InputPointStream = typename InputPointStreamInfo< Real , Dim , FunctionValueType >::StreamType;
+
+template< class Real , unsigned int Dim , typename FunctionValueType >
+XForm< Real , Dim+1 > GetPointXForm( InputPointStream< Real , Dim , FunctionValueType > &stream , Real width , Real scaleFactor , int& depth )
 {
 	Point< Real , Dim > min , max;
-	stream.boundingBox( min , max );
+	InputPointStreamInfo< Real , Dim , FunctionValueType >::BoundingBox( stream , min , max );
 	return GetBoundingBoxXForm( min , max , width , scaleFactor , depth );
 }
-template< class Real , unsigned int Dim >
-XForm< Real , Dim+1 > GetPointXForm( InputPointStream< Real , Dim >& stream , Real scaleFactor )
+template< class Real , unsigned int Dim , typename FunctionValueType >
+XForm< Real , Dim+1 > GetPointXForm( InputPointStream< Real , Dim , FunctionValueType > &stream , Real scaleFactor )
 {
 	Point< Real , Dim > min , max;
-	stream.boundingBox( min , max );
+	InputPointStreamInfo< Real , Dim , FunctionValueType >::BoundingBox( stream , min , max );
 	return GetBoundingBoxXForm( min , max , scaleFactor );
 }
 
-template< unsigned int Dim , typename Real , typename TotalPointSampleData > struct ValueAndGradientFromSample;
+template< unsigned int Dim , typename Real , typename PointSampleData > struct ValueAndGradientFromSample;
 
 template< unsigned int Dim , typename Real >
-struct ValueAndGradientFromSample< Dim , Real , MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > >
+struct ValueAndGradientFromSample< Dim , Real , VectorTypeUnion< Real , Real , Point< Real , Dim > > >
 {
-	typedef MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > TotalPointSampleData;
-	std::pair< Real , Point< Real , Dim > > operator()( TotalPointSampleData d ) const { return std::pair< Real , Point< Real , Dim > >( d.template data<0>() , d.template data<1>() ); }
+	typedef VectorTypeUnion< Real , Real , Point< Real , Dim > > PointSampleData;
+	std::pair< Real , Point< Real , Dim > > operator()( PointSampleData d ) const { return std::pair< Real , Point< Real , Dim > >( d.template get<0>() , d.template get<1>() ); }
 };
 
 template< unsigned int Dim , typename Real >
-struct ValueAndGradientFromSample< Dim , Real , MultiPointStreamData< Real , PointStreamValue< Real > > >
+struct ValueAndGradientFromSample< Dim , Real , VectorTypeUnion< Real , Real > >
 {
-	typedef MultiPointStreamData< Real , PointStreamValue< Real > > TotalPointSampleData;
-	std::pair< Real , Point< Real , Dim > > operator()( TotalPointSampleData d ) const { return std::pair< Real , Point< Real , Dim > >( d.template data<0>() , Point< Real , Dim >() ); }
+	typedef VectorTypeUnion< Real , Real > PointSampleData;
+	std::pair< Real , Point< Real , Dim > > operator()( PointSampleData d ) const { return std::pair< Real , Point< Real , Dim > >( d.template get<0>() , Point< Real , Dim >() ); }
 };
 
 template< unsigned int Dim , typename Real >
-struct ValueAndGradientFromSample< Dim , Real , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > > >
+struct ValueAndGradientFromSample< Dim , Real , VectorTypeUnion< Real , Point< Real , Dim > > >
 {
-	typedef MultiPointStreamData< Real , PointStreamNormal< Real , Dim > > TotalPointSampleData;
-	std::pair< Real , Point< Real , Dim > > operator()( TotalPointSampleData d ) const { return std::pair< Real , Point< Real , Dim > >( (Real)0 , d.template data<0>() ); }
+	typedef VectorTypeUnion< Real , Point< Real , Dim > > PointSampleData;
+	std::pair< Real , Point< Real , Dim > > operator()( PointSampleData d ) const { return std::pair< Real , Point< Real , Dim > >( (Real)0 , d.template get<0>() ); }
 };
 
-
-template< unsigned int Dim , typename Real , typename TotalPointSampleData > struct ConstraintDual;
+template< unsigned int Dim , typename Real , typename PointSampleData > struct ConstraintDual;
 
 template< unsigned int Dim , typename Real >
-struct ConstraintDual< Dim , Real , MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > >
+struct ConstraintDual< Dim , Real , VectorTypeUnion< Real , Real , Point< Real , Dim > > >
 {
-	typedef MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > TotalPointSampleData;
+	typedef VectorTypeUnion< Real , Real , Point< Real , Dim > > PointSampleData;
 	Real vWeight , gWeight;
 	ConstraintDual( Real v , Real g ) : vWeight(v) , gWeight(g) { }
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const TotalPointSampleData& data ) const 
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const PointSampleData& data ) const 
 	{
-		Real value = data.template data<0>();
-		Point< Real , Dim > gradient = data.template data<1>();
+		Real value = data.template get<0>();
+		Point< Real , Dim > gradient = data.template get<1>();
 		CumulativeDerivativeValues< Real , Dim , 1 > cdv;
 		cdv[0] = value*vWeight;
 		for( int d=0 ; d<Dim ; d++ ) cdv[1+d] = gradient[d]*gWeight;
@@ -304,33 +309,34 @@ struct ConstraintDual< Dim , Real , MultiPointStreamData< Real , PointStreamValu
 	}
 };
 template< unsigned int Dim , typename Real >
-struct ConstraintDual< Dim , Real , MultiPointStreamData< Real , PointStreamValue< Real > > >
+struct ConstraintDual< Dim , Real , VectorTypeUnion< Real , Real > >
 {
-	typedef MultiPointStreamData< Real , PointStreamValue< Real > > TotalPointSampleData;
+	typedef VectorTypeUnion< Real , Real > PointSampleData;
 	Real vWeight , gWeight;
 	ConstraintDual( Real v , Real g ) : vWeight(v) , gWeight(g) { }
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const TotalPointSampleData& data ) const 
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const PointSampleData& data ) const 
 	{
-		Real value = data.template data<0>();
+		Real value = data.template get<0>();
 		CumulativeDerivativeValues< Real , Dim , 1 > cdv;
 		cdv[0] = value*vWeight;
 		return cdv;
 	}
 };
 template< unsigned int Dim , typename Real >
-struct ConstraintDual< Dim , Real , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > > >
+struct ConstraintDual< Dim , Real , VectorTypeUnion< Real , Point< Real , Dim > > >
 {
-	typedef MultiPointStreamData< Real , PointStreamNormal< Real , Dim > > TotalPointSampleData;
+	typedef VectorTypeUnion< Real , Point< Real , Dim > > PointSampleData;
 	Real vWeight , gWeight;
 	ConstraintDual( Real v , Real g ) : vWeight(v) , gWeight(g) { }
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const TotalPointSampleData& data ) const 
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const PointSampleData& data ) const 
 	{
-		Point< Real , Dim > gradient = data.template data<0>();
+		Point< Real , Dim > gradient = data.template get<0>();
 		CumulativeDerivativeValues< Real , Dim , 1 > cdv;
 		for( int d=0 ; d<Dim ; d++ ) cdv[1+d] = gradient[d]*gWeight;
 		return cdv;
 	}
 };
+
 template< unsigned int Dim , typename Real , typename TotalPointSampleData >
 struct SystemDual
 {
@@ -365,8 +371,19 @@ struct SystemDual< Dim , double , TotalPointSampleData >
 	}
 };
 
-template< typename Vertex , typename Real , unsigned int ... FEMSigs , typename TotalPointSampleData >
-void ExtractMesh( UIntPack< FEMSigs ... > , FEMTree< sizeof ... ( FEMSigs ) , Real >& tree , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , Real isoValue , const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample >* samples , std::function< void ( Vertex& , Point< Real , sizeof ... ( FEMSigs ) > , Point< Real , sizeof ... ( FEMSigs ) > , Real , TotalPointSampleData ) > SetVertex , std::vector< std::string > &comments , XForm< Real , sizeof...(FEMSigs)+1 > unitCubeToModel )
+template< typename Real , typename SetVertexFunction , typename VertexFactory , unsigned int ... FEMSigs >
+void ExtractMesh
+(
+	UIntPack< FEMSigs ... > ,
+	FEMTree< sizeof ... ( FEMSigs ) , Real >& tree ,
+	const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution ,
+	Real isoValue ,
+	const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample > *samples ,
+	const VertexFactory &vertexFactory ,
+	SetVertexFunction SetVertex ,
+	std::vector< std::string > &comments ,
+	XForm< Real , sizeof...(FEMSigs)+1 > unitCubeToModel
+)
 {
 	static const int Dim = sizeof ... ( FEMSigs );
 	typedef UIntPack< FEMSigs ... > Sigs;
@@ -385,26 +402,29 @@ void ExtractMesh( UIntPack< FEMSigs ... > , FEMTree< sizeof ... ( FEMSigs ) , Re
 		else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
 	}
 
-	CoredMeshData< Vertex , node_index_type > *mesh;
-	if( InCore.set ) mesh = new CoredVectorMeshData< Vertex , node_index_type >();
-	else             mesh = new CoredFileMeshData< Vertex , node_index_type >( tempHeader );
+	typedef EmptyVectorType< Real > EmptyVectorType;
+	CoredMeshData< typename VertexFactory::VertexType , node_index_type > *mesh;
+	if( InCore.set ) mesh = new CoredVectorMeshData< typename VertexFactory::VertexType , node_index_type >();
+	else             mesh = new CoredFileMeshData< node_index_type , VertexFactory >( vertexFactory , tempHeader );
 	profiler.start();
-	typename IsoSurfaceExtractor< Dim , Real , Vertex >::IsoStats isoStats;
+	typename IsoSurfaceExtractor< Dim , Real , typename VertexFactory::VertexType >::IsoStats isoStats;
 #if defined( __GNUC__ ) && __GNUC__ < 5
+#ifdef SHOW_WARNINGS
 #warning "you've got me gcc version<5"
-	isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , (typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE >*)NULL , (SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
+#endif // SHOW_WARNINGS
+	isoStats = IsoSurfaceExtractor< Dim , Real , typename VertexFactory::VertexType >::template Extract< EmptyVectorType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , (typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE >*)NULL , (SparseNodeData< ProjectiveData< EmptyVectorType , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
 #else // !__GNUC__ || __GNUC__ >=5
-	isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , (typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE >*)NULL , NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
+	isoStats = IsoSurfaceExtractor< Dim , Real , typename VertexFactory::VertexType >::template Extract< EmptyVectorType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , (typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE >*)NULL , NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
 #endif // __GNUC__ || __GNUC__ < 4
-	messageWriter( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh->outOfCorePointCount()+mesh->inCorePoints.size() ) , (unsigned long long)mesh->polygonCount() );
+	messageWriter( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh->outOfCoreVertexNum()+mesh->inCoreVertices.size() ) , (unsigned long long)mesh->polygonNum() );
 	std::string isoStatsString = isoStats.toString() + std::string( "\n" );
 	messageWriter( isoStatsString.c_str() );
 	if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
 	else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
 
 	std::vector< std::string > noComments;
-	if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( Out.value , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , unitCubeToModel ) )
-		ERROR_OUT( "Could not write mesh to: " , Out.value );
+	typename VertexFactory::Transform unitCubeToModelTransform( unitCubeToModel );
+	PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( Out.value , vertexFactory , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , unitCubeToModelTransform );
 	delete mesh;
 }
 
@@ -476,8 +496,8 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 	delete[] ext;
 }
 
-template< class Real , typename TotalPointSampleData , unsigned int ... FEMSigs >
-void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
+template< class Real , unsigned int ... FEMSigs , typename ... FunctionValueFactories >
+void Execute( UIntPack< FEMSigs ... > , VertexFactory::Factory< Real , FunctionValueFactories ... > functionValueFactory )
 {
 	static const int Dim = sizeof ... ( FEMSigs );
 	typedef UIntPack< FEMSigs ... > Sigs;
@@ -485,8 +505,23 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	typedef UIntPack< FEMDegreeAndBType< WEIGHT_DEGREE , DerivativeBoundary< FEMSignature< FEMSigs >::BType , 1 >::BType >::Signature ... > DataSigs;
 	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 1 > InterpolationInfo;
-	typedef InputPointStreamWithData< Real , Dim , TotalPointSampleData > InputPointStream;
-	typedef TransformedInputPointStreamWithData< Real , Dim , TotalPointSampleData > XInputPointStream;
+	// The factory for constructing the function data
+	typedef VertexFactory::Factory< Real , FunctionValueFactories ... > FunctionValueFactory;
+
+	// The factory for constructing the sample data
+	typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , FunctionValueFactory > InputSampleFactory;
+
+	// The type of the function values
+	typedef typename FunctionValueFactory::VertexType FunctionValueType;
+
+	// The type of the input sample
+	typedef typename InputSampleFactory::VertexType InputSampleType;
+
+	typedef            InputDataStream< InputSampleType >  InputPointStream;
+	typedef TransformedInputDataStream< InputSampleType > XInputPointStream;
+
+	InputSampleFactory inputSampleFactory( VertexFactory::PositionFactory< Real , Dim >() , functionValueFactory );
+
 	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
 	std::vector< std::string > comments;
 	messageWriter( comments , "***********************************************\n" );
@@ -543,44 +578,46 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	size_t pointCount;
 
 	std::vector< typename FEMTree< Dim , Real >::PointSample >* samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
-	std::vector< TotalPointSampleData >* sampleData = NULL;
+	std::vector< FunctionValueType >* sampleData = NULL;
 
 	// Read in the samples
 	{
 		profiler.start();
 		InputPointStream* pointStream;
 		char* ext = GetFileExtension( In.value );
-		sampleData = new std::vector< TotalPointSampleData >();
-		std::vector< std::pair< Point< Real , Dim > , TotalPointSampleData > > inCorePoints;
+		sampleData = new std::vector< FunctionValueType >();
+		std::vector< InputSampleType > inCorePoints;
 		if( InCore.set )
 		{
 			InputPointStream *_pointStream;
-			if     ( !strcasecmp( ext , "bnpts" ) ) _pointStream = new BinaryInputPointStreamWithData< Real , Dim , TotalPointSampleData >( In.value , TotalPointSampleData::ReadBinary );
-			else if( !strcasecmp( ext , "ply"   ) ) _pointStream = new    PLYInputPointStreamWithData< Real , Dim , TotalPointSampleData >( In.value , TotalPointSampleData::PlyReadProperties() , TotalPointSampleData::PlyReadNum , TotalPointSampleData::ValidPlyReadProperties );
-			else                                    _pointStream = new  ASCIIInputPointStreamWithData< Real , Dim , TotalPointSampleData >( In.value , TotalPointSampleData::ReadASCII );
-			Point< Real , Dim > p;
-			TotalPointSampleData d;
-			while( _pointStream->nextPoint( p , d ) ) inCorePoints.push_back( std::pair< Point< Real , Dim > , TotalPointSampleData >( p , d ) );
+			if     ( !strcasecmp( ext , "bnpts" ) ) _pointStream = new BinaryInputDataStream< InputSampleFactory>( In.value , inputSampleFactory );
+			else if( !strcasecmp( ext , "ply"   ) ) _pointStream = new    PLYInputDataStream< InputSampleFactory>( In.value , inputSampleFactory );
+			else                                    _pointStream = new  ASCIIInputDataStream< InputSampleFactory>( In.value , inputSampleFactory );
+			InputSampleType s;
+			while( _pointStream->next( s ) ) inCorePoints.push_back( s );
 			delete _pointStream;
 
-			pointStream = new MemoryInputPointStreamWithData< Real , Dim , TotalPointSampleData >( inCorePoints.size() , &inCorePoints[0] );
+			pointStream = new MemoryInputDataStream< InputSampleType >( inCorePoints.size() , &inCorePoints[0] );
 		}
 		else
 		{
-			if     ( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputPointStreamWithData< Real , Dim , TotalPointSampleData >( In.value , TotalPointSampleData::ReadBinary );
-			else if( !strcasecmp( ext , "ply"   ) ) pointStream = new    PLYInputPointStreamWithData< Real , Dim , TotalPointSampleData >( In.value , TotalPointSampleData::PlyReadProperties() , TotalPointSampleData::PlyReadNum , TotalPointSampleData::ValidPlyReadProperties );
-			else                                    pointStream = new  ASCIIInputPointStreamWithData< Real , Dim , TotalPointSampleData >( In.value , TotalPointSampleData::ReadASCII );
+			if     ( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputDataStream< InputSampleFactory>( In.value , inputSampleFactory );
+			else if( !strcasecmp( ext , "ply"   ) ) pointStream = new    PLYInputDataStream< InputSampleFactory>( In.value , inputSampleFactory );
+			else                                    pointStream = new  ASCIIInputDataStream< InputSampleFactory>( In.value , inputSampleFactory );
 		}
 		delete[] ext;
-		typename TotalPointSampleData::Transform _modelToUnitCube( modelToUnitCube );
-		XInputPointStream _pointStream( [&]( Point< Real , Dim >& p , TotalPointSampleData& d ){ p = modelToUnitCube*p , d = _modelToUnitCube(d); } , *pointStream );
-		if( Width.value>0 ) modelToUnitCube = GetPointXForm< Real , Dim >( _pointStream , Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
-		else                modelToUnitCube = Scale.value>0 ? GetPointXForm< Real , Dim >( _pointStream , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
+		typename InputSampleFactory::Transform _modelToUnitCube( modelToUnitCube );
+		auto XFormFunctor = [&]( InputSampleType &p ){ p = _modelToUnitCube( p ); };
+		XInputPointStream _pointStream( XFormFunctor , *pointStream );
+		if( Width.value>0 ) modelToUnitCube = GetPointXForm< Real , Dim , FunctionValueType >( _pointStream , Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
+		else                modelToUnitCube = Scale.value>0 ? GetPointXForm< Real , Dim , FunctionValueType >( _pointStream , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
+
 		{
-			typename TotalPointSampleData::Transform _modelToUnitCube( modelToUnitCube );
-			XInputPointStream _pointStream( [&]( Point< Real , Dim >& p , TotalPointSampleData& d ){ p = modelToUnitCube*p , d = _modelToUnitCube(d); } , *pointStream );
-			auto ProcessData = []( const Point< Real , Dim >& p , TotalPointSampleData& d ){ return (Real)1.; };
-			pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
+			typename InputSampleFactory::Transform _modelToUnitCube( modelToUnitCube );
+			auto XFormFunctor = [&]( InputSampleType &p ){ p = _modelToUnitCube( p ); };
+			XInputPointStream _pointStream( XFormFunctor , *pointStream );
+			auto ProcessData = []( const Point< Real , Dim > &p , FunctionValueType &d ){ return (Real)1.; };
+			pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionValueType >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
 		}
 		unitCubeToModel = modelToUnitCube.inverse();
 		delete pointStream;
@@ -597,8 +634,8 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 		tree.resetNodeIndices( 0 );
 	
-		if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , TotalPointSampleData , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , SystemDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , true , false );
-		else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , TotalPointSampleData , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , SystemDual< Dim , Real , TotalPointSampleData >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , true , 1 );
+		if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , FunctionValueType , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , FunctionValueType >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , SystemDual< Dim , Real , FunctionValueType >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , true , false );
+		else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , FunctionValueType , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , FunctionValueType >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , SystemDual< Dim , Real , FunctionValueType >( (Real)ValueWeight.value , (Real)GradientWeight.value ) , true , 1 );
 
 		// Prepare for multigrid
 		{
@@ -636,7 +673,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 1 > evaluator( &tree , solution );
 		std::pair< double , double > valueStat(0,0) , gradientStat(0,0);
 		std::vector< std::pair< double , double > > valueStats( ThreadPool::NumThreads() , std::pair< double , double >(0,0) ) , gradientStats( ThreadPool::NumThreads() , std::pair< double , double >(0,0) );
-		ValueAndGradientFromSample< Dim , Real , TotalPointSampleData > valueAndGradientFromSample;
+		ValueAndGradientFromSample< Dim , Real , FunctionValueType > valueAndGradientFromSample;
 		ThreadPool::Parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
 		{
 			ProjectiveData< Point< Real , Dim > , Real >& sample = (*samples)[j].sample;
@@ -693,9 +730,43 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 	if( Out.set )
 	{
-		typedef PlyVertex< Real , Dim > Vertex;
-		std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Point< Real , Dim > , Real , TotalPointSampleData ){ v.point = p; };
-		ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , tree , solution , (Real)IsoValue.value , samples , SetVertex , comments , unitCubeToModel );
+		if( Dim==3 )
+		{
+			typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::EmptyFactory< Real > > VertexFactory;
+			std::function< void ( typename VertexFactory::VertexType & , Point< Real , Dim > , Point< Real , Dim > , Real , EmptyVectorType< Real > ) > SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > , Real , EmptyVectorType< Real > ){ v.template get<0>() = p; };
+			ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , (Real)IsoValue.value , samples , VertexFactory() , SetVertex , comments , unitCubeToModel );
+		}
+		else if( Dim==2 )
+		{
+			typedef VertexFactory::PositionFactory< Real , 3 > VertexFactory;
+			int res = 0;
+			Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , true );
+			res--;
+			std::vector< std::vector< int > > polygons( res * res );
+			std::vector< typename VertexFactory::VertexType > vertices( (res+1) * (res+1) );
+
+			for( int i=0 ; i<res ; i++ ) for( int j=0 ; j<res ; j++ )
+			{
+				std::vector< int > &poly = polygons[ j*res+i ];
+				poly.resize( 4 );
+				poly[0] = (j+0)*(res+1)+(i+0);
+				poly[1] = (j+0)*(res+1)+(i+1);
+				poly[2] = (j+1)*(res+1)+(i+1);
+				poly[3] = (j+1)*(res+1)+(i+0);
+			}
+			for( int i=0 ; i<=res ; i++ ) for( int j=0 ; j<=res ; j++ )
+			{
+				Point< Real , Dim > p;
+				p[0] = (Real)i/res;
+				p[1] = (Real)j/res;
+				p = unitCubeToModel * p;
+				vertices[ j*(res+1)+i ] = Point< float , 3 >( (float)p[0] , (float)p[1] , values[ j*(res+1)+i ] );
+			}
+			DeletePointer( values );
+
+			std::vector< std::string > noComments;
+			PLY::WritePolygons( Out.value , VertexFactory() , vertices , polygons , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments );
+		}
 	}
 
 	messageWriter( comments , "#          Total Solve: %9.1f (s), %9.1f (MB)\n" , Time()-startTime , FEMTree< Dim , Real >::MaxMemoryUsage() );
@@ -705,9 +776,9 @@ template< class Real , unsigned int ... FEMSigs >
 void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 {
 	static const int Dim = sizeof ... ( FEMSigs );
-	if     ( !UseGradientConstraints.set ) Execute< Real , MultiPointStreamData< Real , PointStreamValue< Real >                                   > >( argc , argv , UIntPack< FEMSigs ... >() );
-	else if( NoValueConstraints.set )      Execute< Real , MultiPointStreamData< Real ,                            PointStreamNormal< Real , Dim > > >( argc , argv , UIntPack< FEMSigs ... >() );
-	else                                   Execute< Real , MultiPointStreamData< Real , PointStreamValue< Real > , PointStreamNormal< Real , Dim > > >( argc , argv , UIntPack< FEMSigs ... >() );
+	if     ( !UseGradientConstraints.set ) Execute< Real >( UIntPack< FEMSigs ... >() , VertexFactory::Factory< Real , VertexFactory::ValueFactory< Real >                                            >() );
+	else if( NoValueConstraints.set )      Execute< Real >( UIntPack< FEMSigs ... >() , VertexFactory::Factory< Real ,                                     VertexFactory::NormalFactory< Real , Dim > >() );
+	else                                   Execute< Real >( UIntPack< FEMSigs ... >() , VertexFactory::Factory< Real , VertexFactory::ValueFactory< Real > , VertexFactory::NormalFactory< Real , Dim > >() );
 }
 
 #ifndef FAST_COMPILE

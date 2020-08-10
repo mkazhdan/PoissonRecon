@@ -40,7 +40,7 @@ DAMAGE.
 #include "MAT.h"
 #include "Geometry.h"
 #include "Ply.h"
-#include "PointStreamData.h"
+#include "VertexFactory.h"
 
 MessageWriter messageWriter;
 
@@ -56,12 +56,13 @@ cmdLineParameter< float >
 cmdLineReadable
 	PolygonMesh( "polygonMesh" ) ,
 	Long( "long" ) ,
+	ASCII( "ascii" ) ,
 	Verbose( "verbose" );
 
 
 cmdLineReadable* params[] =
 {
-	&In , &Out , &Trim , &PolygonMesh , &Smooth , &IslandAreaRatio , &Verbose , &Long ,
+	&In , &Out , &Trim , &PolygonMesh , &Smooth , &IslandAreaRatio , &Verbose , &Long , &ASCII ,
 	NULL
 };
 
@@ -75,8 +76,12 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <relative area of islands>=%f]\n" , IslandAreaRatio.name , IslandAreaRatio.value );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
 	printf( "\t[--%s]\n" , Long.name );
+	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
+
+template< typename Real , unsigned int Dim , typename ... AuxData >
+using ValuedPointData = VectorTypeUnion< Real , Point< Real , Dim > , Real , AuxData ... >;
 
 template< typename Index >
 struct EdgeKey
@@ -91,16 +96,16 @@ struct EdgeKey
 #endif
 };
 
-template< typename Real , typename ... VertexData >
-PlyVertexWithData< float , DEFAULT_DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > InterpolateVertices( const PlyVertexWithData< float , DEFAULT_DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > >& v1 , const PlyVertexWithData< float , DEFAULT_DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > >& v2 , Real value )
+template< typename Real , unsigned int Dim ,  typename ... AuxData >
+ValuedPointData< Real , Dim , AuxData ... > InterpolateVertices( const ValuedPointData< Real , Dim , AuxData ... >& v1 , const ValuedPointData< Real , Dim , AuxData ... >& v2 , Real value )
 {
-	if( v1.data.template data<0>()==v2.data.template data<0>() ) return (v1+v2)/Real(2.);
-	Real dx = ( v1.data.template data<0>()-value ) / ( v1.data.template data<0>()-v2.data.template data<0>() );
-	return v1*(1.f-dx) + v2*dx;
+	if( v1.template get<1>()==v2.template get<1>() ) return (v1+v2)/Real(2.);
+	Real dx = ( v1.template get<1>()-value ) / ( v1.template get<1>()-v2.template get<1>() );
+	return v1 * (Real)(1.-dx) + v2*dx;
 }
 
-template< typename Real , typename Index , typename ... VertexData >
-void SmoothValues( std::vector< PlyVertexWithData< float , DEFAULT_DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > >& vertices , const std::vector< std::vector< Index > >& polygons )
+template< typename Real , unsigned int Dim , typename Index , typename ... AuxData >
+void SmoothValues( std::vector< ValuedPointData< Real , Dim , AuxData ... > >& vertices , const std::vector< std::vector< Index > >& polygons )
 {
 	std::vector< int > count( vertices.size() );
 	std::vector< Real > sums( vertices.size() , 0 );
@@ -112,17 +117,17 @@ void SmoothValues( std::vector< PlyVertexWithData< float , DEFAULT_DIMENSION , M
 			int j1 = j , j2 = (j+1)%sz;
 			Index v1 = polygons[i][j1] , v2 = polygons[i][j2];
 			count[v1]++ , count[v2]++;
-			sums[v1] += vertices[v2].data.template data<0>() , sums[v2] += vertices[v1].data.template data<0>();
+			sums[v1] += vertices[v2].template get<1>() , sums[v2] += vertices[v1].template get<1>();
 		}
 	}
-	for( size_t i=0 ; i<vertices.size() ; i++ ) vertices[i].data.template data<0>() = ( sums[i] + vertices[i].data.template data<0>() ) / ( count[i] + 1 );
+	for( size_t i=0 ; i<vertices.size() ; i++ ) vertices[i].template get<1>() = ( sums[i] + vertices[i].template get<1>() ) / ( count[i] + 1 );
 }
 
-template< class Real , typename Index , typename ... VertexData >
+template< typename Real , unsigned int Dim , typename Index , typename ... AuxData >
 void SplitPolygon
 (
 	const std::vector< Index >& polygon ,
-	std::vector< PlyVertexWithData< float , DEFAULT_DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > >& vertices ,
+	std::vector< ValuedPointData< Real , Dim , AuxData ... > >& vertices ,
 	std::vector< std::vector< Index > >* ltPolygons , std::vector< std::vector< Index > >* gtPolygons ,
 	std::vector< bool >* ltFlags , std::vector< bool >* gtFlags ,
 	std::unordered_map< EdgeKey< Index > , Index , typename EdgeKey< Index >::Hasher >& vertexTable,
@@ -134,7 +139,7 @@ void SplitPolygon
 	int gtCount = 0;
 	for( int j=0 ; j<sz ; j++ )
 	{
-		gt[j] = ( vertices[ polygon[j] ].data.template data<0>()>trimValue );
+		gt[j] = ( vertices[ polygon[j] ].template get<1>()>trimValue );
 		if( gt[j] ) gtCount++;
 	}
 	if     ( gtCount==sz ){ if( gtPolygons ) gtPolygons->push_back( polygon ) ; if( gtFlags ) gtFlags->push_back( false ); }
@@ -186,16 +191,16 @@ void SplitPolygon
 	}
 }
 
-template< class Real , typename Index , class Vertex >
+template< class Real , unsigned int Dim , typename Index , class Vertex >
 void Triangulate( const std::vector< Vertex >& vertices , const std::vector< std::vector< Index > >& polygons , std::vector< std::vector< Index > >& triangles )
 {
 	triangles.clear();
 	for( size_t i=0 ; i<polygons.size() ; i++ )
 		if( polygons.size()>3 )
 		{
-			std::vector< Point< Real , DEFAULT_DIMENSION > > _vertices( polygons[i].size() );
-			for( int j=0 ; j<int( polygons[i].size() ) ; j++ ) _vertices[j] = vertices[ polygons[i][j] ].point;
-			std::vector< TriangleIndex< Index > > _triangles = MinimalAreaTriangulation< Index , Real , DEFAULT_DIMENSION >( ( ConstPointer( Point< Real , DEFAULT_DIMENSION > ) )GetPointer( _vertices ) , _vertices.size() );
+			std::vector< Point< Real , Dim > > _vertices( polygons[i].size() );
+			for( int j=0 ; j<int( polygons[i].size() ) ; j++ ) _vertices[j] = vertices[ polygons[i][j] ].template get<0>();
+			std::vector< TriangleIndex< Index > > _triangles = MinimalAreaTriangulation< Index , Real , Dim >( ( ConstPointer( Point< Real , Dim > ) )GetPointer( _vertices ) , _vertices.size() );
 
 			// Add the triangles to the mesh
 			size_t idx = triangles.size();
@@ -209,18 +214,26 @@ void Triangulate( const std::vector< Vertex >& vertices , const std::vector< std
 		else if( polygons[i].size()==3 ) triangles.push_back( polygons[i] );
 }
 
-template< class Real , typename Index , class Vertex >
+template< class Real , unsigned int Dim , typename Index , class Vertex >
 double PolygonArea( const std::vector< Vertex >& vertices , const std::vector< Index >& polygon )
 {
+	auto Area =[]( Point< Real , Dim > v1 , Point< Real , Dim > v2 , Point< Real , Dim > v3 )
+	{
+		Point< Real , Dim > v[] = { v2-v1 , v3-v1 };
+		XForm< Real , 2 > Mass;
+		for( int i=0 ; i<2 ; i++ ) for( int j=0 ; j<2 ; j++ ) Mass(i,j) = Point< Real , Dim >::Dot( v[i] , v[j] );
+		return (Real)( sqrt( Mass.determinant() ) / 2. );
+	};
+
 	if( polygon.size()<3 ) return 0.;
-	else if( polygon.size()==3 ) return Area( vertices[polygon[0]].point , vertices[polygon[1]].point , vertices[polygon[2]].point );
+	else if( polygon.size()==3 ) return Area( vertices[polygon[0]].template get<0>() , vertices[polygon[1]].template get<0>() , vertices[polygon[2]].template get<0>() );
 	else
 	{
 		Point< Real , DEFAULT_DIMENSION > center;
-		for( size_t i=0 ; i<polygon.size() ; i++ ) center += vertices[ polygon[i] ].point;
+		for( size_t i=0 ; i<polygon.size() ; i++ ) center += vertices[ polygon[i] ].template get<0>();
 		center /= Real( polygon.size() );
 		double area = 0;
-		for( size_t i=0 ; i<polygon.size() ; i++ ) area += Area( center , vertices[ polygon[i] ].point , vertices[ polygon[ (i+1)%polygon.size() ] ].point );
+		for( size_t i=0 ; i<polygon.size() ; i++ ) area += Area( center , vertices[ polygon[i] ].template get<0>() , vertices[ polygon[ (i+1)%polygon.size() ] ].template get<0>() );
 		return area;
 	}
 }
@@ -289,21 +302,26 @@ void SetConnectedComponents( const std::vector< std::vector< Index > >& polygons
 	for( Index i=0 ; i<(Index)polygonRoots.size() ; i++ ) components[ vMap[ polygonRoots[i] ] ].push_back(i);
 }
 
-template< typename Index , typename ... VertexData >
-int Execute( void )
+template< typename Real , unsigned int Dim , typename Index , typename ... AuxDataFactories >
+int Execute( AuxDataFactories ... auxDataFactories )
 {
-	typedef PlyVertexWithData< float , DEFAULT_DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > Vertex;
-	float min , max;
+	typedef VertexFactory::Factory< Real , typename VertexFactory::PositionFactory< Real , Dim > , typename VertexFactory::ValueFactory< Real > , AuxDataFactories ... > Factory;
+	typedef typename Factory::VertexType Vertex;
+	typename VertexFactory::PositionFactory< Real , Dim > pFactory;
+	typename VertexFactory::ValueFactory< Real > vFactory;
+	Factory factory( pFactory , vFactory , auxDataFactories ... );
+	Real min , max;
+
 	std::vector< Vertex > vertices;
 	std::vector< std::vector< Index > > polygons;
 
 	int ft;
 	std::vector< std::string > comments;
-	PlyReadPolygons< Vertex >( In.value , vertices , polygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , comments );
+	PLY::ReadPolygons< Factory , Index >( In.value , factory , vertices , polygons , ft , comments );
 
-	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< float , Index >( vertices , polygons );
-	min = max = vertices[0].data.template data<0>();
-	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , vertices[i].data.template data<0>() ) , max = std::max< float >( max , vertices[i].data.template data<0>() );
+	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< Real , Dim , Index >( vertices , polygons );
+	min = max = vertices[0].template get<1>();
+	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< Real >( min , vertices[i].template get<1>() ) , max = std::max< Real >( max , vertices[i].template get<1>() );
 
 	std::unordered_map< EdgeKey< Index > , Index , typename EdgeKey< Index >::Hasher > vertexTable;
 	std::vector< std::vector< Index > > ltPolygons , gtPolygons;
@@ -339,7 +357,7 @@ int Execute( void )
 		{
 			for( size_t j=0 ; j<ltComponents[i].size() ; j++ )
 			{
-				ltAreas[i] += PolygonArea< float , Index , Vertex >( vertices , ltPolygons[ ltComponents[i][j] ] );
+				ltAreas[i] += PolygonArea< Real , Dim , Index , Vertex >( vertices , ltPolygons[ ltComponents[i][j] ] );
 				ltComponentFlags[i] = ( ltComponentFlags[i] || ltFlags[ ltComponents[i][j] ] );
 			}
 			area += ltAreas[i];
@@ -348,7 +366,7 @@ int Execute( void )
 		{
 			for( size_t j=0 ; j<gtComponents[i].size() ; j++ )
 			{
-				gtAreas[i] += PolygonArea< float , Index , Vertex >( vertices , gtPolygons[ gtComponents[i][j] ] );
+				gtAreas[i] += PolygonArea< Real , Dim , Index , Vertex >( vertices , gtPolygons[ gtComponents[i][j] ] );
 				gtComponentFlags[i] = ( gtComponentFlags[i] || gtFlags[ gtComponents[i][j] ] );
 			}
 			area += gtAreas[i];
@@ -369,11 +387,11 @@ int Execute( void )
 	{
 		{
 			std::vector< std::vector< Index > > polys = ltPolygons;
-			Triangulate< float , Index , Vertex >( vertices , ltPolygons , polys ) , ltPolygons = polys;
+			Triangulate< Real , Dim , Index , Vertex >( vertices , ltPolygons , polys ) , ltPolygons = polys;
 		}
 		{
 			std::vector< std::vector< Index > > polys = gtPolygons;
-			Triangulate< float  , Index , Vertex >( vertices , gtPolygons , polys ) , gtPolygons = polys;
+			Triangulate< Real , Dim , Index , Vertex >( vertices , gtPolygons , polys ) , gtPolygons = polys;
 		}
 	}
 
@@ -381,10 +399,8 @@ int Execute( void )
 	char comment[1024];
 	sprintf( comment , "#Trimmed In: %9.1f (s)" , Time()-t );
 	comments.push_back( comment );
-	if( Out.set )
-		if( !PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) )
-			ERROR_OUT( "Could not write mesh to: " , Out.value );
-	
+	if( Out.set ) PLY::WritePolygons( Out.value , factory , vertices , gtPolygons , ASCII.set ? PLY_ASCII : ft , comments );
+
 	return EXIT_SUCCESS;
 }
 int main( int argc , char* argv[] )
@@ -397,29 +413,18 @@ int main( int argc , char* argv[] )
 		ShowUsage( argv[0] );
 		return EXIT_FAILURE;
 	}
-	typedef MultiPointStreamData< float , PointStreamValue< float > , PointStreamNormal< float , DEFAULT_DIMENSION > , PointStreamColor< float > > VertexData;
-	typedef PlyVertexWithData< float , DEFAULT_DIMENSION , VertexData > Vertex;
-	bool readFlags[ Vertex::PlyReadNum ];
-	if( !PlyReadHeader( In.value , Vertex::PlyReadProperties() , Vertex::PlyReadNum , readFlags ) ) ERROR_OUT( "Failed to read ply header: " , In.value );
+	typedef float Real;
+	static constexpr unsigned int Dim = DEFAULT_DIMENSION;
+	typedef VertexFactory::Factory< Real , typename VertexFactory::PositionFactory< Real , Dim > , typename VertexFactory::ValueFactory< Real > > Factory;
+	Factory factory;
+	bool *readFlags = new bool[ factory.plyReadNum() ];
+	std::vector< PlyProperty > unprocessedProperties;
+	PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties );
+	if( !factory.plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
+	if( !factory.plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain values" );
+	delete[] readFlags;
 
-	bool hasValue  = VertexData::ValidPlyReadProperties< 0 >( readFlags + DEFAULT_DIMENSION );
-	bool hasNormal = VertexData::ValidPlyReadProperties< 1 >( readFlags + DEFAULT_DIMENSION );
-	bool hasColor  = VertexData::ValidPlyReadProperties< 2 >( readFlags + DEFAULT_DIMENSION );
+	if( Long.set ) return Execute< Real , Dim , long long >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );
+	else           return Execute< Real , Dim , int       >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );
 
-	if( !hasValue ) ERROR_OUT( "Ply file does not contain values" );
-
-	if( Long.set )
-		if( hasColor )
-			if( hasNormal ) return Execute< long long , PointStreamNormal< float , DEFAULT_DIMENSION > , PointStreamColor< float > >();
-			else            return Execute< long long ,                                                  PointStreamColor< float > >();
-		else
-			if( hasNormal ) return Execute< long long , PointStreamNormal< float , DEFAULT_DIMENSION >                             >();
-			else            return Execute< long long                                                                              >();
-	else
-		if( hasColor )
-			if( hasNormal ) return Execute< int , PointStreamNormal< float , DEFAULT_DIMENSION > , PointStreamColor< float > >();
-			else            return Execute< int ,                                                  PointStreamColor< float > >();
-		else
-			if( hasNormal ) return Execute< int , PointStreamNormal< float , DEFAULT_DIMENSION >                             >();
-			else            return Execute< int                                                                              >();
 }
