@@ -616,13 +616,13 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 			auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , typename InputPointStreamInfo::DataType &d )
 			{
 				Real l = (Real)Length( d.template get<0>() );
-				if( !l || l!=l ) return (Real)-1.;
+				if( !l || !std::isfinite( l ) ) return (Real)-1.;
 				return (Real)pow( l , Confidence.value );
 			};
 			auto ProcessData = []( const Point< Real , Dim > &p , typename InputPointStreamInfo::DataType &d )
 			{
 				Real l = (Real)Length( d.template get<0>() );
-				if( !l || l!=l ) return (Real)-1.;
+				if( !l || !std::isfinite( l ) ) return (Real)-1.;
 				d.template get<0>() /= l;
 				return (Real)1.;
 			};
