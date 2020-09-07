@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 13.50)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 13.60)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#EXECUTABLES">executables</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.60/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.60/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/">V13.50</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">V13.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">V12.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">V11.02</a>,
@@ -360,7 +361,7 @@ Fits a function to a set of sample values (and gradients) by finding the coeffic
 
 <dt><b>--in</b> &lt;<i>input sample positions and values</i>&gt;</dt>
 <dd> This string is the name of the file from which the positions and values will be read.<br>
-The file should be an ascii file with groups of <I>Dim</I>+1 or 2*<I>Dim</I>+1 (depending on whether gradients are provided or note)
+The file should be an ascii file with groups of <I>Dim</I>+1 or 2*<I>Dim</I>+1 (depending on whether gradients are provided or not)
 white space delimited, numbers: the coordinates of the point's position, followed by the value at that point (and gradient).<br>
 No information about the number of samples should be specified.</dd>
 
@@ -1039,6 +1040,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/">Version 13.50</a>:
 <ol>
 <LI> Enabled support for automatically detecting attirbutes of input point cloud (in addition to positions and normals) when provided in .ply format.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.60/">Version 13.60</a>:
+<ol>
+<LI> Modified the implementation of <I>PointInterpolant</I> to support separately prescribing value and gradient constraints.
 </ol>
 
 </DETAILS>
