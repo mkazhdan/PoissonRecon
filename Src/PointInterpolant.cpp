@@ -595,9 +595,9 @@ void Execute( UIntPack< FEMSigs ... > )
 		{
 			char* ext = GetFileExtension( InValues.value );
 			valueSampleData = new std::vector< FunctionValueType >();
+			std::vector< InputSampleValueType > inCorePoints;
 			if( InCore.set )
 			{
-				std::vector< InputSampleValueType > inCorePoints;
 				InputPointValueStream *_pointValueStream;
 				if     ( !strcasecmp( ext , "bnpts" ) ) _pointValueStream = new BinaryInputDataStream< InputSampleValueFactory>( InValues.value , inputSampleValueFactory );
 				else if( !strcasecmp( ext , "ply"   ) ) _pointValueStream = new    PLYInputDataStream< InputSampleValueFactory>( InValues.value , inputSampleValueFactory );
@@ -625,9 +625,9 @@ void Execute( UIntPack< FEMSigs ... > )
 		{
 			char* ext = GetFileExtension( InGradients.value );
 			gradientSampleData = new std::vector< FunctionGradientType >();
+			std::vector< InputSampleGradientType > inCorePoints;
 			if( InCore.set )
 			{
-				std::vector< InputSampleGradientType > inCorePoints;
 				InputPointGradientStream *_pointGradientStream;
 				if     ( !strcasecmp( ext , "bnpts" ) ) _pointGradientStream = new BinaryInputDataStream< InputSampleGradientFactory>( InGradients.value , inputSampleGradientFactory );
 				else if( !strcasecmp( ext , "ply"   ) ) _pointGradientStream = new    PLYInputDataStream< InputSampleGradientFactory>( InGradients.value , inputSampleGradientFactory );
@@ -657,7 +657,9 @@ void Execute( UIntPack< FEMSigs ... > )
 			if( ValueWeight.value>0 && GradientWeight.value>0 ) for( int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( valueMin[d] , gradientMin[d] ) , max[d] = std::max< Real >( valueMax[d] , gradientMax[d] );
 			else if( ValueWeight.value>0 ) min = valueMin , max = valueMax;
 			else if( GradientWeight.value>0 ) min = gradientMin , max = gradientMax;
-			if( Width.value>0 ) modelToUnitCube = GetBoundingBoxXForm( min , max , Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
+//			template< class Real , unsigned int Dim >
+
+			if( Width.value>0 ) modelToUnitCube = GetBoundingBoxXForm( min , max , (Real)Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
 			else                modelToUnitCube = Scale.value>0 ? GetBoundingBoxXForm( min , max , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
 		}
 
@@ -976,6 +978,5 @@ int main( int argc , char* argv[] )
 		printf( "Time (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
 		printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 	}
-#endif
 	return EXIT_SUCCESS;
 }
