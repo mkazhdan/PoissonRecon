@@ -780,7 +780,7 @@ A set of 4 2D positions at which the fit function is to be evaluated (represente
 </ol>
 
 The function fitting the input samples can be by calling the point interpolant:
-<blockquote><code>% PointInterpolant --in quadratic.2D.fitting.samples --tree quadratic.2D.tree --dim 2</code></blockquote>
+<blockquote><code>% PointInterpolant --inValues quadratic.2D.fitting.samples --tree quadratic.2D.tree --dim 2</code></blockquote>
 Then, the reconstructed function can be evaluated at the evaluation samples by calling the adaptive tree visualization:
 <blockquote><code>% AdaptiveTreeVisualization --in quadratic.2D.tree --samples quadratic.2D.evaluation.samples</code></blockquote>
 This will output the evaluation positions and values:
