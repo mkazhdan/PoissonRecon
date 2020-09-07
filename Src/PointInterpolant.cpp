@@ -591,11 +591,13 @@ void Execute( UIntPack< FEMSigs ... > )
 		InputPointValueStream *pointValueStream = NULL;
 		InputPointGradientStream *pointGradientStream = NULL;
 		Point< Real , Dim > valueMin , valueMax , gradientMin , gradientMax;
+		std::vector< InputSampleValueType > inCorePointsAndValues;
+		std::vector< InputSampleGradientType > inCorePointsAndGradients;
+
 		if( ValueWeight.value>0 )
 		{
 			char* ext = GetFileExtension( InValues.value );
 			valueSampleData = new std::vector< FunctionValueType >();
-			std::vector< InputSampleValueType > inCorePoints;
 			if( InCore.set )
 			{
 				InputPointValueStream *_pointValueStream;
@@ -603,10 +605,10 @@ void Execute( UIntPack< FEMSigs ... > )
 				else if( !strcasecmp( ext , "ply"   ) ) _pointValueStream = new    PLYInputDataStream< InputSampleValueFactory>( InValues.value , inputSampleValueFactory );
 				else                                    _pointValueStream = new  ASCIIInputDataStream< InputSampleValueFactory>( InValues.value , inputSampleValueFactory );
 				InputSampleValueType s;
-				while( _pointValueStream->next( s ) ) inCorePoints.push_back( s );
+				while( _pointValueStream->next( s ) ) inCorePointsAndValues.push_back( s );
 				delete _pointValueStream;
 
-				pointValueStream = new MemoryInputDataStream< InputSampleValueType >( inCorePoints.size() , &inCorePoints[0] );
+				pointValueStream = new MemoryInputDataStream< InputSampleValueType >( inCorePointsAndValues.size() , &inCorePointsAndValues[0] );
 			}
 			else
 			{
@@ -625,7 +627,6 @@ void Execute( UIntPack< FEMSigs ... > )
 		{
 			char* ext = GetFileExtension( InGradients.value );
 			gradientSampleData = new std::vector< FunctionGradientType >();
-			std::vector< InputSampleGradientType > inCorePoints;
 			if( InCore.set )
 			{
 				InputPointGradientStream *_pointGradientStream;
@@ -633,10 +634,10 @@ void Execute( UIntPack< FEMSigs ... > )
 				else if( !strcasecmp( ext , "ply"   ) ) _pointGradientStream = new    PLYInputDataStream< InputSampleGradientFactory>( InGradients.value , inputSampleGradientFactory );
 				else                                    _pointGradientStream = new  ASCIIInputDataStream< InputSampleGradientFactory>( InGradients.value , inputSampleGradientFactory );
 				InputSampleGradientType s;
-				while( _pointGradientStream->next( s ) ) inCorePoints.push_back( s );
+				while( _pointGradientStream->next( s ) ) inCorePointsAndGradients.push_back( s );
 				delete _pointGradientStream;
 
-				pointGradientStream = new MemoryInputDataStream< InputSampleGradientType >( inCorePoints.size() , &inCorePoints[0] );
+				pointGradientStream = new MemoryInputDataStream< InputSampleGradientType >( inCorePointsAndGradients.size() , &inCorePointsAndGradients[0] );
 			}
 			else
 			{
@@ -657,8 +658,6 @@ void Execute( UIntPack< FEMSigs ... > )
 			if( ValueWeight.value>0 && GradientWeight.value>0 ) for( int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( valueMin[d] , gradientMin[d] ) , max[d] = std::max< Real >( valueMax[d] , gradientMax[d] );
 			else if( ValueWeight.value>0 ) min = valueMin , max = valueMax;
 			else if( GradientWeight.value>0 ) min = gradientMin , max = gradientMax;
-//			template< class Real , unsigned int Dim >
-
 			if( Width.value>0 ) modelToUnitCube = GetBoundingBoxXForm( min , max , (Real)Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
 			else                modelToUnitCube = Scale.value>0 ? GetBoundingBoxXForm( min , max , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
 		}
