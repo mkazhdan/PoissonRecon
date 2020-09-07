@@ -356,13 +356,19 @@ individual components of the surface reconstructor.
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>PointInterpolant</b></font>:
-Fits a function to a set of sample values (and gradients) by finding the coefficients of the function that minimize an energy composed of an interpolation term and Laplacian and bi-Laplacian smoothness terms
+Fits a function to a set of sample values and/or gradients by finding the coefficients of the function that minimize an energy composed of a point-wise interpolation term and Laplacian and bi-Laplacian smoothness terms
 </SUMMARY>
 
-<dt><b>--in</b> &lt;<i>input sample positions and values</i>&gt;</dt>
+<dt><b>--inValues</b> &lt;<i>input sample positions and values</i>&gt;</dt>
 <dd> This string is the name of the file from which the positions and values will be read.<br>
-The file should be an ascii file with groups of <I>Dim</I>+1 or 2*<I>Dim</I>+1 (depending on whether gradients are provided or not)
-white space delimited, numbers: the coordinates of the point's position, followed by the value at that point (and gradient).<br>
+The file should be an ascii file with groups of <I>Dim</I>+1, white space delimited, numbers: the coordinates of the point's position,
+followed by the value at that point.<br>
+No information about the number of samples should be specified.</dd>
+
+<dt><b>--inGradients</b> &lt;<i>input sample positions and gradients</i>&gt;</dt>
+<dd> This string is the name of the file from which the positions and gradients will be read.<br>
+The file should be an ascii file with groups of 2*<I>Dim</I>, white space delimited, numbers: the coordinates of the point's position,
+followed by the gradient at that point).<br>
 No information about the number of samples should be specified.</dd>
 
 <dt>[<b>--dim</b> &lt;<i>dimension of the samples</i>&gt;]</dt>
@@ -432,9 +438,6 @@ The default value for this parameter is 1.</dd>
 <dt>[<b>--iters</b> &lt;<i>GS iters</i>&gt;]</dt>
 <dd> This integer value specifies the number of Gauss-Seidel relaxations to be performed at each level of the hiearchy.<br>
 The default value for this parameter is 8.</dd>
-
-<dt>[<b>--useGradients</b>]</dt>
-<dd> Enabling this flag indicates that the input file contains gradients as well as sample values.</dd>
 
 <dt>[<b>--performance</b>]</dt>
 <dd> Enabling this flag provides running time and peak memory usage at the end of the execution.</dd>
