@@ -542,30 +542,29 @@ FEMTree< Dim , Real >::MultiThreadedSparseEvaluator< UIntPack< FEMSigs ... > , T
 
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , typename T >
-T FEMTree< Dim , Real >::MultiThreadedSparseEvaluator< UIntPack< FEMSigs ... > , T >::value( Point< Real , Dim > p , int thread , const FEMTreeNode *node )
+void FEMTree< Dim , Real >::MultiThreadedSparseEvaluator< UIntPack< FEMSigs ... > , T >::addValue( Point< Real , Dim > p , T &t , int thread , const FEMTreeNode *node )
 {
 	if( !node ) node = _tree->leaf( p );
 	ConstPointSupportKey< FEMDegrees >& nKey = _pointNeighborKeys[thread];
 	nKey.getNeighbors( node );
-	return _tree->template _evaluate< T , SparseNodeData< T , FEMSignatures > , 0 >( _coefficients , p , _tree->_globalToLocal( node->depth() ) , *_pointEvaluator , nKey );
+	_tree->template _addEvaluation< T , SparseNodeData< T , FEMSignatures > , 0 >( _coefficients , p , _tree->_globalToLocal( node->depth() ) , *_pointEvaluator , nKey , t );
 }
 
 template< unsigned int Dim , class Real >
 template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
-V FEMTree< Dim , Real >::_evaluate( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const
+void FEMTree< Dim , Real >::_addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const
 {
-	return _evaluate< V , Coefficients , D , DataSigs ... >( coefficients , p , _globalToLocal( dataKey.depth() ) , pointEvaluator , dataKey );
+	_addEvaluation< V , Coefficients , D , DataSigs ... >( coefficients , p , _globalToLocal( dataKey.depth() ) , pointEvaluator , dataKey , value );
 }
 template< unsigned int Dim , class Real >
 template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
-V FEMTree< Dim , Real >::_evaluate( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const
+void FEMTree< Dim , Real >::_addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const
 {
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	PointEvaluatorState< UIntPack< DataSigs ... > , ZeroUIntPack< Dim > > state;
 	unsigned int derivatives[Dim];
 	memset( derivatives , 0 , sizeof( derivatives ) );
 	typedef PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > > DataKey;
-	V value = V();
 
 	for( int d=_localToGlobal( 0 ) ; d<=_localToGlobal( pointDepth ) ; d++ )
 	{
@@ -587,8 +586,6 @@ V FEMTree< Dim , Real >::_evaluate( const Coefficients& coefficients , Point< Re
 			}
 		}
 	}
-
-	return value;
 }
 
 template< unsigned int Dim , class Real >

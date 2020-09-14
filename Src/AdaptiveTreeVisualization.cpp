@@ -361,9 +361,9 @@ void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > modelTo
 #warning "you've got me gcc version<5"
 #endif // SHOW_WARNINGS
 		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
-		IsoSurfaceExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		IsoSurfaceExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , (Real)0 , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #else // !__GNUC__ || __GNUC__ >=5
-		IsoSurfaceExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		IsoSurfaceExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , (Real)0 , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #endif // __GNUC__ || __GNUC__ < 4
 
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );

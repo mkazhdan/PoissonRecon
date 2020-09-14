@@ -921,13 +921,13 @@ protected:
 	};
 
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
 	{
-		if( slice>0          ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::FRONT , vOffset , mesh , slabValues , SetVertex );
-		if( slice<(1<<depth) ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::BACK  , vOffset , mesh , slabValues , SetVertex );
+		if( slice>0          ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::FRONT , vOffset , mesh , slabValues , zeroData , SetVertex );
+		if( slice<(1<<depth) ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::BACK  , vOffset , mesh , slabValues , zeroData , SetVertex );
 	}
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , HyperCube::Direction zDir , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , HyperCube::Direction zDir , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
 	{
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		_SliceValues& sValues = slabValues[depth].sliceValues( slice );
@@ -964,7 +964,7 @@ protected:
 								{
 									Vertex vertex;
 									_Key key = _VertexData::EdgeIndex( leaf , e , tree._localToGlobal( tree._maxDepth ) );
-									_GetIsoVertex< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _e , zDir , sValues , vertex , SetVertex );
+									_GetIsoVertex< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _e , zDir , sValues , vertex , zeroData , SetVertex );
 									bool stillOwner = false;
 									std::pair< node_index_type , Vertex > hashed_vertex;
 									{
@@ -1025,7 +1025,7 @@ protected:
 	// Iso-Extraction //
 	////////////////////
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void _SetXSliceIsoVertices( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slab , node_index_type &vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	static void _SetXSliceIsoVertices( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slab , node_index_type &vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
 	{
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		_SliceValues& bValues = slabValues[depth].sliceValues ( slab   );
@@ -1066,7 +1066,7 @@ protected:
 								{
 									Vertex vertex;
 									_Key key = _VertexData::EdgeIndex( leaf , e.index , tree._localToGlobal( tree._maxDepth ) );
-									_GetIsoVertex< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _c , bValues , fValues , vertex , SetVertex );
+									_GetIsoVertex< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _c , bValues , fValues , vertex , zeroData , SetVertex );
 									bool stillOwner = false;
 									std::pair< node_index_type , Vertex > hashed_vertex;
 									{
@@ -1503,7 +1503,7 @@ protected:
 	}
 
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static bool _GetIsoVertex( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , ConstPointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > >& dataKey , const TreeNode* node , typename HyperCube::template Cube< Dim-1 >::template Element< 1 > _e , HyperCube::Direction zDir , const _SliceValues& sValues , Vertex& vertex , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	static bool _GetIsoVertex( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , ConstPointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > >& dataKey , const TreeNode* node , typename HyperCube::template Cube< Dim-1 >::template Element< 1 > _e , HyperCube::Direction zDir , const _SliceValues& sValues , Vertex& vertex , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
 	{
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		Point< Real , Dim > position , gradient;
@@ -1581,15 +1581,23 @@ protected:
 			if( DataDegree==0 ) 
 			{
 				Point< Real , 3 > center( s[0] + width/2 , s[1] + width/2 , s[2] + width/2 );
-				dataValue = tree.template _evaluate< ProjectiveData< Data , Real > , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > , 0 >( *data , center , *pointEvaluator , dataKey ).value();
+				ProjectiveData< Data , Real > pValue( zeroData );
+				tree.template _addEvaluation< ProjectiveData< Data , Real > , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > , 0 >( *data , center , *pointEvaluator , dataKey , pValue );
+				dataValue = pValue.weight ? pValue.value() : zeroData;
 			}
-			else dataValue = tree.template _evaluate< ProjectiveData< Data , Real > , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > , 0 >( *data , position , *pointEvaluator , dataKey ).value();
+			else
+			{
+				ProjectiveData< Data , Real > pValue( zeroData );
+				tree.template _addEvaluation< ProjectiveData< Data , Real > , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > , 0 >( *data , position , *pointEvaluator , dataKey , pValue );
+				dataValue = pValue.weight ? pValue.value() : zeroData;
+			}
 		}
 		SetVertex( vertex , position , gradient , depth , dataValue );
 		return true;
 	}
+
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static bool _GetIsoVertex( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , ConstPointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > >& dataKey , const TreeNode* node , typename HyperCube::template Cube< Dim-1 >::template Element< 0 > _c , const _SliceValues& bValues , const _SliceValues& fValues , Vertex& vertex , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	static bool _GetIsoVertex( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , ConstPointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > >& dataKey , const TreeNode* node , typename HyperCube::template Cube< Dim-1 >::template Element< 0 > _c , const _SliceValues& bValues , const _SliceValues& fValues , Vertex& vertex , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
 	{
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		Point< Real , Dim > position , gradient;
@@ -1663,9 +1671,16 @@ protected:
 			if( DataDegree==0 ) 
 			{
 				Point< Real , 3 > center( s[0] + width/2 , s[1] + width/2 , s[2] + width/2 );
-				dataValue = tree.template _evaluate< ProjectiveData< Data , Real > , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > , 0 >( *data , center , *pointEvaluator , dataKey ).value();
+				ProjectiveData< Data , Real > pValue( zeroData );
+				tree.template _addEvaluation< ProjectiveData< Data , Real > , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > , 0 >( *data , center , *pointEvaluator , dataKey , pValue );
+				dataValue = pValue.weight ? pValue.value() : zeroData;
 			}
-			else dataValue = tree.template _evaluate< ProjectiveData< Data , Real > , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > , 0 >( *data , position , *pointEvaluator , dataKey ).value();
+			else
+			{
+				ProjectiveData< Data , Real > pValue( zeroData );
+				tree.template _addEvaluation< ProjectiveData< Data , Real > , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > , 0 >( *data , position , *pointEvaluator , dataKey , pValue );
+				dataValue = pValue.weight ? pValue.value() : zeroData;
+			}
 		}
 		SetVertex( vertex , position , gradient , depth , dataValue );
 		return true;
@@ -1750,7 +1765,7 @@ public:
 		}
 	};
 	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
-	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex , node_index_type >& mesh , const SetVertexFunction &SetVertex , bool nonLinearFit , bool gradientNormals , bool addBarycenter , bool polygonMesh , bool flipOrientation )
+	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex , node_index_type >& mesh , const Data &zeroData , const SetVertexFunction &SetVertex , bool nonLinearFit , bool gradientNormals , bool addBarycenter , bool polygonMesh , bool flipOrientation )
 	{
 		_BadRootCount = 0u;
 		IsoStats isoStats;
@@ -1796,7 +1811,7 @@ public:
 			isoStats.copyFinerTime += Time()-t , t = Time();
 			_SetSliceIsoCorners< FEMSigs ... >( tree , coefficients() , coarseCoefficients() , isoValue , d , 0 , slabValues , evaluators[d] );
 			isoStats.cornersTime += Time()-t , t = Time();
-			_SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , 0 , vertexOffset , mesh , slabValues , SetVertex );
+			_SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , 0 , vertexOffset , mesh , slabValues , zeroData , SetVertex );
 			isoStats.verticesTime += Time()-t , t = Time();
 			_SetSliceIsoEdges( tree , d , 0 , slabValues );
 			isoStats.edgesTime += Time()-t , t = Time();
@@ -1820,13 +1835,13 @@ public:
 				// Set the slice values/vertices
 				_SetSliceIsoCorners< FEMSigs ... >( tree , coefficients() , coarseCoefficients() , isoValue , d , o , slabValues , evaluators[d] );
 				isoStats.cornersTime += Time()-t , t = Time();
-				_SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , o , vertexOffset , mesh , slabValues , SetVertex );
+				_SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , o , vertexOffset , mesh , slabValues , zeroData , SetVertex );
 				isoStats.verticesTime += Time()-t , t = Time();
 				_SetSliceIsoEdges( tree , d , o , slabValues );
 				isoStats.edgesTime += Time()-t , t = Time();
 
 				// Set the cross-slice edges
-				_SetXSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , o-1 , vertexOffset , mesh , slabValues , SetVertex );
+				_SetXSliceIsoVertices< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , o-1 , vertexOffset , mesh , slabValues , zeroData , SetVertex );
 				isoStats.verticesTime += Time()-t , t = Time();
 				_SetXSliceIsoEdges( tree , d , o-1 , slabValues );
 				isoStats.edgesTime += Time()-t , t = Time();

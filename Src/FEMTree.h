@@ -1937,8 +1937,8 @@ protected:
 	template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
 	template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _multiSplatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , int dim );
 	template< unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _nearestMultiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim=Dim );
-	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > V _evaluate( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const;
-	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > V _evaluate( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const;
+	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > void _addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const;
+	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > void _addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const;
 public:
 	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridEvaluate( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , int& res , LocalDepth depth=-1 , bool primal=false ) const;
 	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridUpSample( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , LocalDepth depth=-1 ) const;
@@ -2138,7 +2138,7 @@ public:
 	public:
 		MultiThreadedSparseEvaluator( const FEMTree* tree , const SparseNodeData< T , FEMSignatures >& coefficients , int threads=std::thread::hardware_concurrency() );
 		~MultiThreadedSparseEvaluator( void ){ if( _pointEvaluator ) delete _pointEvaluator; }
-		T value( Point< Real , Dim > p , int thread=0 , const FEMTreeNode* node=NULL );
+		void addValue( Point< Real , Dim > p , T &t , int thread=0 , const FEMTreeNode* node=NULL );
 	};
 
 	static double _MaxMemoryUsage , _LocalMemoryUsage;
@@ -2566,6 +2566,7 @@ struct IsoSurfaceExtractor
 		const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients ,								// The coefficients of the function
 		Real isoValue ,																						// The value at which to extract the level-set
 		CoredMeshData< Vertex , node_index_type >& mesh ,													// The mesh in which to store the output
+		const Data &zeroData ,																				// Zero value for data (in case of dynamic allocation)
 		const SetVertexFunction &SetVertex ,																// A function for setting the depth and data of a vertex
 		bool nonLinearFit ,																					// Should a linear interpolant be used
 		bool gradientNormals ,																				// Compute the gradient at the iso-vertex position
