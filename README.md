@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 13.70)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 13.71)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#EXECUTABLES">executables</a>
