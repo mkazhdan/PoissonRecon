@@ -196,7 +196,7 @@ void Triangulate( const std::vector< Vertex >& vertices , const std::vector< std
 {
 	triangles.clear();
 	for( size_t i=0 ; i<polygons.size() ; i++ )
-		if( polygons.size()>3 )
+		if( polygons[i].size()>3 )
 		{
 			std::vector< Point< Real , Dim > > _vertices( polygons[i].size() );
 			for( int j=0 ; j<int( polygons[i].size() ) ; j++ ) _vertices[j] = vertices[ polygons[i][j] ].template get<0>();
