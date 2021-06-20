@@ -30,21 +30,22 @@ DAMAGE.
 // FEMTreeInitializer //
 ////////////////////////
 template< unsigned int Dim , class Real >
-int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& node , int maxDepth , std::function< bool ( int , int[] ) > Refine , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& node , int maxDepth , std::function< bool ( int , int[] ) > Refine , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
-	int count = 0;
+	size_t count = 0;
 	int d , off[3];
 	node.depthAndOffset( d , off );
 	if( node.depth()<maxDepth && Refine( d , off ) )
 	{
-		node.initChildren( nodeAllocator , NodeInitializer ) , count += 1<<Dim;
+		node.initChildren< false >( nodeAllocator , NodeInitializer ) , count += 1<<Dim;
 		for( int c=0 ; c<(1<<Dim) ; c++ ) count += Initialize( node.children[c] , maxDepth , Refine , nodeAllocator , NodeInitializer );
 	}
 	return count;
 }
 
 template< unsigned int Dim , class Real >
-int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPointStream< Real , Dim >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+template< typename AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , typename InputPointStream< AuxData >::StreamType &pointStream , int maxDepth , std::vector< PointSample >& samplePoints , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
 	auto Leaf = [&]( FEMTreeNode& root , Point< Real , Dim > p , int maxDepth )
 	{
@@ -56,7 +57,7 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		int d = 0;
 		while( d<maxDepth )
 		{
-			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+			if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
 			int cIndex = FEMTreeNode::ChildIndex( center , p );
 			node = node->children + cIndex;
 			d++;
@@ -69,21 +70,21 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 	};
 
 	// Add the point data
-	int outOfBoundPoints = 0 , pointCount = 0;
+	size_t outOfBoundPoints = 0 , pointCount = 0;
 	{
-		std::vector< int > nodeToIndexMap;
+		std::vector< node_index_type > nodeToIndexMap;
 		Point< Real , Dim > p;
 		while( pointStream.nextPoint( p ) )
 		{
 			Real weight = (Real)1.;
 			FEMTreeNode* temp = Leaf( root , p , maxDepth );
 			if( !temp ){ outOfBoundPoints++ ; continue; }
-			int nodeIndex = temp->nodeData.nodeIndex;
-			if( nodeIndex>=nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
-			int idx = nodeToIndexMap[ nodeIndex ];
+			node_index_type nodeIndex = temp->nodeData.nodeIndex;
+			if( nodeIndex>=(node_index_type)nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
+			node_index_type idx = nodeToIndexMap[ nodeIndex ];
 			if( idx==-1 )
 			{
-				idx = (int)samplePoints.size();
+				idx = (node_index_type)samplePoints.size();
 				nodeToIndexMap[ nodeIndex ] = idx;
 				samplePoints.resize( idx+1 ) , samplePoints[idx].node = temp;
 			}
@@ -92,14 +93,40 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		}
 		pointStream.reset();
 	}
-	if( outOfBoundPoints  ) fprintf( stderr , "[WARNING] Found out-of-bound points: %d\n" , outOfBoundPoints );
+	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
+	if( std::is_same< Real , float >::value )
+	{
+		std::vector< size_t > badNodeCounts( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , samplePoints.size() , [&]( unsigned int thread , size_t i )
+		{
+			Point< Real , Dim > start;
+			Real width;
+			samplePoints[i].node->startAndWidth( start , width );
+			Point< Real , Dim > p = samplePoints[i].sample.data / samplePoints[i].sample.weight;
+			bool foundBadNode = false;
+			for( int d=0 ; d<Dim ; d++ )
+			{
+				if     ( p[d]<start[d]       ) foundBadNode = true , p[d] = start[d];
+				else if( p[d]>start[d]+width ) foundBadNode = true , p[d] = start[d] + width;
+			}
+			if( foundBadNode )
+			{
+				samplePoints[i].sample.data = p * samplePoints[i].sample.weight;
+				badNodeCounts[ thread ]++;
+			}
+		}
+		);
+		size_t badNodeCount = 0;
+		for( int i=0 ; i<badNodeCounts.size() ; i++ ) badNodeCount += badNodeCounts[i];
+		if( badNodeCount ) WARN( "Found bad sample nodes: " , badNodeCount );
+	}
 	FEMTree< Dim , Real >::MemoryUsage();
 	return pointCount;
 }
 
 template< unsigned int Dim , class Real >
-template< class Data >
-int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPointStreamWithData< Real , Dim , Data >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< Data >& sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim >& , Data& ) > ProcessData )
+template< typename AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , typename InputPointStream< AuxData >::StreamType &pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< typename InputPointStream< AuxData >::DataType > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , typename InputPointStream< AuxData >::DataType & ) > ProcessData )
 {
 	auto Leaf = [&]( FEMTreeNode& root , Point< Real , Dim > p , int maxDepth )
 	{
@@ -111,7 +138,7 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		int d = 0;
 		while( d<maxDepth )
 		{
-			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+			if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
 			int cIndex = FEMTreeNode::ChildIndex( center , p );
 			node = node->children + cIndex;
 			d++;
@@ -124,36 +151,41 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 	};
 
 	// Add the point data
-	int outOfBoundPoints = 0 , badData = 0 , pointCount = 0;
+	size_t outOfBoundPoints = 0 , badData = 0 , pointCount = 0;
 	{
-		std::vector< int > nodeToIndexMap;
-		Point< Real , Dim > p;
-		Data d;
-
-		while( pointStream.nextPoint( p , d ) )
+		std::vector< node_index_type > nodeToIndexMap;
+		typename InputPointStream< AuxData >::PointAndDataType pd;
+		while( pointStream.next( pd ) )
 		{
+			Point< Real , Dim > p = pd.template get<0>();
+			typename InputPointStream< AuxData >::DataType d = InputPointStream< AuxData >::GetData( pd );
 			Real weight = ProcessData( p , d );
 			if( weight<=0 ){ badData++ ; continue; }
 			FEMTreeNode* temp = Leaf( root , p , maxDepth );
 			if( !temp ){ outOfBoundPoints++ ; continue; }
-			int nodeIndex = temp->nodeData.nodeIndex;
+			node_index_type nodeIndex = temp->nodeData.nodeIndex;
 			if( mergeNodeSamples )
 			{
-				if( nodeIndex>=nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
-				int idx = nodeToIndexMap[ nodeIndex ];
+				if( nodeIndex>=(node_index_type)nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
+				node_index_type idx = nodeToIndexMap[ nodeIndex ];
 				if( idx==-1 )
 				{
-					idx = (int)samplePoints.size();
+					idx = (node_index_type)samplePoints.size();
 					nodeToIndexMap[ nodeIndex ] = idx;
 					samplePoints.resize( idx+1 ) , samplePoints[idx].node = temp;
 					sampleData.resize( idx+1 );
+					samplePoints[idx].sample = ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
+					sampleData[idx] = d*weight;
 				}
-				samplePoints[idx].sample += ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
-				sampleData[ idx ] += d*weight;
+				else
+				{
+					samplePoints[idx].sample += ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
+					sampleData[ idx ] += d*weight;
+				}
 			}
 			else
 			{
-				int idx = (int)samplePoints.size();
+				node_index_type idx = (node_index_type)samplePoints.size();
 				samplePoints.resize( idx+1 ) , sampleData.resize( idx+1 );
 				samplePoints[idx].node = temp;
 				samplePoints[idx].sample = ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
@@ -163,29 +195,170 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		}
 		pointStream.reset();
 	}
-	if( outOfBoundPoints  ) fprintf( stderr , "[WARNING] Found out-of-bound points: %d\n" , outOfBoundPoints );
-	if( badData           ) fprintf( stderr , "[WARNING] Found bad data: %d\n" , badData );
+	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
+	if( badData           ) WARN( "Found bad data: " , badData );
+	if( std::is_same< Real , float >::value )
+	{
+		std::vector< size_t > badNodeCounts( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , samplePoints.size() , [&]( unsigned int thread , size_t i )
+		{
+			Point< Real , Dim > start;
+			Real width;
+			samplePoints[i].node->startAndWidth( start , width );
+			Point< Real , Dim > p = samplePoints[i].sample.data / samplePoints[i].sample.weight;
+			bool foundBadNode = false;
+			for( int d=0 ; d<Dim ; d++ )
+			{
+				if     ( p[d]<start[d]       ) foundBadNode = true , p[d] = start[d];
+				else if( p[d]>start[d]+width ) foundBadNode = true , p[d] = start[d] + width;
+			}
+			if( foundBadNode )
+			{
+				samplePoints[i].sample.data = p * samplePoints[i].sample.weight;
+				badNodeCounts[ thread ]++;
+			}
+		}
+		);
+		size_t badNodeCount = 0;
+		for( int i=0 ; i<badNodeCounts.size() ; i++ ) badNodeCount += badNodeCounts[i];
+		if( badNodeCount ) WARN( "Found bad sample nodes: " , badNodeCount );
+	}
 	FEMTree< Dim , Real >::MemoryUsage();
 	return pointCount;
 }
 template< unsigned int Dim , class Real >
-void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
-	std::vector< int > nodeToIndexMap;
-#pragma omp parallel for
-	for( int i=0 ; i<simplices.size() ; i++ )
+	std::vector< node_index_type > nodeToIndexMap;
+	ThreadPool::Parallel_for( 0 , simplices.size() , [&]( unsigned int t , size_t  i )
 	{
 		Simplex< Real , Dim , Dim-1 > s;
 		for( int k=0 ; k<Dim ; k++ ) s[k] = vertices[ simplices[i][k] ];
-		int sCount;
-		if( mergeNodeSamples ) sCount = _AddSimplex( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocator , NodeInitializer );
-		else                   sCount = _AddSimplex( root , s , maxDepth , samples , NULL ,            nodeAllocator , NodeInitializer );
+		if( mergeNodeSamples ) _AddSimplex< true >( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
+		else                   _AddSimplex< true >( root , s , maxDepth , samples , NULL ,            nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
 	}
+	);
 	FEMTree< Dim , Real >::MemoryUsage();
 }
 
 template< unsigned int Dim , class Real >
-int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< int >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , const std::vector< ProjectiveData< Point< Real , Dim > , Real > > &points , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+{
+	std::vector< node_index_type > nodeToIndexMap;
+	ThreadPool::Parallel_for( 0 , points.size() , [&]( unsigned int t , size_t  i )
+	{
+		_AddSample< true >( root , points[i] , maxDepth , samples , mergeNodeSamples ? &nodeToIndexMap :NULL , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
+	} );
+	FEMTree< Dim , Real >::MemoryUsage();
+}
+
+template< unsigned int Dim , class Real >
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , const std::vector< ProjectiveData< Point< Real , Dim > , Real > > &points , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples )
+{
+	std::vector< node_index_type > nodeToIndexMap;
+	ThreadPool::Parallel_for( 0 , points.size() , [&]( unsigned int t , size_t  i )
+	{
+		_AddSample( root , points[i] , maxDepth , samples , mergeNodeSamples ? &nodeToIndexMap : NULL );
+	} );
+	FEMTree< Dim , Real >::MemoryUsage();
+}
+
+template< unsigned int Dim , class Real >
+template< bool ThreadSafe >
+size_t FEMTreeInitializer< Dim , Real >::_AddSample( FEMTreeNode& root , ProjectiveData< Point< Real , Dim > , Real > s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+{
+	auto Leaf = [&]( Point< Real , Dim > p , int maxDepth )
+	{
+		for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return (FEMTreeNode*)NULL;
+		Point< Real , Dim > center;
+		for( int d=0 ; d<Dim ; d++ ) center[d] = (Real)0.5;
+		Real width = Real(1.0);
+		FEMTreeNode* node = &root;
+		int d=0;
+		while( d<maxDepth )
+		{
+			if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , NodeInitializer );
+			int cIndex = FEMTreeNode::ChildIndex( center , p );
+			node = node->children + cIndex;
+			d++;
+			width /= 2;
+			for( int d=0 ; d<Dim ; d++ )
+				if( (cIndex>>d) & 1 ) center[d] += width/2;
+				else                  center[d] -= width/2;
+		}
+		return node;
+	};
+	FEMTreeNode *node = Leaf( s.value() , maxDepth );
+	if( !node ) return 0;
+	else        return _AddSample( node , s , maxDepth , samples , nodeToIndexMap );
+}
+
+template< unsigned int Dim , class Real >
+size_t FEMTreeInitializer< Dim , Real >::_AddSample( FEMTreeNode& root , ProjectiveData< Point< Real , Dim > , Real > s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap )
+{
+	auto Leaf = [&]( Point< Real , Dim > p , int maxDepth )
+	{
+		for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return (FEMTreeNode*)NULL;
+		Point< Real , Dim > center;
+		for( int d=0 ; d<Dim ; d++ ) center[d] = (Real)0.5;
+		Real width = Real(1.0);
+		FEMTreeNode* node = &root;
+		int d=0;
+		while( d<maxDepth && node->children )
+		{
+			int cIndex = FEMTreeNode::ChildIndex( center , p );
+			node = node->children + cIndex;
+			d++;
+			width /= 2;
+			for( int d=0 ; d<Dim ; d++ )
+				if( (cIndex>>d) & 1 ) center[d] += width/2;
+				else                  center[d] -= width/2;
+		}
+		return node;
+	};
+	FEMTreeNode *node = Leaf( s.value() , maxDepth );
+	if( !node ) return 0;
+	else        return _AddSample( node , s , maxDepth , samples , nodeToIndexMap );
+}
+
+template< unsigned int Dim , class Real >
+size_t FEMTreeInitializer< Dim , Real >::_AddSample( FEMTreeNode* node , ProjectiveData< Point< Real , Dim > , Real > s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap )
+{
+	if( nodeToIndexMap )
+	{
+		node_index_type nodeIndex = node->nodeData.nodeIndex;
+		{
+			static std::mutex m;
+			std::lock_guard< std::mutex > lock(m);
+			if( nodeIndex>=(node_index_type)nodeToIndexMap->size() ) nodeToIndexMap->resize( nodeIndex+1 , -1 );
+			node_index_type idx = (*nodeToIndexMap)[ nodeIndex ];
+			if( idx==-1 )
+			{
+				idx = (node_index_type)samples.size();
+				(*nodeToIndexMap)[ nodeIndex ] = idx;
+				samples.resize( idx+1 );
+				samples[idx].node = node;
+			}
+			samples[idx].sample += s;
+		}
+	}
+	else
+	{
+		{
+			static std::mutex m;
+			std::lock_guard< std::mutex > lock(m);
+			node_index_type idx = (node_index_type)samples.size();
+			samples.resize( idx+1 );
+			samples[idx].node = node;
+			samples[idx].sample = s;
+		}
+	}
+	return 1;
+}
+
+template< unsigned int Dim , class Real >
+template< bool ThreadSafe >
+size_t FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
 	std::vector< Simplex< Real , Dim , Dim-1 > > subSimplices;
 	subSimplices.push_back( s );
@@ -229,8 +402,7 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		int d=0;
 		while( d<maxDepth )
 		{
-#pragma omp critical
-			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+			if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , NodeInitializer );
 			int cIndex = FEMTreeNode::ChildIndex( center , p );
 			node = node->children + cIndex;
 			d++;
@@ -242,8 +414,7 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		return node;
 	};
 
-
-	int sCount = 0;
+	size_t sCount = 0;
 	for( int i=0 ; i<subSimplices.size() ; i++ )
 	{
 		// Find the finest depth at which the simplex is entirely within a node
@@ -263,35 +434,33 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		}
 
 		// Generate a point in the middle of the simplex
-		for( int i=0 ; i<subSimplices.size() ; i++ ) sCount += _AddSimplex( Leaf( subSimplices[i].center() , tDepth ) , subSimplices[i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
+		sCount += _AddSimplex< ThreadSafe >( Leaf( subSimplices[i].center() , tDepth ) , subSimplices[i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
 	}
 	return sCount;
 }
+
 template< unsigned int Dim , class Real >
-int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< int >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+template< bool ThreadSafe >
+size_t FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
 	int d = node->depth();
 	if( d==maxDepth )
 	{
 		Real weight = s.measure();
-		Point< Real , Dim > position = s.center() , normal;
-		{
-			Point< Real , Dim > v[Dim-1];
-			for( int k=0 ; k<Dim-1 ; k++ ) v[k] = s[k+1]-s[0];
-			normal = Point< Real , Dim >::CrossProduct( v );
-		}
+		Point< Real , Dim > position = s.center();
 		if( weight && weight==weight )
 		{
 			if( nodeToIndexMap )
 			{
-				int nodeIndex = node->nodeData.nodeIndex;
-#pragma omp critical
+				node_index_type nodeIndex = node->nodeData.nodeIndex;
 				{
-					if( nodeIndex>=nodeToIndexMap->size() ) nodeToIndexMap->resize( nodeIndex+1 , -1 );
-					int idx = (*nodeToIndexMap)[ nodeIndex ];
+					static std::mutex m;
+					std::lock_guard< std::mutex > lock(m);
+					if( nodeIndex>=(node_index_type)nodeToIndexMap->size() ) nodeToIndexMap->resize( nodeIndex+1 , -1 );
+					node_index_type idx = (*nodeToIndexMap)[ nodeIndex ];
 					if( idx==-1 )
 					{
-						idx = (int)samples.size();
+						idx = (node_index_type)samples.size();
 						(*nodeToIndexMap)[ nodeIndex ] = idx;
 						samples.resize( idx+1 );
 						samples[idx].node = node;
@@ -301,9 +470,10 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 			}
 			else
 			{
-#pragma omp critical
 				{
-					int idx = (int)samples.size();
+					static std::mutex m;
+					std::lock_guard< std::mutex > lock(m);
+					node_index_type idx = (node_index_type)samples.size();
 					samples.resize( idx+1 );
 					samples[idx].node = node;
 					samples[idx].sample = ProjectiveData< Point< Real , Dim > , Real >( position*weight , weight );
@@ -314,9 +484,8 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 	}
 	else
 	{
-		int sCount = 0;
-#pragma omp critical
-		if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+		size_t sCount = 0;
+		if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , NodeInitializer );
 
 		// Split up the simplex and pass the parts on to the children
 		Point< Real , Dim > center;
@@ -329,52 +498,106 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 		{
 			Point< Real , Dim > n ; n[Dim-d-1] = 1;
 			std::vector< std::vector< Simplex< Real , Dim , Dim-1 > > > temp( (int)( 1<<(d+1) ) );
-			for( int c=0 ; c<(1<<d) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) childSimplices[c][i].split( n , center[Dim-d-1] , temp[2*c] , temp[2*c+1] );
+			for( int c=0 ; c<(1<<d) ; c++ ) for( size_t i=0 ; i<childSimplices[c].size() ; i++ ) childSimplices[c][i].split( n , center[Dim-d-1] , temp[2*c] , temp[2*c+1] );
 			childSimplices = temp;
 		}
-		for( int c=0 ; c<(1<<Dim) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) if( childSimplices[c][i].measure() ) sCount += _AddSimplex( node->children+c , childSimplices[c][i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
+		for( int c=0 ; c<(1<<Dim) ; c++ ) for( size_t i=0 ; i<childSimplices[c].size() ; i++ ) if( childSimplices[c][i].measure() ) sCount += _AddSimplex< ThreadSafe >( node->children+c , childSimplices[c][i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
 		return sCount;
 	}
 }
 
 template< unsigned int Dim , class Real >
-void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
-	std::vector< int > nodeToIndexMap;
-	for( int i=0 ; i<simplices.size() ; i++ )
+	if( regularGridDepth>maxDepth ) ERROR_OUT( "Regular grid depth cannot excceed maximum depth: " , regularGridDepth , " <= " , maxDepth );
+
+	// Allocate the tree up to the prescribed depth
+	const Real RegularGridWidth = (Real)( 1./(1<<regularGridDepth) );
+
+	auto Leaf = [&]( FEMTreeNode *root , Point< Real , Dim > p , int depth )
 	{
-		Simplex< Real , Dim , Dim-1 > s;
-		for( int k=0 ; k<Dim ; k++ ) s[k] = vertices[ simplices[i][k] ];
-		_AddSimplex( root , s , maxDepth , nodeSimplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+		for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return (FEMTreeNode*)NULL;
+		Point< Real , Dim > center;
+		Real width;
+		root->centerAndWidth( center , width );
+		FEMTreeNode *node = root;
+		int d=node->depth();
+		while( d<depth )
+		{
+			if( !node->children ) node->template initChildren< false >( nodeAllocators.size() ? nodeAllocators[0] : NULL , NodeInitializer );
+			int cIndex = FEMTreeNode::ChildIndex( center , p );
+			node = node->children + cIndex;
+			d++;
+			width /= 2;
+			for( int d=0 ; d<Dim ; d++ )
+				if( (cIndex>>d) & 1 ) center[d] += width/2;
+				else                  center[d] -= width/2;
+		}
+		return node;
+	};
+
+	IndexedSimplicialComplex< Real , Dim , Dim-1 , node_index_type > sComplex( vertices , simplices );
+	typename Rasterizer< Real , Dim >::template SimplexRasterizationGrid< node_index_type , Dim-1 > raster = Rasterizer< Real , Dim >::template Rasterize< node_index_type >( sComplex , regularGridDepth , typename Rasterizer< Real , Dim >::ThreadSafety( Rasterizer< Real , Dim >::ThreadSafety::MUTEXES , regularGridDepth ) );
+//	typename Rasterizer< Real , Dim >::template SimplexRasterizationGrid< node_index_type , Dim-1 > raster = Rasterizer< Real , Dim >::template Rasterize< node_index_type >( sComplex , regularGridDepth , typename Rasterizer< Real , Dim >::ThreadSafety( Rasterizer< Real , Dim >::ThreadSafety::SINGLE_THREADED ) );
+//	typename Rasterizer< Real , Dim >::template SimplexRasterizationGrid< node_index_type , Dim-1 > raster = Rasterizer< Real , Dim >::template Rasterize< node_index_type >( sComplex , regularGridDepth , typename Rasterizer< Real , Dim >::ThreadSafety( Rasterizer< Real , Dim >::ThreadSafety::MAP_REDUCE ) );
+
+	size_t geometricCellCount = 0;
+	for( size_t i=0 ; i<raster.resolution() ; i++ ) if( raster[i].size() ) geometricCellCount++;
+
+	if( maxDepth==regularGridDepth )
+	{
+		nodeSimplices.resize( geometricCellCount );
+
+		geometricCellCount = 0;
+		for( size_t i=0 ; i<raster.resolution() ; i++ ) if( raster[i].size() )
+		{
+			int idx[Dim];
+			raster.setIndex( i , idx );
+			Point< Real , Dim > p;
+			for( int d=0 ; d<Dim ; d++ ) p[d] = (Real)( idx[d] + 0.5 ) * RegularGridWidth;
+			NodeSimplices< Dim , Real > &nSimplices = nodeSimplices[ geometricCellCount++ ];
+			nSimplices.node = Leaf( &root , p , maxDepth );
+			nSimplices.data = raster[i];
+		}
 	}
+	else
+	{
+		// The indices of the grid cells containing geometry
+		std::vector< size_t > cellIndices( geometricCellCount );
+		// The list of nodes @{regularGridDepth} containing geometry
+		std::vector< FEMTreeNode * > roots( geometricCellCount );
+		std::vector< node_index_type > nodeToIndexMap;
+
+		// Get the list of the indices of the regular grid containing geometry
+		geometricCellCount = 0;
+		// [WARNING] In principal, this could be done in parallel but then Leaf would need to be thread-safe.
+		for( size_t i=0 ; i<raster.resolution() ; i++ ) if( raster[i].size() )
+		{
+			cellIndices[ geometricCellCount ] = i;
+			int idx[Dim];
+			raster.setIndex( i , idx );
+			Point< Real , Dim > p;
+			for( int d=0 ; d<Dim ; d++ ) p[d] = (Real)( idx[d] + 0.5 ) * RegularGridWidth;
+			roots[ geometricCellCount ] = Leaf( &root , p , regularGridDepth );
+			geometricCellCount++;
+		}
+
+		std::vector< Allocator< FEMTreeNode > * > _nodeAllocators( ThreadPool::NumThreads() );
+		for( int i=0 ; i<_nodeAllocators.size() ; i++ ) _nodeAllocators[i] = nodeAllocators.size() ? nodeAllocators[i] : NULL;
+		ThreadPool::Parallel_for( 0 , geometricCellCount , [&]( unsigned int t , size_t i )
+		{
+			auto &cellSimplices = raster[ cellIndices[i] ];
+			for( int j=0 ; j<cellSimplices.size() ; j++ ) _AddSimplex< false , true >( *roots[i] , cellSimplices[j].first , cellSimplices[j].second , maxDepth , nodeSimplices , nodeToIndexMap , _nodeAllocators[t] , NodeInitializer );
+		} );
+	}
+
 	FEMTree< Dim , Real >::MemoryUsage();
 }
 
 template< unsigned int Dim , class Real >
-int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< int >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+template< bool ThreadSafeAllocation , bool ThreadSafeSimplices >
+size_t FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , node_index_type id , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
-	std::vector< Simplex< Real , Dim , Dim-1 > > subSimplices;
-	subSimplices.push_back( s );
-
-	// Clip the simplex to the unit cube
-	{
-		for( int d=0 ; d<Dim ; d++ )
-		{
-			Point< Real , Dim > n;
-			n[d] = 1;
-			{
-				std::vector< Simplex< Real , Dim , Dim-1 > > back , front;
-				for( int i=0 ; i<subSimplices.size() ; i++ ) subSimplices[i].split( n , 0 , back , front );
-				subSimplices = front;
-			}
-			{
-				std::vector< Simplex< Real , Dim , Dim-1 > > back , front;
-				for( int i=0 ; i<subSimplices.size() ; i++ ) subSimplices[i].split( n , 1 , back , front );
-				subSimplices = back;
-			}
-		}
-	}
-
 	struct RegularGridIndex
 	{
 		int idx[Dim];
@@ -389,13 +612,13 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 	{
 		for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return (FEMTreeNode*)NULL;
 		Point< Real , Dim > center;
-		for( int d=0 ; d<Dim ; d++ ) center[d] = (Real)0.5;
-		Real width = Real(1.0);
+		Real width;
+		root.centerAndWidth( center , width );
+		int d = root.depth();
 		FEMTreeNode* node = &root;
-		int d=0;
 		while( d<maxDepth )
 		{
-			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+			if( !node->children ) node->template initChildren< ThreadSafeAllocation >( nodeAllocator , NodeInitializer );
 			int cIndex = FEMTreeNode::ChildIndex( center , p );
 			node = node->children + cIndex;
 			d++;
@@ -407,34 +630,28 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		return node;
 	};
 
-	int sCount = 0;
-
-	for( int i=0 ; i<subSimplices.size() ; i++ )
+	// Find the finest depth at which the simplex is entirely within a node
+	int tDepth;
+	RegularGridIndex idx0 , idx;
+	for( tDepth=0 ; tDepth<maxDepth ; tDepth++ )
 	{
-		// Find the finest depth at which the simplex is entirely within a node
-		int tDepth;
-		RegularGridIndex idx0 , idx;
-		for( tDepth=0 ; tDepth<maxDepth ; tDepth++ )
+		// Get the grid index of the first vertex of the simplex
+		for( int d=0 ; d<Dim ; d++ ) idx0.idx[d] = (int)( s[0][d] * (1<<(tDepth+1)) );
+		bool done = false;
+		for( int k=1 ; k<=Dim && !done ; k++ )
 		{
-			// Get the grid index of the first vertex of the simplex
-			for( int d=0 ; d<Dim ; d++ ) idx0.idx[d] = (int)( subSimplices[i][0][d] * (1<<(tDepth+1)) );
-			bool done = false;
-			for( int k=0 ; k<Dim && !done ; k++ )
-			{
-				for( int d=0 ; d<Dim ; d++ ) idx.idx[d] = (int)( subSimplices[i][k][d] * (1<<(tDepth+1)) );
-				if( idx!=idx0 ) done = true;
-			}
-			if( done ) break;
+			for( int d=0 ; d<Dim ; d++ ) idx.idx[d] = (int)( s[k][d] * (1<<(tDepth+1)) );
+			if( idx!=idx0 ) done = true;
 		}
-
-		// Add the simplex to the node
-		FEMTreeNode* subSimplexNode = Leaf( subSimplices[i].center() , tDepth );
-		for( int i=0 ; i<subSimplices.size() ; i++ ) sCount += _AddSimplex( subSimplexNode , subSimplices[i] , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+		if( done ) break;
 	}
-	return sCount;
+	// Add the simplex to the node
+	return _AddSimplex< ThreadSafeAllocation , ThreadSafeSimplices >( Leaf( s.center() , tDepth ) , id , s , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
 }
+
 template< unsigned int Dim , class Real >
-int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< int >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+template< bool ThreadSafeAllocation , bool ThreadSafeSimplices >
+size_t FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , node_index_type id , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
 	int d = node->depth();
 	if( d==maxDepth )
@@ -443,24 +660,42 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 		Real weight = s.measure();
 		if( weight && weight==weight )
 		{
-			int nodeIndex = node->nodeData.nodeIndex;
-			if( nodeIndex>=nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
-			int idx = nodeToIndexMap[ nodeIndex ];
-			if( idx==-1 )
+			node_index_type nodeIndex = node->nodeData.nodeIndex;
+			if( ThreadSafeSimplices )
 			{
-				idx = (int)simplices.size();
-				nodeToIndexMap[ nodeIndex ] = idx;
-				simplices.resize( idx+1 );
-				simplices[idx].node = node;
+				static std::mutex m;
+				std::lock_guard< std::mutex > lock(m);
+				if( nodeIndex>=(node_index_type)nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
+				node_index_type idx = nodeToIndexMap[ nodeIndex ];
+				if( idx==-1 )
+				{
+					idx = (node_index_type)simplices.size();
+					nodeToIndexMap[ nodeIndex ] = idx;
+					simplices.resize( idx+1 );
+					simplices[idx].node = node;
+				}
+				simplices[idx].data.push_back( std::pair< node_index_type , Simplex< Real , Dim , Dim-1 > >( id , s ) );
 			}
-			simplices[idx].data.push_back( s );
+			else
+			{
+				if( nodeIndex>=(node_index_type)nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
+				node_index_type idx = nodeToIndexMap[ nodeIndex ];
+				if( idx==-1 )
+				{
+					idx = (node_index_type)simplices.size();
+					nodeToIndexMap[ nodeIndex ] = idx;
+					simplices.resize( idx+1 );
+					simplices[idx].node = node;
+				}
+				simplices[idx].data.push_back( std::pair< node_index_type , Simplex< Real , Dim , Dim-1 > >( id , s ) );
+			}
 		}
 		return 1;
 	}
 	else
 	{
-		int sCount = 0;
-		if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+		size_t sCount = 0;
+		if( !node->children ) node->template initChildren< ThreadSafeAllocation >( nodeAllocator , NodeInitializer );
 
 		// Split up the simplex and pass the parts on to the children
 		Point< Real , Dim > center;
@@ -476,14 +711,14 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 			for( int c=0 ; c<(1<<d) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) childSimplices[c][i].split( n , center[Dim-d-1] , temp[2*c] , temp[2*c+1] );
 			childSimplices = temp;
 		}
-		for( int c=0 ; c<(1<<Dim) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) sCount += _AddSimplex( node->children+c , childSimplices[c][i] , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+		for( int c=0 ; c<(1<<Dim) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) sCount += _AddSimplex< ThreadSafeAllocation , ThreadSafeSimplices >( node->children+c , id , childSimplices[c][i] , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
 		return sCount;
 	}
 }
 
 template< unsigned int Dim , class Real >
 template< class Data , class _Data , bool Dual >
-int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , ConstPointer( Data ) values , ConstPointer( int ) labels , int resolution[Dim] , std::vector< NodeSample< Dim , _Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< _Data ( const Data& ) > DataConverter )
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , ConstPointer( Data ) values , ConstPointer( int ) labels , int resolution[Dim] , std::vector< NodeSample< Dim , _Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< _Data ( const Data& ) > DataConverter )
 {
 	auto Leaf = [&]( FEMTreeNode& root , const int idx[Dim] , int maxDepth )
 	{
@@ -491,7 +726,7 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , ConstPoint
 		FEMTreeNode* node = &root;
 		for( int d=0 ; d<maxDepth ; d++ )
 		{
-			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+			if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
 			int cIndex = 0;
 			for( int dd=0 ; dd<Dim ; dd++ ) if( idx[dd]&(1<<(maxDepth-d-1)) ) cIndex |= 1<<dd;
 			node = node->children + cIndex;
@@ -559,7 +794,7 @@ unsigned int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , D
 		FEMTreeNode* node = &root;
 		for( unsigned int d=0 ; d<maxDepth ; d++ )
 		{
-			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+			if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
 			int cIndex = 0;
 			for( int dd=0 ; dd<Dim ; dd++ ) if( idx[dd]&(1<<(maxDepth-d-1)) ) cIndex |= 1<<dd;
 			node = node->children + cIndex;
@@ -588,4 +823,418 @@ unsigned int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , D
 		if( nodeSample.node ) derivatives[dir].push_back( nodeSample );
 	}
 	return maxDepth;
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int _Dim >
+typename std::enable_if< _Dim!=1 , DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > >::type FEMTreeInitializer< Dim , Real >::GetGeometryNodeDesignators( FEMTreeNode *root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+{
+	static_assert( Dim==_Dim , "[ERROR] Dimensions don't match" );
+	std::vector< Point< Real , Dim > > normals( simplices.size() );
+	ThreadPool::Parallel_for
+	(
+		0 , simplices.size() ,
+		[&]( unsigned int , size_t i )
+	{
+		Simplex< Real , Dim , Dim-1 > s;
+		for( int j=0 ; j<Dim ; j++ ) s[j] = vertices[ simplices[i][j] ];
+		normals[i] = s.normal();
+	}
+	);
+	return _GetGeometryNodeDesignators( root , vertices , simplices , normals , regularGridDepth , maxDepth , nodeAllocators , NodeInitializer );
+}
+template< unsigned int Dim , class Real >
+template< unsigned int _Dim >
+typename std::enable_if< _Dim==1 , DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > >::type FEMTreeInitializer< Dim , Real >::GetGeometryNodeDesignators( FEMTreeNode *root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+{
+	static_assert( Dim==_Dim , "[ERROR] Dimensions don't match" );
+	if( simplices.size()%2 ) ERROR_OUT( "Expected even number of hull points: " , simplices.size() );
+	struct HullPoint
+	{
+		Real x;
+		size_t idx;
+	};
+	std::vector< HullPoint > hullPoints( simplices.size() );
+	for( size_t i=0 ; i<simplices.size() ; i++ ) hullPoints[i].x = vertices[ simplices[i][0] ][0] , hullPoints[i].idx = i;
+	std::sort( hullPoints.begin() , hullPoints.end() , []( const HullPoint &hp1 , const HullPoint &hp2 ){ return hp1.x<hp2.x; } );
+	std::vector< Point< Real , Dim > > normals( simplices.size() );
+	for( int i=0 ; i<hullPoints.size() ; i++ ) normals[ hullPoints[i].idx ][0] = (i%2) ? (Real)1. : (Real)-1.;
+	return _GetGeometryNodeDesignators( root , vertices , simplices , normals , regularGridDepth , maxDepth , nodeAllocators , NodeInitializer );
+}
+
+template< unsigned int Dim , class Real >
+DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTreeInitializer< Dim , Real >::_GetGeometryNodeDesignators( FEMTreeNode *root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , const std::vector< Point< Real , Dim > > &normals , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+{
+	typedef typename FEMTreeNode::template ConstNeighborKey< IsotropicUIntPack< Dim , 1 > , IsotropicUIntPack< Dim , 1 > > NeighborKey;
+	typedef typename FEMTreeNode::template ConstNeighbors< IsotropicUIntPack< Dim , 3 > > Neighbors;
+	DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > geometryNodeDesignators;
+
+	// Rasterize the geometry into the tree
+	std::vector< NodeSimplices< Dim , Real > > nodeSimplices;
+	FEMTreeInitializer< Dim , Real >::Initialize( *root , vertices , simplices , regularGridDepth , maxDepth , nodeSimplices , nodeAllocators , NodeInitializer );
+
+	// Mark all the nodes containing geometry
+	node_index_type nodeCount = 0;
+	for( FEMTreeNode *node=root->nextNode() ; node ; node=root->nextNode( node ) ) nodeCount = std::max< node_index_type >( nodeCount , node->nodeData.nodeIndex );
+	nodeCount++;
+
+	geometryNodeDesignators.resize( nodeCount );
+
+	ThreadPool::Parallel_for( 0 , nodeSimplices.size() , [&]( unsigned int , size_t i ){ for( FEMTreeNode *node=nodeSimplices[i].node ; node ; node=node->parent ) geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY; } );
+
+	// Propagate out from the boundary nodes
+	std::vector< const FEMTreeNode * > interiorNodes , exteriorNodes;
+	std::vector< std::vector< const FEMTreeNode * > > _interiorNodes( ThreadPool::NumThreads() ) ,  _exteriorNodes( ThreadPool::NumThreads() );
+
+	std::vector< NeighborKey > neighborKeys( ThreadPool::NumThreads() );
+	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( maxDepth );
+
+	// In the first pass, flood-fill from the geometry-containing nodes
+	ThreadPool::Parallel_for( 0 , nodeSimplices.size() , [&]( unsigned int thread , size_t i )
+	{
+		std::vector< const FEMTreeNode * > &interiorNodes = _interiorNodes[thread];
+		std::vector< const FEMTreeNode * > &exteriorNodes = _exteriorNodes[thread];
+		NeighborKey &neighborKey = neighborKeys[thread];
+		Point< Real , Dim > center ; Real width;
+		nodeSimplices[i].node->centerAndWidth( center , width );
+		Neighbors &neighbors = neighborKey.getNeighbors( nodeSimplices[i].node );
+
+		// Iterate over the faces
+		for( unsigned int d=0 ; d<Dim ; d++ ) for( int dir=0 ; dir<=2 ; dir+=2 )
+		{
+			unsigned int idx[Dim];
+			for( unsigned int d=0 ; d<Dim ; d++ ) idx[d] = 1;
+			idx[d] = dir;
+
+			// Terminate early if the neighbor node exists but contains geometry
+			const FEMTreeNode *node = neighbors.neighbors( idx );
+			if( node && geometryNodeDesignators[node]==GeometryNodeType::BOUNDARY ) continue;
+
+			// Compute the center of the face
+			Point< Real , Dim > p = center;
+			p[d] += (Real)(dir-1) * width / 2;
+
+			// If the center of the face is outside and the face-adjacent node does not contain geometry, add the face-adjacent neighbor to the list of exterior nodes
+			std::vector< Simplex< Real , Dim , Dim-1 > > _simplices( nodeSimplices[i].data.size() );
+			std::vector< Point< Real , Dim > > _normals( nodeSimplices[i].data.size() ); 
+			for( int j=0 ; j<nodeSimplices[i].data.size() ; j++ )
+			{
+				_simplices[j] = nodeSimplices[i].data[j].second;
+				_normals[j] = normals[ nodeSimplices[i].data[j].first ];
+			}
+
+			bool interior = Simplex< Real , Dim , Dim-1 >::IsInterior( p , _simplices , _normals );
+			{
+				const FEMTreeNode *node = neighbors.neighbors( idx );
+
+				// If the face-adjacent node exists and does not contain geometry, add it to the list of exterior nodes
+				if( node )
+				{
+					if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN )
+						if( interior ) interiorNodes.push_back( node );
+						else           exteriorNodes.push_back( node );
+				}
+				// Otherwise, try the parents' face-adjacent neighbors
+				else
+				{
+					for( int depth=maxDepth-1 ; depth>=0 ; depth-- )
+					{
+						node = neighborKey.neighbors[depth].neighbors( idx );
+						if( node )
+						{
+							if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN )
+								if( interior ) interiorNodes.push_back( node );
+								else           exteriorNodes.push_back( node );
+							break;
+						}
+					}
+				}
+			}
+		}
+	} );
+
+	// Merge the exterior nodes computed by the different threads and mark them exterior
+	{
+		size_t interiorCount = 0 , exteriorCount = 0;;
+		for( int i=0 ; i<_interiorNodes.size() ; i++ ) interiorCount += _interiorNodes[i].size();
+		for( int i=0 ; i<_exteriorNodes.size() ; i++ ) exteriorCount += _exteriorNodes[i].size();
+		interiorNodes.reserve( interiorCount ) , exteriorNodes.reserve( exteriorCount );
+		for( int i=0 ; i<_interiorNodes.size() ; i++ ) for( int j=0 ; j<_interiorNodes[i].size() ; j++ )
+		{
+			if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) ERROR_OUT( "Interior node has geometry" );
+			else if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::UNKNOWN )
+			{
+				geometryNodeDesignators[ _interiorNodes[i][j] ] = GeometryNodeType::INTERIOR;
+				interiorNodes.push_back( _interiorNodes[i][j] );
+			}
+		}
+		for( int i=0 ; i<_exteriorNodes.size() ; i++ ) for( int j=0 ; j<_exteriorNodes[i].size() ; j++ )
+		{
+			if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) ERROR_OUT( "Exterior node has geometry" );
+			else if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::UNKNOWN )
+			{
+				geometryNodeDesignators[ _exteriorNodes[i][j] ] = GeometryNodeType::EXTERIOR;
+				exteriorNodes.push_back( _exteriorNodes[i][j] );
+			}
+		}
+	}
+
+	// In subsequent passes, propagate from nodes marked as interior/exterior
+	while( interiorNodes.size() || exteriorNodes.size() )
+	{
+		for( int i=0 ; i<_interiorNodes.size() ; i++ ) _interiorNodes[i].resize( 0 );
+		for( int i=0 ; i<_exteriorNodes.size() ; i++ ) _exteriorNodes[i].resize( 0 );
+
+		ThreadPool::Parallel_for( 0 , interiorNodes.size() , [&]( unsigned int thread , size_t i )
+		{
+			std::vector< const FEMTreeNode * > &__interiorNodes = _interiorNodes[thread];
+			NeighborKey &neighborKey = neighborKeys[thread];
+			Neighbors &neighbors = neighborKey.getNeighbors( interiorNodes[i] );
+
+			// Iterate over the faces
+			for( unsigned int d=0 ; d<Dim ; d++ ) for( int dir=0 ; dir<=2 ; dir+=2 )
+			{
+				unsigned int idx[Dim];
+				for( unsigned int _d=0 ; _d<Dim ; _d++ ) idx[_d] = 1;
+				idx[d] = dir;
+
+				for( int depth=interiorNodes[i]->depth() ; depth>=0 ; depth-- )
+				{
+					const FEMTreeNode *node = neighborKey.neighbors[depth].neighbors( idx );
+					if( node )
+					{
+						if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN ) __interiorNodes.push_back( node );
+						break;
+					}
+				}
+			}
+		} );
+
+		ThreadPool::Parallel_for( 0 , exteriorNodes.size() , [&]( unsigned int thread , size_t i )
+		{
+			std::vector< const FEMTreeNode * > &__exteriorNodes = _exteriorNodes[thread];
+			NeighborKey &neighborKey = neighborKeys[thread];
+			Neighbors &neighbors = neighborKey.getNeighbors( exteriorNodes[i] );
+
+			// Iterate over the faces
+			for( unsigned int d=0 ; d<Dim ; d++ ) for( int dir=0 ; dir<=2 ; dir+=2 )
+			{
+				unsigned int idx[Dim];
+				for( unsigned int _d=0 ; _d<Dim ; _d++ ) idx[_d] = 1;
+				idx[d] = dir;
+
+				for( int depth=exteriorNodes[i]->depth() ; depth>=0 ; depth-- )
+				{
+					const FEMTreeNode *node = neighborKey.neighbors[depth].neighbors( idx );
+					if( node )
+					{
+						if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN ) __exteriorNodes.push_back( node );
+						break;
+					}
+				}
+			}
+		} );
+
+		// Merge the interior/exterior nodes computed by the different threads
+		{
+			size_t interiorCount = 0 , exteriorCount = 0;
+			for( int i=0 ; i<_interiorNodes.size() ; i++ ) interiorCount += _interiorNodes[i].size();
+			for( int i=0 ; i<_exteriorNodes.size() ; i++ ) exteriorCount += _exteriorNodes[i].size();
+			if( !interiorCount && !exteriorCount ) break;
+			interiorNodes.resize( 0 ) , exteriorNodes.resize( 0 );
+			interiorNodes.reserve( interiorCount ) , exteriorNodes.reserve( exteriorCount );
+
+			for( int i=0 ; i<_interiorNodes.size() ; i++ ) for( int j=0 ; j<_interiorNodes[i].size() ; j++ )
+			{
+				if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) ERROR_OUT( "Interior node has geometry" );
+				else if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::UNKNOWN )
+				{
+					geometryNodeDesignators[ _interiorNodes[i][j] ] = GeometryNodeType::INTERIOR;
+					interiorNodes.push_back( _interiorNodes[i][j] );
+				}
+			}
+			for( int i=0 ; i<_exteriorNodes.size() ; i++ ) for( int j=0 ; j<_exteriorNodes[i].size() ; j++ )
+			{
+				if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) ERROR_OUT( "Exterior node has geometry" );
+				else if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::UNKNOWN )
+				{
+					geometryNodeDesignators[ _exteriorNodes[i][j] ] = GeometryNodeType::EXTERIOR;
+					exteriorNodes.push_back( _exteriorNodes[i][j] );
+				}
+			}
+		}
+	}
+
+	size_t correctionCount=0;
+	std::function< void ( FEMTreeNode * ) > CorrectDesignatorsFromChildren = [&]( const FEMTreeNode *node )
+	{
+		if( node->children )
+		{
+			int interiorCount=0 , exteriorCount=0 , boundaryCount=0;
+			for( int c=0 ; c<(1<<Dim) ; c++ )
+			{
+				CorrectDesignatorsFromChildren( node->children+c );
+				if     ( geometryNodeDesignators[node->children+c]==GeometryNodeType::INTERIOR ) interiorCount++;
+				else if( geometryNodeDesignators[node->children+c]==GeometryNodeType::EXTERIOR ) exteriorCount++;
+				else if( geometryNodeDesignators[node->children+c]==GeometryNodeType::BOUNDARY ) boundaryCount++;
+			}
+			if( boundaryCount || ( exteriorCount && interiorCount ) )
+			{
+				if( geometryNodeDesignators[node]!=GeometryNodeType::UNKNOWN && geometryNodeDesignators[node]!=GeometryNodeType::BOUNDARY ) correctionCount++;
+				geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY;
+			}
+			else if( interiorCount==(1<<Dim) )
+			{
+				if( geometryNodeDesignators[node]!=GeometryNodeType::UNKNOWN && geometryNodeDesignators[node]!=GeometryNodeType::INTERIOR ) correctionCount++;
+				geometryNodeDesignators[node] = GeometryNodeType::INTERIOR;
+			}
+			else if( exteriorCount==(1<<Dim) )
+			{
+				if( geometryNodeDesignators[node]!=GeometryNodeType::UNKNOWN && geometryNodeDesignators[node]!=GeometryNodeType::EXTERIOR ) correctionCount++;
+				geometryNodeDesignators[node] = GeometryNodeType::EXTERIOR;
+			}
+			else if( interiorCount )
+			{
+				if( geometryNodeDesignators[node]!=GeometryNodeType::UNKNOWN && geometryNodeDesignators[node]!=GeometryNodeType::INTERIOR && geometryNodeDesignators[node]!=GeometryNodeType::BOUNDARY ) correctionCount++;
+				geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY;
+			}
+			else if( exteriorCount )
+			{
+				if( geometryNodeDesignators[node]!=GeometryNodeType::UNKNOWN && geometryNodeDesignators[node]!=GeometryNodeType::EXTERIOR && geometryNodeDesignators[node]!=GeometryNodeType::BOUNDARY ) correctionCount++;
+				geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY;
+			}
+		}
+	};
+	CorrectDesignatorsFromChildren( root );
+	if( correctionCount ) WARN( "Adjusted designator inconsistencies: " , correctionCount );
+
+	std::function< void ( FEMTreeNode * ) > SetUnknownDesignatorsFromParents = [&]( FEMTreeNode *node )
+	{
+		if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN && node->parent ) geometryNodeDesignators[node] = geometryNodeDesignators[node->parent];
+		if( node->children ) for( int c=0 ; c<(1<<Dim) ; c++ ) SetUnknownDesignatorsFromParents( node->children + c );
+	};
+	std::function< void ( FEMTreeNode * ) > SetUnknownDesignatorsFromChildren = [&]( FEMTreeNode *node )
+	{
+		if( node->children ) for( int c=0 ; c<(1<<Dim) ; c++ ) SetUnknownDesignatorsFromChildren( node->children + c );
+		if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN )
+			if( node->children )
+			{
+				int interiorCount = 0 , exteriorCount = 0 , boundaryCount = 0;
+				for( int c=0 ; c<(1<<Dim) ; c++ )
+				{
+					if     ( geometryNodeDesignators[node->children+c]==GeometryNodeType::INTERIOR ) interiorCount++;
+					else if( geometryNodeDesignators[node->children+c]==GeometryNodeType::EXTERIOR ) exteriorCount++;
+					else if( geometryNodeDesignators[node->children+c]==GeometryNodeType::BOUNDARY ) boundaryCount++;
+				}
+				if( interiorCount+exteriorCount+boundaryCount!=(1<<Dim) ) ERROR_OUT( "Children are unknown" );
+				else if( boundaryCount==0 && interiorCount!=0 && exteriorCount!=0 ) ERROR_OUT( "Expected boundary between interior/exterior" );
+				else if( boundaryCount!=0 ) geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY;
+				else if( interiorCount!=0 ) geometryNodeDesignators[node] = GeometryNodeType::INTERIOR;
+				else if( exteriorCount!=0 ) geometryNodeDesignators[node] = GeometryNodeType::INTERIOR;
+			}
+			else if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN ) ERROR_OUT( "Leaf node is unknown" );
+	};
+	SetUnknownDesignatorsFromParents( root );
+	SetUnknownDesignatorsFromChildren( root );
+
+	return geometryNodeDesignators;
+}
+
+template< unsigned int Dim , class Real >
+void FEMTreeInitializer< Dim , Real >::TestGeometryNodeDesignators( const FEMTreeNode *root , const DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > &geometryNodeDesignators )
+{
+	std::function< void ( const FEMTreeNode * ) > Test = [&]( const FEMTreeNode *node )
+	{
+		if( node->children )
+		{
+			if( node->nodeData.nodeIndex>=0 && node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() && geometryNodeDesignators[node->nodeData.nodeIndex]!=GeometryNodeType::UNKNOWN )
+			{
+				GeometryNodeType type = geometryNodeDesignators[node->nodeData.nodeIndex];
+				int interiorCount=0 , exteriorCount=0 , boundaryCount=0 , unknownCount=0;
+				for( int c=0 ; c<(1<<Dim) ; c++ )
+				{
+					if( node->children[c].nodeData.nodeIndex>=0 && node->children[c].nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() )
+					{
+						if( geometryNodeDesignators[ node->children[c].nodeData.nodeIndex ]==GeometryNodeType::UNKNOWN  )  unknownCount++;
+						if( geometryNodeDesignators[ node->children[c].nodeData.nodeIndex ]==GeometryNodeType::INTERIOR ) interiorCount++;
+						if( geometryNodeDesignators[ node->children[c].nodeData.nodeIndex ]==GeometryNodeType::EXTERIOR ) exteriorCount++;
+						if( geometryNodeDesignators[ node->children[c].nodeData.nodeIndex ]==GeometryNodeType::BOUNDARY ) boundaryCount++;
+					}
+				}
+				if( boundaryCount || ( interiorCount && exteriorCount ) )
+				{
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::BOUNDARY ) ERROR_OUT( "Expected unknown or boundary, got: " , type , " | " , node->depthAndOffset() );
+				}
+				else if( interiorCount==(1<<Dim) )
+				{
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::INTERIOR ) ERROR_OUT( "Expected unknown or interior, got: " , type , " | " , node->depthAndOffset() );
+				}
+				else if( exteriorCount==(1<<Dim) )
+				{
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::EXTERIOR ) ERROR_OUT( "Expected unknown or exterior, got: " , type , " | " , node->depthAndOffset() );
+				}
+				else if( interiorCount )
+				{
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::INTERIOR && type!=GeometryNodeType::BOUNDARY ) ERROR_OUT( "Expected unknown, interior , or boundary, got: " , type , " | " , node->depthAndOffset() );
+				}
+				else if( exteriorCount==(1<<Dim) )
+				{
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::EXTERIOR && type!=GeometryNodeType::BOUNDARY ) ERROR_OUT( "Expected unknown, exterior, or boundary, got: " , type , " | " , node->depthAndOffset() );
+				}
+			}
+
+			for( int c=0 ; c<(1<<Dim) ; c++ ) Test( node->children+c );
+		}
+	};
+
+	Test( root );
+}
+
+template< unsigned int Dim , class Real >
+void FEMTreeInitializer< Dim , Real >::PushGeometryNodeDesignatorsToFiner( const FEMTreeNode *root , DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > &geometryNodeDesignators , unsigned int maxDepth )
+{
+	std::function< void ( const FEMTreeNode * ) > Push = [&]( const FEMTreeNode *node )
+	{
+		if( node->nodeData.nodeIndex>=0 && node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() )
+		{
+			if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN )
+				if( node!=root ) geometryNodeDesignators[node] = geometryNodeDesignators[node->parent];
+				else ERROR_OUT( "Root node should not be unknown" );
+			else if( node!=root && geometryNodeDesignators[node]!=geometryNodeDesignators[node->parent] && geometryNodeDesignators[node->parent]!=GeometryNodeType::BOUNDARY )
+			{
+				int d , off[Dim];
+				node->depthAndOffset( d , off );
+				ERROR_OUT( "Child designator does not match parent: " , geometryNodeDesignators[node] , " != " , geometryNodeDesignators[node->parent] , " | " , d , " @ ( " , off[0] , " , " , off[1] , " , " , off[2] , " ) " );
+			}
+			if( node->depth()<(long long)maxDepth && node->children ) for( int c=0 ; c<(1<<Dim) ; c++ ) Push( node->children+c );
+		}
+	};
+
+	Push( root );
+}
+
+template< unsigned int Dim , class Real >
+void FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( const FEMTreeNode *root , DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > &geometryNodeDesignators , unsigned int maxDepth )
+{
+	std::function< void ( const FEMTreeNode * ) > Pull = [&]( const FEMTreeNode *node )
+	{
+		if( node->nodeData.nodeIndex>=0 && node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() )
+		{
+			if( node->depth()<(long long)maxDepth && node->children && node->children->nodeData.nodeIndex>=0 && node->children->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() )
+			{
+				size_t interiorCount = 0 , exteriorCount = 0;
+				for( int c=0 ; c<(1<<Dim) ; c++ )
+				{
+					Pull( node->children+c );
+					if     ( geometryNodeDesignators[ node->children+c ]==GeometryNodeType::EXTERIOR ) exteriorCount++;
+					else if( geometryNodeDesignators[ node->children+c ]==GeometryNodeType::INTERIOR ) interiorCount++;
+				}
+				if     ( interiorCount==(1<<Dim) ) geometryNodeDesignators[node] = GeometryNodeType::INTERIOR;
+				else if( exteriorCount==(1<<Dim) ) geometryNodeDesignators[node] = GeometryNodeType::EXTERIOR;
+				else                               geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY;
+			}
+			else if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN ) ERROR_OUT( "Should not have unknown nodes" );
+		}
+	};
+	Pull( root );
 }

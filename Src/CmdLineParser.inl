@@ -163,8 +163,11 @@ template< class Type >
 void cmdLineParameters< Type >::writeValue( char* str ) const
 {
 	char* temp=str;
+	cmdLineWriteValue< int >( count , temp );
+	temp = str + strlen( str );
 	for( int i=0 ; i<count ; i++ )
 	{
+		temp[0] = ' ' , temp++;
 		cmdLineWriteValue< Type >( values[i] , temp );
 		temp = str+strlen( str );
 	}
@@ -252,11 +255,11 @@ inline void cmdLineParse( int argc , char **argv , cmdLineReadable** params )
 			}
 			else
 			{
-				fprintf( stderr , "[WARNING] Invalid option: %s\n" , argv[0] );
-				for( int i=0 ; params[i]!=NULL ; i++ ) printf( "\t--%s\n" , params[i]->name );
+				WARN( "Invalid option: " , argv[0] );
+				for( int i=0 ; params[i]!=NULL ; i++ ) fprintf( stderr , "\t--%s\n" , params[i]->name );
 			}
 		}
-		else fprintf( stderr , "[WARNING] Parameter name should be of the form --<name>: %s\n" , argv[0] );
+		else WARN( "Parameter name should be of the form --<name>: " , argv[0] );
 		++argv , --argc;
 	}
 }

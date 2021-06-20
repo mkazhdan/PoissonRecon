@@ -39,25 +39,40 @@ DAMAGE.
 //        1. Have the evaluator store stencils for all depths [DONE]
 //        2. When testing centers/corners, don't use generic evaluation
 
+// -- [TODO] Support nested parallelism with thread pools
+
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED
-
-#define VERSION "10.02"
-#define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12
-
-#define NEW_CODE
-
-// SOR=0.125 sorPower=6
 
 #include <atomic>
 #include "MyMiscellany.h"
 #include "BSplineData.h"
 #include "Geometry.h"
-#include "PointStream.h"
+#include "VertexStream.h"
 #include "RegularTree.h"
 #include "SparseMatrix.h"
+#include "BlockedVector.h"
+#include "Rasterizer.h"
+#include <limits>
 #include <functional>
+#include <string>
+#include <tuple>
 
+#ifdef BIG_DATA
+// The integer type used for indexing the nodes in the octree
+typedef long long node_index_type;
+// The integer type used for indexing the entries of the matrix
+typedef int matrix_index_type;
+#else // !BIG_DATA
+typedef int node_index_type;
+typedef int matrix_index_type;
+#endif // BIG_DATA
+#ifdef USE_DEEP_TREE_NODES
+// The integer type used for storing the depth and offset within an octree node
+typedef unsigned int depth_and_offset_type;
+#else // !USE_DEEP_TREE_NODES
+typedef unsigned short depth_and_offset_type;
+#endif // USE_DEEP_TREE_NODES
 
 template< unsigned int Dim , class Real > class FEMTree;
 
@@ -75,16 +90,26 @@ class FEMTreeNodeData
 public:
 	enum
 	{
-		SPACE_FLAG = 1 ,
-		FEM_FLAG_1 = 2 ,
-		FEM_FLAG_2 = 4 ,
-		REFINABLE_FLAG = 8 ,
-		GHOST_FLAG = 1<<7
+		SPACE_FLAG               = 1 << 0 , // Part of the partition of the unit cube
+		FEM_FLAG_1               = 1 << 1 ,	// Indexes a valid finite element
+		FEM_FLAG_2               = 1 << 2 ,	// Indexes a valid finite element
+		DIRICHLET_NODE_FLAG      = 1 << 3 ,	// The finite elements should evaluate to zero on this node
+		DIRICHLET_ELEMENT_FLAG   = 1 << 4 ,	// Coefficient of this node should be locked to zero
+		GEOMETRY_SUPPORTED_FLAG  = 1 << 5 ,	// The finite element defined by this node has support overlapping geometry constraints
+		GHOST_FLAG               = 1 << 6 ,	// Children are pruned out
+		SCRATCH_FLAG             = 1 << 7 ,
 	};
-	int nodeIndex;
+	node_index_type nodeIndex;
 	mutable char flags;
 	void setGhostFlag( bool f ) const { if( f ) flags |= GHOST_FLAG ; else flags &= ~GHOST_FLAG; }
 	bool getGhostFlag( void ) const { return ( flags & GHOST_FLAG )!=0; }
+	void setDirichletNodeFlag( bool f ) const { if( f ) flags |= DIRICHLET_NODE_FLAG ; else flags &= ~DIRICHLET_NODE_FLAG; }
+	bool getDirichletNodeFlag( void ) const { return ( flags & DIRICHLET_NODE_FLAG )!=0; }
+	void setDirichletElementFlag( bool f ) const { if( f ) flags |= DIRICHLET_ELEMENT_FLAG ; else flags &= ~DIRICHLET_ELEMENT_FLAG; }
+	bool getDirichletElementFlag( void ) const { return ( flags & DIRICHLET_ELEMENT_FLAG )!=0; }
+	void setScratchFlag( bool f ) const { if( f ) flags |= SCRATCH_FLAG ; else flags &= ~SCRATCH_FLAG; }
+	bool getScratchFlag( void ) const { return ( flags & SCRATCH_FLAG )!=0; }
+	bool isGeometrySupported;
 	FEMTreeNodeData( void );
 	~FEMTreeNodeData( void );
 };
@@ -92,24 +117,28 @@ public:
 template< unsigned int Dim >
 class SortedTreeNodes
 {
-	typedef RegularTreeNode< Dim , FEMTreeNodeData > TreeNode;
+	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > TreeNode;
 protected:
-	Pointer( Pointer( int ) ) _sliceStart;
+	Pointer( Pointer( node_index_type ) ) _sliceStart;
 	int _levels;
 public:
 	Pointer( TreeNode* ) treeNodes;
-	int begin( int depth ) const { return _sliceStart[depth][0]; }
-	int   end( int depth ) const { return _sliceStart[depth][(size_t)1<<depth]; }
-	int begin( int depth , int slice ) const { return _sliceStart[depth][ slice<0 ? 0 : ( slice>(1<<depth) ? (1<<depth) : slice ) ]; }
-	int   end( int depth , int slice ) const { return begin( depth , slice+1 ); }
-	int size( void ) const { return _sliceStart[_levels-1][(size_t)1<<(_levels-1)]; }
-	int size( int depth ) const { if(depth<0||depth>=_levels) printf( "uhoh\n" ); return _sliceStart[depth][(size_t)1<<depth] - _sliceStart[depth][0]; }
-	int size( int depth , int slice ) const { return end( depth , slice ) - begin( depth , slice ); }
+	node_index_type begin( int depth ) const { return _sliceStart[depth][0]; }
+	node_index_type   end( int depth ) const { return _sliceStart[depth][(size_t)1<<depth]; }
+	node_index_type begin( int depth , int slice ) const { return _sliceStart[depth][ slice<0 ? 0 : ( slice>(1<<depth) ? (1<<depth) : slice ) ]; }
+	node_index_type   end( int depth , int slice ) const { return begin( depth , slice+1 ); }
+	size_t size( void )      const { return _sliceStart[_levels-1][(size_t)1<<(_levels-1)]; }
+	size_t size( int depth ) const
+	{
+		if( depth<0 || depth>=_levels ) ERROR_OUT( "bad depth: 0 <= " , depth , " < " , _levels );
+		return _sliceStart[depth][(size_t)1<<depth] - _sliceStart[depth][0];
+	}
+	size_t size( int depth , int slice ) const { return end( depth , slice ) - begin( depth , slice ); }
 	int levels( void ) const { return _levels; }
 
 	SortedTreeNodes( void );
 	~SortedTreeNodes( void );
-	void set( TreeNode& root , std::vector< int >* map );
+	void set( TreeNode& root , std::vector< node_index_type >* map );
 	size_t set( TreeNode& root );
 };
 
@@ -132,7 +161,7 @@ template< class Real , unsigned int Dim > struct DotFunctor< Point< Real , Dim >
 
 template< typename Pack > struct SupportKey{ };
 template< unsigned int ... Degrees >
-struct SupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template NeighborKey< UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart) ... > , UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > >
+struct SupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart) ... > , UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > >
 {
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > LeftRadii;
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::SupportEnd   ) ... > RightRadii;
@@ -140,7 +169,7 @@ struct SupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...
 };
 template< typename Pack > struct ConstSupportKey{ };
 template< unsigned int ... Degrees >
-struct ConstSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template ConstNeighborKey< UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > , UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > >
+struct ConstSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > , UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > >
 {
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > LeftRadii;
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::SupportEnd   ) ... > RightRadii;
@@ -148,7 +177,7 @@ struct ConstSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< size
 };
 template< typename Pack > struct OverlapKey{ };
 template< unsigned int ... Degrees >
-struct OverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template NeighborKey< UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > , UIntPack< BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd ... > >
+struct OverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > , UIntPack< BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd ... > >
 {
 	typedef UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > LeftRadii;
 	typedef UIntPack< ( BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd   ) ... > RightRadii;
@@ -156,7 +185,7 @@ struct OverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...
 };
 template< typename Pack > struct ConstOverlapKey{ };
 template< unsigned int ... Degrees >
-struct ConstOverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template ConstNeighborKey< UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > , UIntPack< BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd ... > >
+struct ConstOverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > , UIntPack< BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd ... > >
 {
 	typedef UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > LeftRadii;
 	typedef UIntPack< ( BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd   ) ... > RightRadii;
@@ -165,7 +194,7 @@ struct ConstOverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< size
 
 template< typename Pack > struct PointSupportKey{ };
 template< unsigned int ... Degrees >
-struct PointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template NeighborKey< UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > , UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > >
+struct PointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > , UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > >
 {
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::SupportEnd   ) ... > LeftRadii;
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > RightRadii;
@@ -173,7 +202,7 @@ struct PointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< size
 };
 template< typename Pack > struct ConstPointSupportKey{ };
 template< unsigned int ... Degrees >
-struct ConstPointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template ConstNeighborKey< UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > , UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > >
+struct ConstPointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > , UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > >
 {
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::SupportEnd   ) ... > LeftRadii;
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > RightRadii;
@@ -182,7 +211,7 @@ struct ConstPointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode<
 
 template< typename Pack > struct CornerSupportKey{ };
 template< unsigned int ... Degrees >
-struct CornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template NeighborKey< UIntPack< BSplineSupportSizes< Degrees >::BCornerEnd ... > , UIntPack< ( -BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > >
+struct CornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< UIntPack< BSplineSupportSizes< Degrees >::BCornerEnd ... > , UIntPack< ( -BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > >
 {
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::BCornerEnd       ) ... > LeftRadii;
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > RightRadii;
@@ -190,125 +219,11 @@ struct CornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< siz
 };
 template< typename Pack > struct ConstCornerSupportKey{ };
 template< unsigned int ... Degrees >
-struct ConstCornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template ConstNeighborKey< UIntPack< BSplineSupportSizes< Degrees >::BCornerEnd ... > , UIntPack< ( -BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > >
+struct ConstCornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< UIntPack< BSplineSupportSizes< Degrees >::BCornerEnd ... > , UIntPack< ( -BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > >
 {
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::BCornerEnd       ) ... > LeftRadii;
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > RightRadii;
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::BCornerSize  + 1 ) ... > Sizes; 
-};
-
-// This represents a vector that can only grow in size.
-// It has the property that once a reference to an element is returned, that reference remains valid until the vector is destroyed.
-template< typename T , unsigned int LogBlockSize=10 , unsigned InitialBlocks=10 , unsigned int AllocationMultiplier=2 >
-struct BlockedVector
-{
-	BlockedVector( T defaultValue=T() ) : _defaultValue( defaultValue )
-	{
-		_reservedBlocks = InitialBlocks;
-		_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
-		for( size_t i=0 ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( Pointer( T ) );
-		_allocatedBlocks = _size = 0;
-	}
-	~BlockedVector( void )
-	{
-		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
-		DeletePointer( _blocks );
-	}
-	BlockedVector( const BlockedVector& v )
-	{
-		_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue;
-		_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
-		for( size_t i=0 ; i<_allocatedBlocks ; i++ )
-		{
-			_blocks[i] = NewPointer< T >( _BlockSize );
-			memcpy( _blocks[i] , v._blocks[i] , sizeof(T)*_BlockSize );
-		}
-		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( Pointer ( T ) );
-	}
-	BlockedVector& operator = ( const BlockedVector&  v )
-	{
-		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
-		DeletePointer( _blocks );
-		_reservedBlocks = v._reservedBlocks , _blocks = v._blocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue;
-		_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
-		for( size_t i=0 ; i<_allocatedBlocks ; i++ )
-		{
-			_blocks[i] = NewPointer< T >( _BlockSize );
-			memcpy( _blocks[i] , v._blocks[i] , sizeof(T)*_BlockSize );
-		}
-		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( Pointer ( T ) );
-		return *this;
-	}
-	BlockedVector( BlockedVector&& v )
-	{
-		_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue , _blocks = v._blocks;
-		v._reservedBlocks = v._allocatedBlocks = v._size = 0 , v._blocks = NullPointer( Pointer( T ) );
-	}
-	BlockedVector& operator = ( BlockedVector&& v )
-	{
-		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
-		DeletePointer( _blocks );
-		_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue , _blocks = v._blocks;
-		v._reservedBlocks = v._allocatedBlocks = v._size = 0 , v._blocks = NullPointer( Pointer( T ) );
-		return *this;
-	}
-
-	size_t size( void ) const { return _size; }
-	const T& operator[]( size_t idx ) const { return _blocks[idx>>LogBlockSize][idx&_Mask]; }
-	T& operator[]( size_t idx ){ return _blocks[idx>>LogBlockSize][idx&_Mask]; }
-
-	size_t resize( size_t size ){ return resize( size , _defaultValue ); }
-	size_t resize( size_t size , const T& defaultValue )
-	{
-		if( size<=_size )
-		{
-#ifdef _MSC_VER
-			fprintf( stderr , "[WARNING] BlockedVector::resize: new size must be greater than old size: %llu > %llu\n" , size , _size );
-#else // !MSC_VER
-			fprintf( stderr , "[WARNING] BlockedVector::resize: new size must be greater than old size: %lu > %lu\n" , size , _size );
-#endif // _MSC_VER
-			return _size;
-		}
-		size_t index = size-1;
-		size_t block = index >> LogBlockSize;
-		size_t blockIndex = index & _Mask;
-
-		// If there are insufficiently many blocks
-		if( block>=_reservedBlocks )
-		{
-			size_t newReservedSize = std::max< size_t >( _reservedBlocks * AllocationMultiplier , block+1 );
-			Pointer( Pointer( T ) ) __blocks = NewPointer< Pointer( T ) >( newReservedSize );
-			memcpy( __blocks , _blocks , sizeof( Pointer( T ) ) * _reservedBlocks );
-			for( size_t i=_reservedBlocks ; i<newReservedSize ; i++ ) __blocks[i] = NullPointer( Pointer( T )  );
-			Pointer( Pointer( T ) ) _oldBlocks = _blocks;
-			_blocks = __blocks;
-			_reservedBlocks = newReservedSize;
-			DeletePointer( _oldBlocks );
-		}
-
-		// If the block hasn't been allocated
-		if( block>=_allocatedBlocks )
-		{
-			for( size_t b=_allocatedBlocks ; b<=block ; b++ )
-			{
-				_blocks[b] = NewPointer< T >( _BlockSize );
-				for( size_t i=0 ; i<_BlockSize ; i++ ) _blocks[b][i] = defaultValue;
-			}
-			_allocatedBlocks = block+1;
-		}
-		_size = index+1;
-		return index;
-	}
-	size_t push( void ){ return resize( _size+1 ); }
-
-protected:
-	static const size_t _BlockSize = 1<<LogBlockSize;
-	static const size_t _Mask = (1<<LogBlockSize)-1;
-
-	T _defaultValue;
-	size_t _allocatedBlocks , _reservedBlocks;
-	size_t _size;
-	Pointer( Pointer( T ) ) _blocks;
 };
 
 
@@ -320,13 +235,19 @@ struct _SparseOrDenseNodeData< Data , UIntPack< FEMSigs ... > >
 	typedef UIntPack< FEMSigs ... > FEMSignatures;
 	typedef Data data_type;
 
+	// Methods for accessing as an array
 	virtual size_t size( void ) const = 0;
-	virtual const Data& operator[] ( int idx ) const = 0;
-	virtual Data& operator[] ( int idx ) = 0;
+	virtual const Data& operator[] ( size_t idx ) const = 0;
+	virtual Data& operator[] ( size_t idx ) = 0;
 
-	virtual Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) = 0;
-	virtual Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) = 0;
-	virtual const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const = 0;
+	// Method for accessing (and inserting if necessary) using a node
+	virtual Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) = 0;
+	// Methods for accessing using a node
+	virtual Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) = 0;
+	virtual const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const = 0;
+
+	// Method for getting the actual index associated with a node
+	virtual node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const = 0;
 };
 
 template< class Data , typename Pack > struct SparseNodeData{};
@@ -335,45 +256,71 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 {
 	static const unsigned int Dim = sizeof ... ( FEMSigs );
 
+	static void WriteSignatures( FILE* fp )
+	{
+		unsigned int dim = sizeof ... ( FEMSigs );
+		fwrite( &dim , sizeof(unsigned int) , 1 , fp );
+		unsigned int femSigs[] = { FEMSigs ... };
+		fwrite( femSigs , sizeof(unsigned int) , dim , fp );
+	}
+	void write( FILE* fp ) const
+	{
+		_indices.write( fp );
+		_data.write( fp );
+	}
+	void read( FILE* fp )
+	{
+		_indices.read( fp );
+		_data.read( fp );
+	}
+	SparseNodeData( void ){}
+	SparseNodeData( FILE *fp ){ read(fp); }
+
 	size_t size( void ) const { return _data.size(); }
-	const Data& operator[] ( int idx ) const { return _data[idx]; }
-	Data& operator[] ( int idx ) { return _data[idx]; }
+	const Data& operator[] ( size_t idx ) const { return _data[idx]; }
+	Data& operator[] ( size_t idx ) { return _data[idx]; }
 
 	void reserve( size_t sz ){ if( sz>_indices.size() ) _indices.resize( sz , -1 ); }
-	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
-	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
-	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData >* node )
+	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node )
 	{
+		static std::mutex _insertionMutex;
+
 		// If the node hasn't been indexed yet
-		if( node->nodeData.nodeIndex>=(int)_indices.size() )
-#pragma omp critical( SparseNodeData__operator )
-			if( node->nodeData.nodeIndex>=(int)_indices.size() ) _indices.resize( node->nodeData.nodeIndex+1 , -1 );
+		if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() )
+		{
+			std::lock_guard< std::mutex > lock( _insertionMutex );
+			if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() ) _indices.resize( node->nodeData.nodeIndex+1 , -1 );
+		}
 
 		// If the node hasn't been allocated yet
-		if( _indices[ node->nodeData.nodeIndex ]==-1 )
-#pragma omp critical( SparseNodeData__operator )
-			if( _indices[ node->nodeData.nodeIndex ]==-1 ) _indices[ node->nodeData.nodeIndex ] = (int)_data.push();
-
-		return _data[ _indices[ node->nodeData.nodeIndex ] ];
+		volatile node_index_type &_index = _indices[ node->nodeData.nodeIndex ];
+		if( _index==-1 )
+		{
+			std::lock_guard< std::mutex > lock( _insertionMutex );
+			if( _index==-1 ) _index = (node_index_type)_data.push();
+		}
+		return _data[ _index ];
 	}
-	int index( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const
+	node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) const
 	{
-		if( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() ) return -1;
+		if( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() ) return -1;
 		else return _indices[ node->nodeData.nodeIndex ];
 	}
 
 protected:
 	template< unsigned int _Dim , class _Real > friend class FEMTree;
 	// Map should be the size of the old number of entries and map[i] should give the new index of the old i-th node
-	void _remapIndices( const int* newNodeIndices , unsigned int newNodeCount )
+	void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount )
 	{
-		BlockedVector< int > newIndices;
+		BlockedVector< node_index_type > newIndices;
 		newIndices.resize( newNodeCount );
-		for( int i=0 ; i<(int)newNodeCount ; i++ ) newIndices[i] = -1;
-		for( size_t i=0 ; i<(int)_indices.size() ; i++ ) if( newNodeIndices[i]>=0 && newNodeIndices[i]<(int)newNodeCount ) newIndices[ newNodeIndices[i] ] = _indices[i];
+		for( node_index_type i=0 ; i<(node_index_type)newNodeCount ; i++ ) newIndices[i] = -1;
+		for( node_index_type i=0 ; i<(node_index_type)_indices.size() ; i++ ) if( newNodeIndices[i]!=-1 && newNodeIndices[i]<(node_index_type)newNodeCount ) newIndices[ newNodeIndices[i] ] = _indices[i];
 		_indices = newIndices;
 	}
-	BlockedVector< int > _indices; 
+	BlockedVector< node_index_type > _indices; 
 	BlockedVector< Data > _data;
 };
 
@@ -388,7 +335,9 @@ struct DenseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseNo
 	DenseNodeData(       DenseNodeData&& d ){ _data = d._data , _sz = d._sz ; d._data = NullPointer( Data ) , d._sz = 0; }
 	DenseNodeData& operator = ( const DenseNodeData&  d ){ _resize( d._sz ) ; if( _sz ) memcpy( _data , d._data , sizeof(Data) * _sz ) ; return *this; }
 	DenseNodeData& operator = (       DenseNodeData&& d ){ size_t __sz = _sz ; Pointer( Data ) __data = _data ; _data = d._data , _sz = d._sz ; d._data = __data , d._sz = __sz ; return *this; }
+	DenseNodeData( FILE *fp ) : DenseNodeData() { read(fp); }
 	~DenseNodeData( void ){ DeletePointer( _data ) ; _sz = 0; }
+	void resize( size_t sz ){ DeletePointer( _data ) ; _sz = sz ; if( sz ) _data = NewPointer< Data >( sz ) ; else _data = NullPointer( Data ); }
 	static void WriteSignatures( FILE* fp )
 	{
 		unsigned int dim = sizeof ... ( FEMSigs );
@@ -397,30 +346,30 @@ struct DenseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseNo
 		fwrite( femSigs , sizeof(unsigned int) , dim , fp );
 	}
 	void write( FILE* fp ) const { fwrite( &_sz , sizeof(size_t) , 1 , fp ) ; fwrite( _data , sizeof(Data) , _sz  , fp ); }
-	void read ( FILE* fp )
+	void read( FILE* fp )
 	{
-		if( fread( &_sz , sizeof(size_t) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] DenseNodeData::read: Failed to read size\n" ) , exit( 0 );
+		if( fread( &_sz , sizeof(size_t) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read size" );
 		_data = NewPointer< Data >( _sz );
-		if( fread ( _data , sizeof(Data) , _sz  , fp )!=_sz ) fprintf( stderr , "[ERROR] DenseNodeData::read failed to read data\n" ) , exit( 0 );
+		if( fread ( _data , sizeof(Data) , _sz  , fp )!=_sz ) ERROR_OUT( "failed to read data" );
 	}
 
-	Data& operator[] ( int idx ) { return _data[idx]; }
-	const Data& operator[] ( int idx ) const { return _data[idx]; }
+	Data& operator[] ( size_t idx ) { return _data[idx]; }
+	const Data& operator[] ( size_t idx ) const { return _data[idx]; }
 	size_t size( void ) const { return _sz; }
-	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) { return _data[ node->nodeData.nodeIndex ]; }
-	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
-	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
-	int index( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)this->_data.size() ) ? -1 : node->nodeData.nodeIndex; }
+	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) { return _data[ node->nodeData.nodeIndex ]; }
+	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? -1 : node->nodeData.nodeIndex; }
 	Pointer( Data ) operator()( void ) { return _data; }
 	ConstPointer( Data ) operator()( void ) const { return ( ConstPointer( Data ) )_data; }
 protected:
 	template< unsigned int _Dim , class _Real > friend class FEMTree;
 	// Map should be the size of the old number of entries and map[i] should give the new index of the old i-th node
-	void _remapIndices( const int* newNodeIndices , size_t newNodeCount )
+	void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount )
 	{
 		Pointer( Data ) newData = NewPointer< Data >( newNodeCount );
 		memset( newData , 0 , sizeof(Data)*newNodeCount );
-		for( size_t i=0 ; i<_sz ; i++ ) if( newNodeIndices[i]>=0 && newNodeIndices[i]<newNodeCount ) newData[ newNodeIndices[i] ] = _data[i];
+		for( size_t i=0 ; i<_sz ; i++ ) if( newNodeIndices[i]>=0 && newNodeIndices[i]<(node_index_type)newNodeCount ) newData[ newNodeIndices[i] ] = _data[i];
 		DeletePointer( _data );
 		_data = newData;
 		_sz = newNodeCount;
@@ -437,16 +386,17 @@ enum FEMTreeRealType
 };
 const char* FEMTreeRealNames[] = { "float" , "double" };
 
-void ReadFEMTreeParameter( FILE* fp , FEMTreeRealType& realType , int &dimension )
+void ReadFEMTreeParameter( FILE* fp , FEMTreeRealType& realType , unsigned int &dimension )
 {
-	if( fread( &realType , sizeof(FEMTreeRealType) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadFEMTreeParameter: Failed to read real type\n" ) , exit( 0 );
-	if( fread( &dimension , sizeof(int) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadFEMTreeParameter: Failed to read dimension\n" ) , exit( 0 );
+	if( fread( &realType , sizeof(FEMTreeRealType) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read real type" );
+	if( fread( &dimension , sizeof(unsigned int) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read dimension" );
 }
-unsigned int* ReadDenseNodeDataSignatures( FILE* fp , unsigned int& dim )
+
+unsigned int* ReadDenseNodeDataSignatures( FILE* fp , unsigned int &dim )
 {
-	if( fread( &dim , sizeof(int) , 1 , fp )!=1 ) fprintf( stderr , "[ERROR] ReadDenseNodeDataSignatures: Failed to read dimension\n" ) , exit( 0 );
+	if( fread( &dim , sizeof(unsigned int) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read dimension" );
 	unsigned int* femSigs = new unsigned int[dim];
-	if( fread( femSigs , sizeof(unsigned int) , dim , fp )!=dim ) fprintf( stderr , "[ERROR] ReadDenseNodeDataSignatures: Failed to read signatures\n" ) , exit( 0 );
+	if( fread( femSigs , sizeof(unsigned int) , dim , fp )!=dim ) ERROR_OUT( "Failed to read signatures" );
 	return femSigs;
 }
 
@@ -465,8 +415,8 @@ template< unsigned int D , unsigned int ... Ds >
 struct TensorDerivatives< UIntPack< D , Ds ... > >
 {
 	typedef TensorDerivatives< UIntPack< Ds ... > > _TensorDerivatives;
-	static const int LastDerivative = UIntPack< D , Ds ... >::template Get< sizeof ... (Ds) >();
-	static const int Dim = _TensorDerivatives::Dim + 1;
+	static const unsigned int LastDerivative = UIntPack< D , Ds ... >::template Get< sizeof ... (Ds) >();
+	static const unsigned int Dim = _TensorDerivatives::Dim + 1;
 	static const unsigned int Size = _TensorDerivatives::Size * ( D+1 );
 	static void Factor( unsigned int idx , unsigned int derivatives[Dim] ){ derivatives[0] = idx / _TensorDerivatives::Size ; _TensorDerivatives::Factor( idx % _TensorDerivatives::Size , derivatives+1 ); }
 	static unsigned int Index( const unsigned int derivatives[Dim] ){ return _TensorDerivatives::Index( derivatives + 1 ) + _TensorDerivatives::Size * derivatives[0]; }
@@ -474,8 +424,8 @@ struct TensorDerivatives< UIntPack< D , Ds ... > >
 template< unsigned int D >
 struct TensorDerivatives< UIntPack< D > >
 {
-	static const int LastDerivative = D;
-	static const int Dim = 1;
+	static const unsigned int LastDerivative = D;
+	static const unsigned int Dim = 1;
 	static const unsigned int Size = D+1;
 	static void Factor( unsigned int idx , unsigned int derivatives[1] ){ derivatives[0] = idx; }
 	static unsigned int Index( const unsigned int derivatives[1] ){ return derivatives[0]; }
@@ -487,7 +437,7 @@ template< unsigned int Dim , unsigned int D >
 struct CumulativeDerivatives
 {
 	typedef CumulativeDerivatives< Dim , D-1 > _CumulativeDerivatives;
-	static const int LastDerivative = D;
+	static const unsigned int LastDerivative = D;
 	static const unsigned int Size = _CumulativeDerivatives::Size * Dim + 1;
 	static void Factor( unsigned int idx , unsigned int d[Dim] )
 	{
@@ -496,9 +446,9 @@ struct CumulativeDerivatives
 	}
 	static unsigned int Index( const unsigned int derivatives[Dim] )
 	{
-		int dCount = 0;
-		for( int d=0 ; d<Dim ; d++ ) dCount += derivatives[d];
-		if( dCount>=D ) fprintf( stderr , "[ERROR] CumulativeDerivatives::Index: more derivatives than allowed\n" ) , exit( 0 );
+		unsigned int dCount = 0;
+		for( unsigned int d=0 ; d<Dim ; d++ ) dCount += derivatives[d];
+		if( dCount>=D ) ERROR_OUT( "More derivatives than allowed" );
 		else if( dCount<D ) return _CumulativeDerivatives::Index( derivatives );
 		else                return _CumulativeDerivatives::Size + _Index( derivatives );
 	}
@@ -513,12 +463,12 @@ protected:
 	{
 		unsigned int _d[Dim];
 		memcpy( _d , d , sizeof(_d) );
-		for( int i=0 ; i<Dim ; i++ ) if( _d[i] )
+		for( unsigned int i=0 ; i<Dim ; i++ ) if( _d[i] )
 		{
 			_d[i]--;
 			return _CumulativeDerivatives::Index( _d ) * Dim + i;
 		}
-		fprintf( stderr , "[ERROR] CumulativeDerivatives::_Index: no derivatives specified\n" ) , exit( 0 );
+		ERROR_OUT( "No derivatives specified" );
 		return -1;
 	}
 	friend CumulativeDerivatives< Dim , D+1 >;
@@ -526,7 +476,7 @@ protected:
 template< unsigned int Dim >
 struct CumulativeDerivatives< Dim , 0 >
 {
-	static const int LastDerivative = 0;
+	static const unsigned int LastDerivative = 0;
 	static const unsigned int Size = 1;
 	static void Factor( unsigned int idx , unsigned int d[Dim] ){ memset( d , 0 , sizeof(unsigned int)*Dim ); }
 	static unsigned int Index( const unsigned int derivatives[Dim] ){ return 0; }
@@ -543,11 +493,11 @@ CumulativeDerivativeValues< Real , Dim , D > Evaluate( const double dValues[Dim]
 {
 	CumulativeDerivativeValues< Real , Dim , D > v;
 	unsigned int _d[Dim];
-	for( int d=0 ; d<CumulativeDerivatives< Dim , D >::Size ; d++ )
+	for( unsigned int d=0 ; d<CumulativeDerivatives< Dim , D >::Size ; d++ )
 	{
 		CumulativeDerivatives< Dim , D >::Factor( d , _d );
 		double value = dValues[0][ _d[0] ];
-		for( int dd=1 ; dd<Dim ; dd++ ) value *= dValues[dd][ _d[dd] ];
+		for( unsigned int dd=1 ; dd<Dim ; dd++ ) value *= dValues[dd][ _d[dd] ];
 		v[d] = (Real)value;
 	}
 	return v;
@@ -587,15 +537,15 @@ struct DualPointInfoBrood
 {
 	DualPointInfo< Dim , Real , T , D >& operator[]( size_t idx ){ return _dpInfo[idx]; }
 	const DualPointInfo< Dim , Real , T , D >& operator[]( size_t idx ) const { return _dpInfo[idx]; }
-	void finalize( void ){ _size = 0 ; for( int i=0 ; i<(1<<Dim) ; i++ ) if( _dpInfo[i].weight>0 ) _dpInfo[_size++] = _dpInfo[i]; }
+	void finalize( void ){ _size = 0 ; for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) if( _dpInfo[i].weight>0 ) _dpInfo[_size++] = _dpInfo[i]; }
 	unsigned int size( void ) const { return _size; }
 
-	DualPointInfoBrood  operator +  ( const DualPointInfoBrood& p ) const { DualPointInfoBrood d ; for( int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] + p._dpInfo[i] ;  return d; }
-	DualPointInfoBrood  operator *  ( Real s )                      const { DualPointInfoBrood d ; for( int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] * s            ;  return d; }
-	DualPointInfoBrood  operator /  ( Real s )                      const { DualPointInfoBrood d ; for( int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] / s            ;  return d; }
-	DualPointInfoBrood& operator += ( const DualPointInfoBrood& p ){ for( int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] += p._dpInfo[i] ; return *this; }
-	DualPointInfoBrood& operator *= ( Real s )                     { for( int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] *= s            ; return *this; }
-	DualPointInfoBrood& operator /= ( Real s )                     { for( int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] /= s            ; return *this; }
+	DualPointInfoBrood  operator +  ( const DualPointInfoBrood& p ) const { DualPointInfoBrood d ; for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] + p._dpInfo[i] ;  return d; }
+	DualPointInfoBrood  operator *  ( Real s )                      const { DualPointInfoBrood d ; for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] * s            ;  return d; }
+	DualPointInfoBrood  operator /  ( Real s )                      const { DualPointInfoBrood d ; for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] / s            ;  return d; }
+	DualPointInfoBrood& operator += ( const DualPointInfoBrood& p ){ for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] += p._dpInfo[i] ; return *this; }
+	DualPointInfoBrood& operator *= ( Real s )                     { for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] *= s            ; return *this; }
+	DualPointInfoBrood& operator /= ( Real s )                     { for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] /= s            ; return *this; }
 protected:
 	DualPointInfo< Dim , Real , T , D > _dpInfo[1<<Dim];
 	unsigned int _size;
@@ -605,15 +555,15 @@ struct DualPointAndDataInfoBrood
 {
 	DualPointAndDataInfo< Dim , Real , Data , T , D >& operator[]( size_t idx ){ return _dpInfo[idx]; }
 	const DualPointAndDataInfo< Dim , Real , Data , T , D >& operator[]( size_t idx ) const { return _dpInfo[idx]; }
-	void finalize( void ){ _size = 0 ; for( int i=0 ; i<(1<<Dim) ; i++ ) if( _dpInfo[i].pointInfo.weight>0 ) _dpInfo[_size++] = _dpInfo[i]; }
+	void finalize( void ){ _size = 0 ; for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) if( _dpInfo[i].pointInfo.weight>0 ) _dpInfo[_size++] = _dpInfo[i]; }
 	unsigned int size( void ) const { return _size; }
 
-	DualPointAndDataInfoBrood  operator +  ( const DualPointAndDataInfoBrood& p ) const { DualPointAndDataInfoBrood d ; for( int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] + p._dpInfo[i] ;  return d; }
-	DualPointAndDataInfoBrood  operator *  ( Real s )                             const { DualPointAndDataInfoBrood d ; for( int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] * s            ;  return d; }
-	DualPointAndDataInfoBrood  operator /  ( Real s )                             const { DualPointAndDataInfoBrood d ; for( int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] / s            ;  return d; }
-	DualPointAndDataInfoBrood& operator += ( const DualPointAndDataInfoBrood& p ){ for( int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] += p._dpInfo[i] ; return *this; }
-	DualPointAndDataInfoBrood& operator *= ( Real s )                            { for( int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] *= s ; return *this; }
-	DualPointAndDataInfoBrood& operator /= ( Real s )                            { for( int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] /= s ; return *this; }
+	DualPointAndDataInfoBrood  operator +  ( const DualPointAndDataInfoBrood& p ) const { DualPointAndDataInfoBrood d ; for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] + p._dpInfo[i] ;  return d; }
+	DualPointAndDataInfoBrood  operator *  ( Real s )                             const { DualPointAndDataInfoBrood d ; for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] * s            ;  return d; }
+	DualPointAndDataInfoBrood  operator /  ( Real s )                             const { DualPointAndDataInfoBrood d ; for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) d._dpInfo[i] = _dpInfo[i] / s            ;  return d; }
+	DualPointAndDataInfoBrood& operator += ( const DualPointAndDataInfoBrood& p ){ for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] += p._dpInfo[i] ; return *this; }
+	DualPointAndDataInfoBrood& operator *= ( Real s )                            { for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] *= s ; return *this; }
+	DualPointAndDataInfoBrood& operator /= ( Real s )                            { for( unsigned int i=0 ; i<(1<<Dim) ; i++ ) _dpInfo[i] /= s ; return *this; }
 protected:
 	DualPointAndDataInfo< Dim , Real , Data , T , D > _dpInfo[1<<Dim];
 	unsigned int _size;
@@ -632,6 +582,26 @@ struct BaseFEMIntegrator
 	template< typename TDegreePack                                            > struct          PointEvaluator{};
 
 protected:
+	template< unsigned int Degree , unsigned int ... Degrees >
+	static typename std::enable_if< sizeof ... ( Degrees )==0 , bool >::type _IsSupported( UIntPack< Degree , Degrees ... > , unsigned int femDepth , const int femOffset[] , unsigned int spaceDepth , const int spaceOffset[] )
+	{
+		int femRes = 1<<femDepth , spaceRes = 1<<spaceDepth;
+		int   femBegin = ( 0 +   femOffset[0] + BSplineSupportSizes< Degree >::SupportStart ) * spaceRes;
+		int   femEnd   = ( 1 +   femOffset[0] + BSplineSupportSizes< Degree >::SupportEnd   ) * spaceRes; 
+		int spaceBegin = ( 0 + spaceOffset[0] + BSplineSupportSizes< 0      >::SupportStart ) *   femRes;
+		int spaceEnd   = ( 1 + spaceOffset[0] + BSplineSupportSizes< 0      >::SupportEnd   ) *   femRes;
+		return spaceBegin<femEnd && spaceEnd>femBegin;
+	}
+	template< unsigned int Degree , unsigned int ... Degrees >
+	static typename std::enable_if< sizeof ... ( Degrees )!=0 , bool >::type _IsSupported( UIntPack< Degree , Degrees ... > , unsigned int femDepth , const int femOffset[] , unsigned int spaceDepth , const int spaceOffset[] )
+	{
+		int femRes = 1<<femDepth , spaceRes = 1<<spaceDepth;
+		int   femBegin = ( 0 +   femOffset[0] + BSplineSupportSizes< Degree >::SupportStart ) * spaceRes;
+		int   femEnd   = ( 1 +   femOffset[0] + BSplineSupportSizes< Degree >::SupportEnd   ) * spaceRes; 
+		int spaceBegin = ( 0 + spaceOffset[0] + BSplineSupportSizes< 0      >::SupportStart ) *   femRes;
+		int spaceEnd   = ( 1 + spaceOffset[0] + BSplineSupportSizes< 0      >::SupportEnd   ) *   femRes;
+		return ( spaceBegin<femEnd && spaceEnd>femBegin ) && _IsSupported( UIntPack< Degrees ... >() , femDepth , femOffset+1 , spaceDepth , spaceOffset+1 );
+	}
 	template< unsigned int Degree , unsigned int ... Degrees >
 	static typename std::enable_if< sizeof ... ( Degrees )==0 , bool >::type _IsInteriorlySupported( UIntPack< Degree , Degrees ... > , unsigned int depth , const int off[] )
 	{
@@ -719,6 +689,8 @@ protected:
 	}
 
 public:
+	template< unsigned int ... Degrees >
+	static bool IsSupported( UIntPack< Degrees ... > , int femDepth , const int femOffset[] , int spaceDepth , const int spaceOffset[] ){ return femDepth>=0 && spaceDepth>=0 && _IsSupported( UIntPack< Degrees ... >() , femDepth , femOffset , spaceDepth , spaceOffset ); }
 	template< unsigned int ... Degrees >
 	static bool IsInteriorlySupported( UIntPack< Degrees ... > , int depth , const int offset[] ){ return depth>=0 && _IsInteriorlySupported( UIntPack< Degrees ... >() , depth , offset ); }
 	template< unsigned int ... Degrees >
@@ -865,7 +837,7 @@ public:
 	{
 		typedef  Constraint< UIntPack< TDegrees ... > , UIntPack< TDegrees ... > , 1 > Base;
 		SystemConstraint( System< UIntPack< TDegrees ... > >& sys ) : _sys( sys ){;}
-		void init( void ){ _sys.init( Base::highDepth() ) ; _sys.init();	}
+		void init( void ){ _sys.init( Base::highDepth() ) ; _sys.init(); }
 		Point< double , 1 > ccIntegrate( const int off1[] , const int off2[] ) const{ return Point< double , 1 >( _sys.ccIntegrate( off1 , off2 ) ); }
 		Point< double , 1 > pcIntegrate( const int off1[] , const int off2[] ) const{ return Point< double , 1 >( _sys.pcIntegrate( off1 , off2 ) ); }
 		Point< double , 1 > cpIntegrate( const int off1[] , const int off2[] ) const{ return Point< double , 1 >( _sys.pcIntegrate( off2 , off1 ) ); }
@@ -1146,8 +1118,9 @@ public:
 			case INTEGRATE_CHILD_CHILD:  return std::get< D >( _integrators ).ccIntegrator.dot( off1[D] , off2[D] , d1[D] , d2[D] ) * remainingIntegral;
 			case INTEGRATE_PARENT_CHILD: return std::get< D >( _integrators ).pcIntegrator.dot( off1[D] , off2[D] , d1[D] , d2[D] ) * remainingIntegral;
 			case INTEGRATE_CHILD_PARENT: return std::get< D >( _integrators ).cpIntegrator.dot( off2[D] , off1[D] , d2[D] , d1[D] ) * remainingIntegral;
-			default: fprintf( stderr , "[ERORR] FEMIntegrator::Test::Constraint::_integral: Undefined integration type\n" ) , exit( 0 );
+			default: ERROR_OUT( "Undefined integration type" );
 			}
+			return 0;
 		}
 		Point< double , CDim > _integrate( IntegrationType iType , const int off1[] , const int off[] ) const;
 	};
@@ -1207,25 +1180,25 @@ public:
 
 //////////////////////////////////////////
 
-template< unsigned int Dim > inline void SetGhostFlag(       RegularTreeNode< Dim , FEMTreeNodeData >* node , bool flag ){ if( node && node->parent ) node->parent->nodeData.setGhostFlag( flag ); }
-template< unsigned int Dim > inline bool GetGhostFlag( const RegularTreeNode< Dim , FEMTreeNodeData >* node ){ return node==NULL || node->parent==NULL || node->parent->nodeData.getGhostFlag( ); }
-template< unsigned int Dim > inline bool IsActiveNode( const RegularTreeNode< Dim , FEMTreeNodeData >* node ){ return !GetGhostFlag< Dim >( node ); }
+template< unsigned int Dim > inline void SetGhostFlag(       RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node , bool flag ){ if( node && node->parent ) node->parent->nodeData.setGhostFlag( flag ); }
+template< unsigned int Dim > inline bool GetGhostFlag( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return node==NULL || node->parent==NULL || node->parent->nodeData.getGhostFlag( ); }
+template< unsigned int Dim > inline bool IsActiveNode( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return !GetGhostFlag( node ); }
 
 template< unsigned int Dim , class Real , class Vertex > struct IsoSurfaceExtractor;
 
 template< unsigned int Dim , class Data >
 struct NodeSample
 {
-	RegularTreeNode< Dim , FEMTreeNodeData >* node;
+	RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node;
 	Data data;
 };
 template< unsigned int Dim , class Real >
 struct NodeAndPointSample
 {
-	RegularTreeNode< Dim , FEMTreeNodeData >* node;
+	RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node;
 	ProjectiveData< Point< Real , Dim > , Real > sample;
 };
-template< unsigned int Dim , class Real > using NodeSimplices = NodeSample< Dim , std::vector< Simplex< Real , Dim , Dim-1 > > >;
+template< unsigned int Dim , class Real > using NodeSimplices = NodeSample< Dim , std::vector< std::pair< node_index_type , Simplex< Real , Dim , Dim-1 > > > >;
 
 
 template< typename T > struct WindowLoopData{ };
@@ -1236,7 +1209,8 @@ struct WindowLoopData< UIntPack< Sizes ... > >
 	static const int Dim = sizeof ... ( Sizes );
 	unsigned int size[1<<Dim];
 	unsigned int indices[1<<Dim][ WindowSize< UIntPack< Sizes ... > >::Size ];
-	WindowLoopData( std::function< void ( int c , int* , int* ) > boundsFunction )
+	template< typename BoundsFunction >
+	WindowLoopData( const BoundsFunction &boundsFunction )
 	{
 		int start[Dim] , end[Dim];
 		for( int c=0 ; c<(1<<Dim) ; c++ )
@@ -1254,27 +1228,12 @@ struct WindowLoopData< UIntPack< Sizes ... > >
 	}
 };
 
-template< class Data >
-void AddAtomic( Data& a , const Data& b )
-{
-#pragma omp critical
-	a += b;
-}
 template< class Real , unsigned int Dim >
 void AddAtomic( Point< Real , Dim >& a , const Point< Real , Dim >& b )
 {
 	for( int d=0 ; d<Dim ; d++ ) AddAtomic( a[d] , b[d] );
 }
-void AddAtomic( float& a , const float& b )
-{
-#pragma omp atomic
-	a += b;
-}
-void AddAtomic( double& a , const double& b )
-{
-#pragma omp atomic
-	a += b;
-}
+
 template< class Data >
 bool IsZero( const Data& data ){ return false; }
 template< class Real , unsigned int Dim >
@@ -1291,24 +1250,24 @@ template< unsigned int Dim , class Real >
 class FEMTree
 {
 public:
-	typedef RegularTreeNode< Dim , FEMTreeNodeData > FEMTreeNode;
-	Allocator< FEMTreeNode >* nodeAllocator;
+	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
+	template< unsigned int ... FEMSigs > using SystemMatrixType = SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >;
+	std::vector< Allocator< FEMTreeNode > * > nodeAllocators;
 protected:
 	template< unsigned int _Dim , class _Real , class Vertex > friend struct IsoSurfaceExtractor;
-	std::atomic< int > _nodeCount;
-	void _nodeInitializer( FEMTreeNode& node ){ node.nodeData.nodeIndex = _nodeCount++; }
-
+	std::atomic< node_index_type > _nodeCount;
 	struct _NodeInitializer
 	{
 		FEMTree& femTree;
 		_NodeInitializer( FEMTree& f ) : femTree(f){;}
-		void operator() ( FEMTreeNode& node ){ femTree._nodeInitializer( node ); }
+		void operator() ( FEMTreeNode& node ){ node.nodeData.nodeIndex = femTree._nodeCount++; }
 	};
+	_NodeInitializer _nodeInitializer;
 public:
 	typedef int LocalDepth;
 	typedef int LocalOffset[Dim];
 
-	int nodeCount( void ) const { return _nodeCount; }
+	node_index_type nodeCount( void ) const { return _nodeCount; }
 
 	typedef NodeAndPointSample< Dim , Real > PointSample;
 
@@ -1326,7 +1285,10 @@ public:
 	template< unsigned int ... FEMSigs > bool isValidFEMNode( UIntPack< FEMSigs ... > , const FEMTreeNode* node ) const;
 	bool isValidSpaceNode( const FEMTreeNode* node ) const;
 	const FEMTreeNode* leaf( Point< Real , Dim > p ) const;
-	FEMTreeNode* leaf( Point< Real , Dim > p , LocalDepth maxDepth=-1 );
+protected:
+	template< bool ThreadSafe >
+	FEMTreeNode* _leaf( Allocator< FEMTreeNode > * nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth=-1 );
+public:
 
 	// [NOTE] In the case that T != double, we require both operators() for computing the system dual
 	template< typename T , unsigned int PointD >
@@ -1341,7 +1303,11 @@ public:
 		virtual ~InterpolationInfo( void ){}
 
 		DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIndex ){ return const_cast< DualPointInfo< Dim , Real , T , PointD >& >( ( ( const InterpolationInfo* )this )->operator[]( pointIndex ) ); }
+	protected:
+		virtual void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount ) = 0;
+		friend class FEMTree< Dim , Real >;
 	};
+
 	template< unsigned int PointD >
 	struct InterpolationInfo< double , PointD >
 	{
@@ -1353,22 +1319,25 @@ public:
 		virtual ~InterpolationInfo( void ){}
 
 		DualPointInfo< Dim , Real , double , PointD >& operator[]( size_t pointIndex ){ return const_cast< DualPointInfo< Dim , Real , double , PointD >& >( ( ( const InterpolationInfo* )this )->operator[]( pointIndex ) ); }
+	protected:
+		virtual void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount ) = 0;
+		friend class FEMTree< Dim , Real >;
 	};
 
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	struct ApproximatePointInterpolationInfo : public InterpolationInfo< T , PointD >
 	{
-		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
+		void range( const FEMTreeNode *node , size_t &begin , size_t &end ) const
 		{
-			int idx = _iData.index( node );
-			if( idx<0 ) begin = end = 0;
+			node_index_type idx = _iData.index( node );
+			if( idx==-1 ) begin = end = 0;
 			else begin = idx , end = idx+1;
 		}
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ (int)pointIdx ]; }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ (int)pointIdx ].position ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].position , dValues ); }
-		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].position , dValues ); }
+		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ]; }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].position ); }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].position , dValues ); }
+		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].position , dValues ); }
 
 		ApproximatePointInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
 	protected:
@@ -1377,6 +1346,7 @@ public:
 		ConstraintDual _constraintDual;
 		SystemDual _systemDual;
 
+		void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount ){ _iData._remapIndices( newNodeIndices , newNodeCount ); }
 		friend class FEMTree< Dim , Real >;
 	};
 	template< unsigned int PointD , typename ConstraintDual , typename SystemDual >
@@ -1385,14 +1355,14 @@ public:
 		typedef double T;
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
 		{
-			int idx = _iData.index( node );
-			if( idx<0 ) begin = end = 0;
+			node_index_type idx = _iData.index( node );
+			if( idx==-1 ) begin = end = 0;
 			else begin = idx , end = idx+1;
 		}
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ (int)pointIdx ]; }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ (int)pointIdx ].position ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].position , dValues ); }
+		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ]; }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].position ); }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].position , dValues ); }
 
 		ApproximatePointInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
 	protected:
@@ -1401,6 +1371,7 @@ public:
 		ConstraintDual _constraintDual;
 		SystemDual _systemDual;
 
+		void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount ){ _iData._remapIndices( newNodeIndices , newNodeCount ); }
 		friend class FEMTree< Dim , Real >;
 	};
 	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
@@ -1408,14 +1379,14 @@ public:
 	{
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
 		{
-			int idx = _iData.index( node );
-			if( idx<0 ) begin = end = 0;
+			node_index_type idx = _iData.index( node );
+			if( idx==-1 ) begin = end = 0;
 			else begin = idx , end = idx+1;
 		}
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ (int)pointIdx ].pointInfo; }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ (int)pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data , dValues ); }
+		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ].pointInfo; }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].pointInfo.position , _iData[ pointIdx ].data ); }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data , dValues ); }
 		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data , dValues ); }
 
 		ApproximatePointAndDataInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
@@ -1425,6 +1396,7 @@ public:
 		ConstraintDual _constraintDual;
 		SystemDual _systemDual;
 
+		void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount ){ _iData._remapIndices( newNodeIndices , newNodeCount ); }
 		friend class FEMTree< Dim , Real >;
 	};
 	template< typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
@@ -1433,14 +1405,14 @@ public:
 		typedef double T;
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
 		{
-			int idx = _iData.index( node );
-			if( idx<0 ) begin = end = 0;
+			node_index_type idx = _iData.index( node );
+			if( idx==-1 ) begin = end = 0;
 			else begin = idx , end = idx+1;
 		}
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ (int)pointIdx ].pointInfo; }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ (int)pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data , dValues ); }
+		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ].pointInfo; }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].pointInfo.position , _iData[ pointIdx ].data ); }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].pointInfo.position , _iData[ pointIdx ].data , dValues ); }
 
 		ApproximatePointAndDataInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
 	protected:
@@ -1449,137 +1421,36 @@ public:
 		ConstraintDual _constraintDual;
 		SystemDual _systemDual;
 
+		void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount ){ _iData._remapIndices( newNodeIndices , newNodeCount ); }
 		friend class FEMTree< Dim , Real >;
 	};
 
-	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
-	struct ApproximateChildPointInterpolationInfo : public InterpolationInfo< T , PointD >
-	{
-		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
-		{
-			int idx = _iData.index( node );
-			if( idx<0 ) begin = end = 0;
-			else begin = (idx<<Dim) , end = (idx<<Dim) | _iData[idx].size();
-		}
-		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return __iData(pointIdx); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( __iData(pointIdx).position ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( __iData(pointIdx).position , dValues ); }
-		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( __iData(pointIdx).position , dValues ); }
-
-		ApproximateChildPointInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
-	protected:
-		static const unsigned int _Mask = (1<<Dim)-1;
-		SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , ZeroUIntPack< Dim > > _iData;
-		DualPointInfo< Dim , Real , T , PointD >& __iData( size_t pointIdx ){ return _iData[ (int)(pointIdx>>Dim) ][ pointIdx & _Mask ]; }
-		const DualPointInfo< Dim , Real , T , PointD >& __iData( size_t pointIdx ) const { return _iData[ (int)(pointIdx>>Dim) ][ pointIdx & _Mask ]; }
-		bool _constrainsDCTerm;
-		ConstraintDual _constraintDual;
-		SystemDual _systemDual;
-
-		friend class FEMTree< Dim , Real >;
-	};
-	template< unsigned int PointD , typename ConstraintDual , typename SystemDual >
-	struct ApproximateChildPointInterpolationInfo< double , PointD , ConstraintDual , SystemDual > : public InterpolationInfo< double , PointD >
-	{
-		typedef double T;
-		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
-		{
-			int idx = _iData.index( node );
-			if( idx<0 ) begin = end = 0;
-			else begin = (idx<<Dim) , end = (idx<<Dim) | _iData[idx].size();
-		}
-		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return __iData(pointIdx); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( __iData(pointIdx).position ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( __iData(pointIdx).position , dValues ); }
-
-		ApproximateChildPointInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
-	protected:
-		static const unsigned int _Mask = (1<<Dim)-1;
-		SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , ZeroUIntPack< Dim > > _iData;
-		DualPointInfo< Dim , Real , T , PointD >& __iData( size_t pointIdx ){ return _iData[ (int)(pointIdx>>Dim) ][ pointIdx & _Mask ]; }
-		const DualPointInfo< Dim , Real , T , PointD >& __iData( size_t pointIdx ) const { return _iData[ (int)(pointIdx>>Dim) ][ pointIdx & _Mask ]; }
-		bool _constrainsDCTerm;
-		ConstraintDual _constraintDual;
-		SystemDual _systemDual;
-
-		friend class FEMTree< Dim , Real >;
-	};
-	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
-	struct ApproximateChildPointAndDataInterpolationInfo : public InterpolationInfo< T , PointD >
-	{
-		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
-		{
-			int idx = _iData.index( node );
-			if( idx<0 ) begin = end = 0;
-			else begin = (idx<<Dim) , end = (idx<<Dim) | _iData[idx].size();
-		}
-		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return __iData(pointIdx).pointInfo; }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( __iData(pointIdx).pointInfo.position , __iData(pointIdx).data ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( __iData(pointIdx).pointInfo.position , __iData(pointIdx).data , dValues ); }
-		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( __iData(pointIdx).pointInfo.position , __iData(pointIdx).data , dValues ); }
-
-		ApproximateChildPointAndDataInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
-	protected:
-		static const unsigned int _Mask = (1<<Dim)-1;
-		SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , ZeroUIntPack< Dim > > _iData;
-		DualPointAndDataInfo< Dim , Real , Data , T , PointD >& __iData( size_t pointIdx ){ return _iData[ (int)(pointIdx>>Dim) ][ pointIdx & _Mask ]; }
-		const DualPointAndDataInfo< Dim , Real , Data , T , PointD >& __iData( size_t pointIdx ) const { return _iData[ (int)(pointIdx>>Dim) ][ pointIdx & _Mask ]; }
-		bool _constrainsDCTerm;
-		ConstraintDual _constraintDual;
-		SystemDual _systemDual;
-
-		friend class FEMTree< Dim , Real >;
-	};
-	template< typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
-	struct ApproximateChildPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual > : public InterpolationInfo< double , PointD >
-	{
-		typedef double T;
-		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
-		{
-			int idx = _iData.index( node );
-			if( idx<0 ) begin = end = 0;
-			else begin = (idx<<Dim) , end = (idx<<Dim) | _iData[idx].size();
-		}
-		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return __iData(pointIdx).pointInfo; }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( __iData(pointIdx).pointInfo.position , __iData(pointIdx).data ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( __iData(pointIdx).pointInfo.position , __iData(pointIdx).data , dValues ); }
-
-		ApproximateChildPointAndDataInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
-	protected:
-		static const unsigned int _Mask = (1<<Dim)-1;
-		SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , ZeroUIntPack< Dim > > _iData;
-		DualPointAndDataInfo< Dim , Real , Data , T , PointD >& __iData( size_t pointIdx ){ return _iData[ (int)(pointIdx>>Dim) ][ pointIdx & _Mask ]; }
-		const DualPointAndDataInfo< Dim , Real , Data , T , PointD >& __iData( size_t pointIdx ) const { return _iData[ (int)(pointIdx>>Dim) ][ pointIdx & _Mask ]; }
-		bool _constrainsDCTerm;
-		ConstraintDual _constraintDual;
-		SystemDual _systemDual;
-
-		friend class FEMTree< Dim , Real >;
-	};
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	struct ExactPointInterpolationInfo : public InterpolationInfo< T , PointD >
 	{
-		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
+		void range( const FEMTreeNode *node , size_t &begin , size_t &end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ (int)pointIdx ]; }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ (int)pointIdx ].position ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].position , dValues ); }
-		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].position , dValues ); }
+		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ]; }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].position ); }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].position , dValues ); }
+		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].position , dValues ); }
 
 		ExactPointInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
 	protected:
 		void _init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale );
 
-		std::vector< std::pair< int , int > > _sampleSpan;
+		std::vector< std::pair< node_index_type , node_index_type > > _sampleSpan;
 		std::vector< DualPointInfo< Dim , Real , T , PointD > > _iData;
 		bool _constrainsDCTerm;
 		ConstraintDual _constraintDual;
 		SystemDual _systemDual;
 
+		void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount )
+		{
+			std::vector< std::pair< node_index_type , node_index_type > > _newSampleSpan( newNodeCount );
+			for( int i=0 ; i<_sampleSpan.size() ; i++ ) if( newNodeIndices[i]!=-1 ) _newSampleSpan[ newNodeIndices[i] ] = _sampleSpan[i];
+			_sampleSpan = _newSampleSpan;
+		}
 		friend class FEMTree< Dim , Real >;
 	};
 	template< unsigned int PointD , typename ConstraintDual , typename SystemDual >
@@ -1588,35 +1459,48 @@ public:
 		typedef double T;
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ (int)pointIdx ]; }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ (int)pointIdx ].position ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].position , dValues ); }
+		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ]; }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].position ); }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].position , dValues ); }
 
 		ExactPointInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
 	protected:
 		void _init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale );
 
-		std::vector< std::pair< int , int > > _sampleSpan;
+		std::vector< std::pair< node_index_type , node_index_type > > _sampleSpan;
 		std::vector< DualPointInfo< Dim , Real , T , PointD > > _iData;
 		bool _constrainsDCTerm;
 		ConstraintDual _constraintDual;
 		SystemDual _systemDual;
 
+		void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount )
+		{
+			std::vector< std::pair< node_index_type , node_index_type > > _newSampleSpan( newNodeCount );
+			for( int i=0 ; i<_sampleSpan.size() ; i++ ) if( newNodeIndices[i]!=-1 ) _newSampleSpan[ newNodeIndices[i] ] = _sampleSpan[i];
+			_sampleSpan = _newSampleSpan;
+		}
 		friend class FEMTree< Dim , Real >;
 	};
 	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	struct _ExactPointAndDataInterpolationInfo : public InterpolationInfo< T , PointD >
 	{
 		_ExactPointAndDataInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
+
 	protected:
 		void _init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , bool noRescale );
 
-		std::vector< std::pair< int , int > > _sampleSpan;
+		std::vector< std::pair< node_index_type , node_index_type > > _sampleSpan;
 		std::vector< DualPointAndDataInfo< Dim , Real , Data , T , PointD > > _iData;
 		bool _constrainsDCTerm;
 		ConstraintDual _constraintDual;
 		SystemDual _systemDual;
 
+		void _remapIndices( ConstPointer( node_index_type ) newNodeIndices , size_t newNodeCount )
+		{
+			std::vector< std::pair< node_index_type , node_index_type > > _newSampleSpan( newNodeCount );
+			for( int i=0 ; i<_sampleSpan.size() ; i++ ) if( newNodeIndices[i]!=-1 ) _newSampleSpan[ newNodeIndices[i] ] = _sampleSpan[i];
+			_sampleSpan = _newSampleSpan;
+		}
 		friend class FEMTree< Dim , Real >;
 	};
 
@@ -1630,10 +1514,10 @@ public:
 		using _ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >::_systemDual;
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ (int)pointIdx ].pointInfo; }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data ); }
-		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data , dValues ); }
-		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data , dValues ); }
+		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ].pointInfo; }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].pointInfo.position , _iData[ pointIdx ].data ); }
+		Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].pointInfo.position , _iData[ pointIdx ].data , dValues ); }
+		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data , dValues ); }
 
 		ExactPointAndDataInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm ) { }
 	};
@@ -1643,11 +1527,13 @@ public:
 		using _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >::_sampleSpan;
 		using _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >::_constrainsDCTerm;
 		using _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >::_iData;
+		using _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >::_constraintDual;
+		using _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >::_systemDual;
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
-		const DualPointInfo< Dim , Real , double , PointD >& operator[]( size_t pointIdx ) const { return _iData[ (int)pointIdx ].pointInfo; }
-		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data ); }
-		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ (int)pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data , dValues ); }
+		const DualPointInfo< Dim , Real , double , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ].pointInfo; }
+		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const { return _constraintDual( _iData[ pointIdx ].pointInfo.position , _iData[ pointIdx ].data ); }
+		Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const { return _systemDual( _iData[ pointIdx ].pointInfo.position , _iData[ (int)pointIdx ].data , dValues ); }
 		ExactPointAndDataInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm ) { }
 	};
 
@@ -1665,20 +1551,7 @@ public:
 		a->_iData = tree._densifyInterpolationInfoAndSetDualConstraints< T , Data , PointD >( samples , sampleData , constraintDual , adaptiveExponent );
 		return a;
 	}
-	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
-	static ApproximateChildPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeApproximateChildPointInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale  )
-	{
-		ApproximateChildPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* a = new ApproximateChildPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm );
-		a->_iData = tree._densifyChildInterpolationInfoAndSetDualConstraints< T , PointD >( samples , constraintDual , noRescale );
-		return a;
-	}
-	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
-	static ApproximateChildPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* InitializeApproximateChildPointAndDataInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale  )
-	{
-		ApproximateChildPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* a = new ApproximateChildPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm );
-		a->_iData = tree._densifyChildInterpolationInfoAndSetDualConstraints< T , Data , PointD >( samples , sampleData , constraintDual , noRescale );
-		return a;
-	}
+
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	static ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeExactPointInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale )
 	{
@@ -1697,21 +1570,45 @@ public:
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual > friend struct ExactPointInterpolationInfo;
 	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual > friend struct ExactPointAndDataInterpolationInfo;
 
-	template< typename T , unsigned int PointD , unsigned int ... PointDs >
-	static bool ConstrainsDCTerm( const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ){ return ConstrainsDCTerm( iInfo ) || ConstrainsDCTerm( iInfos... ); }
-	template< typename T , unsigned int PointD >
-	static bool ConstrainsDCTerm( const InterpolationInfo< T , PointD >* iInfo ){ return iInfo && iInfo->constrainsDCTerm(); }
-	static bool ConstrainsDCTerm( void ){ return false; }
+	template< typename ... InterpolationInfos >
+	static bool ConstrainsDCTerm( std::tuple< InterpolationInfos *... > interpolationInfos ){ return _ConstrainsDCTerm< 0 >( interpolationInfos ); }
+protected:
+	template< unsigned int Idx , typename ... InterpolationInfos >
+	static typename std::enable_if< ( Idx==sizeof...(InterpolationInfos) ) , bool >::type _ConstrainsDCTerm( std::tuple< InterpolationInfos *... > interpolationInfos ){ return false; }
+	template< unsigned int Idx , typename ... InterpolationInfos >
+	static typename std::enable_if< ( Idx <sizeof...(InterpolationInfos) ) , bool >::type _ConstrainsDCTerm( std::tuple< InterpolationInfos *... > interpolationInfos )
+	{
+		if(  std::get< Idx >( interpolationInfos ) ) return _ConstrainsDCTerm< Idx+1 >( interpolationInfos ) || std::get< Idx >( interpolationInfos )->constrainsDCTerm();
+		else                                         return _ConstrainsDCTerm< Idx+1 >( interpolationInfos );
+	}
+public:
 
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] This should not be isotropic" )
 #endif // SHOW_WARNINGS
 	template< unsigned int DensityDegree > struct DensityEstimator : public SparseNodeData< Real , IsotropicUIntPack< Dim , FEMDegreeAndBType< DensityDegree >::Signature > >
 	{
-		DensityEstimator( int kernelDepth , int coDimension ) : _kernelDepth( kernelDepth ) , _coDimension( coDimension ){ ; }
+		DensityEstimator( int kernelDepth , int coDimension , Real samplesPerNode ) : _kernelDepth( kernelDepth ) , _coDimension( coDimension ) , _samplesPerNode( samplesPerNode ){ }
+		Real samplesPerNode( void ) const { return _samplesPerNode; }
 		int coDimension( void ) const { return _coDimension; }
 		int kernelDepth( void ) const { return _kernelDepth; }
+		void write( FILE *fp ) const
+		{
+			fwrite( &_kernelDepth , sizeof(int) , 1 , fp );
+			fwrite( &_coDimension , sizeof(int) , 1 , fp );
+			fwrite( &_samplesPerNode , sizeof(Real) , 1 , fp );
+			SparseNodeData< Real , IsotropicUIntPack< Dim , FEMDegreeAndBType< DensityDegree >::Signature > >::write( fp );
+		}
+		void read( FILE *fp )
+		{
+			if( fread( &_kernelDepth , sizeof(int) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _kernelDepth" );
+			if( fread( &_coDimension , sizeof(int) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _coDimension" );
+			if( fread( &_samplesPerNode , sizeof(Real) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _samplesPerNode" );
+			SparseNodeData< Real , IsotropicUIntPack< Dim , FEMDegreeAndBType< DensityDegree >::Signature > >::read( fp );
+		}
+		DensityEstimator( FILE *fp ){ read(fp); }
 	protected:
+		Real _samplesPerNode;
 		int _kernelDepth , _coDimension;
 	};
 
@@ -1719,19 +1616,19 @@ protected:
 	bool _isValidSpaceNode( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::SPACE_FLAG     ); }
 	bool _isValidFEM1Node ( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::FEM_FLAG_1     ); }
 	bool _isValidFEM2Node ( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::FEM_FLAG_2     ); }
-	bool _isRefinableNode ( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::REFINABLE_FLAG ); }
 
 	FEMTreeNode* _tree;
 	FEMTreeNode* _spaceRoot;
 	SortedTreeNodes< Dim > _sNodes;
 	LocalDepth _maxDepth;
 	int _depthOffset;
+	LocalDepth _baseDepth , _fullDepth;
 	mutable unsigned int _femSigs1[ Dim ];
 	mutable unsigned int _femSigs2[ Dim ];
-	mutable unsigned int _refinableSigs[ Dim ];
 
 	static bool _InBounds( Point< Real , Dim > p );
 	int _localToGlobal( LocalDepth d ) const { return d + _depthOffset; }
+	LocalDepth _globalToLocal( int d ) const { return d - _depthOffset; }
 	LocalDepth _localDepth( const FEMTreeNode* node ) const { return node->depth() - _depthOffset; }
 	int _localInset( LocalDepth d ) const { return _depthOffset<=1 ? 0 : 1<<( d + _depthOffset - 1 ); }
 	void _localDepthAndOffset( const FEMTreeNode* node , LocalDepth& d , LocalOffset& off ) const
@@ -1749,15 +1646,23 @@ protected:
 		LocalDepth d ; LocalOffset off ; _localDepthAndOffset( node , d , off );
 		return FEMIntegrator::IsOutOfBounds( UIntPack< FEMSigs ... >() , d , off );
 	}
-	int _sNodesBegin( LocalDepth d ) const { return _sNodes.begin( _localToGlobal( d ) ); }
-	int _sNodesEnd  ( LocalDepth d ) const { return _sNodes.end  ( _localToGlobal( d ) ); }
-	int _sNodesSize ( LocalDepth d ) const { return _sNodes.size ( _localToGlobal( d ) ); }
-	int _sNodesBeginSlice( LocalDepth d ) const { return _localInset(d); }
-	int _sNodesEndSlice( LocalDepth d ) const{ return ( 1<<_localToGlobal(d) ) - _localInset(d) - 1; }
-	int _sNodesBegin( LocalDepth d , int slice ) const { return _sNodes.begin( _localToGlobal( d ) , slice + _localInset( d ) ); }
-	int _sNodesEnd  ( LocalDepth d , int slice ) const { return _sNodes.end  ( _localToGlobal( d ) , slice + _localInset( d ) ); }
-	int _sNodesSize ( LocalDepth d , int slice ) const { return _sNodes.size ( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	node_index_type _sNodesBegin( LocalDepth d )             const { return _sNodes.begin( _localToGlobal( d ) ); }
+	node_index_type _sNodesBegin( LocalDepth d , int slice ) const { return _sNodes.begin( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	node_index_type _sNodesBeginSlice( LocalDepth d )        const { return _localInset(d); }
+	node_index_type _sNodesEnd( LocalDepth d )             const { return _sNodes.end  ( _localToGlobal( d ) ); }
+	node_index_type _sNodesEnd( LocalDepth d , int slice ) const { return _sNodes.end  ( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	node_index_type _sNodesEndSlice( LocalDepth d ) const{ return ( 1<<_localToGlobal(d) ) - _localInset(d) - 1; }
+	size_t _sNodesSize( LocalDepth d )             const { return _sNodes.size( _localToGlobal( d ) ); }
+	size_t _sNodesSize( LocalDepth d , int slice ) const { return _sNodes.size( _localToGlobal( d ) , slice + _localInset( d ) ); }
 
+	template< unsigned int ... FEMDegrees > static bool _IsSupported( UIntPack< FEMDegrees ... > , LocalDepth femDepth , const LocalOffset femOffset , LocalDepth spaceDepth , const LocalOffset spaceOffset){ return BaseFEMIntegrator::IsSupported( UIntPack< FEMDegrees ... >() , femDepth , femOffset , spaceDepth , spaceOffset ); }
+	template< unsigned int ... FEMDegrees > bool _isSupported( UIntPack< FEMDegrees ... > , const FEMTreeNode *femNode , const FEMTreeNode *spaceNode ) const
+	{
+		if( !femNode || !spaceNode ) return false;
+		LocalDepth femDepth , spaceDepth ; LocalOffset femOffset , spaceOffset;
+		_localDepthAndOffset( femNode , femDepth , femOffset ) , _localDepthAndOffset( spaceNode , spaceDepth , spaceOffset );
+		return _IsSupported( UIntPack< FEMDegrees ... >() , femDepth , femOffset , spaceDepth , spaceOffset );
+	}
 	template< unsigned int FEMDegree > static bool _IsInteriorlySupported( LocalDepth depth , const LocalOffset off )
 	{
 		if( depth>=0 )
@@ -1834,8 +1739,8 @@ protected:
 		return cIdx;
 	}
 
-	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , FEMTreeNode* node , LocalDepth depth );
-	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , LocalDepth depth );
+	template< bool ThreadSafe , unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , LocalDepth depth );
+	template< bool ThreadSafe , unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , LocalDepth depth );
 	template< unsigned int ... Degrees > LocalDepth _getFullDepth( UIntPack< Degrees ... > , const FEMTreeNode* node ) const;
 
 public:
@@ -1844,16 +1749,18 @@ public:
 	LocalDepth depth( const FEMTreeNode* node ) const { return _localDepth( node ); }
 	void depthAndOffset( const FEMTreeNode* node , LocalDepth& depth , LocalOffset& offset ) const { _localDepthAndOffset( node , depth , offset ); }
 
-	int nodesSize ( void ) const { return _sNodes.size( ); }
-	int nodesBegin( LocalDepth d ) const { return _sNodes.begin( _localToGlobal( d ) ); }
-	int nodesEnd  ( LocalDepth d ) const { return _sNodes.end  ( _localToGlobal( d ) ); }
-	int nodesSize ( LocalDepth d ) const { return _sNodes.size ( _localToGlobal( d ) ); }
-	int nodesBegin( LocalDepth d , int slice ) const { return _sNodes.begin( _localToGlobal( d ) , slice + _localInset( d ) ); }
-	int nodesEnd  ( LocalDepth d , int slice ) const { return _sNodes.end  ( _localToGlobal( d ) , slice + _localInset( d ) ); }
-	int nodesSize ( LocalDepth d , int slice ) const { return _sNodes.size ( _localToGlobal( d ) , slice + _localInset( d ) ); }
-	const FEMTreeNode* node( int idx ) const { return _sNodes.treeNodes[idx]; }
-	void centerAndWidth( int idx , Point< Real , Dim >& center , Real& width ) const { _centerAndWidth( _sNodes.treeNodes[idx] , center , width ); }
-	void  startAndWidth( int idx , Point< Real , Dim >& center , Real& width ) const {  _startAndWidth( _sNodes.treeNodes[idx] , center , width ); }
+	size_t nodesSize ( void ) const { return _sNodes.size( ); }
+	node_index_type nodesBegin( LocalDepth d ) const { return _sNodes.begin( _localToGlobal( d ) ); }
+	node_index_type nodesEnd  ( LocalDepth d ) const { return _sNodes.end  ( _localToGlobal( d ) ); }
+	size_t nodesSize ( LocalDepth d ) const { return _sNodes.size ( _localToGlobal( d ) ); }
+	node_index_type nodesBegin( LocalDepth d , int slice ) const { return _sNodes.begin( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	node_index_type nodesEnd  ( LocalDepth d , int slice ) const { return _sNodes.end  ( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	size_t nodesSize ( LocalDepth d , int slice ) const { return _sNodes.size ( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	const FEMTreeNode* node( node_index_type idx ) const { return _sNodes.treeNodes[idx]; }
+	void centerAndWidth( node_index_type idx , Point< Real , Dim >& center , Real& width ) const { _centerAndWidth( _sNodes.treeNodes[idx] , center , width ); }
+	void  startAndWidth( node_index_type idx , Point< Real , Dim >& center , Real& width ) const {  _startAndWidth( _sNodes.treeNodes[idx] , center , width ); }
+	void centerAndWidth( const FEMTreeNode* node , Point< Real , Dim >& center , Real& width ) const { _centerAndWidth( node , center , width ); }
+	void  startAndWidth( const FEMTreeNode* node , Point< Real , Dim >& start  , Real& width ) const {  _startAndWidth( node , start  , width ); }
 
 protected:
 	/////////////////////////////////////
@@ -1861,58 +1768,71 @@ protected:
 	// MultiGridFEMTreeData.System.inl //
 	/////////////////////////////////////
 public:
-	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< int > >& indices ) const;
+	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< size_t > >& indices ) const;
 protected:
-	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , int start , int end , std::vector< std::vector< int > >& indices ) const;
+	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< size_t > >& indices ) const;
 
 	struct _SolverStats
 	{
 		double constraintUpdateTime , systemTime , solveTime;
 		double bNorm2 , inRNorm2 , outRNorm2;
 	};
-	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
-	typename std::enable_if< (sizeof...(PointDs)!=0) >::type _addPointValues( UIntPack< FEMSigs ... > , StaticWindow< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pointValues , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+
+	// For some reason MSVC has trouble determining the template parameters when using:
+	//		template< unsigned int Idx , unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	template< unsigned int Idx , typename UIntPackFEMSigs , typename StaticWindow , typename ConstNeighbors , typename PointEvaluator , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx==sizeof...(InterpolationInfos) ) >::type _addPointValues( UIntPackFEMSigs , StaticWindow &pointValues , const ConstNeighbors &neighbors , const PointEvaluator &bsData , std::tuple< InterpolationInfos *... > interpolationInfos ) const {}
+	template< unsigned int Idx , typename UIntPackFEMSigs , typename StaticWindow , typename ConstNeighbors , typename PointEvaluator , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx <sizeof...(InterpolationInfos) ) >::type _addPointValues( UIntPackFEMSigs , StaticWindow &pointValues , const ConstNeighbors &neighbors , const PointEvaluator &bsData , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
-		_addPointValues( UIntPack< FEMSigs ... >() , pointValues , neighbors , bsData , iInfo ) , _addPointValues( UIntPack< FEMSigs ... >() , pointValues , neighbors , bsData , iInfos... );
+		_addPointValues( UIntPackFEMSigs() , pointValues , neighbors , bsData , std::get< Idx >( interpolationInfos ) );
+		_addPointValues< Idx+1 >( UIntPackFEMSigs() , pointValues , neighbors , bsData , interpolationInfos );
 	}
-	template< unsigned int ... FEMSigs >
-	void _addPointValues( UIntPack< FEMSigs ... > , StaticWindow< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pointValues , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData ) const { }
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
 	void _addPointValues( UIntPack< FEMSigs ... > , StaticWindow< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pointValues , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointD >* interpolationInfo ) const;
 
-	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
-	typename std::enable_if< (sizeof...(PointDs)>1) >::type _addProlongedPointValues( UIntPack< FEMSigs ... > , WindowSlice< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > > pointValues , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	template< unsigned int Idx , typename UIntPackFEMSigs , typename WindowSlice , typename ConstNeighbors , typename PointEvaluator , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx==sizeof...(InterpolationInfos) ) >::type _addProlongedPointValues( UIntPackFEMSigs , WindowSlice pointValues , const ConstNeighbors &neighbors , const ConstNeighbors &pNeighbors , const PointEvaluator &bsData , std::tuple< InterpolationInfos *... > interpolationInfos ) const {}
+	template< unsigned int Idx , typename UIntPackFEMSigs , typename WindowSlice , typename ConstNeighbors , typename PointEvaluator , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx <sizeof...(InterpolationInfos) ) >::type _addProlongedPointValues( UIntPackFEMSigs , WindowSlice pointValues , const ConstNeighbors &neighbors , const ConstNeighbors &pNeighbors , const PointEvaluator&bsData , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
-		_addProlongedPointValues( UIntPack< FEMSigs ... >() , pointValues , neighbors , pNeighbors , bsData , iInfo ) , _addProlongedPointValues( UIntPack< FEMSigs ... >() , pointValues , neighbors , pNeighbors , bsData , iInfos... );
+		_addProlongedPointValues( UIntPackFEMSigs() , pointValues , neighbors , pNeighbors , bsData , std::get< Idx >( interpolationInfos ) );
+		_addProlongedPointValues< Idx+1 >( UIntPackFEMSigs() , pointValues , neighbors , pNeighbors , bsData , interpolationInfos );
 	}
-	template< unsigned int ... FEMSigs > void _addProlongedPointValues( UIntPack< FEMSigs ... > , WindowSlice< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > > pointValues , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData ) const { }
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
 	void _addProlongedPointValues( UIntPack< FEMSigs ... > , WindowSlice< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > > pointValues , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointD >* iInfo ) const;
 
-	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
-	typename std::enable_if< (sizeof...(PointDs)!=0) >::type _setPointValuesFromProlongedSolution( LocalDepth highDepth , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , InterpolationInfo< T , PointD >* iInfo , InterpolationInfo< T , PointDs >* ... iInfos ) const
+	template< unsigned int Idx , typename PointEvaluator , typename T , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx==sizeof...(InterpolationInfos) ) >::type _setPointValuesFromProlongedSolution( LocalDepth highDepth , const PointEvaluator &bsData , ConstPointer( T ) prolongedSolution , std::tuple< InterpolationInfos *... > interpolationInfos ) const {}
+	template< unsigned int Idx , typename PointEvaluator , typename T , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx <sizeof...(InterpolationInfos) ) >::type _setPointValuesFromProlongedSolution( LocalDepth highDepth , const PointEvaluator &bsData , ConstPointer( T ) prolongedSolution , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
-		_setPointValuesFromProlongedSolution( highDepth , bsData , prolongedSolution , iInfo ) , _setPointValuesFromProlongedSolution( highDepth , bsData , prolongedSolution , iInfos... );
+		_setPointValuesFromProlongedSolution( highDepth , bsData , prolongedSolution , std::get< Idx >( interpolationInfos ) );
+		_setPointValuesFromProlongedSolution< Idx+1 >( highDepth , bsData , prolongedSolution , interpolationInfos );
 	}
-	template< unsigned int ... FEMSigs , typename T > void _setPointValuesFromProlongedSolution( LocalDepth highDepth , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution ) const { }
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
 	void _setPointValuesFromProlongedSolution( LocalDepth highDepth , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , InterpolationInfo< T , PointD >* interpolationInfo ) const;
 
-	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
-	typename std::enable_if< (sizeof...(PointDs)!=0) , T >::type _getInterpolationConstraintFromProlongedSolution( const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	template< unsigned int Idx , typename ConstNeighbors , typename T , typename PointEvaluator , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx==sizeof...(InterpolationInfos) ) , T >::type _getInterpolationConstraintFromProlongedSolution( const ConstNeighbors &neighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const PointEvaluator &bsData , std::tuple< InterpolationInfos ... > interpolationInfos ) const { return T{}; }
+	template< unsigned int Idx , typename ConstNeighbors , typename T , typename PointEvaluator , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx <sizeof...(InterpolationInfos) ) , T >::type _getInterpolationConstraintFromProlongedSolution( const ConstNeighbors &neighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const PointEvaluator &bsData , std::tuple< InterpolationInfos ... > interpolationInfos ) const
 	{
-		return _getInterpolationConstraintFromProlongedSolution( neighbors , node , prolongedSolution , bsData , iInfo ) + _getInterpolationConstraintFromProlongedSolution( neighbors , node , prolongedSolution , bsData , iInfos... );
+		return
+			_getInterpolationConstraintFromProlongedSolution( neighbors , node , prolongedSolution , bsData , std::get< Idx >( interpolationInfos ) ) +
+			_getInterpolationConstraintFromProlongedSolution< Idx+1 >( neighbors , node , prolongedSolution , bsData , interpolationInfos );
 	}
-	template< unsigned int ... FEMSigs , typename T > T _getInterpolationConstraintFromProlongedSolution( const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData ) const { return T(); }
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
 	T _getInterpolationConstraintFromProlongedSolution( const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointD >* iInfo ) const;
 
-	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
-	typename std::enable_if< (sizeof...(PointDs)!=0) >::type _updateRestrictedInterpolationConstraints( const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints , const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ) const 
+	template< unsigned int Idx , typename PointEvaluator , typename T , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx==sizeof...(InterpolationInfos) ) >::type _updateRestrictedInterpolationConstraints( const PointEvaluator &bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints , std::tuple< InterpolationInfos ... > interpolationInfos ) const {}
+	template< unsigned int Idx , typename PointEvaluator , typename T , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx <sizeof...(InterpolationInfos) ) >::type _updateRestrictedInterpolationConstraints( const PointEvaluator &bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints , std::tuple< InterpolationInfos ... > interpolationInfos ) const
 	{
-		_updateRestrictedInterpolationConstraints( bsData , highDepth , solution , cumulativeConstraints , iInfo ) , _updateRestrictedInterpolationConstraints( bsData , highDepth , solution , cumulativeConstraints , iInfos... );
+		_updateRestrictedInterpolationConstraints( bsData , highDepth , solution , cumulativeConstraints , std::get< Idx >( interpolationInfos ) );
+		_updateRestrictedInterpolationConstraints< Idx+1 >( bsData , highDepth , solution , cumulativeConstraints , interpolationInfos );
 	}
-	template< unsigned int ... FEMSigs , typename T > void _updateRestrictedInterpolationConstraints( PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints ) const { ; }
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
 	void _updateRestrictedInterpolationConstraints( const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints , const InterpolationInfo< T , PointD >* interpolationInfo ) const;
 
@@ -1933,31 +1853,29 @@ protected:
 
 	template< unsigned int ... FEMSigs >
 	int _getProlongedMatrixRowSize( const FEMTreeNode* node , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors ) const;
-	template< unsigned int ... FEMSigs >
-	int _getMatrixRowSize( const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors ) const;
-	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-	T _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , Pointer( MatrixEntry< Real > ) row , int offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
-	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-	int _setProlongedMatrixRow( const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , Pointer( MatrixEntry< Real > ) row , int offset , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< typename T , unsigned int ... FEMSigs , typename ... InterpolationInfos , typename MatrixType >
+	T _setMatrixRowAndGetConstraintFromProlongation( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , size_t idx , MatrixType &M , node_index_type offset , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
+	template< typename T , unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	int _setProlongedMatrixRow( const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , Pointer( MatrixEntry< Real , matrix_index_type > ) row , node_index_type offset , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
 
 	// Updates the constraints @(depth) based on the solution coefficients @(depth-1)
-	template< unsigned int ... FEMSigs , typename T , unsigned int ... PointDs >
-	T _getConstraintFromProlongedSolution( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< unsigned int ... FEMSigs , typename T , typename ... InterpolationInfos >
+	T _getConstraintFromProlongedSolution( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
 
-	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
-	int _solveFullSystemGS( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
-	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
-	int _solveSlicedSystemGS( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , unsigned int sliceBlockSize , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
-	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
-	int _solveSystemGS( UIntPack< FEMSigs ... > , bool sliced , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , unsigned int sliceBlockSize , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , typename ... InterpolationInfos >
+	int _solveFullSystemGS( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , typename ... InterpolationInfos >
+	int _solveSlicedSystemGS( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , unsigned int sliceBlockSize , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , typename ... InterpolationInfos >
+	int _solveSystemGS( UIntPack< FEMSigs ... > , bool sliced , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , unsigned int sliceBlockSize , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
-		if( sliced ) return _solveSlicedSystemGS( UIntPack< FEMSigs ... >() , F , bsData , depth , solution , prolongedSolution , constraints , Dot , iters , coarseToFine , sliceBlockSize , sorWeights , stats , computeNorms , interpolationInfo ... );
-		else         return _solveFullSystemGS  ( UIntPack< FEMSigs ... >() , F , bsData , depth , solution , prolongedSolution , constraints , Dot , iters , coarseToFine ,                  sorWeights , stats , computeNorms , interpolationInfo ... );
+		if( sliced ) return _solveSlicedSystemGS( UIntPack< FEMSigs ... >() , F , bsData , depth , solution , prolongedSolution , constraints , Dot , iters , coarseToFine , sliceBlockSize , sorWeights , stats , computeNorms , interpolationInfos );
+		else         return _solveFullSystemGS  ( UIntPack< FEMSigs ... >() , F , bsData , depth , solution , prolongedSolution , constraints , Dot , iters , coarseToFine ,                  sorWeights , stats , computeNorms , interpolationInfos );
 	}
-	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
-	int _solveSystemCG( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double cgAccuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
-	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
-	void _solveRegularMG( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
+	int _solveSystemCG( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double cgAccuracy , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
+	void _solveRegularMG( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
 
 	// Updates the cumulative integral constraints @(depth-1) based on the change in solution coefficients @(depth)
 	template< unsigned int ... FEMSigs , typename T >
@@ -1968,34 +1886,46 @@ protected:
 	template< unsigned int PointD , typename T , unsigned int ... FEMSigs >
 	CumulativeDerivativeValues< T , Dim , PointD >   _finerFunctionValues( UIntPack< FEMSigs ... > , Point< Real , Dim > p , const ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey , const FEMTreeNode* node , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) coefficients ) const;
 
-	template< unsigned int ... FEMSigs , typename T , unsigned int ... PointDs >
-	int _getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , int nBegin , int nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil < UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< unsigned int ... FEMSigs , typename T , typename ... InterpolationInfos >
+	int _getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SystemMatrixType< FEMSigs ... > &matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , node_index_type nBegin , node_index_type nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil < UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
+
+	template< unsigned int ... FEMSigs , typename ValidNodeFunctor >
+	SparseMatrix< Real , matrix_index_type > _downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth , ValidNodeFunctor validNodeFunctor ) const;
+	template< unsigned int ... FEMSigs , typename ValidNodeFunctor >
+	SparseMatrix< Real , matrix_index_type > _upSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth , ValidNodeFunctor validNodeFunctor ) const;
+	template< unsigned int ... FEMSigs , typename ValidNodeFunctor >
+	SparseMatrix< Real , matrix_index_type > _restrictSystemMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth , const SparseMatrix< Real , matrix_index_type > &M , ValidNodeFunctor validNodeFunctor ) const;
 
 	// Down samples constraints @(depth) to constraints @(depth-1)
-	template< class C , unsigned ... Degrees , unsigned int ... FEMSigs > void _downSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& RP , LocalDepth highDepth , Pointer( C ) constraints ) const;
+	template< class C , typename ArrayWrapper , unsigned ... Degrees , unsigned int ... FEMSigs > void _downSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& RP , LocalDepth highDepth , ArrayWrapper finerConstraints , Pointer( C ) coarserConstraints ) const;
 	// Up samples coefficients @(depth-1) to coefficients @(depth)
-	template< class C , unsigned ... Degrees , unsigned int ... FEMSigs > void _upSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& RP , LocalDepth highDepth , Pointer( C ) coefficients ) const;
+	template< class C , typename ArrayWrapper , unsigned ... Degrees , unsigned int ... FEMSigs > void   _upSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& RP , LocalDepth highDepth , ArrayWrapper coarserCoefficients , Pointer( C ) finerCoefficients ) const;
 
 	template< bool XMajor , class C , unsigned int ... FEMSigs > static void _RegularGridUpSample( UIntPack< FEMSigs ... > ,                                                                                           LocalDepth highDepth , ConstPointer( C ) lowCoefficients , Pointer( C ) highCoefficients );
 	template< bool XMajor , class C , unsigned int ... FEMSigs > static void _RegularGridUpSample( UIntPack< FEMSigs ... > , const int lowBegin[] , const int lowEnd[] , const int highBegin[] , const int highEnd[] , LocalDepth highDepth , ConstPointer( C ) lowCoefficients , Pointer( C ) highCoefficients );
 public:
 	template< class C , unsigned int ... FEMSigs > DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( const  DenseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const;
 	template< class C , unsigned int ... FEMSigs > DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( const SparseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const;
+	template< class C , unsigned int ... FEMSigs > DenseNodeData< C , UIntPack< FEMSigs ... > > denseCoefficients( const SparseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const;
+
 
 	// For each (valid) fem node, compute the ratio of the sum of active prolongation weights to the sum of total prolongation weights
 	// If the prolongToChildren flag is set, then these weights are pushed to the children by computing the ratio of the prolongation of the above weights to the prolongation of unity weights 
-	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > prolongationWeights( UIntPack< FEMSigs ... > , bool prolongToChildren ) const;
 
-	// For each (valid) fem node, compute the integral of the basis function over the valid space nodes over the integral of the basis function
 	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > supportWeights( UIntPack< FEMSigs ... > ) const;
+	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > prolongationWeights( UIntPack< FEMSigs ... > , bool prolongToChildren ) const;
 protected:
 
 	//////////////////////////////////////////////
 	// Code for splatting point-sample data     //
 	// MultiGridFEMTreeData.WeightedSamples.inl //
 	//////////////////////////////////////////////
-	template< unsigned int WeightDegree >
-	void _addWeightContribution( DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight=Real(1.0) );
+	template< unsigned int CoDim , unsigned int Degree >
+	Real _GetScaleValue( unsigned int res ) const;
+	template< unsigned int CoDim , unsigned int Degree >
+	Real _GetScaleValue( Point< Real , Dim > p ) const;
+	template< bool ThreadSafe , unsigned int CoDim , unsigned int WeightDegree >
+	void _addWeightContribution( Allocator< FEMTreeNode > *nodeAllocator , DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight=Real(1.0) );
 	template< unsigned int WeightDegree , class PointSupportKey >
 	Real _getSamplesPerNode( const DensityEstimator< WeightDegree >& densityWeights , const FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey& weightKey ) const;
 	template< unsigned int WeightDegree , class WeightKey >
@@ -2003,11 +1933,12 @@ protected:
 	template< unsigned int WeightDegree , class WeightKey >
 	void _getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , Point< Real , Dim > position , WeightKey& weightKey , Real& depth , Real& weight ) const;
 
-	template< bool CreateNodes ,                             class V , unsigned int ... DataSigs > void      _splatPointData( FEMTreeNode* node ,                                                          Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data ,                                                                         PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey                                                                        );
-	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real      _splatPointData( const DensityEstimator< WeightDegree >& densityWeights ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
-	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _multiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ,                                             int dim                  );
+	template< bool CreateNodes , bool ThreadSafe ,                             class V , unsigned int ... DataSigs > void      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey );
+	template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
+	template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _multiSplatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , int dim );
 	template< unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _nearestMultiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim=Dim );
-	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > V _evaluate( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const;
+	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > void _addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const;
+	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > void _addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const;
 public:
 	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridEvaluate( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , int& res , LocalDepth depth=-1 , bool primal=false ) const;
 	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridUpSample( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , LocalDepth depth=-1 ) const;
@@ -2044,7 +1975,6 @@ protected:
 	void _setSpaceValidityFlags( void ) const;
 	template< unsigned int ... FEMSigs1 > void _setFEM1ValidityFlags( UIntPack< FEMSigs1 ... > ) const;
 	template< unsigned int ... FEMSigs2 > void _setFEM2ValidityFlags( UIntPack< FEMSigs2 ... > ) const;
-	template< unsigned int ... FEMSigs  > void _setRefinabilityFlags( UIntPack< FEMSigs  ... > ) const;
 	template< class HasDataFunctor > void _clipTree( const HasDataFunctor& f , LocalDepth fullDepth );
 public:
 	template< unsigned int PointD , unsigned int ... FEMSigs > SparseNodeData< CumulativeDerivativeValues< Real , Dim , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafValues( const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , int maxDepth=-1 ) const;
@@ -2176,7 +2106,7 @@ public:
 		const DenseNodeData< T , FEMSignatures >& _coefficients;
 		DenseNodeData< T , FEMSignatures > _coarseCoefficients;
 	public:
-		_MultiThreadedEvaluator( const FEMTree* tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads=omp_get_max_threads() );
+		_MultiThreadedEvaluator( const FEMTree* tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads=std::thread::hardware_concurrency() );
 		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > values( Point< Real , Dim > p , int thread=0 , const FEMTreeNode* node=NULL );
 		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > centerValues( const FEMTreeNode* node , int thread=0 );
 		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > cornerValues( const FEMTreeNode* node , int corner , int thread=0 );
@@ -2190,67 +2120,103 @@ public:
 		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > > _neighborKeys;
 		const DensityEstimator< DensityDegree >& _density;
 	public:
-		MultiThreadedWeightEvaluator( const FEMTree* tree , const DensityEstimator< DensityDegree >& density , int threads=omp_get_max_threads() );
+		MultiThreadedWeightEvaluator( const FEMTree* tree , const DensityEstimator< DensityDegree >& density , int threads=std::thread::hardware_concurrency() );
 		Real weight( Point< Real , Dim > p , int thread=0 );
 	};
 
+	template< typename Pack , typename T > struct MultiThreadedSparseEvaluator{ };
+	template< unsigned int ... FEMSigs , typename T >
+	struct MultiThreadedSparseEvaluator< UIntPack< FEMSigs ... > , T >
+	{
+		typedef UIntPack< FEMSigs ... > FEMSignatures;
+		typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > FEMDegrees;
+		const FEMTree* _tree;
+		int _threads;
+		std::vector< ConstPointSupportKey< FEMDegrees > > _pointNeighborKeys;
+		typename FEMIntegrator::template PointEvaluator< UIntPack< FEMSigs ... > , ZeroUIntPack< Dim > > *_pointEvaluator;
+		const SparseNodeData< T , FEMSignatures >& _coefficients;
+	public:
+		MultiThreadedSparseEvaluator( const FEMTree* tree , const SparseNodeData< T , FEMSignatures >& coefficients , int threads=std::thread::hardware_concurrency() );
+		~MultiThreadedSparseEvaluator( void ){ if( _pointEvaluator ) delete _pointEvaluator; }
+		void addValue( Point< Real , Dim > p , T &t , int thread=0 , const FEMTreeNode* node=NULL );
+	};
 
 	static double _MaxMemoryUsage , _LocalMemoryUsage;
-	void _reorderDenseOrSparseNodeData( const int* , size_t ){ ; }
-	template< class Data , unsigned int ... FEMSigs , class ... DenseOrSparseNodeData >
-	void _reorderDenseOrSparseNodeData( const int* map , size_t sz , SparseNodeData< Data , UIntPack< FEMSigs ... > >* sData , DenseOrSparseNodeData* ... data )
+
+	template< unsigned int Idx , typename ... DenseOrSparseNodeData >
+	typename std::enable_if< ( Idx==sizeof...(DenseOrSparseNodeData) ) >::type _reorderDenseOrSparseNodeData( ConstPointer( node_index_type ) map , size_t sz , std::tuple< DenseOrSparseNodeData* ... > data ){}
+	template< unsigned int Idx , typename ... DenseOrSparseNodeData >
+	typename std::enable_if< ( Idx <sizeof...(DenseOrSparseNodeData) ) >::type _reorderDenseOrSparseNodeData( ConstPointer( node_index_type ) map , size_t sz , std::tuple< DenseOrSparseNodeData* ... > data )
 	{
-		if( sData ) sData->_remapIndices( map , (int)sz );
-		_reorderDenseOrSparseNodeData( map , sz , data ... );
+		if( std::get<Idx>( data ) ) std::get<Idx>( data )->_remapIndices( map , sz );
+		_reorderDenseOrSparseNodeData< Idx+1 >( map , sz , data );
 	}
-	template< class Data , unsigned int ... FEMSigs , class ... DenseOrSparseNodeData >
-	void _reorderDenseOrSparseNodeData( const int* map , size_t sz , DenseNodeData< Data , UIntPack< FEMSigs ... > >* dData , DenseOrSparseNodeData* ... data )
+
+	template< unsigned int Idx , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx==sizeof...(InterpolationInfos) ) >::type _reorderInterpolationInfo( ConstPointer( node_index_type ) map , size_t sz , std::tuple< InterpolationInfos* ... > interpolationInfos ){}
+	template< unsigned int Idx , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx <sizeof...(InterpolationInfos) ) >::type _reorderInterpolationInfo( ConstPointer( node_index_type ) map , size_t sz , std::tuple< InterpolationInfos* ... > interpolationInfos )
 	{
-		if( dData ) dData->_remapIndices( map , sz );
-		_reorderDenseOrSparseNodeData( map , sz , data ... );
+		if( std::get<Idx>( interpolationInfos ) ) std::get<Idx>( interpolationInfos )->_remapIndices( map , sz );
+		_reorderInterpolationInfo< Idx+1 >( map , sz , interpolationInfos );
 	}
+
 public:
 	static double MaxMemoryUsage( void ){ return _MaxMemoryUsage; }
 	static double LocalMemoryUsage( void ){ return _LocalMemoryUsage; }
 	static void ResetLocalMemoryUsage( void ){ _LocalMemoryUsage = 0; }
 	static double MemoryUsage( void );
-	FEMTree( int blockSize );
-	FEMTree( FILE* fp , int blockSize );
+	FEMTree( size_t blockSize );
+	FEMTree( FILE* fp , XForm< Real , Dim+1 > &xForm , size_t blockSize );
 	~FEMTree( void )
 	{
-		if( _tree ) for( int c=0 ; c<(1<<Dim) ; c++ ) _tree[c].cleanChildren( nodeAllocator );
-		if( nodeAllocator ) delete nodeAllocator;
+		if( _tree ) for( int c=0 ; c<(1<<Dim) ; c++ ) _tree[c].cleanChildren( !nodeAllocators.size() );
+		for( size_t i=0 ; i<nodeAllocators.size() ; i++ ) delete nodeAllocators[i];
 	}
-	void write( FILE* fp ) const;
+	void write( FILE* fp , XForm< Real , Dim+1 > xForm ) const;
 	static void WriteParameter( FILE* fp )
 	{
 		FEMTreeRealType realType;
 		if     ( typeid( Real )==typeid( float  ) ) realType=FEM_TREE_REAL_FLOAT;
 		else if( typeid( Real )==typeid( double ) ) realType=FEM_TREE_REAL_DOUBLE;
-		else fprintf( stderr , "[ERROR] FEMTree::WriteParameter: Unrecognized real type\n" ) , exit( 0 );
+		else ERROR_OUT( "Unrecognized real type" );
 		fwrite( &realType , sizeof(FEMTreeRealType) , 1 , fp );
 		int dim = Dim;
 		fwrite( &dim , sizeof(int) , 1 , fp );
 	}
 
-	template< unsigned int LeftRadius , unsigned int RightRadius , class ... DenseOrSparseNodeData > void thicken( FEMTreeNode** nodes , size_t nodeCount , DenseOrSparseNodeData* ... data );
-	template< unsigned int LeftRadius , unsigned int RightRadius , class IsThickenNode , class ... DenseOrSparseNodeData > void thicken( IsThickenNode F , DenseOrSparseNodeData* ... data );
-	template< unsigned int Radius , class ... DenseOrSparseNodeData > void thicken( FEMTreeNode** nodes , size_t nodeCount , DenseOrSparseNodeData* ... data ){ thicken< Radius , Radius >( nodes , nodeCount , data ... ); }
-	template< unsigned int Radius , class IsThickenNode , class ... DenseOrSparseNodeData > void thicken( IsThickenNode F , DenseOrSparseNodeData* ... data ){ thicken< Radius , Radius >( F , data ... ); }
-	template< unsigned int DensityDegree >
-	typename FEMTree::template DensityEstimator< DensityDegree >* setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension );
-	template< unsigned int ... NormalSigs , unsigned int DensityDegree , class Data >
+	template< unsigned int LeftRadius , unsigned int RightRadius , bool CreateNodes , typename ProcessingNodeFunctor , typename ... DenseOrSparseNodeData , typename InitializeFunctor > void processNeighbors( ProcessingNodeFunctor processNodes ,     std::tuple< DenseOrSparseNodeData *... > data , InitializeFunctor initialize );
+	template< unsigned int LeftRadius , unsigned int RightRadius , bool CreateNodes ,                                  typename ... DenseOrSparseNodeData , typename InitializeFunctor > void processNeighbors( FEMTreeNode** nodes , size_t nodeCount , std::tuple< DenseOrSparseNodeData *... > data , InitializeFunctor initialize );
+	template< unsigned int Radius                                , bool CreateNodes , typename ProcessingNodeFunctor , typename ... DenseOrSparseNodeData , typename InitializeFunctor > void processNeighbors( ProcessingNodeFunctor processNodes     , std::tuple< DenseOrSparseNodeData *... > data , InitializeFunctor initialize ){ processNeighbors< Radius , Radius , CreateNodes >( processNodes , data , initialize ); }
+	template< unsigned int Radius                                , bool CreateNodes ,                                  typename ... DenseOrSparseNodeData , typename InitializeFunctor > void processNeighbors( FEMTreeNode** nodes , size_t nodeCount , std::tuple< DenseOrSparseNodeData *... > data , InitializeFunctor initialize ){ processNeighbors< Radius , Radius , CreateNodes >( nodes , nodeCount , data , initialize ); }
+
+	template< unsigned int LeftRadius , unsigned int RightRadius , bool CreateNodes , typename ProcessingNodeFunctor , typename ... DenseOrSparseNodeData > void processNeighbors( ProcessingNodeFunctor processNodes     , std::tuple< DenseOrSparseNodeData *... > data ){ return processNeighbors< LeftRadius , RightRadius , CreateNodes >( processNodes , data , []( const FEMTreeNode * ){} ); }
+	template< unsigned int LeftRadius , unsigned int RightRadius , bool CreateNodes ,                                  typename ... DenseOrSparseNodeData > void processNeighbors( FEMTreeNode** nodes , size_t nodeCount , std::tuple< DenseOrSparseNodeData *... > data ){ return processNeighbors< LeftRadius , RightRadius , CreateNodes >( nodes , nodeCount , data , []( const FEMTreeNode * ){} ); }
+	template< unsigned int Radius                                , bool CreateNodes , typename ProcessingNodeFunctor , typename ... DenseOrSparseNodeData > void processNeighbors( ProcessingNodeFunctor processNodes     , std::tuple< DenseOrSparseNodeData *... > data ){ return processNeighbors< Radius , CreateNodes >( processNodes , data , []( const FEMTreeNode * ){} ); }
+	template< unsigned int Radius                                , bool CreateNodes ,                                  typename ... DenseOrSparseNodeData > void processNeighbors( FEMTreeNode** nodes , size_t nodeCount , std::tuple< DenseOrSparseNodeData *... > data ){ return processNeighbors< Radius , CreateNodes >( nodes , nodeCount , data , []( const FEMTreeNode * ){} ) ; }
+
+	template< unsigned int LeftRadius , unsigned int RightRadius , typename IsProcessingNodeFunctor , typename ProcessingKernel > void processNeighboringLeaves( IsProcessingNodeFunctor isProcessingNode , ProcessingKernel kernel , bool processSubTree );
+	template< unsigned int LeftRadius , unsigned int RightRadius                                    , typename ProcessingKernel > void processNeighboringLeaves( FEMTreeNode** nodes , size_t nodeCount   , ProcessingKernel kernel , bool processSubTree );
+	template< unsigned int Radius                                , typename IsProcessingNodeFunctor , typename ProcessingKernel > void processNeighboringLeaves( IsProcessingNodeFunctor isProcessingNode , ProcessingKernel kernel , bool processSubTree ){ return processNeighboringLeaves< Radius , Radius >( isProcessingNode , kernel , processSubTree ); }
+	template< unsigned int Radius                                                                   , typename ProcessingKernel > void processNeighboringLeaves( FEMTreeNode** nodes , size_t nodeCount   , ProcessingKernel kernel , bool processSubTree ){ return processNeighboringLeaves< Radius , Radius >( nodes , nodeCount , kernel , processSubTree ); }
+
+	template< unsigned int CoDim , unsigned int DensityDegree >
+	typename FEMTree::template DensityEstimator< DensityDegree >* setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode );
+
+	template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
+	SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , Real& pointWeightSum , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction );
+	template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
 #if defined(_WIN32) || defined(_WIN64)
-	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction = []( Real ){ return 0.f; } );
+	SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , Real& pointWeightSum , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return 0.f; } );
 #else // !_WIN32 && !_WIN64
-	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction = []( Real ){ return (Real)0; } );
+	SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , Real& pointWeightSum , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return (Real)0; } );
 #endif // _WIN32 || _WIN64
 
 	template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
-	SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > setSingleDepthDataField( const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density );
-	template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
-	SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
-	template< unsigned int MaxDegree , class HasDataFunctor , class ... DenseOrSparseNodeData > void finalizeForMultigrid( LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data );
+	SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setExtrapolatedDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
+	template< unsigned int MaxDegree , unsigned int SystemDegree , typename HasDataFunctor , typename IsDirichletLeafFunctor , typename ... InterpolationInfos , typename ... DenseOrSparseNodeData > void finalizeForMultigrid( LocalDepth baseDepth , LocalDepth fullDepth , const HasDataFunctor hasData , const IsDirichletLeafFunctor isDirichletLeaf , std::tuple< InterpolationInfos *... > interpolationInfos , std::tuple< DenseOrSparseNodeData *... > data );
+	template< unsigned int MaxDegree , unsigned int SystemDegree , typename HasDataFunctor , typename IsDirichletLeafFunctor , typename ... InterpolationInfos                                      > void finalizeForMultigrid( LocalDepth baseDepth , LocalDepth fullDepth , const HasDataFunctor hasData , const IsDirichletLeafFunctor isDirichletLeaf , std::tuple< InterpolationInfos *... > interpolationInfos ){ finalizeForMultigrid< MaxDegree , SystemDegree , HasDataFunctor >( baseDepth , fullDepth , hasData , isDirichletLeaf , interpolationInfos , std::make_tuple() ); }
+	template< class ... DenseOrSparseNodeData > void resetIndices( std::tuple< DenseOrSparseNodeData *... > data );
 
 	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > initDenseNodeData( UIntPack< FEMSigs ... > ) const;
 	template< class Data , unsigned int ... FEMSigs > DenseNodeData< Data , UIntPack< FEMSigs ... > > initDenseNodeData( UIntPack< FEMSigs ... > ) const;
@@ -2283,7 +2249,6 @@ public:
 	}
 	// Add one-dimensions -> one-dimension constraints (with the same signatures)
 	template< typename T , unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
-//	void addFEMConstraints( typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const SparseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
 	void addFEMConstraints( typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
 	{
 		typedef SparseNodeData< T , UIntPack< FEMSigs ... > > SparseType;
@@ -2296,14 +2261,24 @@ public:
 		else                                                return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F ,                                   coefficients   , constraints() , maxDepth );
 	}
 
-	// Add interpolation constraints
-	template< typename T , unsigned int ... FEMSigs , unsigned int PointD , unsigned int ... PointDs >
-	typename std::enable_if< (sizeof...(PointDs)!=0) >::type addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD >& iInfo , const InterpolationInfo< T , PointDs >& ... iInfos ) const
+protected:
+	template< unsigned int MaxDegree > void _supportApproximateProlongation( void );
+	template< unsigned int SystemDegree > void _markNonBaseDirichletElements( void );
+	template< unsigned int SystemDegree > void _markBaseDirichletElements( void );
+
+	template< unsigned int Idx , typename T , unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx==sizeof...(InterpolationInfos) ) >::type _addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , std::tuple< InterpolationInfos *... > interpolationInfos ) const {}
+	template< unsigned int Idx , typename T , unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx <sizeof...(InterpolationInfos) ) >::type _addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
-		addInterpolationConstraints< T , FEMSigs ... >( constraints , maxDepth , iInfo );
-		addInterpolationConstraints< T , FEMSigs ... >( constraints , maxDepth , iInfos ... );
+		_addInterpolationConstraints( constraints , maxDepth , std::get< Idx >( interpolationInfos ) );
+		_addInterpolationConstraints< Idx+1 >( constraints , maxDepth , interpolationInfos );
 	}
-	template< typename T , unsigned int ... FEMSigs , unsigned int PointD > void addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD >& interpolationInfo ) const;
+	template< typename T , unsigned int ... FEMSigs , unsigned int PointD >
+	void _addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD > *interpolationInfo ) const;
+public:
+	template< typename T , unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	void addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , std::tuple< InterpolationInfos *... > interpolationInfos ) const { return _addInterpolationConstraints< 0 >( constraints , maxDepth , interpolationInfos ); }
 
 	// Real
 	template< unsigned int ... FEMDegrees1 , unsigned int ... FEMSigs1 , unsigned int ... FEMDegrees2 , unsigned int ... FEMSigs2 >
@@ -2347,17 +2322,17 @@ public:
 		else                                                return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F ,                                   coefficients   ,                                   coefficients   , []( Real v ,  Real w ){ return v*w; } );
 	}
 
-	template< unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... PointDs >
-	double interpolationDot( const DenseNodeData< Real , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< Real , UIntPack< FEMSigs2 ... > >& coefficients2 , const InterpolationInfo< Real , PointDs >* ... iInfos ) const
+	template< unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , typename ... InterpolationInfos >
+	double interpolationDot( const DenseNodeData< Real , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< Real , UIntPack< FEMSigs2 ... > >& coefficients2 , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
 		static_assert( sizeof...( FEMSigs1 )==Dim && sizeof...( FEMSigs2 )==Dim , "[ERROR] Dimensions don't match" );
-		return _inteprolationDot( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , []( Real v ,  Real w ){ return v*w; } , iInfos... );
+		return _interpolationDot< 0 >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , []( Real v ,  Real w ){ return v*w; } , interpolationInfos );
 	}
-	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
-	double interpolationSquareNorm( const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , const InterpolationInfo< Real , PointDs >* ... iInfos ) const
+	template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	double interpolationSquareNorm( const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
 		static_assert( sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
-		return _interpolationDot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , coefficients , coefficients , []( Real v ,  Real w ){ return v*w; } , iInfos... );
+		return _interpolationDot< 0 , Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , coefficients , coefficients , []( Real v ,  Real w ){ return v*w; } , interpolationInfos );
 	}
 
 	// Generic
@@ -2391,7 +2366,6 @@ public:
 		else if( typeid(coefficients1)==typeid( DenseType) && typeid(coefficients2)==typeid(SparseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const  DenseType& >( coefficients1 ) , static_cast< const SparseType& >( coefficients2 ) , Dot );
 		else                                                                                              return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F ,                                   coefficients1   ,                                   coefficients2   , Dot );
 	}
-
 	template< typename T , typename TDotT , unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
 	double squareNorm( TDotT Dot , typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients ) const
 	{
@@ -2403,28 +2377,32 @@ public:
 		else                                                return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F ,                                   coefficients   ,                                   coefficients   , Dot );
 	}
 
-	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... PointDs >
-	double interpolationDot( TDotT Dot , const DenseNodeData< T , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< T , UIntPack< FEMSigs2 ... > >& coefficients2 , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , typename ... InterpolationInfos >
+	double interpolationDot( TDotT Dot , const DenseNodeData< T , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< T , UIntPack< FEMSigs2 ... > >& coefficients2 , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
 		static_assert( sizeof...( FEMSigs1 )==Dim && sizeof...( FEMSigs2 )==Dim , "[ERROR] Dimensions don't match" );
-		return _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , Dot , iInfos... );
+		return _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , Dot , interpolationInfos );
 	}
-	template< typename T , typename TDotT , unsigned int ... FEMSigs , unsigned int ... PointDs >
-	double interpolationSquareNorm( TDotT Dot , const DenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	template< typename T , typename TDotT , unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	double interpolationSquareNorm( TDotT Dot , const DenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
 		static_assert( sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
-		return _interpolationDot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , coefficients , coefficients , Dot , iInfos... );
+		return _interpolationDot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , coefficients , coefficients , Dot , interpolationInfos );
 	}
 
-	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-	SparseMatrix< Real > systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
-	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-	SparseMatrix< Real > prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	SparseMatrix< Real , matrix_index_type > systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
+	template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	SparseMatrix< Real , matrix_index_type > prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
 	template< unsigned int ... FEMSigs >
-	SparseMatrix< Real > downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const;
+	SparseMatrix< Real , matrix_index_type > downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const;
+	template< unsigned int ... FEMSigs >
+	SparseMatrix< Real , matrix_index_type > upSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const;
+	template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	SparseMatrix< Real , matrix_index_type > fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , std::tuple< InterpolationInfos *... > interpolationInfos ) const;
 
-	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
-	SparseMatrix< Real > fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , bool nonRefinableOnly , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< typename T , unsigned int ... FEMSigs >
+	void pushToBaseDepth( DenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients ) const;
 
 	struct SolverInfo
 	{
@@ -2470,44 +2448,78 @@ public:
 		_IterFunction iters;
 		int vCycles;
 		double cgAccuracy;
-		int baseDepth , baseVCycles;
+		bool clearSolution;
+		int baseVCycles;
 		// What to output
 		bool verbose , showResidual;
 		int showGlobalResidual;
 
-		SolverInfo( void ) : cgDepth(0) , wCycle(false) , cascadic(true) , iters(1) , vCycles(1) , cgAccuracy(0.) , verbose(false) , showResidual(false) , showGlobalResidual(SHOW_GLOBAL_RESIDUAL_NONE) , sliceBlockSize(1) , sorRestrictionFunction( []( Real , Real ){ return (Real)1; } ) , sorProlongationFunction( []( Real , Real ){ return (Real)1; } ) , useSupportWeights( false ) , useProlongationSupportWeights( false ) , baseDepth(0) , baseVCycles(1) { }
+		SolverInfo( void ) : cgDepth(0) , wCycle(false) , cascadic(true) , iters(1) , vCycles(1) , cgAccuracy(0.) , verbose(false) , showResidual(false) , showGlobalResidual(SHOW_GLOBAL_RESIDUAL_NONE) , sliceBlockSize(1) , sorRestrictionFunction( []( Real , Real ){ return (Real)1; } ) , sorProlongationFunction( []( Real , Real ){ return (Real)1; } ) , useSupportWeights( false ) , useProlongationSupportWeights( false ) , baseVCycles(1) , clearSolution(true) { }
 	};
 	// Solve the linear system
-	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
-	void solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... iData ) const;
-	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
-	DenseNodeData< T , UIntPack< FEMSigs ... > > solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , TDotT Dot , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... iData ) const;
-
-	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
-	void solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< Real , PointDs >* ... iData ) const
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
+	void solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos=std::make_tuple() ) const;
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
+	DenseNodeData< T , UIntPack< FEMSigs ... > > solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , TDotT Dot , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos=std::make_tuple() ) const;
+	template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	void solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos=std::make_tuple() ) const
 	{
-		return solveSystem< FEMSigs ... , Real >( UIntPack< FEMSigs ... >() , F , constraints , solution , []( Real v , Real w ){ return v*w; } , maxSolveDepth , solverInfo , iData ... );
+		return solveSystem< FEMSigs ... , Real >( UIntPack< FEMSigs ... >() , F , constraints , solution , []( Real v , Real w ){ return v*w; } , maxSolveDepth , solverInfo , interpolationInfos );
 	}
-	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
-	DenseNodeData< Real , UIntPack< FEMSigs ... > > solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< Real , PointDs >* ... iData ) const
+	template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
+	DenseNodeData< Real , UIntPack< FEMSigs ... > > solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos=std::make_tuple() ) const
 	{
-		return solveSystem( UIntPack< FEMSigs ... >() , F , constraints , []( Real v , Real w ){ return v*w; } , maxSolveDepth , solverInfo , iData ... );
+		return solveSystem( UIntPack< FEMSigs ... >() , F , constraints , []( Real v , Real w ){ return v*w; } , maxSolveDepth , solverInfo , interpolationInfos );
 	}
 
 	FEMTreeNode& spaceRoot( void ){ return *_spaceRoot; }
+	const FEMTreeNode &spaceRoot( void ) const { return *_spaceRoot; }
 	const FEMTreeNode& tree( void ) const { return *_tree; }
-	std::function< void ( FEMTreeNode& ) > initializer( void ){ return _NodeInitializer( *this ); }
+	_NodeInitializer &initializer( void ){ return _nodeInitializer; }
 	size_t leaves( void ) const { return _tree->leaves(); }
 	size_t nodes( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( IsActiveNode< Dim >( n ) ) count++ ; return count; }
 	size_t ghostNodes( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( !IsActiveNode< Dim >( n ) ) count++ ; return count; }
+	size_t dirichletNodes( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( n->nodeData.getDirichletNodeFlag() ) count++ ; return count; }
+	size_t dirichletElements( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( n->nodeData.getDirichletElementFlag() ) count++ ; return count; }
 	inline size_t validSpaceNodes( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( isValidSpaceNode( n ) ) count++ ;  return count; }
 	inline size_t validSpaceNodes( LocalDepth d ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( _localDepth(n)==d && isValidSpaceNode( n ) ) count++ ; return count; }
 	template< unsigned int ... FEMSigs > size_t validFEMNodes( UIntPack< FEMSigs ... > ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( isValidFEMNode( UIntPack< FEMSigs ... >() , n ) ) count++ ;  return count; }
 	template< unsigned int ... FEMSigs > size_t validFEMNodes( UIntPack< FEMSigs ... > , LocalDepth d ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( _localDepth(n)==d && isValidFEMNode( UIntPack< FEMSigs ... >() , n ) ) count++ ; return count; }
+	template< unsigned int ... FEMSigs > size_t validUnlockedFEMNodes( UIntPack< FEMSigs ... > ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( isValidFEMNode( UIntPack< FEMSigs ... >() , n ) && !n->nodeData.getDirichletSupportedFlag() ) count++ ;  return count; }
+	template< unsigned int ... FEMSigs > size_t validUnlockedFEMNodes( UIntPack< FEMSigs ... > , LocalDepth d ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( _localDepth(n)==d && isValidFEMNode( UIntPack< FEMSigs ... >() , n ) && !n->nodeData.getDirichletElementFlag() ) count++ ; return count; }
 	LocalDepth depth( void ) const { return _spaceRoot->maxDepth(); }
-	void resetNodeIndices( void ){ _nodeCount = 0 ; for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) _nodeInitializer( *node ) , node->nodeData.flags=0; }
+	LocalDepth maxDepth( void ) const { return _maxDepth; }
+	template< typename ... DenseOrSparseNodeData >
+	node_index_type resetNodeIndices( char flagsToClear , std::tuple< DenseOrSparseNodeData *... > data )
+	{
+		char mask = ~flagsToClear;
+		if( sizeof...( DenseOrSparseNodeData ) )
+		{
+			std::vector< node_index_type > map( _nodeCount );
+			_nodeCount = 0;
+			for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) )
+			{
+				node_index_type idx = node->nodeData.nodeIndex;
+				_nodeInitializer( *node );
+				if( idx!=-1 ) map[idx] = node->nodeData.nodeIndex;
+				node->nodeData.flags &= mask;
+			}
+			_reorderDenseOrSparseNodeData< 0 >( GetPointer( map ) , (size_t)_nodeCount , data );
+		}
+		else
+		{
+			_nodeCount = 0;
+			for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) )
+			{
+				_nodeInitializer( *node );
+				node->nodeData.flags &= mask;
+			}
+		}
+		return _nodeCount;
+	}
+	node_index_type resetNodeIndices( char flagsToClear ){ return resetNodeIndices( flagsToClear , std::make_tuple() ); }
 
-	std::vector< int > merge( FEMTree* tree );
+	std::vector< node_index_type > merge( FEMTree* tree );
 protected:
 	template< class Real1 , unsigned int _Dim > static bool _IsZero( Point< Real1 , _Dim > p );
 	template< class Real1 >                     static bool _IsZero( Real1 p );
@@ -2524,10 +2536,12 @@ protected:
 	double _dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , typename BaseFEMIntegrator::Constraint< UIntPack< Degrees1 ... > , UIntPack< Degrees2 ... > , 1 >& F , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot ) const;
 	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 , unsigned int PointD >
 	double _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot , const InterpolationInfo< T , PointD >* iInfo ) const;
-	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 , unsigned int PointD , unsigned int ... PointDs >
-	double _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot , const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	template< unsigned int Idx , typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx==sizeof...(InterpolationInfos) ) , double >::type _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot , std::tuple< InterpolationInfos *... > interpolationInfos ) const { return 0.; }
+	template< unsigned int Idx , typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 , typename ... InterpolationInfos >
+	typename std::enable_if< ( Idx <sizeof...(InterpolationInfos) ) , double >::type _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 	{
-		return _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , Dot , iInfo ) + _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , Dot , iInfos... );
+		return _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , Dot , std::get< Idx >( interpolationInfos ) ) + _interpolationDot< Idx+1 , T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , Dot , interpolationInfos );
 	}
 	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 > double _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot ) const{ return 0; }
 };
@@ -2538,8 +2552,11 @@ template< unsigned int Dim , class Real > double FEMTree< Dim , Real >::_LocalMe
 template< unsigned int Dim , class Real , class Vertex >
 struct IsoSurfaceExtractor
 {
-	struct IsoStats{};
-	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
+	struct IsoStats
+	{
+		std::string toString( void ) const { return std::string( "Iso-surface extraction not supported for dimension %d" , Dim ); }
+	};
+	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
 	static IsoStats Extract
 	(
 		UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > ,							// Dummy variables for grouping the parameter
@@ -2548,16 +2565,18 @@ struct IsoSurfaceExtractor
 		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data ,	// Auxiliary spatial data
 		const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients ,								// The coefficients of the function
 		Real isoValue ,																						// The value at which to extract the level-set
-		CoredMeshData< Vertex >& mesh ,																		// The mesh in which to store the output
-		std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex ,					// A function for setting the depth and data of a vertex
+		CoredMeshData< Vertex , node_index_type >& mesh ,													// The mesh in which to store the output
+		const Data &zeroData ,																				// Zero value for data (in case of dynamic allocation)
+		const SetVertexFunction &SetVertex ,																// A function for setting the depth and data of a vertex
 		bool nonLinearFit ,																					// Should a linear interpolant be used
+		bool gradientNormals ,																				// Compute the gradient at the iso-vertex position
 		bool addBarycenter ,																				// Should we triangulate polygons by adding a mid-point
 		bool polygonMesh ,																					// Should we output triangles or polygons
 		bool flipOrientation																				// Should we flip the orientation
 	)
 	{
 		// The unspecialized implementation is not supported
-		fprintf( stderr , "[WARNING] Iso-surface extraction not supported for dimension %d\n" , Dim );
+		WARN( "Iso-surface extraction not supported for dimension " , Dim );
 		return IsoStats();
 	}
 };
@@ -2565,7 +2584,7 @@ struct IsoSurfaceExtractor
 template< unsigned int Dim , class Real >
 struct FEMTreeInitializer
 {
-	typedef RegularTreeNode< Dim , FEMTreeNodeData > FEMTreeNode;
+	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
 	typedef NodeAndPointSample< Dim , Real > PointSample;
 
 	template< class Data >
@@ -2576,26 +2595,91 @@ struct FEMTreeInitializer
 	};
 
 	// Initialize the tree using a refinement avatar
-	static int Initialize( FEMTreeNode& root , int maxDepth , std::function< bool ( int , int[] ) > Refine , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	static size_t Initialize( FEMTreeNode& root , int maxDepth , std::function< bool ( int , int[] ) > Refine , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 
 	// Initialize the tree using a point stream
-	static int Initialize( FEMTreeNode& root , InputPointStream< Real , Dim >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
-	template< class Data > static int Initialize( FEMTreeNode& root , InputPointStreamWithData< Real , Dim , Data >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< Data >& sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim >& , Data& ) > ProcessData = []( const Point< Real , Dim >& , Data& ){ return (Real)1.; } );
+	template< typename Data >
+	struct InputPointStream
+	{
+		typedef Data DataType;
+		typedef VectorTypeUnion< Real , Point< Real , Dim > , Data > PointAndDataType;
+		typedef InputDataStream< PointAndDataType > StreamType;
+		static       Point< Real , Dim > &GetPoint(       PointAndDataType &pd ){ return pd.template get<0>(); }
+		static const Point< Real , Dim > &GetPoint( const PointAndDataType &pd ){ return pd.template get<0>(); }
+		static       DataType &GetData(       PointAndDataType &pd ){ return pd.template get<1>(); }
+		static const DataType &GetData( const PointAndDataType &pd ){ return pd.template get<1>(); }
+
+		static void BoundingBox( StreamType &stream , Point< Real , Dim >& min , Point< Real , Dim >& max )
+		{
+			PointAndDataType p;
+			for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::numeric_limits< Real >::infinity() , max[d] = -std::numeric_limits< Real >::infinity();
+			while( stream.next( p ) ) for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( min[d] , p.template get<0>()[d] ) , max[d] = std::max< Real >( max[d] , p.template get<0>()[d] );
+			stream.reset();
+		}
+	};
+
+	template< typename Data >
+	static size_t Initialize( FEMTreeNode& root , typename InputPointStream< Data >::StreamType &pointStream , int maxDepth , std::vector< PointSample >& samplePoints ,                                                                                                         Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< typename Data >
+	static size_t Initialize( FEMTreeNode& root , typename InputPointStream< Data >::StreamType &pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< typename InputPointStream< Data >::DataType > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ) > ProcessData = []( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ){ return (Real)1.; } );
 
 	// Initialize the tree using simplices
-	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
-	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
-	template< class Data , class _Data , bool Dual=true >
-	static int Initialize( FEMTreeNode& root , ConstPointer( Data ) values , ConstPointer( int ) labels , int resolution[Dim] , std::vector< NodeSample< Dim , _Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< _Data ( const Data& ) > DataConverter = []( const Data& d ){ return (_Data)d; }	);
+	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices   , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 
+	struct GeometryNodeType
+	{
+		enum Type : char
+		{
+			UNKNOWN ,
+			INTERIOR ,
+			BOUNDARY ,
+			EXTERIOR
+		};
+		Type type;
+		GeometryNodeType( Type t=UNKNOWN ) : type( t ){}
+		bool operator== ( GeometryNodeType gnt ) const { return type==gnt.type; }
+		bool operator!= ( GeometryNodeType gnt ) const { return type!=gnt.type; }
+		bool operator== ( Type type ) const { return this->type==type; }
+		bool operator!= ( Type type ) const { return this->type!=type; }
+
+		friend std::ostream &operator << ( std::ostream &os , const GeometryNodeType &type )
+		{
+			if     ( type.type==UNKNOWN  ) return os << "unknown";
+			else if( type.type==INTERIOR ) return os << "interior";
+			else if( type.type==BOUNDARY ) return os << "boundary";
+			else if( type.type==EXTERIOR ) return os << "exterior";
+			return os;
+		}
+
+	};
+
+	template< unsigned int _Dim=Dim >
+	static typename std::enable_if< _Dim!=1 , DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > >::type GetGeometryNodeDesignators( FEMTreeNode *root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< unsigned int _Dim=Dim >
+	static typename std::enable_if< _Dim==1 , DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > >::type GetGeometryNodeDesignators( FEMTreeNode *root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	static void TestGeometryNodeDesignators( const FEMTreeNode *root , const DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > &geometryNodeDesignators );
+	static void PushGeometryNodeDesignatorsToFiner( const FEMTreeNode *root , DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > &geometryNodeDesignators , unsigned int maxDepth=-1 );
+	static void PullGeometryNodeDesignatorsFromFiner( const FEMTreeNode *root , DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > &geometryNodeDesignators , unsigned int maxDepth=-1 );
+
+	// Initialize the tree using weighted points
+	static void Initialize( FEMTreeNode &root , const std::vector< ProjectiveData< Point< Real , Dim > , Real > > &points , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	static void Initialize( FEMTreeNode &root , const std::vector< ProjectiveData< Point< Real , Dim > , Real > > &points , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples );
+
+	template< class Data , class _Data , bool Dual=true >
+	static size_t Initialize( FEMTreeNode& root , ConstPointer( Data ) values , ConstPointer( int ) labels , int resolution[Dim] , std::vector< NodeSample< Dim , _Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< _Data ( const Data& ) > DataConverter = []( const Data& d ){ return (_Data)d; }	);
 	template< bool Dual , class Data >
 	static unsigned int Initialize( FEMTreeNode& root , DerivativeStream< Data >& dStream , std::vector< NodeSample< Dim , Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 
 protected:
-	static int _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< int >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
-	static int _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< int >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
-	static int _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< int >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
-	static int _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< int >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< bool ThreadSafe > static size_t _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< bool ThreadSafe > static size_t _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< bool ThreadSafeAllocation , bool ThreadSafeSimplices > static size_t _AddSimplex( FEMTreeNode& root , node_index_type id , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< bool ThreadSafeAllocation , bool ThreadSafeSimplices > static size_t _AddSimplex( FEMTreeNode* node , node_index_type id , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< bool ThreadSafe > static size_t _AddSample( FEMTreeNode& root , ProjectiveData< Point< Real , Dim > , Real > s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	static size_t _AddSample( FEMTreeNode& root , ProjectiveData< Point< Real , Dim > , Real > s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap );
+	static size_t _AddSample( FEMTreeNode* node , ProjectiveData< Point< Real , Dim > , Real > s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap );
+	static DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > _GetGeometryNodeDesignators( FEMTreeNode *root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , const std::vector< Point< Real , Dim > > &normals , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 };
 template< unsigned int Dim , class Real >
 template< unsigned int ... SupportSizes >

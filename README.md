@@ -1,12 +1,9 @@
-<center><h2>Adaptive Multigrid Solvers (Version 10.02)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 13.72)</h2></center>
 <center>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#LINKS">links</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#EXECUTABLES">executables</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#USAGE">usage</a>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#CHANGES">changes</a>
-<!--
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/index.html#SUPPORT">support</a>
--->
+<a href="#LINKS">links</a>
+<a href="#EXECUTABLES">executables</a>
+<a href="#USAGE">usage</a>
+<a href="#CHANGES">changes</a>
 </center>
 <hr>
 This code-base was born from the Poisson Surface Reconstruction code. It has evolved to support more general adaptive finite-elements systems:
@@ -24,13 +21,31 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
 <a href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>,
 <A HREF="https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/">[Crane, Weischedel, and Wardetzky, 2013]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.71/">V13.71</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.70/">V13.70</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.61/">V13.61</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.60/">V13.60</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/">V13.50</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">V13.00</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">V12.00</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">V11.02</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">V11.01</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">V11.00</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">V10.07</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">V10.06</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">V10.05</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">V10.04</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">V10.03</a>,
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">V10.02</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">V10.01</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/">V10.00</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.011/">V9.011</a>,
@@ -64,7 +79,9 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <SUMMARY>
 <font size="+1"><b>PoissonRecon</b></font>:
 Reconstructs a triangle mesh from a set of oriented 3D points by solving a Poisson system (solving a 3D Laplacian system with positional value constraints) <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
+<a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
 </dt><dd> This string is the name of the file from which the point set will be read.<br>
@@ -79,6 +96,13 @@ of the point's normal. (No information about the number of oriented point sample
 Otherwise, the file should be an ascii file with groups of 6,
 white space delimited, numbers: x-, y-, and z-coordinates of the point's position, followed
 by the x-, y- and z-coordinates of the point's normal. (No information about the number of oriented point samples should be specified.)<br> 
+</dd>
+
+<dt>[<b>--envelope</b> &lt;<i>constraint envelope</i>&gt;]
+</dt><dd> This string is the name of the file from which the constraint envelope will be read.<br>
+The file should be a water-tight triangle mesh in
+<a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, oriented so that the normals are pointing
+in the direction that should be outside of the reconstructed surface.<br>
 
 </dd><dt>[<b>--out</b> &lt;<i>output triangle mesh</i>&gt;]
 </dt><dd> This string is the name of the file to which the triangle mesh will be written. 
@@ -87,10 +111,10 @@ The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/p
 </dd><dt>[<b>--tree</b> &lt;<i>output octree and coefficients</i>&gt;]
 </dt><dd> This string is the name of the file to which the the octree and solution coefficients are to be written.
 
-</dd><dt>[<b>--voxel</b> &lt;<i>output voxel grid</i>&gt;]
+</dd><dt>[<b>--grid</b> &lt;<i>output grid</i>&gt;]
 </dt><dd> This string is the name of the file to which the sampled implicit function will be written.
 The file is written out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
-and the next 4 x 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> bytes corresponding to the (single precision) floating point values
+and the next 4 x 2^<i>d</i> x 2^<i>d</i> x ... bytes corresponding to the (single precision) floating point values
 of the implicit function.
 
 </dd><dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]
@@ -109,8 +133,8 @@ The default value for this parameter is 3 (Neumann).
 
 </dd><dt>[<b>--depth</b> &lt;<i>reconstruction depth</i>&gt;]
 </dt><dd> This integer is the maximum depth of the tree that will be used for surface reconstruction.
-Running at depth <i>d</i> corresponds to solving on a voxel grid whose resolution is no larger than
-2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>. Note that since the reconstructor adapts the octree to the
+Running at depth <i>d</i> corresponds to solving on a grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x ... Note that since the reconstructor adapts the octree to the
 sampling density, the specified reconstruction depth is only an upper bound.<br>
 The default value for this parameter is 8.
 
@@ -147,11 +171,11 @@ The default value for this parameter is 8.
 </dt><dd> Enabling this flag tells the reconstructor to output vertex normals, computed from the gradients of the implicit function.
 
 </dd><dt>[<b>--colors</b>]
-</dt><dd> Enabling this flag tells the reconstructor to read in color values with the input points and extrapolate those to the vertices of the output.
+</dt><dd> If the input points are in ASCII/binary format and contain color values, this flag lets the reconstruction code know that (1) each sample is represented by nine floating point values instead of the expected six, and that (2) color values should be output with the vertices of the reconstructed surface. (For input samples in the .ply format, the presence of color information, as well as any other additional per-sample data, is automatically determined from the file header.)
 
 </dd><dt>[<b>--data</b> &lt;<i>pull factor</i>&gt;]
-</dt><dd> If <B>--colors</B> is specified, this floating point value specifies the relative importance
-of finer color estimates over lower ones.<BR>
+</dt><dd> If the input points have additional data (e.g. color) that is to be sampled at the output vertices, this floating point value specifies the relative importance
+of finer data over lower data in performing the extrapolation.<BR>
 The default value for this parameter is 32.
 
 </dd><dt>[<b>--confidence</b> &lt;<i>normal confidence exponent</i>&gt;]
@@ -162,8 +186,8 @@ The default value for this parameter is 0.
 </dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to bias the resolution at which the sample contributes to the linear system. (Points with lower confidence are biased to contribute at coarser resolutions.)<BR>
 The default value for this parameter is 0.
 
-</dd><dt>[<b>--primalVoxel</b>]
-</dt><dd> Enabling this flag when outputing to a voxel file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
+</dd><dt>[<b>--primalGrid</b>]
+</dt><dd> Enabling this flag when outputing to a grid file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
 
 </dd><dt>[<b>--linearFit</b>]
 </dt><dd> Enabling this flag has the reconstructor use linear interpolation to estimate the positions of iso-vertices.
@@ -221,10 +245,10 @@ The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/p
 </dd><dt>[<b>--tree</b> &lt;<i>output octree and coefficients</i>&gt;]
 </dt><dd> This string is the name of the file to which the the octree and solution coefficients are to be written.
 
-</dd><dt>[<b>--voxel</b> &lt;<i>output voxel grid</i>&gt;]
+</dd><dt>[<b>--grid</b> &lt;<i>output grid</i>&gt;]
 </dt><dd> This string is the name of the file to which the sampled implicit function will be written.
 The file is wrtten out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
-and the next 4 x 2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i> bytes corresponding to the (single precision) floating point values
+and the next 4 x 2^<i>d</i> x 2^<i>d</i> x ... bytes corresponding to the (single precision) floating point values
 of the implicit function.
 
 </dd><dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]
@@ -234,8 +258,8 @@ The default value for this parameter is 2.
 
 </dd><dt>[<b>--depth</b> &lt;<i>reconstruction depth</i>&gt;]
 </dt><dd> This integer is the maximum depth of the tree that will be used for surface reconstruction.
-Running at depth <i>d</i> corresponds to solving on a voxel grid whose resolution is no larger than
-2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>. Note that since the reconstructor adapts the octree to the
+Running at depth <i>d</i> corresponds to solving on a grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x ... Note that since the reconstructor adapts the octree to the
 sampling density, the specified reconstruction depth is only an upper bound.<br>
 The default value for this parameter is 8.
 
@@ -281,11 +305,11 @@ The default value for this parameter is 8.
 </dt><dd> Enabling this flag tells the reconstructor to output vertex normals, computed from the gradients of the implicit function.
 
 </dd><dt>[<b>--colors</b>]
-</dt><dd> Enabling this flag tells the reconstructor to read in color values with the input points and extrapolate those to the vertices of the output.
+</dt><dd> If the input points are in ASCII/binary format and contain color values, this flag lets the reconstruction code know that (1) each sample is represented by nine floating point values instead of the expected six, and that (2) color values should be output with the vertices of the reconstructed surface. (For input samples in the .ply format, the presence of color information, as well as any other additional per-sample data, is automatically determined from the file header.)
 
 </dd><dt>[<b>--data</b> &lt;<i>pull factor</i>&gt;]
-</dt><dd> If <B>--colors</B> is specified, this floating point value specifies the relative importance
-of finer color estimates over lower ones.<BR>
+</dt><dd> If the input points have additional data (e.g. color) that is to be sampled at the output vertices, this floating point value specifies the relative importance
+of finer data over lower data in performing the extrapolation.<BR>
 The default value for this parameter is 32.
 
 </dd><dt>[<b>--confidence</b> &lt;<i>normal confidence exponent</i>&gt;]
@@ -296,8 +320,8 @@ The default value for this parameter is 0.
 </dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to bias the resolution at which the sample contributes to the linear system. (Points with lower confidence are biased to contribute at coarser resolutions.)<BR>
 The default value for this parameter is 0.
 
-</dd><dt>[<b>--primalVoxel</b>]
-</dt><dd> Enabling this flag when outputing to a voxel file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
+</dd><dt>[<b>--primalGrid</b>]
+</dt><dd> Enabling this flag when outputing to a grid file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
 
 </dd><dt>[<b>--nonLinearFit</b>]
 </dt><dd> Enabling this flag has the reconstructor use quadratic interpolation to estimate the positions of iso-vertices.
@@ -323,6 +347,106 @@ The default value for this parameter is equal to the numer of (virtual) processo
 individual components of the surface reconstructor.
 
 </dd>
+</DETAILS>
+</dl>
+</ul>
+
+
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
+<font size="+1"><b>PointInterpolant</b></font>:
+Fits a function to a set of sample values and/or gradients by finding the coefficients of the function that minimize an energy composed of a point-wise interpolation term and Laplacian and bi-Laplacian smoothness terms
+</SUMMARY>
+
+<dt><b>--inValues</b> &lt;<i>input sample positions and values</i>&gt;</dt>
+<dd> This string is the name of the file from which the positions and values will be read.<br>
+The file should be an ascii file with groups of <I>Dim</I>+1, white space delimited, numbers: the coordinates of the point's position,
+followed by the value at that point.<br>
+No information about the number of samples should be specified.</dd>
+
+<dt><b>--inGradients</b> &lt;<i>input sample positions and gradients</i>&gt;</dt>
+<dd> This string is the name of the file from which the positions and gradients will be read.<br>
+The file should be an ascii file with groups of 2*<I>Dim</I>, white space delimited, numbers: the coordinates of the point's position,
+followed by the gradient at that point).<br>
+No information about the number of samples should be specified.</dd>
+
+<dt>[<b>--dim</b> &lt;<i>dimension of the samples</i>&gt;]</dt>
+<dd> This integerl value is the dimension of the samples.<BR>
+The default value is 2.<br></dd>
+
+<dt>[<b>--tree</b> &lt;<i>output octree and coefficients</i>&gt;]</dt>
+<dd> This string is the name of the file to which the the octree and function coefficients are to be written.</dd>
+
+<dt>[<b>--grid</b> &lt;<i>output grid</i>&gt;]</dt>
+<dd> This string is the name of the file to which the sampled implicit function will be written.
+The file is wrtten out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
+and the next 4 x 2^<i>d</i> x 2^<i>d</i> x ... bytes corresponding to the (single precision) floating point values
+of the implicit function.</dd>
+
+<dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]</dt>
+<dd> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.
+Larger degrees support higher order approximations, but come at the cost of denser system matrices (incurring a cost in both space and time).<br>
+The default value for this parameter is 2.</dt>
+
+<dt>[<b>--bType</b> &lt;<i>boundary type</i>&gt;]</dt>
+<dd> This integer specifies the boundary type for the finite elements. Valid values are:
+<ul>
+<li> <b>1</b>: Free boundary constraints</li>
+<li> <b>2</b>: Dirichlet boundary constraints</li>
+<li> <b>3</b>: Neumann boundary constraints</li>
+</ul>
+The default value for this parameter is 1 (free).
+
+<dt>[<b>--depth</b> &lt;<i>reconstruction depth</i>&gt;]</dt>
+<dd> This integer is the maximum depth of the tree that will be used for surface reconstruction.
+Running at depth <i>d</i> corresponds to solving on a grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x ... Note that since the reconstructor adapts the octree to the
+sampling density, the specified reconstruction depth is only an upper bound.<br>
+The default value for this parameter is 8.</dd>
+
+<dt>[<b>--width</b> &lt;<i>finest cell width</i>&gt;]</dt>
+<dd> This floating point value specifies the target width of the finest level octree cells.<br>
+This parameter is ignored if the <B>--depth</B> is also specified.</dd>
+
+<dt>[<b>--scale</b> &lt;<i>scale factor</i>&gt;]</dt>
+<dd> This floating point value specifies the ratio between the diameter of the cube used for reconstruction
+and the diameter of the samples' bounding cube.<br>
+The default value is 1.1.</dd>
+
+<dt>[<b>--valueWeight</b> &lt;<i>value interpolation weight</i>&gt;]</dt>
+<dd> This floating point value specifies the importance that interpolation of the samples' values
+is given in the fitting of the function.<br>
+The default value for this parameter is 1000.</dd>
+
+<dt>[<b>--gradientWeight</b> &lt;<i>gradient interpolation weight</i>&gt;]</dt>
+<dd> This floating point value specifies the importance that interpolation of the samples' gradients
+is given in the fitting of the function.<br>
+The default value for this parameter is 1.<BR>
+This value is ignored unless gradient interpolation is specified.</dd>
+
+<dt>[<b>--lapWeight</b> &lt;<i>Laplacian weight</i>&gt;]</dt>
+<dd> This floating point value specifies the importance that Laplacian regularization
+is given in the fitting of the function.<br>
+The default value for this parameter is 0.</dd>
+
+<dt>[<b>--biLapWeight</b> &lt;<i>bi-Laplacian weight</i>&gt;]</dt>
+<dd> This floating point value specifies the importance that bi-Laplacian regularization
+is given in the fitting of the function.<br>
+The default value for this parameter is 1.</dd>
+
+<dt>[<b>--iters</b> &lt;<i>GS iters</i>&gt;]</dt>
+<dd> This integer value specifies the number of Gauss-Seidel relaxations to be performed at each level of the hiearchy.<br>
+The default value for this parameter is 8.</dd>
+
+<dt>[<b>--performance</b>]</dt>
+<dd> Enabling this flag provides running time and peak memory usage at the end of the execution.</dd>
+
+<dt>[<b>--verbose</b>]</dt>
+<dd> Enabling this flag provides a more verbose description of the running times and memory usages of
+individual components of the surface reconstructor.</dd>
+
 </DETAILS>
 </dl>
 </ul>
@@ -440,8 +564,8 @@ The default value for this parameter is 1.
 
 </dd><dt>[<b>--depth</b> &lt;<i>edt depth</i>&gt;]
 </dt><dd> This integer is the maximum depth of the tree that will be used for computing the Euclidean Distance Transform.
-Running at depth <i>d</i> corresponds to solving on a voxel grid whose resolution is no larger than
-2^<i>d</i> x 2^<i>d</i> x 2^<i>d</i>.<br>
+Running at depth <i>d</i> corresponds to solving on a grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x ...<br>
 The default value for this parameter is 8.
 
 </dd><dt>[<b>--scale</b> &lt;<i>scale factor</i>&gt;]
@@ -496,10 +620,16 @@ The default value for this parameter is equal to the numer of (virtual) processo
 Extracts iso-surfaces and a sampling on a regular grid from an implicit function represented over an adapted tree
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input tree and coefficients</i>&gt;
-</dt><dd> This string is the name of the file from which the tree and implicit functions coefficients are to be read. 
+</dt><dd> This string is the name of the file from which the tree and implicit functions coefficients are to be read.</dd>
 
-</dd><dt>[<b>--grid</b> &lt;<i>output value grid</i>&gt;]
-</dt><dd> This string is the name of the file to which the sampling of the implicit along a regular voxel grid will be written.<BR>
+<dt>[<b>--samples</b> &lt;<i>input sample positions</i>&gt;]</dt>
+<dd> This string is the name of the file from which sampling positions are to be read.<BR>
+The file should be an ascii file with groups of <I>Dim</I> white space delimited, numbers giving the coordinates of the sampling  points' position.<br>
+No information about the number of samples should be specified.</dd>
+</dd>
+
+<dt>[<b>--grid</b> &lt;<i>output value grid</i>&gt;]
+</dt><dd> This string is the name of the file to which the sampling of the implicit along a regular grid will be written.<BR>
 The file is written out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, <i>R</i>,
 and the next 4 x <I>R</I>^<i>D</i> bytes corresponding to the (single precision) floating point values of the implicit function. (Here, <i>D</I> is the dimension.)
 
@@ -538,6 +668,45 @@ individual components of the visualizer.
 </dl>
 </ul>
 
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
+<font size="+1"><b>ChunkPly</b></font>:
+Decomposes a collection of mesh/point-set files into a set of chunks with prescribed bounding box widths.
+</SUMMARY>
+<dt><b>--in</b> &lt;<i>input geometry file count, geometry file #1, geometry file #2, ...</i>&gt;
+</dt><dd> These white-space separated strings give the number of geometry files (containing representing either a point cloud in 3D or a mesh) and the names of the individual files.
+
+</dd><dt>[<b>--out</b> &lt;<i>output ply file name/header</i>&gt;]
+</dt><dd> This string is the name of the file/header to which the chunks should be written. If the width of the chunk is <I>W</I>, the file containing the geometry inside the cube [<I>W</I>&middot;<i>i</I>,<i>W</i>&middot;(<i>i+1</i>)</I>]&times;[<I>W</I>&middot;<i>j</I>,<i>W</i>&middot;(<i>j+1</i>)</I>]&times;[<I>W</I>&middot;<i>k</I>,<i>W</i>&middot;(<i>k+1</i>)</I>]</I> will be named <I>&lt;output header&gt;.i.j.k.ply</i>.
+
+</dd><dt>[<b>--width &lt;<i>chunk width</i>&gt;</b>]
+</dt><dd> This floating point value specifies the width of the cubes used for chunking.<BR>
+The default value for this parameter is <i>-1</i>, indicating that the input should be written to a single ouput. (In this case the value of the <i>--out</i> parameter is the name of the single file to which the output is written.
+
+</dd><dt>[<b>--radius &lt;<i>padding radius</i>&gt;</b>]
+</dt><dd> This floating point value specifies the size of the padding region used, as a fraction of the total width of the cube.<BR>
+The default value for this parameter is <i>0</i>, indicating that no padding should be used.
+
+</dd><dt>[<b>--noNormals</b>]
+</dt><dd> Enabling this flag lets the chunking code know that, in the case that the input is a point cloud in raw ASCII/binary format, the points do not have normals associated with them..
+
+</dd><dt>[<b>--colors</b>]
+</dt><dd> Enabling this flag lets the chunking code know that, in the case that the input is a point cloud in raw ASCII/binary format, the points have color associatd with them.
+
+</dd><dt>[<b>--values</b>]
+</dt><dd> Enabling this flag lets the chunking code know that, in the case that the input is a point cloud in raw ASCII/binary format, the points have scalar values associated with them.
+
+</dd><dt>[<b>--verbose</b>]
+</dt><dd> Enabling this flag provides a more verbose description of the running times and memory usages of
+individual components of the visualizer.
+
+</dd>
+</DETAILS>
+</dl>
+</ul>
+
 <hr>
 <a name="USAGE"><b>USAGE EXAMPLES (WITH SAMPLE DATA)</b></a><br>
 
@@ -545,7 +714,7 @@ individual components of the visualizer.
 <dl>
 <DETAILS>
 <SUMMARY>
-<font size="+1"><b>PoissonRecon / SSDRecon / SurfaceTrimmer</b></font>
+<font size="+1"><b>PoissonRecon / SSDRecon / SurfaceTrimmer / ChunkPly</b></font>
 </SUMMARY>
 For testing purposes, three point sets are provided:
 <ol>
@@ -571,14 +740,23 @@ By default, the Poisson surface reconstructor uses degree-2 B-splines. A more ef
 
 <li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.points.ply"><b>Eagle</b></a>:
 A set of 796,825 oriented point samples with color (represented in PLY format) was obtained in the EPFL <a href="http://lgg.epfl.ch/statues.php">Scanning 3D Statues from Photos</a> course.<br>
-A reconstruction of the eagle that extrapolates the color values from the input samples can be obtained by calling:
-<blockquote><code>% PoissonRecon --in eagle.points.ply --out eagle.screened.color.ply --depth 10 --colors</code></blockquote>
-using the <b>--colors</b> flag to indicate that color extrapolation should be used.<BR>
+A reconstruction of the eagle can be obtained by calling:
+<blockquote><code>% PoissonRecon --in eagle.points.ply --out eagle.pr.ply --depth 10</code></blockquote>
+(with the RGBA color properties automatically detected from the .ply header).<BR>
 A reconstruction of the eagle that does not close up the holes can be obtained by first calling:
-<blockquote><code>% SSDRecon --in eagle.points.ply --out eagle.screened.color.ply --depth 10 --colors --density</code></blockquote>
+<blockquote><code>% SSDRecon --in eagle.points.ply --out eagle.ssd.ply --depth 10 --density</code></blockquote>
 using the <b>--density</b> flag to indicate that density estimates should be output with the vertices of the mesh, and then calling:
-<blockquote><code>% SurfaceTrimmer --in eagle.screened.color.ply --out eagle.screened.color.trimmed.ply --trim 7</code></blockquote>
-to remove all subsets of the surface where the sampling density corresponds to a depth smaller than 7.
+<blockquote><code>% SurfaceTrimmer --in eagle.ssd.ply --out eagle.ssd.trimmed.ply --trim 7</code></blockquote>
+to remove all subsets of the surface where the sampling density corresponds to a depth smaller than 7.<BR>
+This reconstruction can be chunked into cubes of size 4&times;4&times;4 by calling:
+<blockquote><code>% ChunkPly --in 1 eagle.ssd.trimmed.ply --out eagle.ssd.trimmed.chnks --width 4</code></blockquote>
+which partitions the reconstruction into 11 pieces.
+
+<li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/torso.zip"><b>Torso</b></a>:
+A set of 3,488,432 (torso.points.ply) and an envelope (torso.envelope.ply).<br>
+A reconstruction of the torso that constrains the reconstruction to be contained within the envelope can be obtained by calling:
+<blockquote><code>% PoissonRecon --in torso.points.ply --envelope torso.envelope.ply --out torso.pr.ply --depth 10</code></blockquote>
+using the <b>--envelope</b> flag to specify the water-tight mesh constraining the reconstruction.<BR>
 </li>
 
 </ol>
@@ -587,6 +765,34 @@ to remove all subsets of the surface where the sampling density corresponds to a
 </dl>
 </ul>
 
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
+<font size="+1"><b>PointInterpolant / AdaptiveTreeVisualization</b></font>
+</SUMMARY>
+For testing purposes, a pair of point-sets is provided:
+<ol>
+
+<li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/quadratic.2D.fitting.samples"><b>fitting samples</b></a>:
+A set of 1000 random 2D samples from within the square [-1,1,]x[-1,1] along with the evaluation of the quadratic <i>f(x,y)=x*x+y*y</i> at each sample point (represented in ASCII format).
+<LI> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/quadratic.2D.evaluation.samples"><b>evaluation samples</b></a>:
+A set of 4 2D positions at which the fit function is to be evaluated (represented in ASCII format).
+</ol>
+
+The function fitting the input samples can be by calling the point interpolant:
+<blockquote><code>% PointInterpolant --inValues quadratic.2D.fitting.samples --tree quadratic.2D.tree --dim 2</code></blockquote>
+Then, the reconstructed function can be evaluated at the evaluation samples by calling the adaptive tree visualization:
+<blockquote><code>% AdaptiveTreeVisualization --in quadratic.2D.tree --samples quadratic.2D.evaluation.samples</code></blockquote>
+This will output the evaluation positions and values:
+<blockquote><CODE>0 0 1.33836e-05</CODE></blockquote>
+<blockquote><CODE>0.5 0 0.25001</CODE></blockquote>
+<blockquote><CODE>0.5 0.5 0.500006</CODE></blockquote>
+<blockquote><CODE>2 2 nan</CODE></blockquote>
+Note that because the (last) evaluation position (2,2) is outside the bounding box of the fitting samples, the function cannot be evaluated at this point and a value of "nan" is output.
+</DETAILS>
+</dl>
+</ul>
 
 <ul>
 <dl>
@@ -630,7 +836,7 @@ To obtain a sampling of the implicit function over a regular grid:
 <hr>
 <DETAILS>
 <SUMMARY>
-<font size="+1"><b><B>HISTORY OF CHANGES</B></b></font>
+<A NAME="CHANGES"><font size="+1"><b><B>HISTORY OF CHANGES</B></b></font></A>
 </SUMMARY>
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">Version 3</a>:
 <ol>
@@ -738,8 +944,8 @@ To obtain a sampling of the implicit function over a regular grid:
 (Note that as the B-spline degree is a template parameter, only degree 1 through 4 are supported.
 If higher order degrees are desired, additional template parameters can be easily added in the body of the <u>Execute</u> function inside of <i>PoissonRecon.cpp</i>.
 Similarly, to reduce compilation times, support for specific degrees can be removed.)
-</li><li> Added the <b>--primalVoxel</b> flag to support to extraction of a voxel grid using primal sampling.
-</li><li> Changed the implementation of the voxel sampling so that computation is now linear, rather than log-linear, in the number of samples.
+</li><li> Added the <b>--primalGrid</b> flag to support to extraction of a grid using primal sampling.
+</li><li> Changed the implementation of the grid sampling so that computation is now linear, rather than log-linear, in the number of samples.
 </li></ol>
 
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">Version 9.0</a>:
@@ -773,14 +979,101 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">Version 10.02</a>:
 <ol>
-<li> Set the default FEM degree for PoissonRecon to 1 and set the default data dgree for PoissonRecon and SSDRecon to 0.</LI>
+<li> Set the default value for <b>--degree</B> in PoissonRecon to 1 and change the definitiion of <I>DATA_DEGREE</I> to 0 for sharper color interpolation.</LI>
 </ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">Version 10.03</a>:
+<ol>
+<li> Cleaned up memory leaks and fixed a bug causing ImageStitching and EDTInHeat to SEGFAULT on Linux.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">Version 10.04</a>:
+<ol>
+<li> Replaced the ply I/O code with an object-oriented implementation.
+<LI> Updated the code to support compilation under gcc version 4.8.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">Version 10.05</a>:
+<ol>
+<LI> Added cleaner support for warning and error handling.
+<LI> Minor bug fixes.
+<LI> Added a <B>--inCore</B> flag that enables keeping the pointset in memory instead of streaming it in from disk.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">Version 10.06</a>:
+<ol>
+<LI> Improved performance.
+<LI> Modified <CODE>PoissonRecon</CODE> and <CODE>SSDRecon</CODE> to support processing of 2D point sets.
+<LI> Modified the 2D implementations of <CODE>PoissonRecon</CODE>, <CODE>SSDRecon</CODE>, and <CODE>AdaptiveTreeVisualization</CODE> to support ouput to <CODE>.jpg</CODE> and <CODE>.png</CODE> image files.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">Version 10.07</a>:
+<ol>
+<LI> Removed a bug that would cause memory access errors when some slices were empty.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 11.00</a>:
+<ol>
+<LI> Added support for processing point-sets so large that 32-bit indices for octrees are not sufficient. (Enabled by defining the preprocessor variable <B>BIG_DATA</B> in the file <I>PreProcessor.h</I>.
+<LI> Added C++11 parallelism for compilers that do not support OpenMP.
+<LI> Added the code for <I>ChunkPly</I> which breaks up large meshes and/or point-sets into chunks.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">Version 11.01</a>:
+<ol>
+<LI> Fixed bug with <I>_mktemp</I> that caused the code to crash on Windows machine with more than 26 cores.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">Version 11.02</a>:
+<ol>
+<LI> Added error handling for numerical imprecision issues arrising when too many samples fall into a leaf node.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">Version 12.00</a>:
+<ol>
+<LI> Added functionality enabling <I>AdaptiveTreeVisualization</I> to output the values of a function at prescribed sample positions.
+<LI> Added the implementation of <I>PointInterpolant</I> that fits a function to a discrete set of sample values.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">Version 13.00</a>:
+<ol>
+<LI> Enabled passing in a constraint envelope to <I>PoissonRecon</I>, allowing one to define a region that is known to be outside the surface.
+<LI> Updated <I>ChunkPLY</I> to support processing of input points in either ASCII or binary format.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/">Version 13.50</a>:
+<ol>
+<LI> Enabled support for automatically detecting attirbutes of input point cloud (in addition to positions and normals) when provided in .ply format.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.60/">Version 13.60</a>:
+<ol>
+<LI> Modified the implementation of <I>PointInterpolant</I> to support separately prescribing value and gradient constraints.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.61/">Version 13.61</a>:
+<ol>
+<LI> Bug fix addressing the problem that the memory for a <CODE>DynamicFactory</CODE> object is dynamically allocated and not only known at construction time.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.70/">Version 13.70</a>:
+<ol>
+<LI> Using the updated <A HREF="https://www.cc.gatech.edu/~turk/ply.tar.gz">PLY libraray</A> with the less restrictive BSD license.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.71/">Version 13.71</a>:
+<ol>
+<LI> Fixed a bug that resulted in incorrect point weighting when the samples were too sparse.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/">Version 13.72</a>:
+<ol>
+<LI> Fixed a bug that could result in the reconstruction not solving up to the finest depth when the <b>--width</b> argument is used.
+</ol>
+
 </DETAILS>
 
 
 <hr>
 <a name="SUPPORT"><b>SUPPORT</b></a><br>
 This work genersouly supported by NSF grants #0746039 and #1422325.
-
-<hr>
-<a href="http://www.cs.jhu.edu/~misha">HOME</a>

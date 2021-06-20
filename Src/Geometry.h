@@ -39,55 +39,122 @@ DAMAGE.
 #include <io.h>
 #endif // _WIN32
 
+// An empty type
+template< typename Real >
+struct EmptyVectorType
+{
+	EmptyVectorType& operator += ( const EmptyVectorType& p ){ return *this; }
+	EmptyVectorType& operator -= ( const EmptyVectorType& p ){ return *this; }
+	EmptyVectorType& operator *= ( Real s )                  { return *this; }
+	EmptyVectorType& operator /= ( Real s )                  { return *this; }
+	EmptyVectorType  operator +  ( const EmptyVectorType& p ) const { EmptyVectorType _p = *this ; _p += p ; return _p; }
+	EmptyVectorType  operator -  ( const EmptyVectorType& p ) const { EmptyVectorType _p = *this ; _p -= p ; return _p; }
+	EmptyVectorType  operator *  ( Real s )                   const { EmptyVectorType _p = *this ; _p *= s ; return _p; }
+	EmptyVectorType  operator /  ( Real s )                   const { EmptyVectorType _p = *this ; _p /= s ; return _p; }
+
+	friend std::ostream &operator << ( std::ostream &os , const EmptyVectorType &v ){ return os; }
+};
+template< typename Real > EmptyVectorType< Real > operator * ( Real s , EmptyVectorType< Real > v ){ return v*s; }
+
+template< typename _Real , typename ... VectorTypes >
+struct VectorTypeUnion
+{
+protected:
+	typedef std::tuple< VectorTypes ... > _VectorTuple;
+public:
+	typedef _Real Real;
+	template< unsigned int I > using VectorType = typename std::tuple_element< I , _VectorTuple >::type;
+	template< unsigned int I >       VectorType< I >& get( void )       { return std::get< I >( _vectorTypeTuple ); }
+	template< unsigned int I > const VectorType< I >& get( void ) const { return std::get< I >( _vectorTypeTuple ); }
+
+	VectorTypeUnion& operator += ( const VectorTypeUnion& p ){ _add<0>( p ) ; return *this; }
+	VectorTypeUnion& operator -= ( const VectorTypeUnion& p ){ _sub<0>( p ) ; return *this; }
+	VectorTypeUnion& operator *= ( Real s )                  { _mul<0>( s ) ; return *this; }
+	VectorTypeUnion& operator /= ( Real s )                  { _div<0>( s ) ; return *this; }
+	VectorTypeUnion  operator +  ( const VectorTypeUnion& p ) const { VectorTypeUnion _p = *this ; _p += p ; return _p; }
+	VectorTypeUnion  operator -  ( const VectorTypeUnion& p ) const { VectorTypeUnion _p = *this ; _p -= p ; return _p; }
+	VectorTypeUnion  operator *  ( Real s )                   const { VectorTypeUnion _p = *this ; _p *= s ; return _p; }
+	VectorTypeUnion  operator /  ( Real s )                   const { VectorTypeUnion _p = *this ; _p /= s ; return _p; }
+
+	VectorTypeUnion( void ){}
+	VectorTypeUnion( const VectorTypes & ... vectors ){ _set< 0 >( vectors ... ); }
+
+	friend std::ostream &operator << ( std::ostream &os , const VectorTypeUnion &v )
+	{
+		os << "{ ";
+		v._streamOut< 0 >( os );
+		os << " }";
+		return os;
+	}
+protected:
+	std::tuple< VectorTypes ... > _vectorTypeTuple;
+	template< unsigned int I , typename _Vector , typename ... _Vectors > void _set( const _Vector &vector , const _Vectors & ... vectors ){ get< I >() = vector ; _set< I+1 >( vectors ... ); }
+	template< unsigned int I , typename _Vector                         > void _set( const _Vector &vector                                ){ get< I >() = vector ;                             }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _add( const VectorTypeUnion& p ){ get<I>() += p.get<I>() ; _add< I+1 >( p ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _add( const VectorTypeUnion& p ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _sub( const VectorTypeUnion& p ){ get<I>() -= p.get<I>() ; _sub< I+1 >( p ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _sub( const VectorTypeUnion& p ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _mul( Real s ){ get<I>() *= s ; _mul< I+1 >( s ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _mul( Real s ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _div( Real s ){ get<I>() /= s ; _div< I+1 >( s ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _div( Real s ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _streamOut( std::ostream &os ) const { os << get<I>() ; if( I!=sizeof...(VectorTypes)-1 ) os << " , "; _streamOut< I+1 >( os ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _streamOut( std::ostream &os ) const { }
+};
+template< typename Real , typename ... Vectors >
+VectorTypeUnion< Real , Vectors ... > operator * ( Real s , VectorTypeUnion< Real , Vectors ... > vu ){ return vu * s; }
+
 template< class Real > Real Random( void );
 
 template< class Real , unsigned int Dim > struct XForm;
 
+
+template< typename Real , unsigned int ... Dims > struct Point;
+
 template< class Real , unsigned int Dim >
-struct Point
+struct Point< Real , Dim >
 {
-	void _init( int d )
+	void _init( unsigned int d )
 	{
 		if( !d ) memset( coords , 0 , sizeof(Real)*Dim );
-		else fprintf( stderr , "[ERROR] Point::_init: Should never be called\n" ) , exit( 0 );
+		else ERROR_OUT( "Should never be called" );
 	}
-	template< class _Real , class ... _Reals > void _init( int d , _Real v , _Reals ... values )
+	template< class _Real , class ... _Reals > void _init( unsigned int d , _Real v , _Reals ... values )
 	{
 		coords[d] = (Real)v;
 		if( d+1<Dim ) _init( d+1 , values... );
 	}
 	template< class ... Points >
-	static void _AddColumnVector( XForm< Real , Dim >& x , int c , Point point , Points ... points )
+	static void _AddColumnVector( XForm< Real , Dim >& x , unsigned int c , Point point , Points ... points )
 	{
-		for( int r=0 ; r<Dim ; r++ ) x( c , r ) = point[r];
+		for( unsigned int r=0 ; r<Dim ; r++ ) x( c , r ) = point[r];
 		_AddColumnVector( x , c+1 , points ... );
 	}
-	static void _AddColumnVector( XForm< Real , Dim >& x , int c ){ ; }
+	static void _AddColumnVector( XForm< Real , Dim >& x , unsigned int c ){ ; }
 public:
 	Real coords[Dim];
 	Point( void ) { memset( coords , 0 , sizeof(Real)*Dim ); }
 	Point( const Point& p ){ memcpy( coords , p.coords , sizeof(Real)*Dim ); }
 	template< class ... _Reals > Point( _Reals ... values ){ static_assert( sizeof...(values)==Dim || sizeof...(values)==0 , "[ERROR] Point::Point: Invalid number of coefficients" ) ; _init( 0 , values... ); }
-	template< class _Real > Point( const Point< _Real , Dim >& p ){ for( int d=0 ; d<Dim ; d++ ) coords[d] = (Real) p.coords[d]; }
-	inline       Real& operator[] ( int i )       { return coords[i]; }
-	inline const Real& operator[] ( int i ) const { return coords[i]; }
-	inline Point  operator - ( void ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = - coords[d] ; return q; }
+	template< class _Real > Point( const Point< _Real , Dim >& p ){ for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] = (Real) p.coords[d]; }
+	inline       Real& operator[] ( unsigned int i )       { return coords[i]; }
+	inline const Real& operator[] ( unsigned int i ) const { return coords[i]; }
+	inline Point  operator - ( void ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = - coords[d] ; return q; }
 
-
-	template< class _Real > inline Point& operator += ( Point< _Real , Dim > p )       { for( int d=0 ; d<Dim ; d++ ) coords[d] += (Real)p.coords[d] ; return *this; }
-	template< class _Real > inline Point  operator +  ( Point< _Real , Dim > p ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] + (Real)p.coords[d] ; return q; }
+	template< class _Real > inline Point& operator += ( Point< _Real , Dim > p )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] += (Real)p.coords[d] ; return *this; }
+	template< class _Real > inline Point  operator +  ( Point< _Real , Dim > p ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] + (Real)p.coords[d] ; return q; }
 	template< class _Real > inline Point& operator -= ( Point< _Real , Dim > p )       { return (*this)+=(-p); }
 	template< class _Real > inline Point  operator -  ( Point< _Real , Dim > p ) const { return (*this)+ (-p); }
-	template< class Scalar > inline Point& operator *= ( Scalar r )       { for( int d=0 ; d<Dim ; d++ ) coords[d] *= r ; return *this; }
-	template< class Scalar > inline Point  operator *  ( Scalar r ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] * r ; return q; }
-	template< class Scalar > inline Point& operator /= ( Scalar r )       { for( int d=0 ; d<Dim ; d++ ) coords[d] /= r ; return *this; }
-	template< class Scalar > inline Point  operator /  ( Scalar r ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] / r ; return q; }
-	template< class _Real > inline Point& operator *= ( Point< _Real , Dim > p )       { for( int d=0 ; d<Dim ; d++ ) coords[d] *= p.coords[d] ; return *this; }
-	template< class _Real > inline Point  operator *  ( Point< _Real , Dim > p ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] * p.coords[d] ; return q; }
-	template< class _Real > inline Point& operator /= ( Point< _Real , Dim > p )       { for( int d=0 ; d<Dim ; d++ ) coords[d] /= p.coords[d] ; return *this; }
-	template< class _Real > inline Point  operator /  ( Point< _Real , Dim > p ) const { Point q ; for( int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] / p.coords[d] ; return q; }
+	template< class Scalar > inline Point& operator *= ( Scalar r )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] *= r ; return *this; }
+	template< class Scalar > inline Point  operator *  ( Scalar r ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] * r ; return q; }
+	template< class Scalar > inline Point& operator /= ( Scalar r )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] /= r ; return *this; }
+	template< class Scalar > inline Point  operator /  ( Scalar r ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] / r ; return q; }
+	template< class _Real > inline Point& operator *= ( Point< _Real , Dim > p )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] *= p.coords[d] ; return *this; }
+	template< class _Real > inline Point  operator *  ( Point< _Real , Dim > p ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] * p.coords[d] ; return q; }
+	template< class _Real > inline Point& operator /= ( Point< _Real , Dim > p )       { for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] /= p.coords[d] ; return *this; }
+	template< class _Real > inline Point  operator /  ( Point< _Real , Dim > p ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = coords[d] / p.coords[d] ; return q; }
 
-	static Real Dot( const Point& p1 , const Point& p2 ){ Real dot = {} ; for( int d=0 ; d<Dim ; d++ ) dot += p1.coords[d] * p2.coords[d] ; return dot; }
+	static Real Dot( const Point& p1 , const Point& p2 ){ Real dot = {} ; for( unsigned int d=0 ; d<Dim ; d++ ) dot += p1.coords[d] * p2.coords[d] ; return dot; }
 	static Real SquareNorm( const Point& p ){ return Dot( p , p ); }
 	template< class ... Points > static Point CrossProduct( Points ... points )
 	{
@@ -95,21 +162,154 @@ public:
 		XForm< Real , Dim > x;
 		_AddColumnVector( x , 0 , points ... );
 		Point p;
-		for( int d=0 ; d<Dim ; d++ ) p[d] = ( d&1 ) ? -x.subDeterminant( Dim-1 , d ) : x.subDeterminant( Dim-1 , d );
+		for( unsigned int d=0 ; d<Dim ; d++ ) p[d] = ( d&1 ) ? -x.subDeterminant( Dim-1 , d ) : x.subDeterminant( Dim-1 , d );
 		return p;
 	}
 	static Point CrossProduct( const Point* points )
 	{
 		XForm< Real , Dim > x;
-		for( int d=0 ; d<Dim-1 ; d++ ) for( int c=0 ; c<Dim ; c++ ) x(d,c) = points[d][c];
+		for( unsigned int d=0 ; d<Dim-1 ; d++ ) for( unsigned int c=0 ; c<Dim ; c++ ) x(d,c) = points[d][c];
 		Point p;
-		for( int d=0 ; d<Dim ; d++ ) p[d] = ( d&1 ) ? -x.subDeterminant( Dim-1 , d ) : x.subDeterminant( Dim-1 , d );
+		for( unsigned int d=0 ; d<Dim ; d++ ) p[d] = ( d&1 ) ? -x.subDeterminant( Dim-1 , d ) : x.subDeterminant( Dim-1 , d );
 		return p;
 	}
 	static Point CrossProduct( Point* points ){ return CrossProduct( ( const Point* )points ); }
+
+	friend std::ostream &operator << ( std::ostream &os , const Point &p )
+	{
+		os << "( ";
+		for( int d=0 ; d<Dim ; d++ )
+		{
+			if( d ) os << " , ";
+			os << p[d];
+		}
+		return os << " )";
+	}
 };
 template< class Real , unsigned int Dim > Point< Real , Dim > operator * ( Real r , Point< Real , Dim > p ){ return p*r; }
 template< class Real , unsigned int Dim > Point< Real , Dim > operator / ( Real r , Point< Real , Dim > p ){ return p/r; }
+
+// This class represents a point whose is size is allocated dynamically.
+// The size can be set by:
+// 1. Construction
+// 2. Copying
+// 3. Adding / subtracting (if the size has not been set yet)
+template< class Real >
+struct Point< Real >
+{
+	Point( void ) : _coords(NULL) , _dim(0){}
+	Point( size_t dim ) : _coords(NULL) , _dim(0) { if( dim ){ _resize( (unsigned int)dim ) ; memset( _coords , 0 , sizeof(Real)*_dim ); } }
+	Point( const Point &p ) : _coords(NULL) , _dim(0) { if( p._dim ){ _resize( p._dim ) ; memcpy( _coords , p._coords , sizeof(Real)*_dim ); } }
+	~Point( void ){ delete[] _coords ; _coords = NULL; }
+
+	Point &operator = ( const Point &p )
+	{
+		if( !_dim ){ _resize( p._dim ) ; memcpy( _coords , p._coords , sizeof(Real)*_dim ); }
+		else if( _dim==p._dim ) memcpy( _coords , p._coords , sizeof(Real)*_dim );
+		else ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
+		return *this;
+	}
+
+	unsigned int dim( void ) const { return _dim; }
+	Real &operator[]( size_t idx ){ return _coords[idx]; }
+	const Real &operator[]( size_t idx ) const { return _coords[idx]; }
+
+
+	Point& operator += ( const Point& p )
+	{
+		if( !_dim ){ _resize( p._dim ) ; for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] = p._coords[i]; }
+		else if( _dim==p._dim ) for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] += p._coords[i];
+		else ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
+		return *this;
+	}
+	Point& operator -= ( const Point& p )
+	{
+		if( !_dim ){ _resize( p._dim ) ; for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] = -p._coords[i]; }
+		else if( _dim==p._dim ) for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] -= p._coords[i];
+		else ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
+		return *this;
+	}
+	Point& operator *= ( Real s )
+	{
+		for( unsigned int i=0 ; i<_dim ; i++ ) (*this)[i] *=  s;
+		return *this;
+	}
+	Point& operator /= ( Real s )
+	{
+		for( unsigned int i=0 ; i<_dim ; i++ ) (*this)[i] /=  s;
+		return *this;
+	}
+	Point operator +  ( const Point& p ) const { Point _p = *this ; _p += p ; return _p; }
+	Point operator -  ( const Point& p ) const { Point _p = *this ; _p -= p ; return _p; }
+	Point operator *  ( Real s )         const { Point _p = *this ; _p *= s ; return _p; }
+	Point operator /  ( Real s )         const { Point _p = *this ; _p /= s ; return _p; }
+
+	static Real Dot( const Point &p1 , const Point &p2 )
+	{
+		Real dot;
+		if( p1._dim!=p2._dim ) ERROR_OUT( "Dimensions differ: " , p1._dim , " != " , p2._dim );
+		for( size_t d=0 ; d<p1._dim ; d++ ) dot += p1[d] * p2[d];
+		return dot;
+	}
+	static Real SquareNorm( const Point& p ){ return Dot( p , p ); }
+
+	friend std::ostream &operator << ( std::ostream &os , const Point &p )
+	{
+		os << "( ";
+		for( size_t i=0 ; i<p._dim ; i++ )
+		{
+			if( i ) os << " , ";
+			os << p[i];
+		}
+		return os << " )";
+	}
+protected:
+	Real *_coords;
+	unsigned int _dim;
+	void _resize( unsigned int dim ){ if( dim ){ _coords = new Real[dim] ; _dim = dim; } }
+};
+template< class Real > Point< Real > operator * ( Real s , Point< Real > p ){ return p*s; }
+
+/** This templated class represents a Ray.*/
+template< class Real , unsigned int Dim >
+class Ray
+{
+public:
+	/** The starting point of the ray */
+	Point< Real , Dim > position;
+
+	/** The direction of the ray */
+	Point< Real , Dim > direction;
+
+	/** The default constructor */
+	Ray( void ){}
+
+	/** The constructor settign the the position and direction of the ray */
+	Ray( const Point< Real , Dim > &p , const Point< Real , Dim > &d ) : position(p) , direction(d){}
+
+	/** This method computes the translation of the ray by p and returns the translated ray.*/
+	Ray  operator +  ( const Point< Real , Dim > &p ) const { return Ray( position+p , direction ); }
+
+	/** This method translates the current ray by p.*/
+	Ray &operator += ( const Point< Real , Dim > &p ){ position +=p ; return *this; }
+
+	/** This method computes the translation of the ray by -p and returns the translated ray.*/
+	Ray  operator -  ( const Point< Real , Dim > &p ) const { return Ray( position-p , direction ); }
+
+	/** This method translates the current ray by -p.*/
+	Ray &operator -= ( const Point< Real , Dim > &p ){ position -= p ; return *this; }
+
+	/** This method returns the point at a distance of t along the ray. */
+	Point< Real , Dim > operator() ( double t ) const { return position + direction * (Real)t; }
+};
+
+/** This function prints out the ray.*/
+template< class Real , unsigned int Dim >
+std::ostream &operator << ( std::ostream &stream , const Ray< Real , Dim > &ray )
+{
+	stream << "[ " << ray.position << " ] [ " << ray.direction << " ]";
+	return stream;
+}
 
 template< class Real , unsigned int _Columns , unsigned int _Rows >
 struct Matrix
@@ -118,27 +318,58 @@ struct Matrix
 	static const unsigned int Rows = _Rows;
 	Real coords[Columns][Rows];
 	Matrix( void ) { memset( coords , 0 , sizeof(coords) ); }
-	inline       Real& operator() ( int c , int r )       { return coords[c][r]; }
-	inline const Real& operator() ( int c , int r ) const { return coords[c][r]; }
-	inline       Real* operator[] ( int c         )       { return coords[c]   ; }
-	inline const Real* operator[] ( int c         ) const { return coords[c]   ; }
+	inline       Real& operator() ( unsigned int c , unsigned int r )       { return coords[c][r]; }
+	inline const Real& operator() ( unsigned int c , unsigned int r ) const { return coords[c][r]; }
+	inline       Real* operator[] ( unsigned int c                  )       { return coords[c]   ; }
+	inline const Real* operator[] ( unsigned int c                  ) const { return coords[c]   ; }
 
-	inline Matrix  operator - ( void ) const { Matrix m ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) m.coords[c][r] = - coords[c][r] ; return m; }
+	inline Matrix  operator - ( void ) const { Matrix m ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) m.coords[c][r] = - coords[c][r] ; return m; }
 
-	inline Matrix& operator += ( const Matrix& m ){ for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) coords[c][r] += m.coords[c][r] ; return *this; }
-	inline Matrix  operator +  ( const Matrix& m ) const { Matrix n ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) n.coords[c][r] = coords[c][r] + m.coords[c][r] ; return n; }
-	inline Matrix& operator *= ( Real s ) { for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) coords[c][r] *= s ; return *this; }
-	inline Matrix  operator *  ( Real s ) const { Matrix n ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) n.coords[c][r] = coords[c][r] * s ; return n; }
+	inline Matrix& operator += ( const Matrix& m ){ for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) coords[c][r] += m.coords[c][r] ; return *this; }
+	inline Matrix  operator +  ( const Matrix& m ) const { Matrix n ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) n.coords[c][r] = coords[c][r] + m.coords[c][r] ; return n; }
+	inline Matrix& operator *= ( Real s ) { for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) coords[c][r] *= s ; return *this; }
+	inline Matrix  operator *  ( Real s ) const { Matrix n ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) n.coords[c][r] = coords[c][r] * s ; return n; }
 
 	inline Matrix& operator -= ( const Matrix& m ){ return ( (*this)+=(-m) ); }
 	inline Matrix  operator -  ( const Matrix& m ) const { return (*this)+(-m); }
 	inline Matrix& operator /= ( Real s ){ return ( (*this)*=(Real)(1./s) ); }
 	inline Matrix  operator /  ( Real s ) const { return (*this) * ( (Real)(1./s) ); }
 
-	static Real Dot( const Matrix& m1 , const Matrix& m2 ){ Real dot = (Real)0 ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) dot += m1.coords[c][r] * m2.coords[c][r] ; return dot; }
+	static Real Dot( const Matrix& m1 , const Matrix& m2 ){ Real dot = (Real)0 ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) dot += m1.coords[c][r] * m2.coords[c][r] ; return dot; }
 
 	template< typename T >
-	inline Point< T , Rows > operator* ( const Point< T , Columns >& p ) const { Point< T , Rows > q ; for( int c=0 ; c<Columns ; c++ ) for( int r=0 ; r<Rows ; r++ ) q[r] += (T)( p[c] * coords[c][r] ) ; return q; }
+	inline Point< T , Rows > operator* ( const Point< T , Columns >& p ) const { Point< T , Rows > q ; for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) q[r] += (T)( p[c] * coords[c][r] ) ; return q; }
+
+	template< unsigned int Cols >
+	inline Matrix< Real , Cols , Rows > operator * ( const Matrix< Real , Cols , Columns > &M ) const
+	{
+		Matrix< Real , Cols , Rows > prod;
+		for( unsigned int c=0 ; c<Cols ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) for( unsigned int i=0 ; i<Columns ; i++ ) prod(c,r) += coords[i][r] * M(c,i);
+		return prod;
+	}
+
+	inline Matrix< Real , Rows , Columns > transpose( void ) const
+	{
+		Matrix< Real , Rows , Columns > t;
+		for( unsigned int c=0 ; c<Columns ; c++ ) for( unsigned int r=0 ; r<Rows ; r++ ) t(r,c) = coords[c][r];
+		return t;
+	}
+	friend std::ostream &operator << ( std::ostream &os , const Matrix &m )
+	{
+		os << "{ ";
+		for( int r=0 ; r<Rows ; r++ )
+		{
+			if( r ) os << " , ";
+			os << "{ ";
+			for( int c=0 ; c<Columns ; c++ )
+			{
+				if( c ) os << " , ";
+				os << m.coords[c][r];
+			}
+			os << " }";
+		}
+		return os << " }";
+	}
 };
 
 template< class Real , unsigned int Dim >
@@ -146,20 +377,24 @@ struct XForm
 {
 	Real coords[Dim][Dim];
 	XForm( void ) { memset( coords , 0 , sizeof(Real) * Dim * Dim ); }
+	XForm( const Matrix< Real , Dim , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ); }
+	XForm( const XForm &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ); }
+	XForm operator = ( const Matrix< Real , Dim , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ) ; return *this; }
+	XForm operator = ( const XForm< Real , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ) ; return *this; }
 	static XForm Identity( void )
 	{
 		XForm xForm;
-		for( int d=0 ; d<Dim ; d++ ) xForm(d,d) = (Real)1.;
+		for( unsigned int d=0 ; d<Dim ; d++ ) xForm(d,d) = (Real)1.;
 		return xForm;
 	}
-	Real& operator() ( int i , int j ){ return coords[i][j]; }
-	const Real& operator() ( int i , int j ) const { return coords[i][j]; }
+	Real& operator() ( unsigned int i , unsigned int j ){ return coords[i][j]; }
+	const Real& operator() ( unsigned int i , unsigned int j ) const { return coords[i][j]; }
 	template< class _Real > Point< _Real , Dim-1 > operator * ( const Point< _Real , Dim-1 >& p ) const
 	{
 		Point< _Real , Dim-1 > q;
-		for( int i=0 ; i<Dim-1 ; i++ )
+		for( unsigned int i=0 ; i<Dim-1 ; i++ )
 		{
-			for( int j=0 ; j<Dim-1 ; j++ ) q[i] += (_Real)( coords[j][i] * p[j] );
+			for( unsigned int j=0 ; j<Dim-1 ; j++ ) q[i] += (_Real)( coords[j][i] * p[j] );
 			q[i] += (_Real)coords[Dim-1][i];
 		}
 		return q;
@@ -167,25 +402,25 @@ struct XForm
 	template< class _Real > Point< _Real , Dim > operator * ( const Point< _Real , Dim >& p ) const
 	{
 		Point< _Real , Dim > q;
-		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) q[i] += (_Real)( coords[j][i] * p[j] );
+		for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) q[i] += (_Real)( coords[j][i] * p[j] );
 		return q;
 	}
 	XForm operator * ( const XForm& m ) const
 	{
 		XForm n;
-		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) for( int k=0 ; k<Dim ; k++ ) n.coords[i][j] += m.coords[i][k]*coords[k][j];
+		for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) for( unsigned int k=0 ; k<Dim ; k++ ) n.coords[i][j] += m.coords[i][k]*coords[k][j];
 		return n;
 	}
 	XForm transpose( void ) const
 	{
 		XForm xForm;
-		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) xForm( i , j ) = coords[j][i];
+		for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) xForm( i , j ) = coords[j][i];
 		return xForm;
 	}
 	Real determinant( void ) const
 	{
 		Real det = (Real)0.;
-		for( int d=0 ; d<Dim ; d++ ) 
+		for( unsigned int d=0 ; d<Dim ; d++ ) 
 			if( d&1 ) det -= coords[d][0] * subDeterminant( d , 0 );
 			else      det += coords[d][0] * subDeterminant( d , 0 );
 		return det;
@@ -194,35 +429,52 @@ struct XForm
 	{
 		XForm xForm;
 		Real d = determinant();
-		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ )
+		for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ )
 			if( (i+j)%2==0 ) xForm.coords[j][i] =  subDeterminant( i , j ) / d;
 			else             xForm.coords[j][i] = -subDeterminant( i , j ) / d;
 		return xForm;
 	}
-	Real subDeterminant( int i , int j ) const
+	Real subDeterminant( unsigned int i , unsigned int j ) const
 	{
 		XForm< Real , Dim-1 > xForm;
-		int ii[Dim-1] , jj[Dim-1];
-		for( int a=0 , _i=0 , _j=0 ; a<Dim ; a++ )
+		unsigned int ii[Dim-1] , jj[Dim-1];
+		for( unsigned int a=0 , _i=0 , _j=0 ; a<Dim ; a++ )
 		{
 			if( a!=i ) ii[_i++] = a;
 			if( a!=j ) jj[_j++] = a;
 		}
-		for( int _i=0 ; _i<Dim-1 ; _i++ ) for( int _j=0 ; _j<Dim-1 ; _j++ ) xForm( _i , _j ) = coords[ ii[_i] ][ jj[_j] ];
+		for( unsigned int _i=0 ; _i<Dim-1 ; _i++ ) for( unsigned int _j=0 ; _j<Dim-1 ; _j++ ) xForm( _i , _j ) = coords[ ii[_i] ][ jj[_j] ];
 		return xForm.determinant();
 	}
 
-	inline XForm  operator - ( void ) const { XForm m ; for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) m.coords[c][r] = - coords[c][r] ; return m; }
+	inline XForm  operator - ( void ) const { XForm m ; for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) m.coords[c][r] = - coords[c][r] ; return m; }
 
-	inline XForm& operator += ( const XForm& m ){ for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) coords[c][r] += m.coords[c][r] ; return *this; }
-	inline XForm  operator +  ( const XForm& m ) const { XForm n ; for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) n.coords[c][r] = coords[c][r] + m.coords[c][r] ; return n; }
-	inline XForm& operator *= ( Real s ) { for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) coords[c][r] *= s ; return *this; }
-	inline XForm  operator *  ( Real s ) const { XForm n ; for( int c=0 ; c<Dim ; c++ ) for( int r=0 ; r<Dim ; r++ ) n.coords[c][r] = coords[c][r] * s ; return n; }
+	inline XForm& operator += ( const XForm& m ){ for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) coords[c][r] += m.coords[c][r] ; return *this; }
+	inline XForm  operator +  ( const XForm& m ) const { XForm n ; for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) n.coords[c][r] = coords[c][r] + m.coords[c][r] ; return n; }
+	inline XForm& operator *= ( Real s ) { for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) coords[c][r] *= s ; return *this; }
+	inline XForm  operator *  ( Real s ) const { XForm n ; for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) n.coords[c][r] = coords[c][r] * s ; return n; }
 
 	inline XForm& operator -= ( const XForm& m ){ return ( (*this)+=(-m) ); }
 	inline XForm  operator -  ( const XForm& m ) const { return (*this)+(-m); }
 	inline XForm& operator /= ( Real s ){ return ( (*this)*=(Real)(1./s) ); }
 	inline XForm  operator /  ( Real s ) const { return (*this) * ( (Real)(1./s) ); }
+
+	friend std::ostream &operator << ( std::ostream &os , const XForm &x )
+	{
+		os << "{ ";
+		for( int r=0 ; r<Dim ; r++ )
+		{
+			if( r ) os << " , ";
+			os << "{ ";
+			for( int c=0 ; c<Dim ; c++ )
+			{
+				if( c ) os << " , ";
+				os << x.coords[c][r];
+			}
+			os << " }";
+		}
+		return os << " }";
+	}
 };
 template<>
 inline XForm< float , 1 > XForm< float , 1 >::inverse( void ) const
@@ -307,29 +559,164 @@ struct Simplex
 {
 	Point< Real , Dim > p[K+1];
 	Simplex( void ){ static_assert( K<=Dim , "[ERROR] Bad simplex dimension" ); }
-	Point< Real , Dim >& operator[]( int k ){ return p[k]; }
-	const Point< Real , Dim >& operator[]( int k ) const { return p[k]; }
+	Point< Real , Dim >& operator[]( unsigned int k ){ return p[k]; }
+	const Point< Real , Dim >& operator[]( unsigned int k ) const { return p[k]; }
 	Real measure( void ) const { return (Real)sqrt( squareMeasure() ); }
 	Real squareMeasure( void ) const
 	{
 		XForm< Real , K > mass;
-		for( int i=1 ; i<=K ; i++ ) for( int j=1 ; j<=K ; j++ ) mass(i-1,j-1) = Point< Real , Dim >::Dot( p[i]-p[0] , p[j]-p[0] );
+		for( unsigned int i=1 ; i<=K ; i++ ) for( unsigned int j=1 ; j<=K ; j++ ) mass(i-1,j-1) = Point< Real , Dim >::Dot( p[i]-p[0] , p[j]-p[0] );
 		return mass.determinant() / ( Factorial< K >::Value * Factorial< K >::Value );
 	}
 	Point< Real , Dim > center( void ) const
 	{
 		Point< Real , Dim > c;
-		for( int k=0 ; k<=K ; k++ ) c += p[k];
+		for( unsigned int k=0 ; k<=K ; k++ ) c += p[k];
 		return c / (K+1);
 	}
 	void split( Point< Real , Dim > pNormal , Real pOffset , std::vector< Simplex >& back , std::vector< Simplex >& front ) const;
+
+	template< unsigned int _K=K >
+	typename std::enable_if< _K==Dim-1 , Point< Real , Dim > >::type normal( void ) const
+	{
+		static_assert( K==Dim-1 , "[ERROR] Co-dimension is not one" );
+		Point< Real , Dim > d[Dim-1];
+		for( int k=1 ; k<Dim ; k++ ) d[k-1] = p[k] - p[0];
+		return Point< Real , Dim >::CrossProduct( d );
+	}
+	template< unsigned int _K=K >
+	typename std::enable_if< _K==Dim-1 , bool >::type intersect( Ray< Real , Dim > ray , Real &t , Real barycentricCoordinates[Dim] ) const
+	{
+		static_assert( K==Dim-1 , "[ERROR] Co-dimension is not one" );
+		Point< Real , Dim > n = normal();
+		Real denominator = Point< Real , Dim >::Dot( n , ray.direction );
+		if( denominator==0 ) return false;
+		// Solve for t s.t. < ray(t) , n > = < p[0] , n >
+		t = Point< Real , Dim >::Dot( n , p[0] - ray.position ) / denominator;
+		Point< Real,  Dim > q = ray(t);
+
+		// Let C be the matrix whose columns are the simplex vertices.
+		// Solve for the barycentric coordinates, b, minimizing:
+		//		E(b) = || C * b - q ||^2
+		//		     = b^t * C^t * C * b - 2 * b^t * C^t * q + || q ||^2
+		// Taking the gradient with respect to b gives:
+		//		   b = ( C^t * C )^{-1} * C^t * q
+		Matrix< Real , Dim-1 , Dim > C;
+		for( int c=0 ; c<Dim-1 ; c++ ) for( int r=0 ; r<Dim ; r++ ) C(c,r) = p[c+1][r] - p[0][r];
+		Matrix< Real , Dim , Dim-1 > C_t = C.transpose();
+		XForm< Real , Dim-1 > M = C_t * C;
+		Point< Real , Dim-1 > bc = M.inverse() * ( C_t * ( q - p[0] ) );
+		barycentricCoordinates[0] = (Real)1.;
+		for( unsigned int d=0 ; d<Dim-1 ; d++ ) barycentricCoordinates[d+1] = bc[d] , barycentricCoordinates[0] -= bc[d];
+		for( unsigned int d=0 ; d<Dim ; d++ ) if( barycentricCoordinates[d]<0 ) return false;
+		return true;
+	}
+
+	template< unsigned int _K=K >
+	static typename std::enable_if< _K==Dim-1 , bool >::type IsInterior( Point< Real , Dim > p , const std::vector< Simplex< Real , Dim , Dim-1 > > &simplices )
+	{
+		if( !simplices.size() ) ERROR_OUT( "No simplices provided" );
+
+		// Create a ray that intersecting the largest simplex
+		int idx;
+		{
+			Real maxMeasure = 0;
+			for( int i=0 ; i<simplices.size() ; i++ )
+			{
+				Real measure = simplices[i].squareMeasure();
+				if( measure>maxMeasure ) maxMeasure = measure , idx = i;
+			}
+		}
+		Ray< Real , Dim > ray( p , simplices[idx].center() - p );
+		Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
+		if( !l ) ERROR_OUT( "point is on simplex" );
+		l = (Real)sqrt(l);
+		ray.direction /= l;
+
+		// Make the assessment based on which side of the simplex the point p is
+		Real min_t = l;
+		bool isInside = Point< Real , Dim >::Dot( simplices[idx].normal() , ray.direction )*min_t>0;
+
+		// Look for intersections with closer simplices
+		for( size_t i=0 ; i<simplices.size() ; i++ )
+		{
+			Real t , barycentricCoordinates[ Dim ];
+			if( simplices[i].intersect( ray , t , barycentricCoordinates ) && t<min_t )	min_t = t , isInside = Point< Real , Dim >::Dot( simplices[i].normal() , ray.direction )*t>0;
+		}
+		return isInside;
+	}
+
+	template< unsigned int _K=K >
+	static typename std::enable_if< _K==Dim-1 , bool >::type IsInterior( Point< Real , Dim > p , const std::vector< Simplex< Real , Dim , Dim-1 > > &simplices , const std::vector< Point< Real , Dim > > &normals )
+	{
+		if( !simplices.size() ) ERROR_OUT( "No simplices provided" );
+
+#if 0
+		// A more conservative approach for ray-tracing, sending a ray for each simplex and using the consensus solution
+		Real insideMeasure = 0;
+		for( int idx=0 ; idx<simplices.size() ; idx++ )
+		{
+			Ray< Real , Dim > ray( p , simplices[idx].center() - p );
+			Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
+			if( !l ){ WARN( "point is on simplex" ) ; continue; }
+			l = (Real)sqrt(l);
+			ray.direction /= l;
+
+			// Make the assessment based on which side of the simplex the point p is
+			Real min_t = l;
+			bool isInside = Point< Real , Dim >::Dot( normals[idx] , ray.direction )*min_t>0;
+
+			// Look for intersections with closer simplices
+			for( size_t i=0 ; i<simplices.size() ; i++ )
+			{
+				Real t , barycentricCoordinates[ Dim ];
+				if( simplices[i].intersect( ray , t , barycentricCoordinates ) && t<min_t )	min_t = t , isInside = Point< Real , Dim >::Dot( normals[i] , ray.direction )*t>0;
+			}
+			Real measure = simplices[idx].measure();
+			if( isInside ) insideMeasure += measure;
+			else           insideMeasure -= measure;
+		}
+		return insideMeasure>0;
+#else
+		// Create a ray that intersecting the largest simplex
+		int idx;
+		{
+			Real maxMeasure = 0;
+			for( int i=0 ; i<simplices.size() ; i++ )
+			{
+				Real measure = simplices[i].squareMeasure();
+				if( measure>maxMeasure ) maxMeasure = measure , idx = i;
+			}
+		}
+		Ray< Real , Dim > ray( p , simplices[idx].center() - p );
+		Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
+		if( !l ) ERROR_OUT( "point is on simplex" );
+		l = (Real)sqrt(l);
+		ray.direction /= l;
+
+		// Make the assessment based on which side of the simplex the point p is
+		Real min_t = l;
+		bool isInside = Point< Real , Dim >::Dot( normals[idx] , ray.direction )*min_t>0;
+
+		// Look for intersections with closer simplices
+		for( size_t i=0 ; i<simplices.size() ; i++ )
+		{
+			Real t , barycentricCoordinates[ Dim ];
+			if( simplices[i].intersect( ray , t , barycentricCoordinates ) && t<min_t ) min_t = t , isInside = Point< Real , Dim >::Dot( normals[i] , ray.direction )*t>0;
+		}
+		return isInside;
+#endif
+	}
 };
-template< class Real , unsigned int Dim >
+
+
+template< class Real , unsigned int Dim >	
 struct Simplex< Real , Dim , 0 >
 {
+	static const unsigned int K=0;
 	Point< Real , Dim > p[1];
-	Point< Real , Dim >& operator[]( int k ){ return p[k]; }
-	const Point< Real , Dim >& operator[]( int k ) const { return p[k]; }
+	Point< Real , Dim >& operator[]( unsigned int k ){ return p[k]; }
+	const Point< Real , Dim >& operator[]( unsigned int k ) const { return p[k]; }
 	Real squareMeasure( void ) const { return (Real)1.; }
 	Real measure( void ) const { return (Real)1.; }
 	Point< Real , Dim > center( void ) const { return p[0]; }
@@ -338,309 +725,126 @@ struct Simplex< Real , Dim , 0 >
 		if( Point< Real , Dim >::Dot( p[0] , pNormal ) < pOffset ) back.push_back( *this );
 		else                                                       front.push_back( *this );
 	}
+	template< unsigned int _K=K >
+	typename std::enable_if< _K==Dim-1 , bool >::type intersect( Ray< Real , Dim > ray , Real &t , Real barycentricCoordinates[Dim] ) const
+	{
+		static_assert( K==Dim-1 , "[ERROR] Co-dimension is not one" );
+		if( !ray.direction[0] ) return false;
+		// Solve for t s.t. ray(t) = p[0]
+		t = ( p[0][0] - ray.position[0] ) / ray.direction[0];
+		barycentricCoordinates[0] = (Real)1.;
+		return true;
+	}
+
+	template< unsigned int _K=0 >
+	static typename std::enable_if< _K==Dim-1 , bool >::type IsInterior( Point< Real , Dim > p , const std::vector< Simplex< Real , Dim , Dim-1 > > &simplices , const std::vector< Point< Real , Dim > > &normals )
+	{
+		if( !simplices.size() ) ERROR_OUT( "No simplices provided" );
+
+		Ray< Real , Dim > ray( p , simplices[0].center() - p );
+		Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
+		if( !l ) ERROR_OUT( "point is on simplex" );
+		l = (Real)sqrt(l);
+		ray.direction /= l;
+
+		// Make the assessment based on which side of the simplex the point p is
+		Real min_t = l;
+		bool isInside = Point< Real , Dim >::Dot( normals[0] , ray.direction )*min_t>0;
+
+		// Look for intersections with closer simplices
+		for( size_t i=0 ; i<simplices.size() ; i++ )
+		{
+			Real t , barycentricCoordinates[ Dim ];
+			if( simplices[i].intersect( ray , t , barycentricCoordinates ) && t<min_t ) min_t = t , isInside = Point< Real , Dim >::Dot( normals[i] , ray.direction )*t>0;
+		}
+		return isInside;
+	}
 };
+template< typename Real , unsigned int Dim , unsigned int K >
+std::ostream &operator << ( std::ostream &os , const Simplex< Real , Dim , K > &s )
+{
+	for( unsigned int k=0 ; k<K ; k++ ) os << s.p[k] << " , ";
+	return os << s.p[K];
+}
+
+
 template< class Real , unsigned int Dim > using Edge = Simplex< Real , Dim , 1 >;
 template< class Real , unsigned int Dim > using Triangle = Simplex< Real , Dim , 2 >;
 
-template< unsigned int K >
+template< unsigned int K , typename Index >
 struct SimplexIndex
 {
-	int idx[K+1];
+	Index idx[K+1];
 	template< class ... Ints >
 	SimplexIndex( Ints ... values ){ static_assert( sizeof...(values)==K+1 || sizeof...(values)==0 , "[ERROR] Invalid number of coefficients" ) ; _init( 0 , values ... ); }
-	SimplexIndex( int i0 , int i1 , int i2 ){ idx[0] = i0 , idx[1] = i1 , idx[2] = i2; }
-	int& operator[] ( int i ) { return idx[i] ;}
-	const int& operator[] ( int i ) const { return idx[i]; }
+	Index &operator[] ( unsigned int i ) { return idx[i] ;}
+	const Index &operator[] ( unsigned int i ) const { return idx[i]; }
 protected:
-	void _init( int k )
+	void _init( unsigned int k )
 	{
 		if( !k ) memset( idx , 0 , sizeof(idx) );
-		else fprintf( stderr , "[ERROR] SimplexIndex::_init: Should never be called\n" ) , exit( 0 );
+		else ERROR_OUT( "Should never be called" );
 	}
-	template< class ... Ints > void _init( int k , int v , Ints ... values )
+	template< class ... Ints > void _init( unsigned int k , Index v , Ints ... values )
 	{
 		idx[k] = v;
-		if( k<=K ) _init( k+1 , values ... );
+		if( k<K ) _init( k+1 , values ... );
 	}
 };
-typedef SimplexIndex< 1 > EdgeIndex;
-typedef SimplexIndex< 2 > TriangleIndex;
+template< typename Index > using EdgeIndex = SimplexIndex< 1 , Index >;
+template< typename Index > using TriangleIndex = SimplexIndex< 2 , Index >;
 
-class CoredPointIndex
+template< typename Real , unsigned int Dim , unsigned int K >
+struct SimplicialComplex
 {
-public:
-	int index;
-	char inCore;
-
-	int operator == (const CoredPointIndex& cpi) const {return (index==cpi.index) && (inCore==cpi.inCore);};
-	int operator != (const CoredPointIndex& cpi) const {return (index!=cpi.index) || (inCore!=cpi.inCore);};
+	SimplicialComplex( const std::vector< Simplex< Real , Dim , K > > &simplices ) : _simplices( simplices ){}
+	virtual size_t size( void ) const { return _simplices.size(); }
+	virtual Simplex< Real , Dim , K > operator[]( size_t idx ) const { return _simplices[idx]; }
+protected:
+	SimplicialComplex( void ) :_simplices(__simplices) {}
+	const std::vector< Simplex< Real , Dim , K > > &_simplices;
+	const std::vector< Simplex< Real , Dim , K > > __simplices;
 };
-struct CoredEdgeIndex{ CoredPointIndex idx[2]; };
 
+template< typename Real , unsigned int Dim , unsigned int K , typename IndexType >
+struct IndexedSimplicialComplex : public SimplicialComplex< Real , Dim , K >
+{
+	IndexedSimplicialComplex( const std::vector< Point< Real , Dim > > &vertices , const std::vector< SimplexIndex< K , IndexType > > &simplices ) : _vertices(vertices) , _simplices(simplices){}
+	IndexedSimplicialComplex( IndexedSimplicialComplex && isc )
+	{
+		std::swap( _vertices , isc._vertices );
+		std::swap( _simplices , isc._simplices );
+	}
+
+	size_t size( void ) const { return _simplices.size(); }
+	Simplex< Real , Dim , K > operator[]( size_t idx ) const
+	{
+		Simplex< Real , Dim , K > s;
+		for( unsigned int k=0 ; k<=K ; k++ ) s[k] = _vertices[ _simplices[idx][k] ];
+		return s;
+	}
+protected:
+	const std::vector< Point< Real , Dim > > &_vertices;
+	const std::vector< SimplexIndex< K , IndexType > > &_simplices;
+};
+
+
+template< typename Index >
 class TriangulationEdge
 {
 public:
 	TriangulationEdge( void ){ pIndex[0] = pIndex[1] = tIndex[0] = tIndex[1] = -1; }
-	int pIndex[2];
-	int tIndex[2];
+	Index pIndex[2] , tIndex[2];
 };
 
+template< typename Index >
 class TriangulationTriangle
 {
 public:
 	TriangulationTriangle( void ){ eIndex[0] = eIndex[1] = eIndex[2] = -1; }
-	int eIndex[3];
+	Index eIndex[3];
 };
 
-template< class Real , unsigned int Dim >
-class Triangulation
-{
-public:
-	std::vector< Point< Real , Dim > > points;
-	std::vector< TriangulationEdge > edges;
-	std::vector< TriangulationTriangle > triangles;
-
-	int factor( int tIndex , int& p1 , int& p2 , int& p3 ) const;
-	Real area( void ) const;
-	Real area( int tIndex ) const ;
-	Real area( int p1 , int p2 , int p3 ) const;
-	int flipMinimize( int eIndex );
-	int addTriangle( int p1 , int p2 , int p3 );
-
-protected:
-	std::unordered_map< long long , int > edgeMap;
-	static long long EdgeIndex( int p1 , int p2 );
-	Real area( const Triangle< Real , Dim >& t ) const;
-};
-
-struct CoredVertexIndex
-{
-	int idx;
-	bool inCore;
-};
-template< class Vertex >
-class CoredCurveData
-{
-public:
-	std::vector< Vertex > inCorePoints;
-	virtual void resetIterator( void ) = 0;
-
-	virtual int addOutOfCorePoint( const Vertex& p ) = 0;
-	virtual int addOutOfCorePoint_s( const Vertex& p ) = 0;
-	virtual void addEdge_s( CoredVertexIndex v1 , CoredVertexIndex v2 ) = 0;
-	virtual void addEdge_s( int v1 , int v2 ) = 0;
-
-	virtual int nextOutOfCorePoint( Vertex& p )=0;
-	virtual int nextEdge( CoredVertexIndex& v1 , CoredVertexIndex& v2 ) = 0;
-
-	virtual int outOfCorePointCount(void)=0;
-	virtual int edgeCount( void ) = 0;
-};
-template< class Vertex >
-class CoredMeshData
-{
-public:
-	std::vector< Vertex > inCorePoints;
-	virtual void resetIterator( void ) = 0;
-
-	virtual int addOutOfCorePoint( const Vertex& p ) = 0;
-	virtual int addOutOfCorePoint_s( const Vertex& p ) = 0;
-	virtual void addPolygon_s( const std::vector< CoredVertexIndex >& vertices ) = 0;
-	virtual void addPolygon_s( const std::vector< int >& vertices ) = 0;
-
-	virtual int nextOutOfCorePoint( Vertex& p )=0;
-	virtual int nextPolygon( std::vector< CoredVertexIndex >& vertices ) = 0;
-
-	virtual int outOfCorePointCount(void)=0;
-	virtual int polygonCount( void ) = 0;
-};
-
-template< class Vertex >
-class CoredVectorCurveData : public CoredCurveData< Vertex >
-{
-	std::vector< Vertex > oocPoints;
-	std::vector< std::pair< int , int > > edges;
-	int threadIndex;
-	int edgeIndex;
-	int oocPointIndex;
-public:
-	CoredVectorCurveData(void);
-
-	void resetIterator(void);
-
-	int addOutOfCorePoint( const Vertex& p );
-	int addOutOfCorePoint_s( const Vertex& p );
-	void addEdge_s( CoredVertexIndex v1 , CoredVertexIndex v2 );
-	void addEdge_s( int v1 , int v2 );
-
-	int nextOutOfCorePoint( Vertex& p );
-	int nextEdge( CoredVertexIndex& v1 , CoredVertexIndex& v2 );
-
-	int outOfCorePointCount(void);
-	int edgeCount( void );
-};
-template< class Vertex >
-class CoredVectorMeshData : public CoredMeshData< Vertex >
-{
-	std::vector< Vertex > oocPoints;
-	std::vector< std::vector< std::vector< int > > > polygons;
-	int threadIndex;
-	int polygonIndex;
-	int oocPointIndex;
-public:
-	CoredVectorMeshData(void);
-
-	void resetIterator(void);
-
-	int addOutOfCorePoint( const Vertex& p );
-	int addOutOfCorePoint_s( const Vertex& p );
-	void addPolygon_s( const std::vector< CoredVertexIndex >& vertices );
-	void addPolygon_s( const std::vector< int >& vertices );
-
-	int nextOutOfCorePoint( Vertex& p );
-	int nextPolygon( std::vector< CoredVertexIndex >& vertices );
-
-	int outOfCorePointCount(void);
-	int polygonCount( void );
-};
-class BufferedReadWriteFile
-{
-	bool tempFile;
-	FILE* _fp;
-	char *_buffer , _fileName[1024];
-	size_t _bufferIndex , _bufferSize;
-public:
-	BufferedReadWriteFile( const char* fileName=NULL , const char* fileHeader="" , int bufferSize=(1<<20) )
-	{
-		_bufferIndex = 0;
-		_bufferSize = bufferSize;
-		if( fileName ) strcpy( _fileName , fileName ) , tempFile = false , _fp = fopen( _fileName , "w+b" );
-		else
-		{
-			if( fileHeader && strlen(fileHeader) ) sprintf( _fileName , "%sXXXXXX" , fileHeader );
-			else strcpy( _fileName , "XXXXXX" );
-#ifdef _WIN32
-			_mktemp( _fileName );
-			_fp = fopen( _fileName , "w+b" );
-#else // !_WIN32
-			_fp = fdopen( mkstemp( _fileName ) , "w+b" );
-#endif // _WIN32
-			tempFile = true;
-		}
-		if( !_fp ) fprintf( stderr , "[ERROR] Failed to open file: %s\n" , _fileName ) , exit( 0 );
-		_buffer = (char*) malloc( _bufferSize );
-	}
-	~BufferedReadWriteFile( void )
-	{
-		free( _buffer );
-		fclose( _fp );
-		if( tempFile ) remove( _fileName );
-	}
-	bool write( const void* data , size_t size )
-	{
-		if( !size ) return true;
-		char* _data = (char*) data;
-		size_t sz = _bufferSize - _bufferIndex;
-		while( sz<=size )
-		{
-			memcpy( _buffer+_bufferIndex , _data , sz );
-			fwrite( _buffer , 1 , _bufferSize , _fp );
-			_data += sz;
-			size -= sz;
-			_bufferIndex = 0;
-			sz = _bufferSize;
-		}
-		if( size )
-		{
-			memcpy( _buffer+_bufferIndex , _data , size );
-			_bufferIndex += size;
-		}
-		return true;
-	}
-	bool read( void* data , size_t size )
-	{
-		if( !size ) return true;
-		char *_data = (char*) data;
-		size_t sz = _bufferSize - _bufferIndex;
-		while( sz<=size )
-		{
-			if( size && !_bufferSize ) return false;
-			memcpy( _data , _buffer+_bufferIndex , sz );
-			_bufferSize = fread( _buffer , 1 , _bufferSize , _fp );
-			_data += sz;
-			size -= sz;
-			_bufferIndex = 0;
-			if( !size ) return true;
-			sz = _bufferSize;
-		}
-		if( size )
-		{
-			if( !_bufferSize ) return false;
-			memcpy( _data , _buffer+_bufferIndex , size );
-			_bufferIndex += size;
-		}
-		return true;
-	}
-	void reset( void )
-	{
-		if( _bufferIndex ) fwrite( _buffer , 1 , _bufferIndex , _fp );
-		_bufferIndex = 0;
-		fseek( _fp , 0 , SEEK_SET );
-		_bufferIndex = 0;
-		_bufferSize = fread( _buffer , 1 , _bufferSize , _fp );
-	}
-};
-template< class Vertex >
-class CoredFileCurveData : public CoredCurveData< Vertex >
-{
-	BufferedReadWriteFile *oocPointFile;
-	int oocPoints;
-//	std::vector< int > polygons;
-	std::vector< BufferedReadWriteFile* > edgeFiles;
-	int threadIndex;
-public:
-	CoredFileCurveData( const char* fileHeader="" );
-	~CoredFileCurveData( void );
-
-	void resetIterator( void );
-
-	int addOutOfCorePoint( const Vertex& p );
-	int addOutOfCorePoint_s( const Vertex& p );
-	void addEdge_s( CoredVertexIndex v1 , CoredVertexIndex v2 );
-	void addEdge_s( int v1 , int v2 );
-
-	int nextOutOfCorePoint( Vertex& p );
-	int nextEdge( CoredVertexIndex& v1 , CoredVertexIndex& v2 );
-
-	int outOfCorePointCount( void );
-	int edgeCount( void );
-};
-
-template< class Vertex >
-class CoredFileMeshData : public CoredMeshData< Vertex >
-{
-	BufferedReadWriteFile *oocPointFile;
-	int oocPoints;
-	std::vector< int > polygons;
-	std::vector< BufferedReadWriteFile* > polygonFiles;
-	int threadIndex;
-public:
-	CoredFileMeshData( const char* fileHeader="" );
-	~CoredFileMeshData( void );
-
-	void resetIterator( void );
-
-	int addOutOfCorePoint( const Vertex& p );
-	int addOutOfCorePoint_s( const Vertex& p );
-	void addPolygon_s( const std::vector< CoredVertexIndex >& vertices );
-	void addPolygon_s( const std::vector< int >& vertices );
-
-	int nextOutOfCorePoint( Vertex& p );
-	int nextPolygon( std::vector< CoredVertexIndex >& vertices );
-
-	int outOfCorePointCount( void );
-	int polygonCount( void );
-};
 #include "Geometry.inl"
 
 #endif // GEOMETRY_INCLUDED

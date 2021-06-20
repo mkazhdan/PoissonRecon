@@ -30,34 +30,33 @@ DAMAGE.
 #include "Geometry.h"
 #include "Array.h"
 
-template< class Real , unsigned int Dim >
-std::vector< TriangleIndex > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
+template< typename Index , class Real , unsigned int Dim >
+std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
 
-template< class Real , unsigned int Dim >
+template< typename Index , class Real , unsigned int Dim >
 class _MinimalAreaTriangulation
 {
 	Pointer( Real ) _bestTriangulation;
-	Pointer( int ) _midpoint;
+	Pointer( Index ) _midpoint;
 	size_t _vCount;
 	ConstPointer( Point< Real , Dim > ) _vertices;
 
 	void _set( void );
-	Real _subPolygonArea( size_t i , size_t j );
-	void _addTriangles( size_t i , size_t j , std::vector< TriangleIndex >& triangles ) const;
-	size_t _subPolygonIndex( size_t i , size_t j ) const;
+	Real _subPolygonArea( Index i , Index j );
+	void _addTriangles( Index i , Index j , std::vector< TriangleIndex< Index > >& triangles ) const;
+	Index _subPolygonIndex( Index i , Index j ) const;
 
 	_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
 	~_MinimalAreaTriangulation( void );
-	std::vector< TriangleIndex > getTriangulation( void );
-	friend std::vector< TriangleIndex > MinimalAreaTriangulation< Real , Dim >( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
+	std::vector< TriangleIndex< Index > > getTriangulation( void );
+	friend std::vector< TriangleIndex< Index > > MinimalAreaTriangulation< Index , Real , Dim >( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
 };
-template< class Real , unsigned int Dim >
-std::vector< TriangleIndex > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount )
+template< typename Index , class Real , unsigned int Dim >
+std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount )
 {
-	_MinimalAreaTriangulation< Real , Dim > MAT( vertices , vCount );
+	_MinimalAreaTriangulation< Index , Real , Dim > MAT( vertices , vCount );
 	return MAT.getTriangulation();
 }
-
 #include "MAT.inl"
 
 #endif // MAT_INCLUDED

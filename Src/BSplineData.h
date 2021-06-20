@@ -55,7 +55,7 @@ template< > struct DerivativeBoundary< BOUNDARY_NEUMANN   , 0 >{ static const Bo
 
 
 // Generate a single signature that combines the degree, boundary type, and number of supported derivatives
-template< unsigned int Degree , BoundaryType BType=BOUNDARY_FREE > struct FEMDegreeAndBType { static const unsigned int Signature =  Degree * BOUNDARY_COUNT + BType; };
+template< unsigned int Degree , BoundaryType BType=BOUNDARY_FREE > struct FEMDegreeAndBType { static const unsigned int Signature = Degree * BOUNDARY_COUNT + BType; };
 
 // Extract the degree and boundary type from the signaure
 template< unsigned int Signature > struct FEMSignature

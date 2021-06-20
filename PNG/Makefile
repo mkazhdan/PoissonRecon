@@ -1,8 +1,8 @@
 PNG_TARGET=libmypng.a
 PNG_SOURCE=png.c pngerror.c pnggccrd.c pngget.c pngmem.c pngpread.c pngread.c pngrio.c pngrtran.c pngrutil.c pngset.c pngtest.c pngtrans.c pngvcrd.c pngwio.c pngwrite.c pngwtran.c pngwutil.c
 
-COMPILER = gcc
-#COMPILER = clang
+COMPILER ?= gcc
+#COMPILER ?= clang
 
 CFLAGS += -Wno-deprecated -Wno-write-strings
 
@@ -20,10 +20,8 @@ ifeq ($(COMPILER),gcc)
 	CC=gcc
 	CXX=g++
 else
-	CC=clang-3.8
-	CXX=clang++-3.8
-#	CC=clang-3.5
-#	CXX=clang++-3.5
+	CC=clang
+	CXX=clang++
 endif
 
 MD=mkdir

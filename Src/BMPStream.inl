@@ -86,20 +86,20 @@ inline void BMPGetImageInfo( char* fileName , int& width , int& height , int& ch
     BITMAPINFOHEADER bmih;
 
 	FILE* fp = fopen( fileName , "rb" );
-	if( !fp ) fprintf( stderr , "Failed to open: %s\n" , fileName ) , exit(0);
+	if( !fp ) ERROR_OUT( "Failed to open: %s" , fileName );
 
 	fread( &bmfh , sizeof( BITMAPFILEHEADER ) , 1 , fp );
 	fread( &bmih , sizeof( BITMAPINFOHEADER ) , 1 , fp );
 
-	if( bmfh.bfType!=BMP_BF_TYPE || bmfh.bfOffBits!=BMP_BF_OFF_BITS ) fprintf( stderr , "[ERROR] BMPGetImageSize: Bad bitmap file header\n" ) , fclose( fp ) , exit( 0 );
-	if( bmih.biSize!=BMP_BI_SIZE || bmih.biWidth<=0 || bmih.biHeight<=0 || bmih.biPlanes!=1 || bmih.biBitCount!=24 || bmih.biCompression!=BI_RGB ) fprintf( stderr , "[ERROR] BMPGetImageSize: Bad bitmap file info\n" ) , fclose( fp ) , exit( 0 );
+	if( bmfh.bfType!=BMP_BF_TYPE || bmfh.bfOffBits!=BMP_BF_OFF_BITS ){ fclose(fp) ; ERROR_OUT( "Bad bitmap file header" ); };
+	if( bmih.biSize!=BMP_BI_SIZE || bmih.biWidth<=0 || bmih.biHeight<=0 || bmih.biPlanes!=1 || bmih.biBitCount!=24 || bmih.biCompression!=BI_RGB ) { fclose(fp) ; ERROR_OUT( "Bad bitmap file info" ); }
 	width           = bmih.biWidth;
 	height          = bmih.biHeight;
 	channels        = 3;
 	bytesPerChannel = 1;
 	int lineLength = width * channels;
 	if( lineLength % 4 ) lineLength = (lineLength / 4 + 1) * 4;
-	if( bmih.biSizeImage!=lineLength*height ) fprintf( stderr , "[ERROR] BMPGetImageSize: Bad bitmap image size\n" ) , fclose( fp ) , exit( 0 );
+	if( bmih.biSizeImage!=lineLength*height ){ fclose(fp) ; ERROR_OUT( "Bad bitmap image size" ) , fclose( fp ); };
 	fclose( fp );
 }
 
@@ -110,21 +110,21 @@ inline void* BMPInitRead( char* fileName , int& width , int& height )
 
 	BMPInfo* info = (BMPInfo*)malloc( sizeof( BMPInfo ) );
 	info->fp = fopen( fileName , "rb" );
-	if( !info->fp ) fprintf( stderr , "[ERROR] BMPInitRead: Failed to open: %s\n" , fileName ) , exit(0);
+	if( !info->fp ) ERROR_OUT( "Failed to open: %s" , fileName );
 
 	fread( &bmfh , sizeof( BITMAPFILEHEADER ) , 1 , info->fp );
 	fread( &bmih , sizeof( BITMAPINFOHEADER ) , 1 , info->fp );
 
-	if( bmfh.bfType!=BMP_BF_TYPE || bmfh.bfOffBits!=BMP_BF_OFF_BITS ) fprintf( stderr , "[ERROR] BMPInitReadColor: Bad bitmap file header\n" ) , exit( 0 );
-	if( bmih.biSize!=BMP_BI_SIZE || bmih.biWidth<=0 || bmih.biHeight<=0 || bmih.biPlanes!=1 || bmih.biBitCount!=24 || bmih.biCompression!=BI_RGB ) fprintf( stderr , "[ERROR] BMPInitReadColor: Bad bitmap file info\n" ) , exit( 0 );
+	if( bmfh.bfType!=BMP_BF_TYPE || bmfh.bfOffBits!=BMP_BF_OFF_BITS ) ERROR_OUT( "Bad bitmap file header" );
+	if( bmih.biSize!=BMP_BI_SIZE || bmih.biWidth<=0 || bmih.biHeight<=0 || bmih.biPlanes!=1 || bmih.biBitCount!=24 || bmih.biCompression!=BI_RGB ) ERROR_OUT( "Bad bitmap file info" );
 
 	info->width = width = bmih.biWidth;
 	height = bmih.biHeight;
 	info->lineLength = width * 3;
 	if( info->lineLength % 4 ) info->lineLength = (info->lineLength / 4 + 1) * 4;
-	if( bmih.biSizeImage!=info->lineLength*height ) fprintf( stderr , "[ERROR] BMPInitRead: Bad bitmap image size\n" ) , exit( 0 );
+	if( bmih.biSizeImage!=info->lineLength*height ) ERROR_OUT( "Bad bitmap image size" );
 	info->data = AllocPointer< unsigned char >( info->lineLength );
-	if( !info->data ) fprintf( stderr , "[ERROR] BMPInitRead: Could not allocate memory for bitmap data\n" ) , exit( 0 );
+	if( !info->data ) ERROR_OUT( "Could not allocate memory for bitmap data" );
 
 	fseek( info->fp , (long) bmfh.bfOffBits , SEEK_SET );
 	fseek( info->fp , (long) info->lineLength * height , SEEK_CUR );
@@ -133,19 +133,19 @@ inline void* BMPInitRead( char* fileName , int& width , int& height )
 template< int Channels , bool HDR >
 inline void* BMPInitWrite( char* fileName , int width , int height , int quality )
 {
-	if( HDR ) fprintf( stderr , "[WARNING] No HDR support for JPEG\n" );
+	if( HDR ) WARN( "No HDR support for JPEG" );
 	BITMAPFILEHEADER bmfh;
 	BITMAPINFOHEADER bmih;
 
 	BMPInfo* info = (BMPInfo*)malloc( sizeof( BMPInfo ) );
 	info->fp = fopen( fileName , "wb" );
-	if( !info->fp ) fprintf( stderr , "BMPInitWrite: Failed to open: %s\n" , fileName ) , exit(0);
+	if( !info->fp ) ERROR_OUT( "Failed to open: %s" , fileName );
 	info->width = width;
 
 	info->lineLength = width * 3;	/* RGB */
 	if( info->lineLength % 4 ) info->lineLength = (info->lineLength / 4 + 1) * 4;
 	info->data = AllocPointer< unsigned char >( info->lineLength );
-	if( !info->data ) fprintf( stderr , "[ERROR] BMPInitWrite: Could not allocate memory for bitmap data\n" ) , exit( 0 );
+	if( !info->data ) ERROR_OUT( "Could not allocate memory for bitmap data" );
 	/* Write file header */
 
 	bmfh.bfType = BMP_BF_TYPE;
@@ -190,7 +190,7 @@ void BMPReadRow( Pointer( ChannelType ) pixels , void* v , int j )
 	fseek( info->fp , -info->lineLength , SEEK_CUR );
     fread( info->data , 1 , info->lineLength , info->fp );
 	fseek( info->fp , -info->lineLength , SEEK_CUR );
-	if( ferror(info->fp) ) fprintf( stderr , "[ERROR] BMPReadRow: Error reading bitmap row\n" ) , exit( 0 );
+	if( ferror(info->fp) ) ERROR_OUT( "Error reading bitmap row" );
 	for( int i=0 ; i<info->width ; i++ ) { unsigned char temp = info->data[i*3] ; info->data[i*3] = info->data[i*3+2] ; info->data[i*3+2] = temp; }
 	ConvertRow< unsigned char , ChannelType >( ( ConstPointer( unsigned char ) )info->data , pixels , info->width , 3 , Channels );
 }

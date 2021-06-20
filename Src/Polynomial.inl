@@ -254,23 +254,56 @@ void Polynomial<Degree>::printnl(void) const{
 	}
 	printf("\n");
 }
-template< int Degree >
-int Polynomial<Degree>::getSolutions( double c , double* roots , double EPS ) const
+
+template<>
+int Polynomial< 1 >::getSolutions( double c , double* roots , double EPS ) const
 {
 	std::complex< double > _roots[4];
-	int _rCount=0;
-	switch( Degree )
-	{
-		case 1: _rCount = Factor(                                                       coefficients[1] , coefficients[0]-c , _roots , EPS ) ; break;
-		case 2:	_rCount = Factor(                                     coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS ) ; break;
-		case 3: _rCount = Factor(                   coefficients[3] , coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS ) ; break;
-//		case 4: _rCount = Factor( coefficients[4] , coefficients[3] , coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS ) ; break;
-		default: printf( "Can't solve polynomial of degree: %d\n" , Degree );
-	}
+	int _rCount = Factor( coefficients[1] , coefficients[0]-c , _roots , EPS );
 	int rCount = 0;
 	for( int i=0 ; i<_rCount ; i++ ) if( fabs( _roots[i].imag() )<=EPS ) roots[rCount++] = _roots[i].real();
 	return rCount;
 }
+
+template<>
+int Polynomial< 2 >::getSolutions( double c , double* roots , double EPS ) const
+{
+	std::complex< double > _roots[4];
+	int _rCount = Factor( coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS );
+	int rCount = 0;
+	for( int i=0 ; i<_rCount ; i++ ) if( fabs( _roots[i].imag() )<=EPS ) roots[rCount++] = _roots[i].real();
+	return rCount;
+}
+
+template<>
+int Polynomial< 3 >::getSolutions( double c , double* roots , double EPS ) const
+{
+	std::complex< double > _roots[4];
+	int _rCount = Factor( coefficients[3] , coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS );
+	int rCount = 0;
+	for( int i=0 ; i<_rCount ; i++ ) if( fabs( _roots[i].imag() )<=EPS ) roots[rCount++] = _roots[i].real();
+	return rCount;
+}
+
+#if 0
+template<>
+int Polynomial< 4 >::getSolutions( double c , double* roots , double EPS ) const
+{
+	std::complex< double > _roots[4];
+	int _rCount = Factor( coefficients[4] , coefficients[3] , coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS );
+	int rCount = 0;
+	for( int i=0 ; i<_rCount ; i++ ) if( fabs( _roots[i].imag() )<=EPS ) roots[rCount++] = _roots[i].real();
+	return rCount;
+}
+#endif
+
+template< int Degree >
+int Polynomial<Degree>::getSolutions( double c , double* roots , double EPS ) const
+{
+	ERROR_OUT( "Can't solve polynomial of degree: " , Degree );
+	return 0;
+}
+
 // The 0-th order B-spline
 template< >
 Polynomial< 0 > Polynomial< 0 >::BSplineComponent( int i )
