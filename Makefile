@@ -34,8 +34,8 @@ LFLAGS_DEBUG =
 
 #CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math -g
 #LFLAGS_RELEASE = -O3 -g
-CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math -g
-LFLAGS_RELEASE = -O3 -g
+CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math -g0
+LFLAGS_RELEASE = -O3 -g0
 
 SRC = Src/
 BIN = Bin/Linux/
@@ -143,22 +143,22 @@ clean:
 	rm -rf $(IS_OBJECTS)
 	rm -rf $(AV_OBJECTS)
 	rm -rf $(CP_OBJECTS)
-	cd PNG  && make clean
+	cd PNG  && $(MAKE) clean
 
 
 make_dir:
 	$(MD) -p $(BIN)
 
 $(BIN)$(PR_TARGET): $(PR_OBJECTS)
-	cd PNG  && make COMPILER=$(COMPILER)
+	cd PNG  && $(MAKE) COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(SR_TARGET): $(SR_OBJECTS)
-	cd PNG  && make COMPILER=$(COMPILER)
+	cd PNG  && $(MAKE) COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(SR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(PI_TARGET): $(PI_OBJECTS)
-	cd PNG  && make COMPILER=$(COMPILER)
+	cd PNG  && $(MAKE) COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(PI_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(ST_TARGET): $(ST_OBJECTS)
@@ -168,15 +168,15 @@ $(BIN)$(EH_TARGET): $(EH_OBJECTS)
 	$(CXX) -pthread -o $@ $(EH_OBJECTS) $(LFLAGS)
 
 $(BIN)$(IS_TARGET): $(IS_OBJECTS)
-	cd PNG  && make COMPILER=$(COMPILER)
+	cd PNG  && $(MAKE) COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(AV_TARGET): $(AV_OBJECTS)
-	cd PNG  && make COMPILER=$(COMPILER)
+	cd PNG  && $(MAKE) COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(AV_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)$(CP_TARGET): $(CP_OBJECTS)
-	cd PNG  && make COMPILER=$(COMPILER)
+	cd PNG  && $(MAKE) COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
 $(BIN)%.o: $(SRC)%.c
