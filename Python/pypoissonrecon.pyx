@@ -1,5 +1,8 @@
 #cython: language_level=3str
 
+## 2021.07.21: code adapted from https://github.com/mmolero/pypoisson
+## https://github.com/mmolero/pypoisson/blob/4f6a651d20ff2bab5ec0d0f8d0a14cc6cef3ef51/src/pypoisson.pyx
+
 cimport numpy as np
 import numpy as np
 from libcpp.vector cimport vector
@@ -17,9 +20,9 @@ cdef extern from "../Src/PoissonReconLib.h":
 
 def poisson_reconstruction(points, normals,
                            depth=8, full_depth=5, scale=1.1,
-                           samples_per_node=1.0, cg_depth=0.0,
+                           samples_per_node=1.0,
                            enable_polygon_mesh=False, enable_density=False,
-                           nthreads=0, verbose=False):
+                           nthreads=8, verbose=False):
 
     """
     Python Binding of Poisson Surface Reconstruction
@@ -64,12 +67,6 @@ def poisson_reconstruction(points, normals,
         For more noisy samples, larger values in the range [15.0 - 20.0] may be needed to provide a smoother, noise-reduced, reconstruction.
         The default value is 1.0.
 
-    cg_depth: Integer
-
-        This integer is the depth up to which a conjugate-gradients solver will be used to solve the linear system.
-        Beyond this depth Gauss-Seidel relaxation will be used.
-        The default value for this parameter is 0.
-
     enable_polygon_mesh: Bool
         Enabling this flag tells the reconstructor to output a polygon mesh (rather than triangulating the results of Marching Cubes).
         The default value for this parameter is False.
@@ -79,7 +76,8 @@ def poisson_reconstruction(points, normals,
         The default value for this parameter is False.
 
     nthreads: int
-        Number of omp threads to use. Default = 0 = all available threads.
+        This parameter specifies the number of threads across which the solver should be parallelized.
+        The default value for this parameter is 8.
 
     verbose: Bool
         Enable verbose mode.
@@ -104,7 +102,7 @@ def poisson_reconstruction(points, normals,
     return _poisson_reconstruction(np.ascontiguousarray(np.float64(points)),
                                    np.ascontiguousarray(np.float64(normals)),
                                    depth, full_depth, scale, samples_per_node,
-                                   cg_depth, enable_polygon_mesh, enable_density,
+                                   enable_polygon_mesh, enable_density,
                                    nthreads, verbose)
 
 
@@ -115,7 +113,6 @@ cdef _poisson_reconstruction(np.float64_t[:, ::1] points,
                              int full_depth=5,
                              double scale=1.10,
                              double samples_per_node=1.0,
-                             double cg_depth=0.0,
                              bool enable_polygon_mesh=False,
                              bool enable_density=False,
                              int nthreads=0,
@@ -127,7 +124,6 @@ cdef _poisson_reconstruction(np.float64_t[:, ::1] points,
         string arg_full_depth = str(full_depth).encode()
         string arg_scale = str(scale).encode()
         string arg_samples_per_node = str(samples_per_node).encode()
-        string arg_cg_depth = str(cg_depth).encode()
         string arg_nthreads = str(nthreads).encode()
 
     int_data.clear()
@@ -145,17 +141,16 @@ cdef _poisson_reconstruction(np.float64_t[:, ::1] points,
             mem_data[j + point_ncols + i *(point_ncols + normal_ncols)] = normals[i,j]
 
 
-    args = [b"PoissonRecon", b"--in", b"none", b"--out", b"none", b"--depth", arg_depth.c_str(),
-                            b"--fullDepth",    arg_full_depth.c_str(), b"--scale",   arg_scale.c_str(),
-                            b"--samplesPerNode",  arg_samples_per_node.c_str(),
-                            b"--cgDepth", arg_cg_depth.c_str()]
+    args = [b"PoissonRecon", b"--in", b"none", b"--out", b"none",
+                             b"--depth", arg_depth.c_str(),
+                             b"--fullDepth", arg_full_depth.c_str(),
+                             b"--scale",   arg_scale.c_str(),
+                             b"--samplesPerNode",  arg_samples_per_node.c_str(),
+                             b"--threads", arg_nthreads.c_str()
+                             ]
 
     if verbose == True:
         args += [b"--verbose"]
-
-    if nthreads > 0:
-        args += [b"--threads", arg_nthreads.c_str()]
-
     if enable_polygon_mesh:
         args += [b"--polygonMesh"]
     if enable_density:
