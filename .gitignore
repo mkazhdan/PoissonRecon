@@ -7,3 +7,11 @@
 *.bat
 *.zip
 .vs/*
+
+
+*.DS_Store
+CMakeLists.txt.user
+Python/build/
+Python/dist/
+Python/pypoissonrecon.cpp
+Python/pypoissonrecon.egg-info/
