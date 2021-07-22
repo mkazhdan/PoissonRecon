@@ -43,12 +43,19 @@ add_library(${TRG_ZLIB} SHARED ${SRCS_ZLIB})
 
 
 ## -----------------------------------------------------------------------------
-## build poisson reconstruction
+## build poisson reconstruction library and executable
 ## -----------------------------------------------------------------------------
+add_library(poisson_recon_lib SHARED
+            ${PROJECT_SOURCE_DIR}/Src/PoissonReconLib.h
+            ${PROJECT_SOURCE_DIR}/Src/PoissonReconLib.cpp)
+
+target_link_libraries(poisson_recon_lib
+                      ${TRG_PNG} ${TRG_JPEG} ${TRG_ZLIB})
+
 add_executable(poisson_recon
                ${PROJECT_SOURCE_DIR}/Src/PoissonRecon.cpp)
 
 target_link_libraries(poisson_recon
-                      ${TRG_PNG} ${TRG_JPEG} ${TRG_ZLIB})
+                      poisson_recon_lib ${TRG_PNG} ${TRG_JPEG} ${TRG_ZLIB})
 
 ## -----------------------------------------------------------------------------

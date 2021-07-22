@@ -26,7 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include "PoissonReconLib.h"
-int main(int argc, char **argv) {
-    return PoissonReconLib(argc, argv);
-}
+#pragma once
+
+int PoissonReconLib(int argc, char **argv);
