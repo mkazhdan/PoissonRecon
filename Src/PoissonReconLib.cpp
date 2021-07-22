@@ -26,6 +26,15 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
+#include <vector>
+std::vector<double> double_data;
+std::vector<int> int_data;
+std::vector<double> mem_data;
+bool* is_verbose;
+bool is_writing_to_memory = true;
+bool is_reading_from_memory = true;
+bool is_writing_int;
+
 #include "PreProcessor.h"
 
 #undef USE_DOUBLE								// If enabled, double-precesion is used
