@@ -98,8 +98,3 @@ target_link_libraries(poisson_recon
                       ${PNG_LIBRARIES} ${ZLIB_LIBRARIES} ${JPEG_LIBRARIES})
 
 ## -----------------------------------------------------------------------------
-#if(BUILD_PYTHON)
-#    add_subdirectory(Python)
-#endif (BUILD_PYTHON)
-
-## -----------------------------------------------------------------------------
