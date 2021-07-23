@@ -26,7 +26,12 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include "PoissonReconLib.h"
-int main(int argc, char **argv) {
-    return PoissonReconLib(argc, argv);
-}
+#pragma once
+
+#include <vector>
+extern std::vector<double> double_data;
+extern std::vector<int> int_data;
+extern std::vector<double> mem_data;
+extern bool* is_verbose;
+
+int PoissonReconLib(int argc, char **argv);
