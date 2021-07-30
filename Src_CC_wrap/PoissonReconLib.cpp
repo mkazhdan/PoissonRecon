@@ -189,9 +189,10 @@ struct FEMTreeProfiler {
 };
 
 template <class Real, unsigned int Dim>
-XForm<Real, Dim + 1> GetBoundingBoxXForm(Point<Real, Dim> min,
-	Point<Real, Dim> max,
-	Real scaleFactor) {
+XForm<Real, Dim + 1> GetBoundingBoxXForm(	const Point<Real, Dim>& min,
+											const Point<Real, Dim>& max,
+											Real scaleFactor)
+{
 	Point<Real, Dim> center = (max + min) / 2;
 	Real scale = max[0] - min[0];
 	for (unsigned int d = 1; d < Dim; d++) {
@@ -210,8 +211,8 @@ XForm<Real, Dim + 1> GetBoundingBoxXForm(Point<Real, Dim> min,
 }
 
 template <class Real, unsigned int Dim>
-XForm<Real, Dim + 1> GetBoundingBoxXForm(	Point<Real, Dim> min,
-											Point<Real, Dim> max,
+XForm<Real, Dim + 1> GetBoundingBoxXForm(	const Point<Real, Dim>& min,
+											const Point<Real, Dim>& max,
 											Real width,
 											Real scaleFactor,
 											int& depth)
@@ -430,7 +431,6 @@ static bool Execute(PointStream<Real>& pointStream,
 
 	//default parameters
 	const int solve_depth = depth;
-	const int full_depth = 5;
 	const bool exact_interpolation = false;
 	const Real target_value = static_cast<Real>(0.5);
 
@@ -556,7 +556,7 @@ static bool Execute(PointStream<Real>& pointStream,
 		{
 			constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
 			
-			tree.template finalizeForMultigrid<MAX_DEGREE>( full_depth,
+			tree.template finalizeForMultigrid<MAX_DEGREE>( params.fullDepth,
 															typename FEMTree<Dim, Real>::template HasNormalDataFunctor<NormalSigs>(*normalInfo),
 															normalInfo,
 															density.get() );
