@@ -70,7 +70,7 @@ cmdLineParameter< char* >
 	Grid( "grid" ) ,
 	Tree( "tree" ) ,
 	Envelope( "envelope" ) ,
-	EnvelopeGrid( "envelopeGrid" ),
+	EnvelopeGrid( "envelopeGrid" ) ,
 	Transform( "xForm" );
 
 cmdLineReadable
@@ -174,6 +174,7 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <ouput grid>]\n" , Grid.name );
 	printf( "\t[--%s <output envelope grid>\n" , EnvelopeGrid.name );
 	printf( "\t[--%s <ouput fem tree>]\n" , Tree.name );
+	printf( "\t[--%s <input transform file containing space separated %dx%d matrix>]\n" , Transform.name , DEFAULT_DIMENSION , DEFAULT_DIMENSION );
 #ifndef FAST_COMPILE
 	printf( "\t[--%s <b-spline degree>=%d]\n" , Degree.name , Degree.value );
 	printf( "\t[--%s <boundary type>=%d]\n" , BType.name , BType.value );
@@ -267,30 +268,26 @@ template< class Real , unsigned int Dim >
 XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor )
 {
 	Point< Real , Dim > center = ( max + min ) / 2;
-	Real scale = max[0] - min[0];
-	for( int d=1 ; d<Dim ; d++ ) scale = std::max< Real >( scale , max[d]-min[d] );
-	scale *= scaleFactor;
-	for( int i=0 ; i<Dim ; i++ ) center[i] -= scale/2;
+	Real max_range = max[0] - min[0];
+	for( int d=1 ; d<Dim ; d++ ) max_range = std::max< Real >( max_range , max[d]-min[d] );
+	max_range *= scaleFactor;
+	for( int i=0 ; i<Dim ; i++ ) center[i] -= max_range/2;
 	XForm< Real , Dim+1 > tXForm = XForm< Real , Dim+1 >::Identity() , sXForm = XForm< Real , Dim+1 >::Identity();
-	for( int i=0 ; i<Dim ; i++ ) sXForm(i,i) = (Real)(1./scale ) , tXForm(Dim,i) = -center[i];
+	for( int i=0 ; i<Dim ; i++ ) sXForm(i,i) = (Real)(1./max_range ) , tXForm(Dim,i) = -center[i];
 	return sXForm * tXForm;
 }
 template< class Real , unsigned int Dim >
 XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real width , Real scaleFactor , int& depth )
 {
-	// Get the target resolution (along the largest dimension)
-	Real resolution = ( max[0]-min[0] ) / width;
-	for( int d=1 ; d<Dim ; d++ ) resolution = std::max< Real >( resolution , ( max[d]-min[d] ) / width );
-	resolution *= scaleFactor;
-	depth = 0;
-	while( (1<<depth)<resolution ) depth++;
-
 	Point< Real , Dim > center = ( max + min ) / 2;
-	Real scale = (1<<depth) * width;
-
-	for( int i=0 ; i<Dim ; i++ ) center[i] -= scale/2;
+	Real max_range = max[0] - min[0];
+	for( int d=1 ; d<Dim ; d++ ) max_range = std::max< Real >( max_range , max[d]-min[d] );
+	max_range *= scaleFactor;
+	Real fine_voxels = ceil(max_range / width);
+	for ( depth=0 ; (1 << depth) < fine_voxels; ++depth);
+	for( int i=0 ; i<Dim ; i++ ) center[i] -= max_range/2;
 	XForm< Real , Dim+1 > tXForm = XForm< Real , Dim+1 >::Identity() , sXForm = XForm< Real , Dim+1 >::Identity();
-	for( int i=0 ; i<Dim ; i++ ) sXForm(i,i) = (Real)(1./scale ) , tXForm(Dim,i) = -center[i];
+	for( int i=0 ; i<Dim ; i++ ) sXForm(i,i) = (Real)(1./max_range ) , tXForm(Dim,i) = -center[i];
 	return sXForm * tXForm;
 }
 
@@ -611,6 +608,23 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		if( Width.value>0 ) modelToUnitCube = GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
 		else                modelToUnitCube = Scale.value>0 ? GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
 
+		if( !KernelDepth.set ) KernelDepth.value = Depth.value-2;
+		if( KernelDepth.value>Depth.value )
+		{
+			WARN( "Kernel depth should not exceed depth: " , KernelDepth.name , " <= " , KernelDepth.value );
+			KernelDepth.value = Depth.value;
+		}
+		if( !EnvelopeDepth.set ) EnvelopeDepth.value = BaseDepth.value;
+		if( EnvelopeDepth.value>Depth.value )
+		{
+			WARN( EnvelopeDepth.name , " can't be greater than " , Depth.name , ": " , EnvelopeDepth.value , " <= " , Depth.value );
+			EnvelopeDepth.value = Depth.value;
+		}
+		if( EnvelopeDepth.value<BaseDepth.value )
+		{
+			WARN( EnvelopeDepth.name , " can't be less than " , BaseDepth.name , ": " , EnvelopeDepth.value , " >= " , BaseDepth.value );
+			EnvelopeDepth.value = BaseDepth.value;
+		}
 		if( !SolveDepth.set ) SolveDepth.value = Depth.value;
 		if( SolveDepth.value>Depth.value )
 		{
@@ -1077,24 +1091,6 @@ int main( int argc , char* argv[] )
 	{
 		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
-	}
-	if( !KernelDepth.set ) KernelDepth.value = Depth.value-2;
-	if( KernelDepth.value>Depth.value )
-	{
-		WARN( "Kernel depth should not exceed depth: " , KernelDepth.name , " <= " , KernelDepth.value );
-		KernelDepth.value = Depth.value;
-	}
-
-	if( !EnvelopeDepth.set ) EnvelopeDepth.value = BaseDepth.value;
-	if( EnvelopeDepth.value>Depth.value )
-	{
-		WARN( EnvelopeDepth.name , " can't be greater than " , Depth.name , ": " , EnvelopeDepth.value , " <= " , Depth.value );
-		EnvelopeDepth.value = Depth.value;
-	}
-	if( EnvelopeDepth.value<BaseDepth.value )
-	{
-		WARN( EnvelopeDepth.name , " can't be less than " , BaseDepth.name , ": " , EnvelopeDepth.value , " >= " , BaseDepth.value );
-		EnvelopeDepth.value = BaseDepth.value;
 	}
 
 #ifdef USE_DOUBLE
