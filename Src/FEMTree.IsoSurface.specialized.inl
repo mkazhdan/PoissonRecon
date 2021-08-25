@@ -846,6 +846,8 @@ protected:
 					{
 						typename HyperCube::Cube< Dim >::template Element< 0 > c( zDir , _c.index );
 						node_index_type vIndex = cIndices[_c.index];
+
+						#pragma omp critical
 						if( !sValues.cornerSet[vIndex] )
 						{
 							if( sValues.cornerGradients )
