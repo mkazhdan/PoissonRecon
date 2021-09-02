@@ -826,8 +826,16 @@ protected:
 		std::vector< ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > bNeighborKeys( ThreadPool::NumThreads() );
 		if( useBoundaryEvaluation ) for( size_t i=0 ; i<neighborKeys.size() ; i++ ) bNeighborKeys[i].set( tree._localToGlobal( depth ) );
 		else                        for( size_t i=0 ; i<neighborKeys.size() ; i++ )  neighborKeys[i].set( tree._localToGlobal( depth ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		
+		#ifdef __aarch64__
+		// Disable parallelism on ARM64, because it currently causes a race condition
+		for (size_t i = tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)); i < tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)); i++)
 		{
+			unsigned int thread = 0;
+		#else
+        ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		{
+		#endif
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
 				Real squareValues[ HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ];
@@ -846,8 +854,6 @@ protected:
 					{
 						typename HyperCube::Cube< Dim >::template Element< 0 > c( zDir , _c.index );
 						node_index_type vIndex = cIndices[_c.index];
-
-						#pragma omp critical
 						if( !sValues.cornerSet[vIndex] )
 						{
 							if( sValues.cornerGradients )
@@ -883,7 +889,9 @@ protected:
 				}
 			}
 		}
+		#ifndef __aarch64__
 		);
+		#endif
 	}
 	/////////////////
 	// _VertexData //
