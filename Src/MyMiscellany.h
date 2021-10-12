@@ -466,7 +466,7 @@ struct ThreadPool
 
 	static unsigned int NumThreads( void ){ return (unsigned int)_Threads.size()+1; }
 
-	static void Init( ParallelType parallelType , unsigned int numThreads=std::thread::hardware_concurrency() )
+	static void Init( ParallelType parallelType , unsigned int numThreads= numMaxThreads)
 	{
 		_ParallelType = parallelType;
 		if( _Threads.size() && !_Close )

@@ -54,7 +54,7 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( size_t
 {
 	if( blockSize )
 	{
-		nodeAllocators.resize( std::thread::hardware_concurrency() );
+		nodeAllocators.resize(numMaxThreads);
 		for( size_t i=0 ; i<nodeAllocators.size() ; i++ )
 		{
 			nodeAllocators[i] = new Allocator< FEMTreeNode >();
@@ -80,7 +80,7 @@ FEMTree< Dim , Real >::FEMTree( FILE* fp , XForm< Real , Dim+1 > &xForm , size_t
 {
 	if( blockSize )
 	{
-		nodeAllocators.resize( std::thread::hardware_concurrency() );
+		nodeAllocators.resize(numMaxThreads);
 		for( size_t i=0 ; i<nodeAllocators.size() ; i++ )
 		{
 			nodeAllocators[i] = new Allocator< FEMTreeNode >();

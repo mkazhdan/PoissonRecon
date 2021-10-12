@@ -31,7 +31,7 @@ DAMAGE.
 // CoredVectorMeshData //
 /////////////////////////
 template< class Vertex , typename Index >
-CoredVectorMeshData< Vertex , Index >::CoredVectorMeshData( void ) { oocPointIndex = polygonIndex = threadIndex = 0 ; polygons.resize( std::thread::hardware_concurrency() ); }
+CoredVectorMeshData< Vertex , Index >::CoredVectorMeshData( void ) { oocPointIndex = polygonIndex = threadIndex = 0 ; polygons.resize(numMaxThreads); }
 template< class Vertex , typename Index >
 void CoredVectorMeshData< Vertex , Index >::resetIterator ( void ) { oocPointIndex = polygonIndex = threadIndex = 0; }
 template< class Vertex , typename Index >
@@ -115,13 +115,13 @@ CoredFileMeshData< Index , VertexFactory >::CoredFileMeshData( const VertexFacto
 {
 	_threadIndex = 0;
 	_oocVertexNum = 0;
-	_polygonNum.resize( std::thread::hardware_concurrency() );
+	_polygonNum.resize(numMaxThreads);
 	for( unsigned int i=0 ; i<_polygonNum.size() ; i++ ) _polygonNum[i] = 0;
 
 	char _fileHeader[1024];
 	sprintf( _fileHeader , "%s_points_" , fileHeader );
 	_oocVertexFile = new BufferedReadWriteFile( NULL , _fileHeader );
-	_polygonFiles.resize( std::thread::hardware_concurrency() );
+	_polygonFiles.resize(numMaxThreads);
 	for( unsigned int i=0 ; i<_polygonFiles.size() ; i++ )
 	{
 		sprintf( _fileHeader , "%s_polygons_t%d_" , fileHeader , i );

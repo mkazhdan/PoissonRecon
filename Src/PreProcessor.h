@@ -47,4 +47,12 @@ DAMAGE.
 #define VERSION "13.72"							// The version of the code
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12		// The chunk size for memory allocation
 
+
+#ifdef _OPENMP
+#include <omp.h>
+int numMaxThreads = omp_get_num_procs();
+#else // !_OPENMP
+int numMaxThreads = std::thread::hardware_concurrency();
+#endif // _OPENMP
+
 #endif // PRE_PROCESSOR_INCLUDED

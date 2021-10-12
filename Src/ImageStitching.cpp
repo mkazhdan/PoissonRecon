@@ -64,7 +64,7 @@ cmdLineParameter< int >
 #endif // _OPENMP
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ,
+	Threads( "threads" , (int)numMaxThreads) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	GSIterations( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 6 ) ,

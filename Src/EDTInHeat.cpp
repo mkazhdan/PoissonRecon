@@ -75,7 +75,7 @@ cmdLineParameter< int >
 #endif // _OPENMP
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() );
+	Threads( "threads" , (int)numMaxThreads);
 
 cmdLineParameter< float >
 	Scale( "scale" , 2.f ) ,
