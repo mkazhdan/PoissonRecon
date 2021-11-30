@@ -585,6 +585,7 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		char* ext = GetFileExtension( In.value );
 		sampleData = new std::vector< InputSampleDataType >();
 		std::vector< InputSampleType > inCorePoints;
+
 		if( InCore.set )
 		{
 			InputPointStream *_pointStream;

@@ -149,7 +149,6 @@ void PLYInputDataStream< Factory >::reset( void )
 {
 	int fileType;
 	float version;
-	std::vector< PlyProperty > plist;
 	if( _ply ) _free();
 	_ply = PlyFile::Read( _fileName, _elist, fileType, version );
 	if( !_ply ) ERROR_OUT( "Failed to open ply file for reading: %s" , _fileName );
@@ -157,13 +156,14 @@ void PLYInputDataStream< Factory >::reset( void )
 	bool foundData = false;
 	for( int i=0 ; i<_elist.size() ; i++ )
 	{
-		size_t num_elems;
 		std::string &elem_name = _elist[i];
-		plist = _ply->get_element_description( elem_name , num_elems );
-		if( !plist.size() ) ERROR_OUT( "Failed to get element description: %s" , elem_name );
 
 		if( elem_name=="vertex" )
 		{
+			size_t num_elems;
+			std::vector< PlyProperty > plist = _ply->get_element_description( elem_name , num_elems );
+			if( !plist.size() ) ERROR_OUT( "Failed to get description for \"" , elem_name , "\"" );
+
 			foundData = true;
 			_pCount = num_elems , _pIdx = 0;
 
