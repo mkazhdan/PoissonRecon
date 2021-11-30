@@ -314,6 +314,7 @@ XForm< Real , Dim+1 > GetPointXForm( InputOrientedPointStream< Real , Dim , AuxD
 	InputOrientedPointStreamInfo< Real , Dim , AuxData >::BoundingBox( stream , min , max );
 	return GetBoundingBoxXForm( min , max , scaleFactor );
 }
+
 template< unsigned int Dim , typename Real >
 struct ConstraintDual
 {
@@ -407,7 +408,6 @@ void ExtractMesh
 	std::vector< std::string > noComments;
 	typename VertexFactory::Transform unitCubeToModelTransform( unitCubeToModel );
 	PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( Out.value , vertexFactory , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , unitCubeToModelTransform );
-
 	delete mesh;
 }
 
@@ -612,6 +612,13 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		if( Width.value>0 ) modelToUnitCube = GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
 		else                modelToUnitCube = Scale.value>0 ? GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
 
+		if( !SolveDepth.set ) SolveDepth.value = Depth.value;
+		if( SolveDepth.value>Depth.value )
+		{
+			WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
+			SolveDepth.value = Depth.value;
+		}
+
 		{
 			typename InputSampleFactory::Transform _modelToUnitCube( modelToUnitCube );
 			auto XFormFunctor = [&]( InputSampleType &p ){ p = _modelToUnitCube( p ); };
@@ -632,6 +639,7 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators[0] , tree.initializer() , ProcessDataWithConfidence );
 			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators[0] , tree.initializer() , ProcessData );
 		}
+
 		unitCubeToModel = modelToUnitCube.inverse();
 		delete pointStream;
 
@@ -677,11 +685,15 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 				bias = (Real)( log( l ) * ConfidenceBias.value / log( 1<<(Dim-1) ) );
 				return true;
 			};
-
+#if 1
+			if( ConfidenceBias.value>0 ) *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , BaseDepth.value , Depth.value , (Real)LowDepthCutOff.value , pointWeightSum , ConversionAndBiasFunction );
+			else                         *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , BaseDepth.value , Depth.value , (Real)LowDepthCutOff.value , pointWeightSum , ConversionFunction );
+#else
 			if( ConfidenceBias.value>0 ) *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , 0 , Depth.value , (Real)LowDepthCutOff.value , pointWeightSum , ConversionAndBiasFunction );
 			else                         *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , 0 , Depth.value , (Real)LowDepthCutOff.value , pointWeightSum , ConversionFunction );
-			profiler.dumpOutput2( comments , "#     Got normal field:" );
+#endif
 			ThreadPool::Parallel_for( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
+			profiler.dumpOutput2( comments , "#     Got normal field:" );
 			messageWriter( "Point weight / Estimated Measure: %g / %g\n" , pointWeightSum , pointCount*pointWeightSum );
 		}
 
@@ -1066,12 +1078,6 @@ int main( int argc , char* argv[] )
 	{
 		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
-	}
-	if( !SolveDepth.set ) SolveDepth.value = Depth.value;
-	if( SolveDepth.value>Depth.value )
-	{
-		WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
-		SolveDepth.value = Depth.value;
 	}
 	if( !KernelDepth.set ) KernelDepth.value = Depth.value-2;
 	if( KernelDepth.value>Depth.value )

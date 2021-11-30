@@ -361,12 +361,12 @@ Real FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAlloc
 		//		dx: the fraction of the sample splatted into the current depth
 		//		pow( width , -dim ): So that each sample is splatted with a unit volume
 		V _v = v * weight / Real( pow( width , dim ) ) * dx;
-		//		V _v = v / Length(v) * dx;
+//		V _v = v / Length(v) * dx;
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #ifdef SHOW_WARNINGS
 #warning "you've got me gcc version<5"
 #endif // SHOW_WARNINGS
-			_splatPointData< CreateNodes , ThreadSafe , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
+		_splatPointData< CreateNodes , ThreadSafe , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
 		_splatPointData< CreateNodes , ThreadSafe , V ,  DataSigs ... >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #endif // __GNUC__ || __GNUC__ < 4

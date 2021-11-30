@@ -429,7 +429,7 @@ SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setI
 #ifdef SHOW_WARNINGS
 #warning "you've got me gcc version<5"
 #endif // SHOW_WARNINGS
-					if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData >( nodeAllocator , *density , minDepthCutoff , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , minDepth , maxDepth , Dim , depthBias ) * sample.weight );
+				if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData >( nodeAllocator , *density , minDepthCutoff , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , minDepth , maxDepth , Dim , depthBias ) * sample.weight );
 #else // !__GNUC__ || __GNUC__ >=5
 				if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , OutData , DataSigs ... >( nodeAllocator , *density , minDepthCutoff , p , out , dataField , densityKey , oneKey ? *( (DataKey*)&densityKey ) : dataKey , minDepth , maxDepth , Dim , depthBias ) * sample.weight );
 #endif // __GNUC__ && __GNUC__ < 5
