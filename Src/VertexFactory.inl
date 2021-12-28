@@ -47,12 +47,18 @@ namespace VertexFactory
 	{
 		switch( plyType )
 		{
-			case PLY_INT:    return TypeOnDisk::INT;
-			case PLY_UINT:   return TypeOnDisk::UINT;
-			case PLY_CHAR:   return TypeOnDisk::CHAR;
-			case PLY_UCHAR:  return TypeOnDisk::UCHAR;
-			case PLY_FLOAT:  return TypeOnDisk::FLOAT;
-			case PLY_DOUBLE: return TypeOnDisk::DOUBLE;
+			case PLY_INT:      return TypeOnDisk::INT;
+			case PLY_UINT:     return TypeOnDisk::UINT;
+			case PLY_CHAR:     return TypeOnDisk::CHAR;
+			case PLY_UCHAR:    return TypeOnDisk::UCHAR;
+			case PLY_FLOAT:    return TypeOnDisk::FLOAT;
+			case PLY_DOUBLE:   return TypeOnDisk::DOUBLE;
+			case PLY_INT_8:    return TypeOnDisk::CHAR;
+			case PLY_UINT_8:   return TypeOnDisk::UCHAR;
+			case PLY_INT_32:   return TypeOnDisk::INT;
+			case PLY_UINT_32:  return TypeOnDisk::UINT;
+			case PLY_FLOAT_32: return TypeOnDisk::FLOAT;
+			case PLY_FLOAT_64: return TypeOnDisk::DOUBLE;
 			default: ERROR_OUT( "Unrecognized type: " , plyType );
 		}
 		return TypeOnDisk::UNKNOWN;
