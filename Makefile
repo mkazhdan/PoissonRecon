@@ -34,7 +34,7 @@ LFLAGS_DEBUG =
 
 #CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math -g
 #LFLAGS_RELEASE = -O3 -g
-CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math -g0
+CFLAGS_RELEASE = -O3 -DRELEASE -ffast-math -g0
 LFLAGS_RELEASE = -O3 -g0
 
 SRC = Src/
