@@ -609,15 +609,17 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		typename InputSampleFactory::Transform _modelToUnitCube( modelToUnitCube );
 		auto XFormFunctor = [&]( InputSampleType &p ){ p = _modelToUnitCube( p ); };
 		XInputPointStream _pointStream( XFormFunctor , *pointStream );
-		if( Width.value>0 ) modelToUnitCube = GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
-		else                modelToUnitCube = Scale.value>0 ? GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
-
-		if( !SolveDepth.set ) SolveDepth.value = Depth.value;
-		if( SolveDepth.value>Depth.value )
+		if( Width.value>0 )
 		{
-			WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
-			SolveDepth.value = Depth.value;
+			modelToUnitCube = GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
+			if( !SolveDepth.set ) SolveDepth.value = Depth.value;
+			if( SolveDepth.value>Depth.value )
+			{
+				WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
+				SolveDepth.value = Depth.value;
+			}
 		}
+		else modelToUnitCube = Scale.value>0 ? GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
 
 		{
 			typename InputSampleFactory::Transform _modelToUnitCube( modelToUnitCube );
@@ -1074,10 +1076,17 @@ int main( int argc , char* argv[] )
 	}
 
 	if( !BaseDepth.set ) BaseDepth.value = FullDepth.value;
+	if( !SolveDepth.set ) SolveDepth.value = Depth.value;
+
 	if( BaseDepth.value>FullDepth.value )
 	{
 		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
+	}
+	if( SolveDepth.value>Depth.value )
+	{
+		WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
+		SolveDepth.value = Depth.value;
 	}
 	if( !KernelDepth.set ) KernelDepth.value = Depth.value-2;
 	if( KernelDepth.value>Depth.value )

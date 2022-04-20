@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 13.72)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 13.73)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#EXECUTABLES">executables</a>
@@ -26,10 +26,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.73/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.73/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/">V13.72</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.71/">V13.71</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.70/">V13.70</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.61/">V13.61</a>,
@@ -1069,6 +1070,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/">Version 13.72</a>:
 <ol>
 <LI> Fixed a bug that could result in the reconstruction not solving up to the finest depth when the <b>--width</b> argument is used.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.73/">Version 13.73</a>:
+<ol>
+<LI> Re-fixed a bug that could result in the reconstruction not solving up to the finest depth when the <b>--width</b> argument is used.
 </ol>
 
 </DETAILS>
