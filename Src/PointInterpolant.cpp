@@ -668,6 +668,16 @@ void Execute( UIntPack< FEMSigs ... > )
 					WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
 					SolveDepth.value = Depth.value;
 				}
+				if( FullDepth.value>Depth.value )
+				{
+					WARN( "Full depth cannot exceed system depth: " , FullDepth.value , " <= " , Depth.value );
+					FullDepth.value = Depth.value;
+				}
+				if( BaseDepth.value>FullDepth.value )
+				{
+					if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
+					BaseDepth.value = FullDepth.value;
+				}
 			}
 			else modelToUnitCube = Scale.value>0 ? GetBoundingBoxXForm( min , max , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
 		}
