@@ -8,3 +8,5 @@
 *.zip
 .vs/*
 V*/
+*.user
+Makefile.9
