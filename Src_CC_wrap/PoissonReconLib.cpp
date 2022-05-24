@@ -47,11 +47,18 @@ namespace {
 	}
 }
 
-PoissonReconLib::Parameters::Parameters()
+int PoissonReconLib::Parameters::GetMaxThreadCount()
 {
 #ifdef WITH_OPENMP
-	threads = omp_get_num_procs();
+	return omp_get_num_procs();
+#else
+	return std::thread::hardware_concurrency();
 #endif
+}
+
+PoissonReconLib::Parameters::Parameters()
+	: threads(GetMaxThreadCount())
+{
 }
 
 template <typename _Real>
@@ -714,9 +721,9 @@ bool PoissonReconLib::Reconstruct(	const Parameters& params,
 	}
 
 #ifdef WITH_OPENMP
-	ThreadPool::Init((ThreadPool::ParallelType)(int)ThreadPool::OPEN_MP, std::thread::hardware_concurrency());
+	ThreadPool::Init((ThreadPool::ParallelType)(int)ThreadPool::OPEN_MP, params.threads);
 #else
-	ThreadPool::Init((ThreadPool::ParallelType)(int)ThreadPool::THREAD_POOL, std::thread::hardware_concurrency());
+	ThreadPool::Init((ThreadPool::ParallelType)(int)ThreadPool::THREAD_POOL, params.threads);
 #endif
 
 	PointStream<float> pointStream(inCloud);

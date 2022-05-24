@@ -31,6 +31,9 @@ public:
 		//! Default initializer
 		Parameters();
 
+		//! Returns the maximum number of threads
+		static int GetMaxThreadCount();
+
 		//! Boundary types
 		enum BoundaryType { FREE, DIRICHLET, NEUMANN };
 
