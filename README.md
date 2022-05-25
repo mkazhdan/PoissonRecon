@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 13.74)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 13.8)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#EXECUTABLES">executables</a>
@@ -26,10 +26,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.8/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.8/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/">V13.74</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.73/">V13.73</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/">V13.72</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.71/">V13.71</a>,
@@ -477,11 +478,14 @@ The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/p
 The default value is 5.
 
 </dd><dt>[<b>--aRatio</b> &lt;<i>island area ratio</i>&gt;]
-</dt><dd> This floating point value specifies the area ratio that defines a disconnected component as an "island". Connected components whose area, relative to the total area of the mesh, are smaller than this value will be merged into the output surface to close small holes, and will be discarded from the output surface to remove small disconnected components.<br>
+</dt><dd> This floating point value specifies the area ratio that defines a disconnected component as an "island". Connected components whose area, relative to the total area of the mesh, are smaller than this value will be merged into the output surface to close small holes.<br>
 The default value 0.001.
 
 </dd><dt>[<b>--polygonMesh</b>]
 </dt><dd> Enabling this flag tells the trimmer to output a polygon mesh (rather than triangulating the trimming results).
+
+</dd><dt>[<b>--removeIslands</b>]
+</dt><dd> Enabling this flag tells the trimmer to discard small disconnected components of surface.
 
 </dd><dt>[<b>--verbose</b>]
 </dt><dd> Enabling this flag provides a more verbose description of the running times and memory usages of individual components of the surface reconstructor.
@@ -1081,6 +1085,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/">Version 13.74</a>:
 <ol>
 <LI> Fixed a bug that could result in reconstruction failure when the reconstruction depth (e.g. computed using the <b>--width</b> argument) was lower than the full depth value.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.8/">Version 13.8</a>:
+<ol>
+<LI> Updated the <I>SurfaceTrimmer</I> code to better handle small islands.
 </ol>
 
 </DETAILS>
