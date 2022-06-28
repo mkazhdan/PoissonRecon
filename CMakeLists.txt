@@ -11,16 +11,27 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 find_package(Threads REQUIRED)
 
-string(JOIN " " CMAKE_CXX_FLAGS_RELEASE
-    ${CMAKE_CXX_FLAGS_RELEASE}
-    -Ofast
-    -DRELEASE
-    -funroll-loops
-    -ffast-math
-    -Wno-deprecated
-    -Wno-invalid-offsetof
-    -Wno-dangling-else
-)
+if (MSVC)
+    string(JOIN " " CMAKE_CXX_FLAGS_RELEASE
+        ${CMAKE_CXX_FLAGS_RELEASE}
+        -DRELEASE
+        -DNOMINMAX
+        -DWIN32_LEAN_AND_MEAN
+        /bigobj
+    )
+else()
+    string(JOIN " " CMAKE_CXX_FLAGS_RELEASE
+        ${CMAKE_CXX_FLAGS_RELEASE}
+        -DRELEASE
+        -Ofast
+        -funroll-loops
+        -ffast-math
+        -Wno-deprecated
+        -Wno-invalid-offsetof
+        -Wno-dangling-else
+    )
+endif()
+
 string(JOIN " " CMAKE_EXE_LINKER_FLAGS_RELEASE
     ${CMAKE_EXE_LINKER_FLAGS_RELEASE}
     ${CMAKE_CXX_FLAGS_RELEASE}
