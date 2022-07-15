@@ -2,7 +2,7 @@
 /* pngrtran.c - transforms the data in a row for PNG readers
  *
  * Last changed in libpng 1.2.27 [April 29, 2008]
- * For conditions of distribution and use, see copyright notice in png.h
+ * For conditions of distribution and use, see copyright notice in PNG/png.h
  * Copyright (c) 1998-2008 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -14,7 +14,7 @@
  */
 
 #define PNG_INTERNAL
-#include "png.h"
+#include "PNG/png.h"
 
 #if defined(PNG_READ_SUPPORTED)
 
@@ -1067,7 +1067,7 @@ png_init_read_transformations(png_structp png_ptr)
          }
          else if (png_ptr->trans[i] != 0xff)
          {
-            /* The png_composite() macro is defined in png.h */
+            /* The png_composite() macro is defined in PNG/png.h */
             png_composite(palette[i].red, palette[i].red,
                png_ptr->trans[i], back.red);
             png_composite(palette[i].green, palette[i].green,

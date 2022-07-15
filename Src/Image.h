@@ -108,7 +108,7 @@ protected:
 #endif // SUPPORT_TILES
 
 
-// [WARNING] Need to include "png.h" before "jpeg.h" so that "setjmp.h" is not already included (?)
+// [WARNING] Need to include "PNG/png.h" before "jpeg.h" so that "setjmp.h" is not already included (?)
 #include "PNG.h"
 #include "JPEG.h"
 
