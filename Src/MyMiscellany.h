@@ -566,53 +566,43 @@ template< typename Value >
 bool SetAtomic32( volatile Value *value , Value newValue , Value oldValue )
 {
 #if defined( _WIN32 ) || defined( _WIN64 )
-	long &_oldValue = *(long *)&oldValue;
-	long &_newValue = *(long *)&newValue;
-	return InterlockedCompareExchange( (long*)value , _newValue , _oldValue )==_oldValue;
+	long *_oldValue = (long *)&oldValue;
+	long *_newValue = (long *)&newValue;
+	return InterlockedCompareExchange( (long*)value , *_newValue , *_oldValue )==*_oldValue;
 #else // !_WIN32 && !_WIN64
-	uint32_t &_oldValue = *(uint32_t *)&oldValue;
-	uint32_t &_newValue = *(uint32_t *)&newValue;
-//	return __sync_bool_compare_and_swap( (uint32_t *)value , _oldValue , _newValue );
-	return __atomic_compare_exchange_n( (uint32_t *)value , (uint32_t *)&oldValue , _newValue , false , __ATOMIC_SEQ_CST , __ATOMIC_SEQ_CST );
+	uint32_t *_newValue = (uint32_t *)&newValue;
+	return __atomic_compare_exchange_n( (uint32_t *)value , (uint32_t *)&oldValue , *_newValue , false , __ATOMIC_SEQ_CST , __ATOMIC_SEQ_CST );
 #endif // _WIN32 || _WIN64
 }
 template< typename Value >
 bool SetAtomic64( volatile Value *value , Value newValue , Value oldValue )
 {
 #if defined( _WIN32 ) || defined( _WIN64 )
-	__int64 &_oldValue = *(__int64 *)&oldValue;
-	__int64 &_newValue = *(__int64 *)&newValue;
-	return InterlockedCompareExchange64( (__int64*)value , _newValue , _oldValue )==_oldValue;
+	__int64 *_oldValue = (__int64 *)&oldValue;
+	__int64 *_newValue = (__int64 *)&newValue;
+	return InterlockedCompareExchange64( (__int64*)value , *_newValue , *_oldValue )==*_oldValue;
 #else // !_WIN32 && !_WIN64
-	uint64_t &_oldValue = *(uint64_t *)&oldValue;
-	uint64_t &_newValue = *(uint64_t *)&newValue;
-//	return __sync_bool_compare_and_swap ( (uint64_t *)&value , _oldValue , _newValue );
-	return __atomic_compare_exchange_n( (uint64_t *)value , (uint64_t *)&oldValue , _newValue , false , __ATOMIC_SEQ_CST , __ATOMIC_SEQ_CST );
+	uint64_t *_newValue = (uint64_t *)&newValue;
+	return __atomic_compare_exchange_n( (uint64_t *)value , (uint64_t *)&oldValue , *_newValue , false , __ATOMIC_SEQ_CST , __ATOMIC_SEQ_CST );
 #endif // _WIN32 || _WIN64
 }
 
 template< typename Number >
 void AddAtomic32( Number &a , Number b )
 {
-#if 0
-	Number current = a;
-	Number sum = current+b;
-	while( !SetAtomic32( &a , sum , current ) ) current = a , sum = a+b;
-#else
 #if defined( _WIN32 ) || defined( _WIN64 )
 	Number current = a;
 	Number sum = current+b;
-	long &_current = *(long *)&current;
-	long &_sum = *(long *)&sum;
-	while( InterlockedCompareExchange( (long*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
+	long *_current = (long *)&current;
+	long *_sum = (long *)&sum;
+	while( InterlockedCompareExchange( (long*)&a , *_sum , *_current )!=*_current ) current = a , sum = a+b;
 #else // !_WIN32 && !_WIN64
 	Number current = a;
 	Number sum = current+b;
-	uint32_t &_current = *(uint32_t *)&current;
-	uint32_t &_sum = *(uint32_t *)&sum;
-	while( __sync_val_compare_and_swap( (uint32_t *)&a , _current , _sum )!=_current ) current = a , sum = a+b;
+	uint32_t *_current = (uint32_t *)&current;
+	uint32_t *_sum = (uint32_t *)&sum;
+	while( __sync_val_compare_and_swap( (uint32_t *)&a , *_current , *_sum )!=*_current ) current = a , sum = a+b;
 #endif // _WIN32 || _WIN64
-#endif
 }
 
 template< typename Number >
@@ -626,15 +616,15 @@ void AddAtomic64( Number &a , Number b )
 #if defined( _WIN32 ) || defined( _WIN64 )
 	Number current = a;
 	Number sum = current+b;
-	__int64 &_current = *(__int64 *)&current;
-	__int64 &_sum = *(__int64 *)&sum;
-	while( InterlockedCompareExchange64( (__int64*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
+	__int64 *_current = (__int64 *)&current;
+	__int64 *_sum = (__int64 *)&sum;
+	while( InterlockedCompareExchange64( (__int64*)&a , *_sum , *_current )!=*_current ) current = a , sum = a+b;
 #else // !_WIN32 && !_WIN64
 	Number current = a;
 	Number sum = current+b;
-	uint64_t &_current = *(uint64_t *)&current;
-	uint64_t &_sum = *(uint64_t *)&sum;
-	while( __sync_val_compare_and_swap( (uint64_t *)&a , _current , _sum )!=_current ) current = a , sum = a+b;
+	uint64_t *_current = (uint64_t *)&current;
+	uint64_t *_sum = (uint64_t *)&sum;
+	while( __sync_val_compare_and_swap( (uint64_t *)&a , *_current , *_sum )!=*_current ) current = a , sum = a+b;
 #endif // _WIN32 || _WIN64
 #endif
 }
@@ -927,4 +917,14 @@ inline size_t getCurrentRSS( )
 	return (size_t)0L;          /* Unsupported. */
 #endif
 }
+
+#include "Array.h"
+template< typename C >
+struct Serializer
+{
+	virtual size_t size( void ) const = 0;
+	virtual void   serialize( const C & , Pointer( char ) buffer ) const = 0;
+	virtual void deserialize( ConstPointer( char ) buffer , C & ) const = 0;
+};
+
 #endif // MY_MISCELLANY_INCLUDED
