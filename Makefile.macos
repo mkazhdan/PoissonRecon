@@ -16,18 +16,8 @@ AV_SOURCE=AdaptiveTreeVisualization.cpp
 CP_SOURCE=ChunkPLY.cpp
 
 COMPILER ?= gcc
-#COMPILER ?= clang
-
-# ifeq ($(COMPILER),gcc)
-	CFLAGS += -fopenmp -Wno-deprecated -std=c++14 -pthread -Wno-invalid-offsetof
-	LFLAGS += -lgomp -lstdc++ -lpthread
-# else
-# # 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++14 -Wno-invalid-offsetof
-# # 	LFLAGS += -liomp5 -lstdc++
-# 	CFLAGS += -Wno-deprecated -std=c++14 -pthread -Wno-invalid-offsetof -Wno-dangling-else
-# 	LFLAGS += -lstdc++
-# endif
-#LFLAGS += -lz -lpng -ljpeg
+CFLAGS += -fopenmp -Wno-deprecated -std=c++14 -pthread -Wno-invalid-offsetof
+LFLAGS += -lgomp -lstdc++ -lpthread
 
 CFLAGS_DEBUG = -DDEBUG -g3
 LFLAGS_DEBUG =
@@ -40,15 +30,11 @@ LFLAGS_RELEASE = -O3 -g0
 SRC = Src/
 BIN = Bin/Linux/
 #INCLUDE = /usr/include/
-INCLUDE = .
+INCLUDE = . -I PNG -I JPEG
 
-ifeq ($(COMPILER),gcc)
-	CC=gcc
-	CXX=g++
-else
-	CC=clang
-	CXX=clang++
-endif
+CC=gcc
+CXX=$(COMPILER)
+
 
 MD=mkdir
 
