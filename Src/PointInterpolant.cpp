@@ -658,8 +658,28 @@ void Execute( UIntPack< FEMSigs ... > )
 			if( ValueWeight.value>0 && GradientWeight.value>0 ) for( int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( valueMin[d] , gradientMin[d] ) , max[d] = std::max< Real >( valueMax[d] , gradientMax[d] );
 			else if( ValueWeight.value>0 ) min = valueMin , max = valueMax;
 			else if( GradientWeight.value>0 ) min = gradientMin , max = gradientMax;
-			if( Width.value>0 ) modelToUnitCube = GetBoundingBoxXForm( min , max , (Real)Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
-			else                modelToUnitCube = Scale.value>0 ? GetBoundingBoxXForm( min , max , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
+
+			if( Width.value>0 )
+			{
+				modelToUnitCube = GetBoundingBoxXForm( min , max , (Real)Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
+				if( !SolveDepth.set ) SolveDepth.value = Depth.value;
+				if( SolveDepth.value>Depth.value )
+				{
+					WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
+					SolveDepth.value = Depth.value;
+				}
+				if( FullDepth.value>Depth.value )
+				{
+					WARN( "Full depth cannot exceed system depth: " , FullDepth.value , " <= " , Depth.value );
+					FullDepth.value = Depth.value;
+				}
+				if( BaseDepth.value>FullDepth.value )
+				{
+					if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
+					BaseDepth.value = FullDepth.value;
+				}
+			}
+			else modelToUnitCube = Scale.value>0 ? GetBoundingBoxXForm( min , max , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
 		}
 
 		if( ValueWeight.value>0 )
