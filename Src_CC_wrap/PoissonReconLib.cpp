@@ -20,8 +20,10 @@
 //PoissonRecon
 #include "../Src/FEMTree.h"
 
+//Local
 #include "PointData.h"
 
+//System
 #include <cassert>
 
 namespace {
