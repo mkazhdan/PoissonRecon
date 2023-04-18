@@ -36,6 +36,7 @@ SortedTreeNodes< Dim >::SortedTreeNodes( void )
 	treeNodes = NullPointer( TreeNode* );
 	_levels = 0;
 }
+
 template< unsigned int Dim >
 SortedTreeNodes< Dim >::~SortedTreeNodes( void )
 {
@@ -43,27 +44,72 @@ SortedTreeNodes< Dim >::~SortedTreeNodes( void )
 	FreePointer( _sliceStart );
 	DeletePointer( treeNodes );
 }
-template< unsigned int Dim >
-void SortedTreeNodes< Dim >::set( TreeNode& root , std::vector< node_index_type >* map )
-{
-	size_t sz = set( root );
 
-	if( map )
+template< unsigned int Dim >
+void SortedTreeNodes< Dim >::write( BinaryStream &stream ) const
+{
+	stream.write( _levels );
+	for( int l=0 ; l<_levels ; l++ )
 	{
-		map->resize( sz , -1 );
-		for( node_index_type i=0 ; i<_sliceStart[_levels-1][(size_t)1<<(_levels-1)] ; i++ ) if( treeNodes[i]->nodeData.nodeIndex>=0 ) (*map)[ treeNodes[i]->nodeData.nodeIndex ] = i;
+		size_t sz = ((size_t)1<<l)+1;
+		stream.write( _sliceStart[l] , sz );
 	}
+}
+
+template< unsigned int Dim >
+void SortedTreeNodes< Dim >::read( BinaryStream &stream , TreeNode &root )
+{
+	for( int l=0 ; l<_levels ; l++ ) FreePointer( _sliceStart[l] );
+	FreePointer( _sliceStart );
+	DeletePointer( treeNodes );
+
+	_levels = 0;
+	_sliceStart = NullPointer( Pointer( node_index_type ) );
+	treeNodes = NullPointer( TreeNode* );
+
+	if( !stream.read( _levels ) ) ERROR_OUT( "Failed to read levels" );
+	if( _levels )
+	{
+		_sliceStart = AllocPointer< Pointer( node_index_type ) >( _levels );
+		for( int l=0 ; l<_levels ; l++ )
+		{
+			size_t sz = ((size_t)1<<l)+1;
+			_sliceStart[l] = AllocPointer< node_index_type >( sz );
+			if( !stream.read( _sliceStart[l] , sz ) ) ERROR_OUT( "Failed to read slices at level: " , l );
+		}
+
+		size_t sz = _sliceStart[_levels-1][(size_t)1<<(_levels-1)];
+		treeNodes = NewPointer< TreeNode* >( sz );
+		auto nodeFunctor = [&]( TreeNode *n ){ 	if( n->nodeData.nodeIndex>=0 && n->nodeData.nodeIndex<(node_index_type)sz ) treeNodes[ n->nodeData.nodeIndex ] = n; };
+		root.processNodes( nodeFunctor );
+	}
+}
+
+template< unsigned int Dim >
+void SortedTreeNodes< Dim >::reset( TreeNode& root , std::vector< node_index_type > &map )
+{
+	_set( root );
+	map.resize( _sliceStart[_levels-1][(size_t)1<<(_levels-1)] , -1 );
+	for( node_index_type i=0 ; i<_sliceStart[_levels-1][(size_t)1<<(_levels-1)] ; i++ )
+	{
+		if( treeNodes[i]->nodeData.nodeIndex>=0 ) map[i] = treeNodes[i]->nodeData.nodeIndex;
+		treeNodes[i]->nodeData.nodeIndex = i;
+	}}
+
+template< unsigned int Dim >
+void SortedTreeNodes< Dim >::set( TreeNode& root )
+{
+	_set( root );
 	for( node_index_type i=0 ; i<_sliceStart[_levels-1][(size_t)1<<(_levels-1)] ; i++ ) treeNodes[i]->nodeData.nodeIndex = i;
 }
-template< unsigned int Dim >
-size_t SortedTreeNodes< Dim >::set( TreeNode& root )
-{
-	size_t sz = 0;
-	_levels = root.maxDepth()+1;
 
+template< unsigned int Dim >
+void SortedTreeNodes< Dim >::_set( TreeNode& root )
+{
 	if( _sliceStart ) for( int d=0 ; d<_levels ; d++ ) FreePointer( _sliceStart[d] );
 	FreePointer( _sliceStart );
 	DeletePointer( treeNodes );
+	_levels = root.maxDepth()+1;
 
 	_sliceStart = AllocPointer< Pointer( node_index_type ) >( _levels );
 	for( int l=0 ; l<_levels ; l++ )
@@ -73,16 +119,16 @@ size_t SortedTreeNodes< Dim >::set( TreeNode& root )
 	}
 
 	// Count the number of nodes in each slice
-	for( TreeNode* node = root.nextNode() ; node ; node = root.nextNode( node ) )
+	auto nodeFunctor = [&]( TreeNode *node )
 	{
-		if( node->nodeData.nodeIndex>=0 ) sz = std::max< size_t >( node->nodeData.nodeIndex+1 , sz );
 		if( !GetGhostFlag< Dim >( node ) )
 		{
 			int d , off[Dim];
 			node->depthAndOffset( d , off );
 			_sliceStart[d][ off[Dim-1]+1 ]++;
 		}
-	}
+	};
+	root.processNodes( nodeFunctor );
 
 	// Get the start index for each slice
 	{
@@ -98,11 +144,17 @@ size_t SortedTreeNodes< Dim >::set( TreeNode& root )
 	treeNodes = NewPointer< TreeNode* >( _sliceStart[_levels-1][(size_t)1<<(_levels-1)] );
 
 	// Add the tree nodes
-	for( TreeNode* node=root.nextNode() ; node ; node=root.nextNode( node ) ) if( !GetGhostFlag< Dim >( node ) )
 	{
-		int d , off[Dim];
-		node->depthAndOffset( d , off );
-		treeNodes[ _sliceStart[d][ off[Dim-1] ]++ ] = node;
+		auto nodeFunctor = [&]( TreeNode *node )
+		{
+			if( !GetGhostFlag< Dim >( node ) )
+			{
+				int d , off[Dim];
+				node->depthAndOffset( d , off );
+				treeNodes[ _sliceStart[d][ off[Dim-1] ]++ ] = node;
+			}
+		};
+		root.processNodes( nodeFunctor );
 	}
 
 	// Shift the slice offsets up since we incremented as we added
@@ -111,6 +163,5 @@ size_t SortedTreeNodes< Dim >::set( TreeNode& root )
 		for( int s=(1<<l) ; s>0 ; s-- ) _sliceStart[l][s] = _sliceStart[l][s-1];
 		_sliceStart[l][0] = l>0 ? _sliceStart[l-1][(size_t)1<<(l-1)] : 0;
 	}
-	return sz;
 }
 

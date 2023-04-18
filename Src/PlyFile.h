@@ -55,6 +55,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>
+#include "MyMiscellany.h"
+#include "Streams.h"
+
 
 #define PLY_ASCII         1      /* ascii PLY file */
 #define PLY_BINARY_BE     2      /* binary PLY file, big endian */
@@ -136,6 +139,27 @@ struct PlyProperty
 	PlyProperty( const std::string &n , int et , int it , int o , int il=0 , int ce=0 , int ci=0 , int co=0 ) : name(n) , external_type(et) , internal_type(it) , offset(o) , is_list(il) , count_external(ce) , count_internal(ci) , count_offset(co){ }
 	PlyProperty( const std::string &n ) : PlyProperty( n , 0 , 0 , 0 , 0 , 0 , 0 , 0 ){ }
 	PlyProperty( void ) : external_type(0) , internal_type(0) , offset(0) , is_list(0) , count_external(0) , count_internal(0) , count_offset(0){ }
+
+	void write( BinaryStream &stream ) const
+	{
+		stream.write( name );
+		stream.write( external_type );
+		stream.write( offset );
+		stream.write( is_list );
+		stream.write( count_external );
+		stream.write( count_internal );
+		stream.write( count_offset );
+	}
+	void read( BinaryStream &stream )
+	{
+		if( !stream.read( name ) ) ERROR_OUT( "Failed to read name" );
+		if( !stream.read( external_type ) ) ERROR_OUT( "Failed to read external_type" );
+		if( !stream.read( offset ) ) ERROR_OUT( "Failed to read offset" );
+		if( !stream.read( is_list ) ) ERROR_OUT( "Failed to read is_list" );
+		if( !stream.read( count_external ) ) ERROR_OUT( "Failed to read count_external" );
+		if( !stream.read( count_internal ) ) ERROR_OUT( "Failed to read count_internal" );
+		if( !stream.read( count_offset ) ) ERROR_OUT( "Failed to read count_offset" );
+	}
 };
 
 std::ostream &operator << ( std::ostream &os , PlyProperty p )

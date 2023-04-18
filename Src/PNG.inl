@@ -1,10 +1,5 @@
 #include <stdio.h>
 #include <vector>
-#ifdef _WIN32
-#include "PNG/png.h"
-#else // !_WIN32
-#include <png.h>
-#endif // _WIN32
 
 inline PNGReader::PNGReader( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels )
 {

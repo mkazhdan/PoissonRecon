@@ -37,18 +37,21 @@ DAMAGE.
 template< typename T , unsigned int LogBlockSize=10 , unsigned int InitialBlocks=10 , unsigned int AllocationMultiplier=2 >
 struct BlockedVector
 {
-	BlockedVector( T defaultValue=T() ) : _defaultValue( defaultValue )
+	BlockedVector( size_t sz=0 , T defaultValue=T() ) : _defaultValue( defaultValue )
 	{
 		_reservedBlocks = InitialBlocks;
 		_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
 		for( size_t i=0 ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
 		_allocatedBlocks = _size = 0;
+		if( sz ) resize( sz );
 	}
+
 	~BlockedVector( void )
 	{
 		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
 		DeletePointer( _blocks );
 	}
+
 	BlockedVector( const BlockedVector& v )
 	{
 		_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue;
@@ -60,6 +63,7 @@ struct BlockedVector
 		}
 		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( Pointer ( T ) );
 	}
+
 	BlockedVector& operator = ( const BlockedVector&  v )
 	{
 		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
@@ -74,11 +78,13 @@ struct BlockedVector
 		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
 		return *this;
 	}
+
 	BlockedVector( BlockedVector&& v )
 	{
 		_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue , _blocks = v._blocks;
 		v._reservedBlocks = v._allocatedBlocks = v._size = 0 , v._blocks = NullPointer( Pointer( T ) );
 	}
+
 	BlockedVector& operator = ( BlockedVector&& v )
 	{
 		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
@@ -89,21 +95,25 @@ struct BlockedVector
 	}
 
 	size_t size( void ) const { return _size; }
+
 	const T& operator[]( size_t idx ) const { return _blocks[idx>>LogBlockSize][idx&_Mask]; }
 	T& operator[]( size_t idx ){ return _blocks[idx>>LogBlockSize][idx&_Mask]; }
 
-	size_t resize( size_t size ){ return resize( size , _defaultValue ); }
-	size_t resize( size_t size , const T& defaultValue )
+	void resize( size_t size ){ resize( size , _defaultValue ); }
+	void resize( size_t size , const T& defaultValue )
 	{
-		if( size<=_size )
-		{
-#ifdef _MSC_VER
-			WARN( "BlockedVector::resize: new size must be greater than old size: " , size , " > " , _size );
-#else // !MSC_VER
-			WARN( "BlockedVector::resize: new size must be greater than old size: " , size , " > ", _size );
-#endif // _MSC_VER
-			return _size;
-		}
+		reserve( size , defaultValue );
+		_size = size;
+	}
+
+	void clear( void ){ _size = 0; }
+
+	size_t reserved( void ) const { return _allocatedBlocks * _BlockSize; }
+
+	void reserve( size_t size ){ reserve( size , _defaultValue ); }
+	void reserve( size_t size , const T& defaultValue )
+	{
+		if( size<=_allocatedBlocks * _BlockSize ) return;
 		size_t index = size-1;
 		size_t block = index >> LogBlockSize;
 		size_t blockIndex = index & _Mask;
@@ -131,40 +141,97 @@ struct BlockedVector
 			}
 			_allocatedBlocks = block+1;
 		}
-		_size = index+1;
-		return index;
 	}
-	size_t push( void ){ return resize( _size+1 ); }
-
-	void write( FILE *fp ) const
+	void push_back( const T &value )
 	{
-		fwrite( &_size , sizeof(size_t) , 1 , fp );
-		fwrite( &_defaultValue , sizeof(T) , 1 , fp );
-		fwrite( &_reservedBlocks , sizeof(size_t) , 1 , fp );
-		fwrite( &_allocatedBlocks , sizeof(size_t) , 1 , fp );
-		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) fwrite( _blocks[i] , sizeof(T) , _BlockSize , fp );
+		resize( _size+1 );
+		operator[]( _size-1 ) = value;
+	}
+	T &back( void ){ return operator[]( _size-1 ); }
+	const T &back( void ) const { return operator[]( _size-1 ); }
+	void pop_back( void ){ _size--; }
+
+	void write( BinaryStream &stream ) const
+	{
+		stream.write( _size );
+		stream.write( _defaultValue );
+		stream.write( _reservedBlocks );
+		stream.write( _allocatedBlocks );
+		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) stream.write( _blocks[i] , _BlockSize );
 	}
 
-	void read( FILE *fp )
+	void read( BinaryStream &stream )
 	{
 		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
 		DeletePointer( _blocks );
+		if( !stream.read( _size ) ) ERROR_OUT( "Failed to read _size" );
+		if( !stream.read( _defaultValue ) ) ERROR_OUT( "Failed to read _defaultValue" );
+		if( !stream.read( _reservedBlocks ) ) ERROR_OUT( "Failed to read _reservedBlocks" );
+		if( !stream.read( _allocatedBlocks ) ) ERROR_OUT( "Failed to read _allocatedBlocks" );
 
-		if( fread( &_size , sizeof(size_t) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _size" );
-		if( fread( &_defaultValue , sizeof(T) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _defaultValue" );
-		if( fread( &_reservedBlocks , sizeof(size_t) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _reservedBlocks" );
-		if( fread( &_allocatedBlocks , sizeof(size_t) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read _allocatedBlocks" );
+		_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
+		if( !_blocks ) ERROR_OUT( "Failed to allocate _blocks: " , _reservedBlocks );
 
+		for( size_t i=0 ; i<_allocatedBlocks ; i++ )
+		{
+			_blocks[i] = NewPointer< T >( _BlockSize );
+			if( !_blocks[i] ) ERROR_OUT( "Failed to allocate _blocks[" , i , "]" );
+			if( !stream.read( _blocks[i] , _BlockSize ) ) ERROR_OUT( "Failed to read _blocks[" , i , "]" );
+		}
+		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
+	}
+
+	void read( BinaryStream &stream , const Serializer< T > &serializer )
+	{
+		const size_t serializedSize = serializer.size();
+
+		for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
+		DeletePointer( _blocks );
+		_size = _allocatedBlocks = _reservedBlocks = 0;
+
+		if( !stream.read( _size ) ) ERROR_OUT( "Failed to read _size" );
+#ifdef SHOW_WARNINGS
+#pragma message( "[WARNING] Should deserialize default value" )
+#endif // SHOW_WARNINGS
+		if( !stream.read( _defaultValue ) ) ERROR_OUT( "Failed to read _defaultValue" );
+		if( !stream.read( _reservedBlocks ) ) ERROR_OUT( "Failed to read _reservedBlocks" );
+		if( !stream.read( _allocatedBlocks ) ) ERROR_OUT( "Failed to read _allocatedBlocks" );
 		_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
 		if( !_blocks ) ERROR_OUT( "Failed to allocate _blocks: " , _reservedBlocks );
 		for( size_t i=0 ; i<_allocatedBlocks ; i++ )
 		{
 			_blocks[i] = NewPointer< T >( _BlockSize );
 			if( !_blocks[i] ) ERROR_OUT( "Failed to allocate _blocks[" , i , "]" );
-			if( fread( _blocks[i] , sizeof(T) , _BlockSize , fp )!=_BlockSize ) ERROR_OUT( "Failed to read _blocks[" , i , "]" );
 		}
-		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
+		if( _size )
+		{
+			Pointer( char ) buffer = NewPointer< char >( _size * serializedSize );
+			if( !stream.read( buffer , serializedSize*_size ) ) ERROR_OUT( "Failed tor read in data" );
+			for( unsigned int i=0 ; i<_size ; i++ ) serializer.deserialize( buffer+i*serializedSize , operator[]( i ) );
+			DeletePointer( buffer );
+		}
 	}
+
+	void write( BinaryStream &stream , const Serializer< T > &serializer ) const
+	{
+		const size_t serializedSize = serializer.size();
+
+		stream.write( _size );
+#ifdef SHOW_WARNINGS
+#pragma message( "[WARNING] Should serialize default value" )
+#endif // SHOW_WARNINGS
+		stream.write( _defaultValue );
+		stream.write( _reservedBlocks );
+		stream.write( _allocatedBlocks );
+		if( _size )
+		{
+			Pointer( char ) buffer = NewPointer< char >( _size * serializedSize );
+			for( unsigned int i=0 ; i<_size ; i++ ) serializer.serialize( operator[]( i ) , buffer+i*serializedSize );
+			stream.write( buffer , serializedSize*_size );
+			DeletePointer( buffer );
+		}
+	}
+
 
 protected:
 	static const size_t _BlockSize = 1<<LogBlockSize;

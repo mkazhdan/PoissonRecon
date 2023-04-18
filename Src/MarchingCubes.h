@@ -39,6 +39,13 @@ namespace HyperCube
 {
 	enum Direction{ BACK , CROSS , FRONT };
 	inline Direction Opposite( Direction dir ){ return dir==BACK ? FRONT : ( dir==FRONT ? BACK : CROSS ); }
+	std::string DirectionName( Direction dir )
+	{
+		if( dir==BACK ) return std::string( "back" );
+		else if( dir==CROSS ) return std::string( "cross" );
+		else if( dir==FRONT ) return std::string( "front" );
+		else{ ERROR_OUT( "Unrecognized direction" ) ; return std::string( "" ); }
+	}
 
 	// The number of k-dimensional elements in a d-dimensional cube is equal to
 	// the number of (k-1)-dimensional elements in a (d-1)-dimensional hypercube plus twice the number of k-dimensional elements in a (d-1)-dimensional hypercube

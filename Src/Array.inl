@@ -36,6 +36,7 @@ DAMAGE.
 #include <stddef.h>
 #include <type_traits>
 #include <cstddef>
+#include "MyMiscellany.h"
 
 template< class C > class ConstArray;
 
@@ -118,7 +119,7 @@ public:
 		min = max = 0;
 	}
 	template< class D >
-	Array( Array< D >& a )
+	Array( Array< D > a )
 	{
 		_data = NULL;
 		if( !a )
@@ -273,7 +274,7 @@ public:
 		max = a.maximum();
 	}
 	template< class D >
-	inline ConstArray( const Array< D >& a )
+	inline ConstArray( Array< D > a )
 	{
 		// [WARNING] Changing szC and szD to size_t causes some really strange behavior.
 		std::ptrdiff_t szC = (std::ptrdiff_t)sizeof( C );
@@ -284,7 +285,7 @@ public:
 		if( min*szC!=a.minimum()*szD || max*szC!=a.maximum()*szD ) ERROR_OUT( "Could not convert const array [ " , a.minimum() , " , " , a.maximum() , " ] * " , szD , " => [ " , min , " , " , max , " ] * " , szC );
 	}
 	template< class D >
-	inline ConstArray( const ConstArray< D >& a )
+	inline ConstArray( ConstArray< D > a )
 	{
 		// [WARNING] Chaning szC and szD to size_t causes some really strange behavior.
 		std::ptrdiff_t szC = (std::ptrdiff_t)sizeof( C );
@@ -369,8 +370,8 @@ public:
 	std::ptrdiff_t operator - ( const Array< C >& a ) const { return data - a.pointer(); }
 
 	const C* pointer( void ) const { return data; }
-	bool operator !( void ) { return data==NULL; }
-	operator bool( ) { return data!=NULL; }
+	bool operator !( void ) const { return data==NULL; }
+	operator bool( ) const { return data!=NULL; }
 };
 
 template< class C >
@@ -422,19 +423,22 @@ template< class C >
 size_t fread( Array< C > destination , size_t eSize , size_t count , FILE* fp )
 {
 	if( count*eSize>destination.maximum()*sizeof( C ) ) ERROR_OUT( "Size of read exceeds source maximum: " , count*eSize , " > " , destination.maximum()*sizeof( C ) );
-	return fread( &destination[0] , eSize , count , fp );
+	if( count ) return fread( &destination[0] , eSize , count , fp );
+	else return 0;
 }
 template< class C >
 size_t fwrite( Array< C > source , size_t eSize , size_t count , FILE* fp )
 {
 	if( count*eSize>source.maximum()*sizeof( C ) ) ERROR_OUT( "Size of write exceeds source maximum: " , count*eSize , " > " , source.maximum()*sizeof( C ) );
-	return fwrite( &source[0] , eSize , count , fp );
+	if( count ) return fwrite( &source[0] , eSize , count , fp );
+	else return 0;
 }
 template< class C >
 size_t fwrite( ConstArray< C > source , size_t eSize , size_t count , FILE* fp )
 {
 	if( count*eSize>source.maximum()*sizeof( C ) ) ERROR_OUT( "Size of write exceeds source maximum: " , count*eSize , " > " , source.maximum()*sizeof( C ) );
-	return fwrite( &source[0] , eSize , count , fp );
+	if( count ) return fwrite( &source[0] , eSize , count , fp );
+	else return 0;
 }
 template< class C >
 void qsort( Array< C > base , size_t numElements , size_t elementSize , int (*compareFunction)( const void* , const void* ) )

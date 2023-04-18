@@ -33,34 +33,39 @@ DAMAGE.
 inline int strcasecmp( const char* c1 , const char* c2 ){ return _stricmp( c1 , c2 ); }
 #endif // WIN32 || _WIN64
 
-template< > void cmdLineCleanUp< int    >( int*    t ){ }
-template< > void cmdLineCleanUp< float  >( float*  t ){ }
-template< > void cmdLineCleanUp< double >( double* t ){ }
-template< > void cmdLineCleanUp< char*  >( char** t ){ if( *t ) free( *t ) ; *t = NULL; }
-template< > int    cmdLineInitialize< int    >( void ){ return 0; }
-template< > float  cmdLineInitialize< float  >( void ){ return 0.f; }
-template< > double cmdLineInitialize< double >( void ){ return 0.; }
-template< > char*  cmdLineInitialize< char*  >( void ){ return NULL; }
-template< > void cmdLineWriteValue< int    >( int    t , char* str ){ sprintf( str , "%d" , t ); }
-template< > void cmdLineWriteValue< float  >( float  t , char* str ){ sprintf( str , "%f" , t ); }
-template< > void cmdLineWriteValue< double >( double t , char* str ){ sprintf( str , "%f" , t ); }
-template< > void cmdLineWriteValue< char*  >( char*  t , char* str ){ if( t ) sprintf( str , "%s" , t ) ; else str[0]=0; }
-template< > int    cmdLineCopy( int    t ){ return t;  }
-template< > float  cmdLineCopy( float  t ){ return t;  }
-template< > double cmdLineCopy( double t ){ return t;  }
+template< > void cmdLineCleanUp< int         >( int*         t ){ }
+template< > void cmdLineCleanUp< float       >( float*       t ){ }
+template< > void cmdLineCleanUp< double      >( double*      t ){ }
+template< > void cmdLineCleanUp< char*       >( char**       t ){ if( *t ) free( *t ) ; *t = NULL; }
+template< > void cmdLineCleanUp< std::string >( std::string* t ){ }
+template< > int         cmdLineInitialize< int         >( void ){ return 0; }
+template< > float       cmdLineInitialize< float       >( void ){ return 0.f; }
+template< > double      cmdLineInitialize< double      >( void ){ return 0.; }
+template< > char*       cmdLineInitialize< char*       >( void ){ return NULL; }
+template< > std::string cmdLineInitialize< std::string >( void ){ return std::string(); }
+template< > void cmdLineWriteValue< int         >( int         t , char* str ){ sprintf( str , "%d" , t ); }
+template< > void cmdLineWriteValue< float       >( float       t , char* str ){ sprintf( str , "%f" , t ); }
+template< > void cmdLineWriteValue< double      >( double      t , char* str ){ sprintf( str , "%f" , t ); }
+template< > void cmdLineWriteValue< char*       >( char*       t , char* str ){ if( t ) sprintf( str , "%s" , t ) ; else str[0]=0; }
+template< > void cmdLineWriteValue< std::string >( std::string t , char* str ){ sprintf( str , "%s" , t.c_str() ); }
+template< > int         cmdLineCopy( int    t      ){ return t;  }
+template< > float       cmdLineCopy( float  t      ){ return t;  }
+template< > double      cmdLineCopy( double t      ){ return t;  }
 #if defined( WIN32 ) || defined( _WIN64 )
-template< > char*  cmdLineCopy( char* t ){ return _strdup( t ); }
+template< > char*       cmdLineCopy( char* t       ){ return _strdup( t ); }
 #else // !WIN32 && !_WIN64
-template< > char*  cmdLineCopy( char* t ){ return strdup( t ); }
+template< > char*       cmdLineCopy( char* t       ){ return strdup( t ); }
 #endif // WIN32 || _WIN64
-template< > int    cmdLineStringToType( const char* str ){ return atoi( str ); }
-template< > float  cmdLineStringToType( const char* str ){ return float( atof( str ) ); }
-template< > double cmdLineStringToType( const char* str ){ return double( atof( str ) ); }
+template< > std::string cmdLineCopy( std::string t ){ return t; }
+template< > int         cmdLineStringToType( const char* str ){ return atoi( str ); }
+template< > float       cmdLineStringToType( const char* str ){ return float( atof( str ) ); }
+template< > double      cmdLineStringToType( const char* str ){ return double( atof( str ) ); }
 #if defined( WIN32 ) || defined( _WIN64 )
-template< > char*  cmdLineStringToType( const char* str ){ return _strdup( str ); }
+template< > char*       cmdLineStringToType( const char* str ){ return _strdup( str ); }
 #else // !WIN32 && !_WIN64
-template< > char*  cmdLineStringToType( const char* str ){ return  strdup( str ); }
+template< > char*       cmdLineStringToType( const char* str ){ return  strdup( str ); }
 #endif // WIN32 || _WIN64
+template< > std::string cmdLineStringToType( const char* str ){ return std::string( str ); }
 
 
 /////////////////////

@@ -29,6 +29,7 @@ DAMAGE.
 #define VERTEX_FACTORY_INCLUDED
 
 #include "Ply.h"
+#include "Array.h"
 
 namespace VertexFactory
 {
@@ -88,8 +89,8 @@ namespace VertexFactory
 		virtual void writeBinary( FILE *fp , const VertexType &dt ) const = 0;
 
 		virtual size_t bufferSize( void ) const = 0;
-		virtual void toBuffer( const VertexType &dt , char *buffer ) const = 0;
-		virtual void fromBuffer( const char *buffer , VertexType &dt ) const = 0;
+		virtual void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const = 0;
+		virtual void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const = 0;
 
 		virtual bool isStaticallyAllocated( void ) const = 0;
 		virtual PlyProperty  plyStaticReadProperty( unsigned int idx ) const = 0;
@@ -109,7 +110,7 @@ namespace VertexFactory
 		{
 			Transform( void ){}
 			template< typename X > Transform( X ){}
-			VertexType operator()( VertexType dt ) const { return dt; }
+			void inPlace( VertexType &dt ) const {}
 		};
 
 		VertexType operator()( void ) const { return VertexType(); }
@@ -129,8 +130,8 @@ namespace VertexFactory
 		PlyProperty plyStaticWriteProperty( unsigned int idx ) const { if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" ) ; return PlyProperty(); }
 
 		size_t bufferSize( void ) const { return 0; }
-		void toBuffer( const VertexType &dt , char *buffer ) const {}
-		void fromBuffer( const char* buffer , VertexType &dt ) const {}
+		void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const {}
+		void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const {}
 
 		bool operator == ( const EmptyFactory &factory ) const { return true; }
 
@@ -147,7 +148,7 @@ namespace VertexFactory
 			Transform( void ){ _xForm = XForm< Real , Dim+1 >::Identity(); }
 			Transform( XForm< Real , Dim > xForm ){ _xForm = XForm< Real , Dim+1 >::Identity() ; for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) _xForm(i,j) = xForm(i,j); }
 			Transform( XForm< Real , Dim+1 > xForm ) : _xForm(xForm) {}
-			VertexType operator()( VertexType dt ) const { return _xForm * dt; }
+			void inPlace( VertexType &dt ) const { dt = _xForm * dt; }
 		protected:
 			XForm< Real , Dim+1 > _xForm;
 		};
@@ -160,23 +161,32 @@ namespace VertexFactory
 		PlyProperty  plyReadProperty( unsigned int idx ) const;
 		PlyProperty plyWriteProperty( unsigned int idx ) const;
 		bool   readASCII( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >:: ReadASCII( fp , _typeOnDisk , Dim , &dt[0] ); }
-		bool  readBinary( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , Dim , &dt[0] ); }
 		void  writeASCII( FILE *fp , const VertexType &dt ) const { VertexIO< Real >:: WriteASCII( fp , _typeOnDisk , Dim , &dt[0] ); }
-		void writeBinary( FILE *fp , const VertexType &dt ) const { VertexIO< Real >::WriteBinary( fp , _typeOnDisk , Dim , &dt[0] ); }
-
+		bool  readBinary( FILE *fp ,       VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) return fread( &dt[0] , sizeof(Real) , Dim , fp )==Dim;
+			else return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , Dim , &dt[0] );
+		}
+		void writeBinary( FILE *fp , const VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) fwrite( &dt[0] , sizeof(Real) , Dim , fp );
+			else VertexIO< Real >::WriteBinary( fp , _typeOnDisk , Dim , &dt[0] );
+		}
 		bool isStaticallyAllocated( void ) const{ return true; }
+
 		PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 		PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
-		PositionFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< Real >() ) : _typeOnDisk( typeOnDisk ) {}
+		PositionFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< Real >() ) : _typeOnDisk( typeOnDisk ) { _realTypeOnDisk = GetTypeOnDisk< Real >()==_typeOnDisk; }
 
 		size_t bufferSize( void ) const { return sizeof( VertexType ); }
-		void toBuffer( const VertexType &dt , char *buffer ) const { *( (VertexType*)buffer ) = dt; }
-		void fromBuffer( const char *buffer , VertexType &dt ) const { dt = *( (VertexType*)buffer ); }
+		void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { memcpy( buffer , &dt , sizeof( VertexType ) ); }
+		void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const { memcpy( &dt , buffer , sizeof( VertexType ) ); }
 
 		bool operator == ( const PositionFactory &factory ) const { return _typeOnDisk==factory._typeOnDisk; }
 	protected:
 		TypeOnDisk _typeOnDisk;
+		bool _realTypeOnDisk;
 		static const std::string _PlyNames[];
 	};
 
@@ -195,7 +205,7 @@ namespace VertexFactory
 				for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) _xForm(i,j) = xForm(i,j);
 				_xForm = _xForm.inverse().transpose();
 			}
-			VertexType operator()( VertexType dt ) const { return _xForm * dt; }
+			void inPlace( VertexType &dt ) const { dt = _xForm * dt; }
 		protected:
 			XForm< Real , Dim > _xForm;
 		};
@@ -208,23 +218,32 @@ namespace VertexFactory
 		PlyProperty  plyReadProperty( unsigned int idx ) const;
 		PlyProperty plyWriteProperty( unsigned int idx ) const;
 		bool   readASCII( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >:: ReadASCII( fp , _typeOnDisk , Dim , &dt[0] ); }
-		bool  readBinary( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , Dim , &dt[0] ); }
 		void  writeASCII( FILE *fp , const VertexType &dt ) const { VertexIO< Real >:: WriteASCII( fp , _typeOnDisk , Dim , &dt[0] ); }
-		void writeBinary( FILE *fp , const VertexType &dt ) const { VertexIO< Real >::WriteBinary( fp , _typeOnDisk , Dim , &dt[0] ); }
+		bool  readBinary( FILE *fp ,       VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) return fread( &dt[0] , sizeof(Real) , Dim , fp )==Dim;
+			else return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , Dim , &dt[0] );
+		}
+		void writeBinary( FILE *fp , const VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) fwrite( &dt[0] , sizeof(Real) , Dim , fp );
+			else VertexIO< Real >::WriteBinary( fp , _typeOnDisk , Dim , &dt[0] );
+		}
 
 		bool isStaticallyAllocated( void ) const{ return true; }
 		PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 		PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
-		NormalFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< Real >() ) : _typeOnDisk( typeOnDisk ) {}
+		NormalFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< Real >() ) : _typeOnDisk( typeOnDisk ) { _realTypeOnDisk = GetTypeOnDisk< Real >()==_typeOnDisk; }
 
 		size_t bufferSize( void ) const { return sizeof( VertexType ); }
-		void toBuffer( const VertexType &dt , char *buffer ) const { *( (VertexType*)buffer ) = dt; }
-		void fromBuffer( const char *buffer , VertexType &dt ) const { dt = *( (VertexType*)buffer ); }
+		void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { memcpy( buffer , &dt , sizeof( VertexType ) ); }
+		void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const { memcpy( &dt , buffer , sizeof( VertexType ) ); }
 
 		bool operator == ( const NormalFactory &factory ) const { return _typeOnDisk==factory._typeOnDisk; }
 	protected:
 		TypeOnDisk _typeOnDisk;
+		bool _realTypeOnDisk;
 		static const std::string _PlyNames[];
 	};
 
@@ -238,7 +257,7 @@ namespace VertexFactory
 		{
 			Transform( void ){}
 			template< typename XForm > Transform( XForm xForm ){}
-			VertexType operator()( VertexType dt ) const { return dt; }
+			void inPlace( VertexType &dt ) const {}
 		};
 
 		VertexType operator()( void ) const { return VertexType(); }
@@ -249,23 +268,33 @@ namespace VertexFactory
 		PlyProperty  plyReadProperty( unsigned int idx ) const;
 		PlyProperty plyWriteProperty( unsigned int idx ) const;
 		bool   readASCII( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >:: ReadASCII( fp , _typeOnDisk , Dim , &dt[0] ); }
-		bool  readBinary( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , Dim , &dt[0] ); }
 		void  writeASCII( FILE *fp , const VertexType &dt ) const { VertexIO< Real >:: WriteASCII( fp , _typeOnDisk , Dim , &dt[0] ); }
-		void writeBinary( FILE *fp , const VertexType &dt ) const { VertexIO< Real >::WriteBinary( fp , _typeOnDisk , Dim , &dt[0] ); }
+		bool  readBinary( FILE *fp ,       VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) return fread( &dt[0] , sizeof(Real) , Dim , fp )==Dim;
+			else return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , Dim , &dt[0] );
+		}
+		void writeBinary( FILE *fp , const VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) fwrite( &dt[0] , sizeof(Real) , Dim , fp );
+			VertexIO< Real >::WriteBinary( fp , _typeOnDisk , Dim , &dt[0] );
+		}
 
 		bool isStaticallyAllocated( void ) const{ return true; }
 		PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 		PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
-		TextureFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< Real >() ) : _typeOnDisk( typeOnDisk ) {}
+		TextureFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< Real >() ) : _typeOnDisk( typeOnDisk ) { _realTypeOnDisk = GetTypeOnDisk< Real >()==_typeOnDisk; }
+
 		size_t bufferSize( void ) const { return sizeof( VertexType ); }
-		void toBuffer( const VertexType &dt , char *buffer ) const { *( (VertexType*)buffer ) = dt; }
-		void fromBuffer( const char *buffer , VertexType &dt ) const { dt = *( (VertexType*)buffer ); }
+		void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { memcpy( buffer , &dt , sizeof( VertexType ) ); }
+		void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const { memcpy( &dt , buffer , sizeof( VertexType ) ); }
 
 		bool operator == ( const TextureFactory &factory ) const { return _typeOnDisk==factory._typeOnDisk; }
 
 	protected:
 		TypeOnDisk _typeOnDisk;
+		bool _realTypeOnDisk;
 		static const std::string _PlyNames[];
 	};
 
@@ -279,7 +308,7 @@ namespace VertexFactory
 		{
 			Transform( void ){}
 			template< typename XForm > Transform( XForm xForm ){}
-			VertexType operator()( VertexType dt ) const { return dt; }
+			void inPlace( VertexType &dt ) const {}
 		};
 
 		VertexType operator()( void ) const { return VertexType(); }
@@ -290,22 +319,32 @@ namespace VertexFactory
 		PlyProperty  plyReadProperty( unsigned int idx ) const;
 		PlyProperty plyWriteProperty( unsigned int idx ) const;
 		bool   readASCII( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >:: ReadASCII( fp , _typeOnDisk , 3 , &dt[0] ); }
-		bool  readBinary( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , 3 , &dt[0] ); }
 		void  writeASCII( FILE *fp , const VertexType &dt ) const { VertexIO< Real >:: WriteASCII( fp , _typeOnDisk , 3 , &dt[0] ); }
-		void writeBinary( FILE *fp , const VertexType &dt ) const { VertexIO< Real >::WriteBinary( fp , _typeOnDisk , 3 , &dt[0] ); }
+		bool  readBinary( FILE *fp ,       VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) return fread( &dt[0] , sizeof(Real) , 3 , fp )==3;
+			else return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , 3 , &dt[0] );
+		}
+		void writeBinary( FILE *fp , const VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) fwrite( &dt[0] , sizeof(Real) , 3 , fp );
+			VertexIO< Real >::WriteBinary( fp , _typeOnDisk , 3 , &dt[0] );
+		}
 
 		bool isStaticallyAllocated( void ) const{ return true; }
 		PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 		PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
-		RGBColorFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< unsigned char >() ) : _typeOnDisk( typeOnDisk ) {}
+		RGBColorFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< unsigned char >() ) : _typeOnDisk( typeOnDisk ) { _realTypeOnDisk = GetTypeOnDisk< Real >()==_typeOnDisk; }
+
 		size_t bufferSize( void ) const { return sizeof( VertexType ); }
-		void toBuffer( const VertexType &dt , char *buffer ) const { *( (VertexType*)buffer ) = dt; }
-		void fromBuffer( const char *buffer , VertexType &dt ) const { dt = *( (VertexType*)buffer ); }
+		void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { memcpy( buffer , &dt , sizeof( VertexType ) ); }
+		void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const { memcpy( &dt , buffer , sizeof( VertexType ) ); }
 
 		bool operator == ( const RGBColorFactory &factory ) const { return _typeOnDisk==factory._typeOnDisk; }
 	protected:
 		TypeOnDisk _typeOnDisk;
+		bool _realTypeOnDisk;
 		static const std::string _PlyNames[];
 	};
 
@@ -319,7 +358,7 @@ namespace VertexFactory
 		{
 			Transform( void ){}
 			template< typename XForm > Transform( XForm xForm ){}
-			VertexType operator()( VertexType dt ) const { return dt; }
+			void inPlace( VertexType &dt ) const {}
 		};
 
 		VertexType operator()( void ) const { return VertexType(); }
@@ -330,22 +369,31 @@ namespace VertexFactory
 		PlyProperty  plyReadProperty( unsigned int idx ) const;
 		PlyProperty plyWriteProperty( unsigned int idx ) const;
 		bool   readASCII( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >:: ReadASCII( fp , _typeOnDisk , 4 , &dt[0] ); }
-		bool  readBinary( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , 4 , &dt[0] ); }
 		void  writeASCII( FILE *fp , const VertexType &dt ) const { VertexIO< Real >:: WriteASCII( fp , _typeOnDisk , 4 , &dt[0] ); }
-		void writeBinary( FILE *fp , const VertexType &dt ) const { VertexIO< Real >::WriteBinary( fp , _typeOnDisk , 4 , &dt[0] ); }
+		bool  readBinary( FILE *fp ,       VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) return fread( &dt[0] , sizeof(Real) , 4 , fp )==4;
+			else return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , 4 , &dt[0] );
+		}
+		void writeBinary( FILE *fp , const VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) fwrite( &dt[0] , sizeof(Real) , 4 , fp );
+			VertexIO< Real >::WriteBinary( fp , _typeOnDisk , 4 , &dt[0] );
+		}
 
 		bool isStaticallyAllocated( void ) const{ return true; }
 		PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 		PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
-		RGBAColorFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< unsigned char >() ) : _typeOnDisk( typeOnDisk ) {}
+		RGBAColorFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< unsigned char >() ) : _typeOnDisk( typeOnDisk ) { _realTypeOnDisk = GetTypeOnDisk< Real >()==_typeOnDisk; }
 		size_t bufferSize( void ) const { return sizeof( VertexType ); }
-		void toBuffer( const VertexType &dt , char *buffer ) const { *( (VertexType*)buffer ) = dt; }
-		void fromBuffer( const char *buffer , VertexType &dt ) const { dt = *( (VertexType*)buffer ); }
+		void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { memcpy( buffer , &dt , sizeof( VertexType ) ); }
+		void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const { memcpy( &dt , buffer , sizeof( VertexType ) ); }
 
 		bool operator == ( const RGBAColorFactory &factory ) const { return _typeOnDisk==factory._typeOnDisk; }
 	protected:
 		TypeOnDisk _typeOnDisk;
+		bool _realTypeOnDisk;
 		static const std::string _PlyNames[];
 	};
 
@@ -359,7 +407,7 @@ namespace VertexFactory
 		{
 			Transform( void ){}
 			template< typename XForm > Transform( XForm xForm ){}
-			VertexType operator()( VertexType dt ) const { return dt; }
+			void inPlace( VertexType &dt ) const {}
 		};
 
 		VertexType operator()( void ) const { return (Real)0; }
@@ -370,22 +418,32 @@ namespace VertexFactory
 		PlyProperty  plyReadProperty( unsigned int idx ) const;
 		PlyProperty plyWriteProperty( unsigned int idx ) const;
 		bool   readASCII( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >:: ReadASCII( fp , _typeOnDisk , 1 , &dt ); }
-		bool  readBinary( FILE *fp ,       VertexType &dt ) const { return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , 1 , &dt ); }
 		void  writeASCII( FILE *fp , const VertexType &dt ) const { VertexIO< Real >:: WriteASCII( fp , _typeOnDisk , 1 , &dt ); }
-		void writeBinary( FILE *fp , const VertexType &dt ) const { VertexIO< Real >::WriteBinary( fp , _typeOnDisk , 1 , &dt ); }
+		bool  readBinary( FILE *fp ,       VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) return fread( &dt , sizeof(Real) , 1 , fp )==1;
+			else return VertexIO< Real >::ReadBinary( fp , _typeOnDisk , 1 , &dt );
+		}
+		void writeBinary( FILE *fp , const VertexType &dt ) const
+		{
+			if( _realTypeOnDisk ) fwrite( &dt , sizeof(Real) , 1 , fp );
+			else VertexIO< Real >::WriteBinary( fp , _typeOnDisk , 1 , &dt );
+		}
 
 		bool isStaticallyAllocated( void ) const{ return true; }
 		PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 		PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
-		ValueFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< Real >() ) : _typeOnDisk( typeOnDisk ) {}
+		ValueFactory( TypeOnDisk typeOnDisk=GetTypeOnDisk< Real >() ) : _typeOnDisk( typeOnDisk ) { _realTypeOnDisk = GetTypeOnDisk< Real >()==_typeOnDisk; }
+
 		size_t bufferSize( void ) const { return sizeof( VertexType ); }
-		void toBuffer( const VertexType &dt , char *buffer ) const { *( (VertexType*)buffer ) = dt; }
-		void fromBuffer( const char *buffer , VertexType &dt ) const { dt = *( (VertexType*)buffer ); }
+		void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { memcpy( buffer , &dt , sizeof( VertexType ) ); }
+		void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const { memcpy( &dt , buffer , sizeof( VertexType ) ); }
 
 		bool operator == ( const ValueFactory &factory ) const { return _typeOnDisk==factory._typeOnDisk; }
 	protected:
 		TypeOnDisk _typeOnDisk;
+		bool _realTypeOnDisk;
 		static const std::string _PlyNames[];
 	};
 
@@ -399,7 +457,7 @@ namespace VertexFactory
 		{
 			Transform( void ){}
 			template< typename XForm > Transform( XForm xForm ){}
-			VertexType operator()( VertexType dt ) const { return dt; }
+			void inPlace( VertexType &dt ) const {}
 		};
 
 		VertexType operator()( void ) const { return Point< Real >( _namesAndTypesOnDisk.size() ); }
@@ -423,11 +481,12 @@ namespace VertexFactory
 		DynamicFactory( const std::vector< std::pair< std::string , TypeOnDisk > > &namesAndTypesOnDisk );
 		DynamicFactory( const std::vector< PlyProperty > &plyProperties );
 		size_t bufferSize( void ) const { return sizeof(Real) * _namesAndTypesOnDisk.size(); }
-		void toBuffer( const VertexType &dt , char *buffer ) const { for( size_t i=0 ; i<_namesAndTypesOnDisk.size() ; i++ ) ( (Real*)buffer )[i] = dt[i]; }
-		void fromBuffer( const char *buffer , VertexType &dt ) const { for( size_t i=0 ; i<_namesAndTypesOnDisk.size() ; i++ ) dt[i] = ( (const Real*)buffer )[i]; }
+		void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { for( size_t i=0 ; i<_namesAndTypesOnDisk.size() ; i++ ) ( ( Pointer(Real) )(buffer) )[i] = dt[i]; }
+		void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const { for( size_t i=0 ; i<_namesAndTypesOnDisk.size() ; i++ ) dt[i] = ( ( ConstPointer( Real ) )(buffer) )[i]; }
 
 		bool operator == ( const DynamicFactory &factory ) const;
 	protected:
+		bool _realTypeOnDisk;
 		std::vector< std::pair< std::string , TypeOnDisk > > _namesAndTypesOnDisk;
 	};
 
@@ -451,7 +510,7 @@ namespace VertexFactory
 			Transform( void ){}
 			template< typename XForm >
 			Transform( XForm xForm ){ _set<0>( xForm ); }
-			VertexType operator()( VertexType in ) const { VertexType out ; _xForm< 0 >( in , out ) ; return out; }
+			void inPlace( VertexType &dt ) const { _inPlace< 0 >( dt ); }
 
 			template< unsigned int I > using TransformType = typename std::tuple_element< I , _TransformTuple >::type;
 			template< unsigned int I >       TransformType< I >& get( void )       { return std::get< I >( _transformTuple ); }
@@ -460,8 +519,8 @@ namespace VertexFactory
 			_TransformTuple _transformTuple;
 			template< unsigned int I , typename XForm > typename std::enable_if< I!=sizeof...(Factories) >::type _set( XForm xForm ){ this->template get<I>() = xForm ; _set< I+1 >( xForm ); }
 			template< unsigned int I , typename XForm > typename std::enable_if< I==sizeof...(Factories) >::type _set( XForm xForm ){}
-			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) >::type _xForm( const VertexType &in , VertexType &out ) const { out.template get<I>() = this->template get<I>()( in.template get<I>() ) ; _xForm< I+1 >( in , out ); }
-			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) >::type _xForm( const VertexType &in , VertexType &out ) const {}
+			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) >::type _inPlace( VertexType &dt ) const { this->template get<I>().inPlace( dt.template get<I>() ) ; _inPlace< I+1 >( dt ); }
+			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) >::type _inPlace( VertexType &dt ) const {}
 		};
 
 		Factory( void ){}
@@ -485,8 +544,8 @@ namespace VertexFactory
 		PlyProperty plyStaticWriteProperty( unsigned int idx ) const { return _plyStaticWriteProperty<0>( idx ); }
 
 		size_t bufferSize( void ) const { return _bufferSize<0>(); }
-		void toBuffer( const VertexType &dt , char *buffer ) const { _toBuffer<0>( dt , buffer ); }
-		void fromBuffer( const char *buffer , VertexType &dt ) const { _fromBuffer<0>( buffer , dt ); }
+		void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { _toBuffer<0>( dt , buffer ); }
+		void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const { _fromBuffer<0>( buffer , dt ); }
 
 		bool operator == ( const Factory &factory ) const { return _equal<0>( factory ); }
 	protected:
@@ -529,10 +588,10 @@ namespace VertexFactory
 
 		template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , size_t >::type _bufferSize( void ) const { return this->template get<I>().bufferSize() + _bufferSize< I+1 >(); }
 		template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , size_t >::type _bufferSize( void ) const { return 0; }
-		template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) >::type _toBuffer( const VertexType &dt , char *buffer ) const { this->template get<I>().toBuffer( dt.template get<I>() , buffer ) ; _toBuffer< I+1 >( dt , buffer + this->template get<I>().bufferSize() ); }
-		template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) >::type _toBuffer( const VertexType &dt , char *buffer ) const {}
-		template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) >::type _fromBuffer( const char * buffer , VertexType &dt ) const {this->template  get<I>().fromBuffer( buffer , dt.template get<I>() ) ; _fromBuffer< I+1 >( buffer + this->template get<I>().bufferSize() , dt ); }
-		template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) >::type _fromBuffer( const char * buffer , VertexType &dt ) const {}
+		template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) >::type _toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { this->template get<I>().toBuffer( dt.template get<I>() , buffer ) ; _toBuffer< I+1 >( dt , buffer + this->template get<I>().bufferSize() ); }
+		template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) >::type _toBuffer( const VertexType &dt , Pointer( char ) buffer ) const {}
+		template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) >::type _fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const {this->template  get<I>().fromBuffer( buffer , dt.template get<I>() ) ; _fromBuffer< I+1 >( buffer + this->template get<I>().bufferSize() , dt ); }
+		template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) >::type _fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const {}
 
 		template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , bool >::type _equal( const Factory &factory ) const { return _EqualFactories< FactoryType<I> , Factory >( this->template get< I >() , factory.template get<I>() ) && _equal< I+1 >( factory ); }
 		template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , bool >::type _equal( const Factory &factory ) const { return true; }

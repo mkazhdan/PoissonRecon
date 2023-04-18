@@ -29,6 +29,7 @@ DAMAGE.
 #ifndef ALLOCATOR_INCLUDED
 #define ALLOCATOR_INCLUDED
 #include <vector>
+#include "Array.h"
 
 struct AllocatorState
 {
@@ -49,7 +50,7 @@ class Allocator
 {
 	size_t _blockSize;
 	AllocatorState _state;
-	std::vector< T* > _memory;
+	std::vector< Pointer( T ) > _memory;
 public:
 	Allocator( void ) : _blockSize(0) {}
 	~Allocator( void ){ reset(); }
@@ -58,69 +59,13 @@ public:
 	  * it has allocated. */
 	void reset( void )
 	{
-		for( size_t i=0 ; i<_memory.size() ; i++ ) delete[] _memory[i];
+		for( size_t i=0 ; i<_memory.size() ; i++ ) DeletePointer( _memory[i] );
 		_memory.clear();
 		_blockSize = 0;
 		_state = AllocatorState();
 	}
 	/** This method returns the memory state of the allocator. */
 	AllocatorState getState( void ) const { return _state; }
-
-
-	/** This method rolls back the allocator so that it makes all of the memory previously
-	  * allocated available for re-allocation. Note that it does it not call the constructor
-	  * again, so after this method has been called, assumptions about the state of the values
-	  * in memory are no longer valid. */
-	void rollBack( void )
-	{
-		if( _memory.size() )
-		{
-			for( size_t i=0 ; i<_memory.size() ; i++ ) for( size_t j=0 ; j<_blockSize ; j++ )
-			{
-				_memory[i][j].~T();
-				new( &_memory[i][j] ) T();
-			}
-			_state = AllocatorState();
-		}
-	}
-	/** This method rolls back the allocator to the previous memory state and makes all of the memory previously
-	  * allocated available for re-allocation. Note that it does it not call the constructor
-	  * again, so after this method has been called, assumptions about the state of the values
-	  * in memory are no longer valid. */
-	void rollBack( const AllocatorState& state )
-	{
-		if( state.index<_state.index || ( state.index==_state.index && state.remains<_state.remains ) )
-		{
-			if( state.index<_state.index )
-			{
-				for( size_t j=state.remains ; j<_blockSize ; j++ )
-				{
-					_memory[ state.index ][j].~T();
-					new( &_memory[ state.index ][j] ) T();
-				}
-				for( size_t i=state.index+1 ; i<_state.index-1 ; i++ ) for( size_t j=0 ; j<_blockSize ; j++ )
-				{
-					_memory[i][j].~T();
-					new( &_memory[i][j] ) T();
-				}
-				for( size_t j=0 ; j<_state.remains ; j++ )
-				{
-					_memory[ _state.index ][j].~T();
-					new( &_memory[ _state.index ][j] ) T();
-				}
-				_state = state;
-			}
-			else
-			{
-				for( size_t j=0 ; j<state.remains ; j++ )
-				{
-					_memory[ _state.index ][j].~T();
-					new( &_memory[ _state.index ][j] ) T();
-				}
-				_state.remains = state.remains;
-			}
-		}
-	}
 
 	/** This method initiallizes the constructor and the blockSize variable specifies the
 	  * the number of objects that should be pre-allocated at a time. */
@@ -137,23 +82,23 @@ public:
 	  * more memory. Note that if the number of objects requested is larger than the value blockSize with which
 	  * the allocator was initialized, the request for memory will fail.
 	  */
-	T* newElements( size_t elements=1 )
+	Pointer( T ) newElements( size_t elements=1 )
 	{
-		T* mem;
-		if( !elements ) return NULL;
+		Pointer( T ) mem;
+		if( !elements ) return NullPointer( T );
 		if( elements>_blockSize ) ERROR_OUT( "elements bigger than block-size: " , elements , " > " , _blockSize );
 		if( _state.remains<elements )
 		{
 			if( _state.index==_memory.size()-1 )
 			{
-				mem = new T[ _blockSize ];
+				mem = NewPointer< T >( _blockSize );
 				if( !mem ) ERROR_OUT( "Failed to allocate memory" );
 				_memory.push_back( mem );
 			}
 			_state.index++;
 			_state.remains = _blockSize;
 		}
-		mem = &( _memory[ _state.index ][ _blockSize-_state.remains ] );
+		mem = _memory[ _state.index ] + ( _blockSize-_state.remains );
 		_state.remains -= elements;
 		return mem;
 	}

@@ -60,10 +60,13 @@ inline void aligned_free( void* mem ) { free( ( ( void** )mem )[-1] ); }
 #ifdef SHOW_WARNINGS
 #pragma message ( "[WARNING] Array debugging is enabled" )
 #endif // SHOW_WARNINGS
-#include "Array.inl"
+
 #define      Pointer( ... )      Array< __VA_ARGS__ >
 #define ConstPointer( ... ) ConstArray< __VA_ARGS__ >
 #define  NullPointer( ... )      Array< __VA_ARGS__ >()
+
+#include "Array.inl"
+
 template< class C > void        FreePointer( Array< C >& a ){ a.Free( ); }
 template< class C > void AlignedFreePointer( Array< C >& a ){ a.Free( ); }
 template< class C > void       VFreePointer( Array< C >& a ){ a.Free( ); }
@@ -74,8 +77,8 @@ template< class C > Array< C >        AllocPointer(                  size_t size
 template< class C > Array< C > AlignedAllocPointer(                  size_t size , size_t alignment , const char* name=NULL ){ return Array< C >::AlignedAlloc(     size , alignment , false , name ); }
 template< class C > Array< C >      ReAllocPointer( Array< C >&  a , size_t size ,                    const char* name=NULL ){ return Array< C >::ReAlloc     ( a , size ,             false , name ); }
 
-template< class C >       C* PointerAddress(      Array< C >& a ) { return a.pointer(); }
-template< class C > const C* PointerAddress( ConstArray< C >& a ) { return a.pointer(); }
+template< class C >       C* PointerAddress(      Array< C > a ) { return a.pointer(); }
+template< class C > const C* PointerAddress( ConstArray< C > a ) { return a.pointer(); }
 template< class C >      Array< C > GetPointer(       C& c ) { return      Array< C >::FromPointer( &c , 1 ); }
 template< class C > ConstArray< C > GetPointer( const C& c ) { return ConstArray< C >::FromPointer( &c , 1 ); }
 template< class C >      Array< C > GetPointer(       std::vector< C >& v ){ return      Array< C >::FromPointer( &v[0] , v.size() ); }

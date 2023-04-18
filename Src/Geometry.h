@@ -38,6 +38,8 @@ DAMAGE.
 #ifdef _WIN32
 #include <io.h>
 #endif // _WIN32
+#include "MyMiscellany.h"
+#include "Array.h"
 
 // An empty type
 template< typename Real >
@@ -137,6 +139,8 @@ public:
 	Point( const Point& p ){ memcpy( coords , p.coords , sizeof(Real)*Dim ); }
 	template< class ... _Reals > Point( _Reals ... values ){ static_assert( sizeof...(values)==Dim || sizeof...(values)==0 , "[ERROR] Point::Point: Invalid number of coefficients" ) ; _init( 0 , values... ); }
 	template< class _Real > Point( const Point< _Real , Dim >& p ){ for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] = (Real) p.coords[d]; }
+	Point( Real *values ){ for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] = values[d]; }
+	Point( const Real *values ){ for( unsigned int d=0 ; d<Dim ; d++ ) coords[d] = values[d]; }
 	inline       Real& operator[] ( unsigned int i )       { return coords[i]; }
 	inline const Real& operator[] ( unsigned int i ) const { return coords[i]; }
 	inline Point  operator - ( void ) const { Point q ; for( unsigned int d=0 ; d<Dim ; d++ ) q.coords[d] = - coords[d] ; return q; }
@@ -175,19 +179,22 @@ public:
 	}
 	static Point CrossProduct( Point* points ){ return CrossProduct( ( const Point* )points ); }
 
-	friend std::ostream &operator << ( std::ostream &os , const Point &p )
-	{
-		os << "( ";
-		for( int d=0 ; d<Dim ; d++ )
-		{
-			if( d ) os << " , ";
-			os << p[d];
-		}
-		return os << " )";
-	}
+	template< class _Real , unsigned int _Dim >
+	friend std::ostream &operator << ( std::ostream &os , const Point< _Real , _Dim > &p );
 };
 template< class Real , unsigned int Dim > Point< Real , Dim > operator * ( Real r , Point< Real , Dim > p ){ return p*r; }
 template< class Real , unsigned int Dim > Point< Real , Dim > operator / ( Real r , Point< Real , Dim > p ){ return p/r; }
+template< class Real , unsigned int Dim >
+std::ostream &operator << ( std::ostream &os , const Point< Real , Dim > &p )
+{
+	os << "( ";
+	for( int d=0 ; d<Dim ; d++ )
+	{
+		if( d ) os << " , ";
+		os << p[d];
+	}
+	return os << " )";
+}
 
 // This class represents a point whose is size is allocated dynamically.
 // The size can be set by:
@@ -197,10 +204,10 @@ template< class Real , unsigned int Dim > Point< Real , Dim > operator / ( Real 
 template< class Real >
 struct Point< Real >
 {
-	Point( void ) : _coords(NULL) , _dim(0){}
-	Point( size_t dim ) : _coords(NULL) , _dim(0) { if( dim ){ _resize( (unsigned int)dim ) ; memset( _coords , 0 , sizeof(Real)*_dim ); } }
-	Point( const Point &p ) : _coords(NULL) , _dim(0) { if( p._dim ){ _resize( p._dim ) ; memcpy( _coords , p._coords , sizeof(Real)*_dim ); } }
-	~Point( void ){ delete[] _coords ; _coords = NULL; }
+	Point( void ) : _coords( NullPointer(Real) ) , _dim(0){}
+	Point( size_t dim ) : _coords( NullPointer(Real) ) , _dim(0) { if( dim ){ _resize( (unsigned int)dim ) ; memset( _coords , 0 , sizeof(Real)*_dim ); } }
+	Point( const Point &p ) : _coords( NullPointer(Real) ) , _dim(0) { if( p._dim ){ _resize( p._dim ) ; memcpy( _coords , p._coords , sizeof(Real)*_dim ); } }
+	~Point( void ){ DeletePointer( _coords ); }
 
 	Point &operator = ( const Point &p )
 	{
@@ -264,9 +271,14 @@ struct Point< Real >
 		return os << " )";
 	}
 protected:
-	Real *_coords;
+	Pointer( Real ) _coords;
 	unsigned int _dim;
-	void _resize( unsigned int dim ){ if( dim ){ _coords = new Real[dim] ; _dim = dim; } }
+	void _resize( unsigned int dim )
+	{
+		DeletePointer( _coords );
+		if( dim ) _coords = NewPointer< Real >( dim );
+		_dim = dim;
+	}
 };
 template< class Real > Point< Real > operator * ( Real s , Point< Real > p ){ return p*s; }
 

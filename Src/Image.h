@@ -285,7 +285,7 @@ bool TiledImageReader::GetInfo( const char* fileName , unsigned int& width , uns
 		_tileHeights = new unsigned int[ _tileRows+1 ];
 		_tileWidths  = new unsigned int[ _tileColumns+1 ];
 
-		char tileName[1024];
+		char tileName[2048];
 		for( unsigned int r=0 ; r<_tileRows ; r++ ) for( unsigned int c=0 ; c<_tileColumns ; c++ )
 		{
 			if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read tile name from: " , fileName );
@@ -331,7 +331,7 @@ TiledImageReader::TiledImageReader( const char* fileName , unsigned int& width ,
 		_tileWidths  = new unsigned int[ _tileColumns+1 ];
 
 		_tileNames = new char*[ _tileColumns * _tileRows ];
-		char tileName[1024];
+		char tileName[2048];
 		for( unsigned int r=0 ; r<_tileRows ; r++ ) for( unsigned int c=0 ; c<_tileColumns ; c++ )
 		{
 			if( !fgets( line , 1024 , fp ) ) ERROR_OUT( "Failed to read tile name from: " , fileName );

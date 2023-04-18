@@ -53,8 +53,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <functional>
 #include "PlyFile.h"
 #include "Geometry.h"
-#include "CoredMesh.h"
+#include "StreamingMesh.h"
 #include "MyMiscellany.h"
+#include "Array.h"
 
 namespace PLY
 {
@@ -65,7 +66,7 @@ namespace PLY
 	template< typename Integer > struct Traits{ static const std::string name; };
 
 	// A structure representing a face
-	template< typename Index >
+	template< typename Index , bool UseCharIndex=false >
 	struct Face
 	{
 		unsigned int nr_vertices;
@@ -90,10 +91,10 @@ namespace PLY
 	int ReadVertexHeader( std::string fileName , const VertexFactory &vFactory , bool *readFlags , std::vector< PlyProperty > &unprocessedProperties );
 
 	// PLY write mesh functionality
-	template< typename VertexFactory , typename Index , class Real , int Dim , typename OutputIndex=int >
-	void WritePolygons( std::string fileName , const VertexFactory &vFactory , CoredMeshData< typename VertexFactory::VertexType , Index > *mesh , int file_type , const std::vector< std::string >& comments , std::function< typename VertexFactory::VertexType ( typename VertexFactory::VertexType ) > xForm = []( typename VertexFactory::VertexType v ){ return v; } );
+	template< typename VertexFactory , typename Index , class Real , int Dim , typename OutputIndex=int , bool UseCharIndex=false >
+	void WritePolygons( std::string fileName , const VertexFactory &vFactory , StreamingMesh< typename VertexFactory::VertexType , Index > *mesh , int file_type , const std::vector< std::string >& comments , std::function< void ( typename VertexFactory::VertexType & ) > xForm = []( typename VertexFactory::VertexType &v ){} );
 
-	template< typename VertexFactory , typename Index >
+	template< typename VertexFactory , typename Index , bool UseCharIndex=false >
 	void WritePolygons( std::string fileName , const VertexFactory &vFactory , const std::vector< typename VertexFactory::VertexType > &vertices , const std::vector< std::vector< Index > > &polygons , int file_type , const std::vector< std::string > &comments );
 
 	// PLY read mesh functionality

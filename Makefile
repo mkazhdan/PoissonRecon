@@ -19,15 +19,19 @@ COMPILER ?= gcc
 #COMPILER ?= clang
 
 ifeq ($(COMPILER),gcc)
-	CFLAGS += -fopenmp -Wno-deprecated -std=c++14 -pthread -Wno-invalid-offsetof
+	CFLAGS += -fopenmp -Wno-deprecated -std=c++17 -pthread -Wno-invalid-offsetof
+	LFLAGS += -lgomp -lstdc++ -lpthread
+else ifeq ($(COMPILER),gcc-11)
+	CFLAGS += -fopenmp -Wno-deprecated -std=c++17 -pthread -Wno-invalid-offsetof -Werror=strict-aliasing -Wno-nonnull
 	LFLAGS += -lgomp -lstdc++ -lpthread
 else
-# 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++14 -Wno-invalid-offsetof
+# 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++17 -Wno-invalid-offsetof
 # 	LFLAGS += -liomp5 -lstdc++
-	CFLAGS += -Wno-deprecated -std=c++14 -pthread -Wno-invalid-offsetof -Wno-dangling-else
+	CFLAGS += -Wno-deprecated -std=c++17 -pthread -Wno-invalid-offsetof -Wno-dangling-else
 	LFLAGS += -lstdc++
 endif
-#LFLAGS += -lz -lpng -ljpeg
+LFLAGS += -lz -lpng -ljpeg
+#LFLAGS += -ljpeg -lmypng -lz
 
 CFLAGS_DEBUG = -DDEBUG -g3
 LFLAGS_DEBUG =
@@ -45,6 +49,9 @@ INCLUDE = .
 ifeq ($(COMPILER),gcc)
 	CC=gcc
 	CXX=g++
+else ifeq ($(COMPILER),gcc-11)
+	CC=gcc-11
+	CXX=g++-11
 else
 	CC=clang
 	CXX=clang++
@@ -151,15 +158,15 @@ make_dir:
 
 $(BIN)$(PR_TARGET): $(PR_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS)
 
 $(BIN)$(SR_TARGET): $(SR_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(SR_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(SR_OBJECTS) -L$(BIN) $(LFLAGS)
 
 $(BIN)$(PI_TARGET): $(PI_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(PI_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(PI_OBJECTS) -L$(BIN) $(LFLAGS)
 
 $(BIN)$(ST_TARGET): $(ST_OBJECTS)
 	$(CXX) -pthread -o $@ $(ST_OBJECTS) $(LFLAGS)
@@ -169,15 +176,15 @@ $(BIN)$(EH_TARGET): $(EH_OBJECTS)
 
 $(BIN)$(IS_TARGET): $(IS_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS)
 
 $(BIN)$(AV_TARGET): $(AV_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(AV_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(AV_OBJECTS) -L$(BIN) $(LFLAGS)
 
 $(BIN)$(CP_TARGET): $(CP_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	$(CXX) -pthread -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS)
 
 $(BIN)%.o: $(SRC)%.c
 	$(CC) -c -o $@ -I$(INCLUDE) $<

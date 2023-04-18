@@ -44,9 +44,6 @@ DAMAGE.
 #include "Ply.h"
 #include "VertexFactory.h"
 
-MessageWriter messageWriter;
-
-
 cmdLineParameter< char* >
 	In( "in" ) ,
 	Out( "out" );
@@ -177,6 +174,14 @@ template< typename Real , unsigned int Dim , typename ... AuxData >
 using ValuedPointData = VectorTypeUnion< Real , Point< Real , Dim > , Real , AuxData ... >;
 
 template< typename Index >
+size_t BoostHash( Index i1 , Index i2 )
+{
+	size_t hash = (size_t)i1 + 0x9e3779b9;
+	hash ^= (size_t)i2 + 0x9e3779b9 + (hash<<6) + (hash>>2);
+	return hash;
+}
+
+template< typename Index >
 struct EdgeKey
 {
 	Index key1 , key2;
@@ -186,11 +191,7 @@ struct EdgeKey
 		else        key1 = k2 , key2 = k1;
 	}
 	bool operator == ( const EdgeKey &key ) const  { return key1==key.key1 && key2==key.key2; }
-#if 1
-	struct Hasher{ size_t operator()( const EdgeKey &key ) const { return (size_t)( key.key1 * key.key2 ); } };
-#else
-	struct Hasher{ size_t operator()( const EdgeKey &key ) const { return key.key1 ^ key.key2; } };
-#endif
+	struct Hasher{ size_t operator()( const EdgeKey &key ) const { return BoostHash(key.key1,key.key2); } };
 };
 
 template< typename Index >
@@ -200,11 +201,7 @@ struct HalfEdgeKey
 	HalfEdgeKey( Index k1=0 , Index k2=0 ) : key1(k1) , key2(k2) {}
 	HalfEdgeKey opposite( void ) const { return HalfEdgeKey( key2 , key1 ); }
 	bool operator == ( const HalfEdgeKey &key ) const  { return key1==key.key1 && key2==key.key2; }
-#if 1
-	struct Hasher{ size_t operator()( const HalfEdgeKey &key ) const { return (size_t)( key.key1 * key.key2 ); } };
-#else
-	struct Hasher{ size_t operator()( const HalfEdgeKey &key ) const { return key.key1 ^ key.key2; } };
-#endif
+	struct Hasher{ size_t operator()( const HalfEdgeKey &key ) const { return BoostHash(key.key1,key.key2); } };
 };
 
 template< typename Real , unsigned int Dim ,  typename ... AuxData >
@@ -440,18 +437,24 @@ int Execute( AuxDataFactories ... auxDataFactories )
 	std::vector< std::vector< Index > > ltPolygons , gtPolygons;
 	std::vector< bool > ltFlags , gtFlags;
 
-	messageWriter( comments , "*********************************************\n" );
-	messageWriter( comments , "*********************************************\n" );
-	messageWriter( comments , "** Running Surface Trimmer (Version %s) **\n" , VERSION );
-	messageWriter( comments , "*********************************************\n" );
-	messageWriter( comments , "*********************************************\n" );
+	if( Verbose.set )
+	{
+		std::cout << "*********************************************" << std::endl;
+		std::cout << "*********************************************" << std::endl;
+		std::cout << "** Running Surface Trimmer (Version " << VERSION << ") **" << std::endl;
+		std::cout << "*********************************************" << std::endl;
+		std::cout << "*********************************************" << std::endl;
+	}
 	char str[1024];
 	for( int i=0 ; params[i] ; i++ )
 		if( params[i]->set )
 		{
 			params[i]->writeValue( str );
-			if( strlen( str ) ) messageWriter( comments , "\t--%s %s\n" , params[i]->name , str );
-			else                messageWriter( comments , "\t--%s\n" , params[i]->name );
+			if( Verbose.set )
+			{
+				if( strlen( str ) ) std::cout << "\t--" << params[i]->name << " " << str << std::endl;
+				else                std::cout << "\t--" << params[i]->name << std::endl;
+			}
 		}
 	if( Verbose.set ) printf( "Value Range: [%f,%f]\n" , min , max );
 
@@ -488,7 +491,7 @@ int Execute( AuxDataFactories ... auxDataFactories )
 		// Compute the connectivity
 
 		// A map identifying half-edges along the boundaries of components and associating them with the component
-		std::unordered_map< HalfEdgeKey< Index > , size_t , typename HalfEdgeKey< Index >::Hasher > componentBoundaryHalfEdges;
+		std::unordered_map< HalfEdgeKey< Index > , Index , typename HalfEdgeKey< Index >::Hasher > componentBoundaryHalfEdges;
 		for( unsigned int i=0 ; i<_components.size() ; i++ )
 		{
 			// All the half-edges for a given component
@@ -507,7 +510,7 @@ int Execute( AuxDataFactories ... auxDataFactories )
 			{
 				HalfEdgeKey< Index > key = *iter;
 				HalfEdgeKey< Index > _key = key.opposite();
-				if( componentHalfEdges.find( _key )==componentHalfEdges.end() ) componentBoundaryHalfEdges[ key ] = i;
+				if( componentHalfEdges.find( _key )==componentHalfEdges.end() ) componentBoundaryHalfEdges[ key ] = (Index)i;
 			}
 		}
 
@@ -576,7 +579,6 @@ int Execute( AuxDataFactories ... auxDataFactories )
 	RemoveHangingVertices( vertices , gtPolygons );
 	char comment[1024];
 	sprintf( comment , "#Trimmed In: %9.1f (s)" , Time()-t );
-	comments.push_back( comment );
 	if( Out.set ) PLY::WritePolygons( Out.value , factory , vertices , gtPolygons , ASCII.set ? PLY_ASCII : ft , comments );
 
 	return EXIT_SUCCESS;
@@ -584,7 +586,6 @@ int Execute( AuxDataFactories ... auxDataFactories )
 int main( int argc , char* argv[] )
 {
 	cmdLineParse( argc-1 , &argv[1] , params );
-	messageWriter.echoSTDOUT = Verbose.set;
 
 	if( !In.set || !Trim.set )
 	{

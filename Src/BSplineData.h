@@ -140,6 +140,7 @@ public:
 template< unsigned int Degree , unsigned int DDegree > struct Differentiator                   { static void Differentiate( const BSplineElements< Degree >& bse , BSplineElements< DDegree >& dbse ); };
 template< unsigned int Degree >                        struct Differentiator< Degree , Degree >{ static void Differentiate( const BSplineElements< Degree >& bse , BSplineElements<  Degree >& dbse ); };
 
+// Note that these bounds are inclusive -- [s,e]
 #define BSPLINE_SET_BOUNDS( name , s , e ) \
 	static const int name ## Start = (s); \
 	static const int name ## End   = (e); \

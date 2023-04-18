@@ -46,6 +46,7 @@ cmdLineParameter< char* >
 	Samples( "samples" ) ,
 	OutMesh( "mesh" ) ,
 	OutTree( "tree" ) ,
+	OutSlice( "slice" ) ,
 	OutGrid( "grid" );
 
 cmdLineReadable
@@ -66,6 +67,11 @@ cmdLineParameter< int >
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ,
+	IsoSlabDepth( "sDepth" , 0 ) ,
+	IsoSlabStart( "sStart" , 0 ) ,
+	IsoSlabEnd  ( "sEnd"   , 1 ) ,
+	SliceDepth( "sliceDepth" ) ,
+	SliceIndex( "sliceIndex" ) ,
 	TreeScale( "treeScale" , 1 ) ,
 	TreeDepth( "treeDepth" , -1 );
 
@@ -85,6 +91,8 @@ cmdLineReadable* params[] =
 	&ParallelType ,
 	&ScheduleType ,
 	&ThreadChunkSize ,
+	&IsoSlabDepth , &IsoSlabStart , &IsoSlabEnd ,
+	&OutSlice , &SliceDepth , &SliceIndex,
 	NULL
 };
 
@@ -105,6 +113,12 @@ void ShowUsage( char* ex )
 	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
 	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
 	printf( "\t[--%s <iso-value for extraction>=%f]\n" , IsoValue.name , IsoValue.value );
+	printf( "\t[-%s <extraction slab depth>=%d]\n" , IsoSlabDepth.name , IsoSlabDepth.value );
+	printf( "\t[-%s <extraction slab start>=%d]\n" , IsoSlabStart.name , IsoSlabStart.value );
+	printf( "\t[-%s <extraction slab end>=%d]\n"   , IsoSlabEnd  .name , IsoSlabEnd  .value );
+	printf( "\t[--%s <output slice name>]\n" , OutSlice.name );
+	printf( "\t[--%s <output slice depth>]\n" , SliceDepth.name );
+	printf( "\t[--%s <output slice index>]\n" , SliceIndex.name );
 	printf( "\t[--%s]\n" , NonManifold.name );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
 	printf( "\t[--%s]\n" , NonLinearFit.name );
@@ -182,13 +196,13 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 	delete[] ext;
 }
 template< unsigned int Dim , class Real , unsigned int FEMSig >
-void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > modelToUnitCube , FILE* fp )
+void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelToUnitCube , BinaryStream &stream )
 {
 	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > > coefficients;
 
-	coefficients.read( fp );
+	coefficients.read( stream );
 
 	// Evaluate at the sample positions
 	if( Samples.set )
@@ -347,61 +361,90 @@ void _Execute( const FEMTree< Dim , Real >* tree , XForm< Real , Dim+1 > modelTo
 		DeletePointer( dValues );
 	}
 
+	if( OutSlice.set && SliceDepth.set && SliceIndex.set )
+	{
+		using SliceFEMTreeNode = RegularTreeNode< Dim-1 , FEMTreeNodeData , depth_and_offset_type >;
+
+		FEMTree< Dim-1 , Real > *sliceTree = FEMTree< Dim-1 , Real >::template Slice< Degree , 0 >( *tree , SliceDepth.value , SliceIndex.value , true , MEMORY_ALLOCATOR_BLOCK_SIZE );
+
+		DenseNodeData< Real , IsotropicUIntPack< Dim-1 , FEMSig > > sliceCoefficients = sliceTree->initDenseNodeData( IsotropicUIntPack< Dim-1 , FEMSig >() );
+		sliceTree->template slice< 0 , FEMSig >( *tree , 0 , coefficients , sliceCoefficients , SliceDepth.value , SliceIndex.value );
+
+		XForm< Real , Dim > sliceModelToUnitCube;
+		sliceModelToUnitCube( Dim-1 , Dim-1 ) = 1.;
+		for( unsigned int i=0 ; i<(Dim-1) ; i++ )
+		{
+			for( unsigned int j=0 ; j<(Dim-1) ; j++ ) sliceModelToUnitCube(i,j) = modelToUnitCube(i,j);
+			sliceModelToUnitCube(Dim-1,i) = modelToUnitCube(Dim,i);
+		}
+		FILE *fp = fopen( OutSlice.value , "wb" );
+		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , OutSlice.value );
+		FileStream fs(fp);
+		FEMTree< Dim-1 , Real >::WriteParameter( fs );
+		DenseNodeData< Real , IsotropicUIntPack< Dim-1 , FEMSig > >::WriteSignatures( fs );
+		sliceTree->write( fs , sliceModelToUnitCube , false );
+		sliceCoefficients.write( fs );
+		fclose( fp );
+
+		delete sliceTree;
+	}
+
 	// Output the mesh
-	if( OutMesh.set )
+	if constexpr( Dim==3 ) if( OutMesh.set )
 	{
 		double t = Time();
 		typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > > FullVertexFactory;
 		typedef typename FullVertexFactory::VertexType VertexType;
 		FullVertexFactory vertexFactory;
-		CoredFileMeshData< node_index_type , FullVertexFactory > mesh( vertexFactory );
+		FileStreamingMesh< FullVertexFactory , node_index_type > mesh( vertexFactory );
 		std::function< void ( VertexType& , Point< Real , Dim > , Point< Real , Dim > , Real , Real ) > SetVertex = []( VertexType& v , Point< Real , Dim > p , Point< Real , Dim > , Real , Real ){ v.template get<0>() = p; };
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #ifdef SHOW_WARNINGS
 #warning "you've got me gcc version<5"
 #endif // SHOW_WARNINGS
 		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
-		IsoSurfaceExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , (Real)0 , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		LevelSetExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , mesh , (Real)0 , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #else // !__GNUC__ || __GNUC__ >=5
-		IsoSurfaceExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , (Real)0 , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		LevelSetExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , mesh , (Real)0 , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #endif // __GNUC__ || __GNUC__ < 4
 
-		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
-		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh.outOfCoreVertexNum()+mesh.inCoreVertices.size() ) , (unsigned long long)mesh.polygonNum() );
+		if( Verbose.set ) printf( "Got level-set surface: %.2f(s)\n" , Time()-t );
+		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)mesh.vertexNum() , (unsigned long long)mesh.polygonNum() );
 
 		std::vector< std::string > comments;
 		typename FullVertexFactory::Transform unitCubeToModelTransform( modelToUnitCube.inverse() );
-		PLY::WritePolygons< FullVertexFactory , node_index_type , Real , Dim >( OutMesh.value , FullVertexFactory() , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , unitCubeToModelTransform );
+		auto xForm = [&]( typename FullVertexFactory::VertexType & v ){ unitCubeToModelTransform.inPlace( v ); };
+		PLY::WritePolygons< FullVertexFactory , node_index_type , Real , Dim >( OutMesh.value , FullVertexFactory() , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , xForm );
 	}
 }
 
 template< unsigned int Dim , class Real , BoundaryType BType >
-void Execute( FILE* fp , int degree , FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelToUnitCube )
+void Execute( BinaryStream &stream , int degree , FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelToUnitCube )
 {
 	switch( degree )
 	{
-	case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BType >::Signature >( tree , modelToUnitCube , fp ) ; break;
-	case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BType >::Signature >( tree , modelToUnitCube , fp ) ; break;
-	case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BType >::Signature >( tree , modelToUnitCube , fp ) ; break;
-	case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BType >::Signature >( tree , modelToUnitCube , fp ) ; break;
-	default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
+		case 1: _Execute< Dim , Real , FEMDegreeAndBType< 1 , BType >::Signature >( tree , modelToUnitCube , stream ) ; break;
+		case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BType >::Signature >( tree , modelToUnitCube , stream ) ; break;
+		case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BType >::Signature >( tree , modelToUnitCube , stream ) ; break;
+		case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BType >::Signature >( tree , modelToUnitCube , stream ) ; break;
+		default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 	}
 }
 
 template< unsigned int Dim , class Real >
-void Execute( FILE* fp , int degree , BoundaryType bType )
+void Execute( BinaryStream &stream , int degree , BoundaryType bType )
 {
 	XForm< Real , Dim+1 > modelToUnitCube;
-	FEMTree< Dim , Real > tree( fp , modelToUnitCube , MEMORY_ALLOCATOR_BLOCK_SIZE );
+	FEMTree< Dim , Real > tree( stream , modelToUnitCube , MEMORY_ALLOCATOR_BLOCK_SIZE );
 
-	if( Verbose.set ) printf( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
+	if( Verbose.set ) printf( "All Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.allNodes() , (unsigned long long)tree.activeNodes() , (unsigned long long)tree.ghostNodes() );
 
 	switch( bType )
 	{
-	case BOUNDARY_FREE:      return Execute< Dim , Real , BOUNDARY_FREE      >( fp , degree , &tree , modelToUnitCube );
-	case BOUNDARY_NEUMANN:   return Execute< Dim , Real , BOUNDARY_NEUMANN   >( fp , degree , &tree , modelToUnitCube );
-	case BOUNDARY_DIRICHLET: return Execute< Dim , Real , BOUNDARY_DIRICHLET >( fp , degree , &tree , modelToUnitCube );
-	default: ERROR_OUT( "Not a valid boundary type: " , bType );
+		case BOUNDARY_FREE:      return Execute< Dim , Real , BOUNDARY_FREE      >( stream , degree , &tree , modelToUnitCube );
+		case BOUNDARY_NEUMANN:   return Execute< Dim , Real , BOUNDARY_NEUMANN   >( stream , degree , &tree , modelToUnitCube );
+		case BOUNDARY_DIRICHLET: return Execute< Dim , Real , BOUNDARY_DIRICHLET >( stream , degree , &tree , modelToUnitCube );
+		default: ERROR_OUT( "Not a valid boundary type: " , bType );
 	}
 }
 
@@ -432,10 +475,11 @@ int main( int argc , char* argv[] )
 	if( !fp ) ERROR_OUT( "Failed to open file for reading: " , In.value );
 	FEMTreeRealType realType ; int degree ; BoundaryType bType;
 	unsigned int dimension;
-	ReadFEMTreeParameter( fp , realType , dimension );
+	FileStream fs(fp);
+	ReadFEMTreeParameter( fs , realType , dimension );
 	{
 		unsigned int dim = dimension;
-		unsigned int* sigs = ReadDenseNodeDataSignatures( fp , dim );
+		unsigned int* sigs = ReadDenseNodeDataSignatures( fs , dim );
 		if( dimension!=dim ) ERROR_OUT( "Octree and node data dimensions don't math: " , dimension , " != " , dim );
 		for( unsigned int d=1 ; d<dim ; d++ ) if( sigs[0]!=sigs[d] ) ERROR_OUT( "Anisotropic signatures" );
 		degree = FEMSignatureDegree( sigs[0] );
@@ -449,16 +493,16 @@ int main( int argc , char* argv[] )
 	case 2:
 		switch( realType )
 		{
-			case FEM_TREE_REAL_FLOAT:  Execute< 2 , float  >( fp , degree , bType ) ; break;
-			case FEM_TREE_REAL_DOUBLE: Execute< 2 , double >( fp , degree , bType ) ; break;
+			case FEM_TREE_REAL_FLOAT:  Execute< 2 , float  >( fs , degree , bType ) ; break;
+			case FEM_TREE_REAL_DOUBLE: Execute< 2 , double >( fs , degree , bType ) ; break;
 			default: ERROR_OUT( "Unrecognized real type: " , realType );
 		}
 		break;
 	case 3:
 		switch( realType )
 		{
-			case FEM_TREE_REAL_FLOAT:  Execute< 3 , float  >( fp , degree , bType ) ; break;
-			case FEM_TREE_REAL_DOUBLE: Execute< 3 , double >( fp , degree , bType ) ; break;
+			case FEM_TREE_REAL_FLOAT:  Execute< 3 , float  >( fs , degree , bType ) ; break;
+			case FEM_TREE_REAL_DOUBLE: Execute< 3 , double >( fs , degree , bType ) ; break;
 			default: ERROR_OUT( "Unrecognized real type: " , realType );
 		}
 		break;

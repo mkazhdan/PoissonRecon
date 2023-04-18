@@ -37,6 +37,28 @@ DAMAGE.
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 struct RegularTreeNode
 {
+	// This struct temporarily makes a node appear to be a root node by removing the parent reference
+	struct SubTreeExtractor
+	{
+		SubTreeExtractor( RegularTreeNode &root ) : _root(root)
+		{
+			_rootParent = _root.parent;
+			_root.parent = NULL;
+			_root.depthAndOffset( _depth , _offset );
+			int depth=0 , offset[Dim];
+			for( unsigned int d=0 ; d<Dim ; d++ ) offset[d] = 0;
+			RegularTreeNode::ResetDepthAndOffset( &_root , depth , offset );
+		}
+		SubTreeExtractor( RegularTreeNode *root ) : SubTreeExtractor( *root ){}
+		~SubTreeExtractor( void )
+		{
+			RegularTreeNode::ResetDepthAndOffset( &_root , _depth , _offset );
+			_root.parent = _rootParent;
+		}
+	protected:
+		RegularTreeNode &_root , *_rootParent;
+		int _depth , _offset[Dim];
+	};
 	struct DepthAndOffset
 	{
 		DepthAndOffsetType depth , offset[Dim];
@@ -94,6 +116,13 @@ public:
 	static void ResetDepthAndOffset( RegularTreeNode* root , int d , int off[Dim] );
 	~RegularTreeNode( void );
 
+	// KeepNodeFunctor looks like std::function< bool ( const RegularTreeNode * ) >
+	template< typename KeepNodeFunctor >
+	void copySubTree( RegularTreeNode &subTree , const KeepNodeFunctor &keepNodeFunctor , Allocator< RegularTreeNode > *nodeAllocator=NULL ) const;
+
+	template< typename KeepNodeFunctor >
+	Pointer( RegularTreeNode ) serializeSubTree( const KeepNodeFunctor &keepNodeFunctor , size_t &nodeCount ) const;
+
 	// The merge functor takes two objects of type NodeData and returns an object of type NodeData
 	// [NOTE] We are assuming that the merge functor is symmetric, f(a,b) = f(b,a), and implicity satisfies f(a) = a
 	template< class MergeFunctor >
@@ -114,21 +143,25 @@ public:
 
 	const RegularTreeNode* root( void ) const;
 
-	const RegularTreeNode* nextLeaf( const RegularTreeNode* currentLeaf=NULL ) const;
-	RegularTreeNode* nextLeaf( RegularTreeNode* currentLeaf=NULL );
-
-	// This lambda takes a RegularTreeNode* as an argument and returns true if we do not need to traverse the tree beyond the specified node.
-	template< typename NodeTerminationLambda >
-	const RegularTreeNode* nextNode( NodeTerminationLambda &ntl , const RegularTreeNode* currentNode ) const;
-	template< typename NodeTerminationLambda >
-	RegularTreeNode* nextNode( NodeTerminationLambda &ntl , RegularTreeNode* currentNode );
-
-	const RegularTreeNode* nextNode( const RegularTreeNode* currentNode=NULL ) const;
-	RegularTreeNode* nextNode( RegularTreeNode* currentNode=NULL );
-	const RegularTreeNode* nextBranch( const RegularTreeNode* current ) const;
-	RegularTreeNode* nextBranch( RegularTreeNode* current );
-	const RegularTreeNode* prevBranch( const RegularTreeNode* current ) const;
-	RegularTreeNode* prevBranch( RegularTreeNode* current );
+	/* These functions apply the functor to the node and all descendents, terminating either at a leaf or when the functor returns false. */
+	template< typename NodeFunctor /* = std::function< bool/void ( RegularTreeNode * ) > */ >
+	void processNodes( NodeFunctor nodeFunctor );
+	template< typename NodeFunctor /* = std::function< bool/void ( const RegularTreeNode * ) > */ >
+	void processNodes( NodeFunctor nodeFunctor ) const;
+	template< typename NodeFunctor /* = std::function< void ( RegularTreeNode * ) > */ >
+	void processLeaves( NodeFunctor nodeFunctor );
+	template< typename NodeFunctor /* = std::function< void ( const RegularTreeNode * ) > */ >
+	void processLeaves( NodeFunctor nodeFunctor ) const;
+protected:
+	template< typename NodeFunctor /* = std::function< bool/void ( RegularTreeNode * ) > */ >
+	void _processChildNodes( NodeFunctor &nodeFunctor );
+	template< typename NodeFunctor /* = std::function< bool/void ( const RegularTreeNode * ) > */ >
+	void _processChildNodes( NodeFunctor &nodeFunctor ) const;
+	template< typename NodeFunctor /* = std::function< bool/void ( RegularTreeNode * ) > */ >
+	void _processChildLeaves( NodeFunctor &nodeFunctor );
+	template< typename NodeFunctor /* = std::function< bool/void ( const RegularTreeNode * ) > */ >
+	void _processChildLeaves( NodeFunctor &nodeFunctor ) const;
+public:
 
 	void setFullDepth( int maxDepth , Allocator< RegularTreeNode >* nodeAllocator )
 	{
@@ -138,22 +171,25 @@ public:
 	template< typename Initializer >
 	void setFullDepth( int maxDepth , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer );
 
+	template< typename PruneChildrenFunctor >
+	void pruneChildren( const PruneChildrenFunctor pruneFunctor , bool deleteChildren );
+
 	void printLeaves( void ) const;
 	void printRange( void ) const;
 
 	template< class Real > static int ChildIndex( const Point< Real , Dim >& center , const Point< Real , Dim > &p );
 
-	bool write( const char* fileName ) const;
-	bool write( FILE* fp ) const;
-	bool read( const char* fileName , Allocator< RegularTreeNode >* nodeAllocator )
+	// WriteNodeFunctor looks like std::function< bool ( const RegularTreeNode * ) >
+	template< typename WriteNodeFunctor >
+	bool write( BinaryStream &stream , bool serialize , const WriteNodeFunctor &writeNodeFunctor ) const;
+	bool write( BinaryStream &stream , bool serialize ) const { return write( stream , serialize , []( const RegularTreeNode * ){ return true; } ); }
+
+	template< typename Initializer >
+	bool read( BinaryStream &stream , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer );
+	bool read( BinaryStream &stream , Allocator< RegularTreeNode >* nodeAllocator )
 	{
 		auto initializer = []( RegularTreeNode & ){};
-		return read( fileName , nodeAllocator , initializer );
-	}
-	bool read( FILE* fp , Allocator< RegularTreeNode >* nodeAllocator )
-	{
-		auto initializer = []( RegularTreeNode & ){};
-		return read( fp , nodeAllocator , initializer );
+		return read( stream , nodeAllocator , initializer );
 	}
 
 	template< typename Initializer >

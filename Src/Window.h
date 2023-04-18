@@ -52,6 +52,8 @@ template< unsigned int _Value , unsigned int ... _Values > struct UIntPack< _Val
 	static constexpr unsigned int Min( void ){ return _Value < Rest::Min() ? _Value : Rest::Min(); }
 	static constexpr unsigned int Max( void ){ return _Value > Rest::Max() ? _Value : Rest::Max(); }
 
+	using Reverse = typename Rest::Reverse::template Append< First >;
+
 	template< typename T > struct Plus{};
 	template< typename T > struct Minus{};
 	template< typename T > struct Compare{};
@@ -79,6 +81,7 @@ template< unsigned int _Value , unsigned int ... _Values > struct UIntPack< _Val
 	template< unsigned int __Value , unsigned int ... __Values > constexpr bool operator == ( UIntPack< __Value , __Values ... > ) const { return _Value==__Value && Rest()==UIntPack< __Values ... >(); }
 	template< unsigned int __Value , unsigned int ... __Values > constexpr bool operator != ( UIntPack< __Value , __Values ... > ) const { return _Value!=__Value && Rest()!=UIntPack< __Values ... >(); }
 };
+
 template< unsigned int _Value > struct UIntPack< _Value >
 {
 	static const unsigned int First = _Value;
@@ -89,6 +92,8 @@ template< unsigned int _Value > struct UIntPack< _Value >
 	static const unsigned int Values[];
 	static constexpr unsigned int Min( void ){ return _Value; }
 	static constexpr unsigned int Max( void ){ return _Value; }
+
+	using Reverse = UIntPack< _Value >;
 
 	template< typename T > struct Plus{};
 	template< typename T > struct Minus{};
@@ -133,6 +138,8 @@ template< int _Value , int ... _Values > struct IntPack< _Value , _Values ... >
 	static constexpr int Min( void ){ return _Value < Rest::Min ? _Value : Rest::Min; }
 	static constexpr int Max( void ){ return _Value > Rest::Max ? _Value : Rest::Max; }
 
+	using Reverse = typename Rest::Reverse::template Append< First >;
+
 	template< typename T > struct Plus{};
 	template< typename T > struct Minus{};
 	template< typename T > struct Compare{};
@@ -170,6 +177,8 @@ template< int _Value > struct IntPack< _Value >
 	static const int Values[];
 	static constexpr int Min( void ){ return _Value; }
 	static constexpr int Max( void ){ return _Value; }
+
+	using Reverse = IntPack< _Value >;
 
 	template< typename T > struct Plus{};
 	template< typename T > struct Minus{};

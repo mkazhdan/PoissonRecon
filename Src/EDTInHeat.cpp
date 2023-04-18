@@ -44,8 +44,6 @@ DAMAGE.
 #include "Ply.h"
 #include "VertexFactory.h"
 
-MessageWriter messageWriter;
-
 cmdLineParameter< char* >
 	In( "in" ) ,
 	Out( "out" ) ,
@@ -137,34 +135,6 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s]\n" , Verbose.name );
 }
 
-template< unsigned int Dim , class Real >
-struct FEMTreeProfiler
-{
-	FEMTree< Dim , Real >& tree;
-	double t;
-
-	FEMTreeProfiler( FEMTree< Dim , Real >& t ) : tree(t) { ; }
-	void start( void ){ t = Time() , FEMTree< Dim , Real >::ResetLocalMemoryUsage(); }
-	void print( const char* header ) const
-	{
-		FEMTree< Dim , Real >::MemoryUsage();
-		if( header ) printf( "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-		else         printf(    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-	}
-	void dumpOutput( const char* header ) const
-	{
-		FEMTree< Dim , Real >::MemoryUsage();
-		if( header ) messageWriter( "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-		else         messageWriter(    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-	}
-	void dumpOutput2( std::vector< std::string >& comments , const char* header ) const
-	{
-		FEMTree< Dim , Real >::MemoryUsage();
-		if( header ) messageWriter( comments , "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-		else         messageWriter( comments ,    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-	}
-};
-
 template< class Real , unsigned int Dim >
 XForm< Real , Dim+1 > GetPointXForm( const std::vector< Point< Real , Dim > >& vertices , Real scaleFactor )
 {
@@ -222,12 +192,15 @@ void _Execute( int argc , char* argv[] )
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 0 > InterpolationInfo;
 	typedef typename FEMTree< Dim , Real >::FEMTreeNode FEMTreeNode;
 	std::vector< std::string > comments;
-	messageWriter( comments , "*****************************************\n" );
-	messageWriter( comments , "*****************************************\n" );
-	messageWriter( comments , "** Running EDT in Heat (Version %s) **\n" , VERSION );
-	messageWriter( comments , "*****************************************\n" );
-	messageWriter( comments , "*****************************************\n" );
-	if( !Threads.set ) messageWriter( comments , "Running with %d threads\n" , Threads.value );
+	if( Verbose.set )
+	{
+		std::cout << "*****************************************" << std::endl;
+		std::cout << "*****************************************" << std::endl;
+		std::cout << "** Running EDT in Heat (Version " << VERSION ") **" << std::endl;
+		std::cout << "*****************************************" << std::endl;
+		std::cout << "*****************************************" << std::endl;
+		if( !Threads.set ) std::cout << "Running with " << Threads.value << " threads" << std::endl;
+	}
 
 	XForm< Real , Dim+1 > modelToUnitCube , unitCubeToModel;
 	if( InXForm.set )
@@ -256,14 +229,17 @@ void _Execute( int argc , char* argv[] )
 		if( params[i]->set )
 		{
 			params[i]->writeValue( str );
-			if( strlen( str ) ) messageWriter( comments , "\t--%s %s\n" , params[i]->name , str );
-			else                messageWriter( comments , "\t--%s\n" , params[i]->name );
+			if( Verbose.set )
+			{
+				if( strlen( str ) ) std::cout << "\t--" << params[i]->name << " " << str << std::endl;
+				else                std::cout << "\t--" << params[i]->name << std::endl;
+			}
 		}
 
 	double startTime = Time();
 
 	FEMTree< Dim , Real > tree( MEMORY_ALLOCATOR_BLOCK_SIZE );
-	FEMTreeProfiler< Dim , Real > profiler( tree );
+	Profiler profiler(20);
 	if( !In.set )
 	{
 		ShowUsage( argv[0] );
@@ -276,7 +252,7 @@ void _Execute( int argc , char* argv[] )
 
 	// Read the mesh into the tree
 	{
-		profiler.start();
+		profiler.reset();
 		// Read the mesh
 		std::vector< Point< Real , Dim > > vertices;
 		std::vector< TriangleIndex< node_index_type > > triangles;
@@ -320,38 +296,48 @@ void _Execute( int argc , char* argv[] )
 		}
 		);
 		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) area += areas[t];
-		messageWriter( "Input Vertices / Triangle / Samples / Area: %llu / %llu / %llu / %g\n" , (unsigned long long)vertices.size() , (unsigned long long)triangles.size() , (unsigned long long)geometrySamples.size() , area );
-		profiler.dumpOutput2( comments , "# Read input into tree:" );
+		if( Verbose.set )
+		{
+			std::cout << "Input Vertices / Triangle / Samples / Area: " << vertices.size() << " / " << triangles.size() << " / " << geometrySamples.size() << " / " << area << std::endl;
+			std::cout << "# Read input into tree: " << profiler << std::endl;
+		}
+
 	}
 
 	// Thicken the tree around the mesh
 	{
-		profiler.start();
+		profiler.reset();
 		FEMTreeNode** nodes = new FEMTreeNode*[ geometrySamples.size() ];
 		for( int i=0 ; i<geometrySamples.size() ; i++ ) nodes[i] = geometrySamples[i].node;
 		tree.template processNeighbors< Degree , true >( nodes , (int)geometrySamples.size() , std::make_tuple() );
-		profiler.dumpOutput2( comments , "#       Thickened tree:" );
+		if( Verbose.set ) std::cout << "#       Thickened tree: " << profiler << std::endl;
 		delete[] nodes;
 	}
 
 	InterpolationInfo *valueInfo = NULL;
 	if( ValueWeight.value>0 )
 	{
-		profiler.start();
+		profiler.reset();
 		if( ExactInterpolation.set ) valueInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 >( tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , false );
-		else                         valueInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 >( tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , 0 );
-		profiler.dumpOutput2( comments , "#Initialized point interpolation constraints:" );
+		else                         valueInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 >( tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , Depth.value , 0 );
+		if( Verbose.set ) std::cout << "#Initialized point interpolation constraints: " << profiler << std::endl;
 	}
 
 	// Finalize the topology of the tree
 	{
-		profiler.start();
-		tree.template finalizeForMultigrid< Degree , Degree >( BaseDepth.value , FullDepth.value , typename FEMTree< Dim , Real >::TrivialHasDataFunctor() , []( const FEMTreeNode * ){ return false; } , std::make_tuple( valueInfo ) );
-		profiler.dumpOutput2( comments , "#       Finalized tree:" );
+		profiler.reset();
+
+		auto addNodeFunctor = [&]( int d , const int off[Dim] ){ return d<=FullDepth.value; };
+		tree.template finalizeForMultigrid< Degree , Degree >( BaseDepth.value , addNodeFunctor , typename FEMTree< Dim , Real >::TrivialHasDataFunctor() , std::make_tuple( valueInfo ) );
+
+		if( Verbose.set ) std::cout << "#       Finalized tree: " << profiler << std::endl;
 	}
 
-	messageWriter( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
-	messageWriter( "Memory Usage: %.3f MB\n" , float( MemoryInfo::Usage())/(1<<20) );
+	if( Verbose.set )
+	{
+		std::cout << "All Nodes / Active Nodes / Ghost Nodes: " << tree.allNodes() << " / " << tree.activeNodes() << " / " <<  tree.ghostNodes() << std::endl;
+		std::cout << "Memory Usage: " << float( MemoryInfo::Usage())/(1<<20) << " MB" << std::endl;
+	}
 
 	SparseNodeData< Point< Real , Dim+1 > , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafValues;
 	const double GradientCutOff = 0;
@@ -362,32 +348,32 @@ void _Execute( int argc , char* argv[] )
 
 	// Add the FEM constraints
 	{
-		profiler.start();
+		profiler.reset();
 		constraints = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMSig >() );
 		DenseNodeData< Point< Real , 1 > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _constraints( tree.nodesSize() );
 		for( int i=0 ; i<geometrySamples.size() ; i++ ) _constraints[ geometrySamples[i].node ][0] = geometrySamples[i].sample.weight * ( 1<<(Depth.value*Dim) );
 		typename FEMIntegrator::template ScalarConstraint< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 0 > , IsotropicUIntPack< Dim , FEMTrivialSignature > , IsotropicUIntPack< Dim , 0 > > F( {1.} );		tree.addFEMConstraints( F , _constraints , constraints , Depth.value );
-		profiler.dumpOutput2( comments , "# Set heat constraints:" );
+		if( Verbose.set ) std::cout << "# Set heat constraints: " << profiler << std::endl;
 	}
 
 	// Solve the linear system
 	{
-		profiler.start();
+		profiler.reset();
 		typename FEMTree< Dim , Real >::SolverInfo sInfo;
 		sInfo.cgDepth = 0 , sInfo.cascadic = false , sInfo.iters = GSIterations.value , sInfo.vCycles = 1 , sInfo.cgAccuracy = CGSolverAccuracy.value , sInfo.verbose = Verbose.set , sInfo.showResidual = ShowResidual.set , sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE , sInfo.sliceBlockSize = 1;
 		sInfo.useSupportWeights = true;
 		sInfo.sorRestrictionFunction  = [&]( Real w , Real ){ return ( Real )( WeightScale.value * pow( w , WeightExponent.value ) ); };
 		{
 			typename FEMIntegrator::template System< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > > F( { 1. , (double)DiffusionTime.value } );
-			heatSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , Depth.value , sInfo );
+			heatSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , BaseDepth.value , Depth.value , sInfo );
 		}
 		sInfo.baseVCycles = BaseVCycles.value;
-		profiler.dumpOutput2( comments , "#   Heat system solved:" );
+		if( Verbose.set ) std::cout << "#   Heat system solved: " << profiler << std::endl;
 	}
 
 	// Evaluate the gradients at the leaves
 	{
-		profiler.start();
+		profiler.reset();
 
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( &tree , heatSolution );
 		typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighbors< IsotropicUIntPack< Dim , 3 > > OneRingNeighbors;
@@ -467,7 +453,7 @@ void _Execute( int argc , char* argv[] )
 			}
 		}
 		);
-		profiler.dumpOutput2( comments , "#  Evaluated gradients:" );
+		if( Verbose.set ) std::cout << "#  Evaluated gradients: " << profiler << std::endl;
 	}
 
 
@@ -478,7 +464,7 @@ void _Execute( int argc , char* argv[] )
 
 		// Add the FEM constraints
 		{
-			profiler.start();
+			profiler.reset();
 			constraints = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMSig >() );
 			typename FEMIntegrator::template Constraint< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > , IsotropicUIntPack< Dim , FEMTrivialSignature > , IsotropicUIntPack< Dim , 0 > , Dim+1 > F;
 			typedef IsotropicUIntPack< Dim , 1 > Derivatives1;
@@ -492,20 +478,20 @@ void _Execute( int argc , char* argv[] )
 				F.weights[d+1][TensorDerivatives< Derivatives1 >::Index( derivatives1 )][ TensorDerivatives< Derivatives2 >::Index( derivatives2 )] = 1.;
 			}
 			tree.addFEMConstraints( F , leafValues , constraints , Depth.value );
-			profiler.dumpOutput2( comments , "#  Set EDT constraints:" );
+			if( Verbose.set ) std::cout << "#  Set EDT constraints: " << profiler << std::endl;
 		}
 
 		// Add the interpolation constraints
 		if( valueInfo )
 		{
-			profiler.start();
+			profiler.reset();
 			tree.addInterpolationConstraints( constraints , Depth.value , std::make_tuple( valueInfo ) );
-			profiler.dumpOutput2( comments , "#Set point constraints:" );
+			if( Verbose.set ) std::cout << "#Set point constraints: " << profiler << std::endl;
 		}
 
 		// Solve the linear system
 		{
-			profiler.start();
+			profiler.reset();
 			typename FEMTree< Dim , Real >::SolverInfo sInfo;
 			sInfo.cgDepth = 0 , sInfo.cascadic = true , sInfo.vCycles = 1 , sInfo.cgAccuracy = CGSolverAccuracy.value , sInfo.verbose = Verbose.set , sInfo.showResidual = ShowResidual.set , sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE , sInfo.sliceBlockSize = 1;
 			sInfo.iters = GSIterations.value;
@@ -513,8 +499,8 @@ void _Execute( int argc , char* argv[] )
 			sInfo.useSupportWeights = true;
 			sInfo.sorRestrictionFunction  = [&]( Real w , Real ){ return (Real)( WeightScale.value * pow( w , WeightExponent.value ) ); }; 
 			typename FEMIntegrator::template System< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
-			edtSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , Depth.value , sInfo , std::make_tuple( valueInfo ) );
-			profiler.dumpOutput2( comments , "#    EDT system solved:" );
+			edtSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , BaseDepth.value , Depth.value , sInfo , std::make_tuple( valueInfo ) );
+			if( Verbose.set ) std::cout << "#    EDT system solved: " << profiler << std::endl;
 		}
 
 		{
@@ -546,10 +532,11 @@ void _Execute( int argc , char* argv[] )
 		{
 			FILE* fp = fopen( Out.value , "wb" );
 			if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Out.value );
-			FEMTree< Dim , Real >::WriteParameter( fp );
-			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fp );
-			tree.write( fp , modelToUnitCube );
-			edtSolution.write( fp );
+			FileStream fs(fp);
+			FEMTree< Dim , Real >::WriteParameter( fs );
+			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fs );
+			tree.write( fs , modelToUnitCube , false );
+			edtSolution.write( fs );
 			fclose( fp );
 		}
 	}
@@ -573,11 +560,6 @@ void Execute( int argc , char* argv[] )
 int main( int argc , char* argv[] )
 {
 	Timer timer;
-#ifdef USE_SEG_FAULT_HANDLER
-	WARN( "using seg-fault handler" );
-	StackTracer::exec = argv[0];
-	signal( SIGSEGV , SignalHandler );
-#endif // USE_SEG_FAULT_HANDLER
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
@@ -585,7 +567,6 @@ int main( int argc , char* argv[] )
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
-	messageWriter.echoSTDOUT = Verbose.set;
 
 #ifdef USE_DOUBLE
 	typedef double Real;

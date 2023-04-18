@@ -27,15 +27,7 @@ DAMAGE.
 */
 
 #include "PreProcessor.h"
-
-#undef USE_DOUBLE								// If enabled, double-precesion is used
-
-#define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
-#define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
-#define NORMAL_DEGREE 2							// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
-#define DEFAULT_FEM_DEGREE 1					// The default finite-element degree
-#define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
-#define DEFAULT_DIMENSION 3						// The dimension of the system
+#include "PoissonRecon.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,10 +41,6 @@ DAMAGE.
 #include "VertexFactory.h"
 #include "Image.h"
 #include "RegularGrid.h"
-
-MessageWriter messageWriter;
-
-const float DefaultPointWeightMultiplier = 2.f;
 
 enum NormalType
 {
@@ -237,108 +225,6 @@ double Weight( double v , double start , double end )
 	}
 }
 
-template< unsigned int Dim , class Real >
-struct FEMTreeProfiler
-{
-	double t;
-
-	void start( void ){ t = Time() , FEMTree< Dim , Real >::ResetLocalMemoryUsage(); }
-	void print( const char* header ) const
-	{
-		FEMTree< Dim , Real >::MemoryUsage();
-		if( header ) printf( "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-		else         printf(    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-	}
-	void dumpOutput( const char* header ) const
-	{
-		FEMTree< Dim , Real >::MemoryUsage();
-		if( header ) messageWriter( "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-		else         messageWriter(    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-	}
-	void dumpOutput2( std::vector< std::string >& comments , const char* header ) const
-	{
-		FEMTree< Dim , Real >::MemoryUsage();
-		if( header ) messageWriter( comments , "%s %9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" , header , Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-		else         messageWriter( comments ,    "%9.1f (s), %9.1f (MB) / %9.1f (MB) / %d (MB)\n" ,          Time()-t , FEMTree< Dim , Real >::LocalMemoryUsage() , FEMTree< Dim , Real >::MaxMemoryUsage() , MemoryInfo::PeakMemoryUsageMB() );
-	}
-};
-
-template< class Real , unsigned int Dim >
-XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor )
-{
-	Point< Real , Dim > center = ( max + min ) / 2;
-	Real scale = max[0] - min[0];
-	for( int d=1 ; d<Dim ; d++ ) scale = std::max< Real >( scale , max[d]-min[d] );
-	scale *= scaleFactor;
-	for( int i=0 ; i<Dim ; i++ ) center[i] -= scale/2;
-	XForm< Real , Dim+1 > tXForm = XForm< Real , Dim+1 >::Identity() , sXForm = XForm< Real , Dim+1 >::Identity();
-	for( int i=0 ; i<Dim ; i++ ) sXForm(i,i) = (Real)(1./scale ) , tXForm(Dim,i) = -center[i];
-	return sXForm * tXForm;
-}
-template< class Real , unsigned int Dim >
-XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real width , Real scaleFactor , int& depth )
-{
-	// Get the target resolution (along the largest dimension)
-	Real resolution = ( max[0]-min[0] ) / width;
-	for( int d=1 ; d<Dim ; d++ ) resolution = std::max< Real >( resolution , ( max[d]-min[d] ) / width );
-	resolution *= scaleFactor;
-	depth = 0;
-	while( (1<<depth)<resolution ) depth++;
-
-	Point< Real , Dim > center = ( max + min ) / 2;
-	Real scale = (1<<depth) * width;
-
-	for( int i=0 ; i<Dim ; i++ ) center[i] -= scale/2;
-	XForm< Real , Dim+1 > tXForm = XForm< Real , Dim+1 >::Identity() , sXForm = XForm< Real , Dim+1 >::Identity();
-	for( int i=0 ; i<Dim ; i++ ) sXForm(i,i) = (Real)(1./scale ) , tXForm(Dim,i) = -center[i];
-	return sXForm * tXForm;
-}
-
-template< typename Real , unsigned int Dim , typename AuxData >
-using InputOrientedPointStreamInfo = typename FEMTreeInitializer< Dim , Real >::template InputPointStream< VectorTypeUnion< Real , typename VertexFactory::NormalFactory< Real , Dim >::VertexType , AuxData > >;
-
-template< typename Real , unsigned int Dim , typename AuxData >
-using InputOrientedPointStream = typename InputOrientedPointStreamInfo< Real , Dim , AuxData >::StreamType;
-
-template< class Real , unsigned int Dim , typename AuxData >
-XForm< Real , Dim+1 > GetPointXForm( InputOrientedPointStream< Real , Dim , AuxData > &stream , Real width , Real scaleFactor , int& depth )
-{
-	Point< Real , Dim > min , max;
-	InputOrientedPointStreamInfo< Real , Dim , AuxData >::BoundingBox( stream , min , max );
-	return GetBoundingBoxXForm( min , max , width , scaleFactor , depth );
-}
-template< class Real , unsigned int Dim , typename AuxData >
-XForm< Real , Dim+1 > GetPointXForm( InputOrientedPointStream< Real , Dim , AuxData > &stream , Real scaleFactor )
-{
-	Point< Real , Dim > min , max;
-	InputOrientedPointStreamInfo< Real , Dim , AuxData >::BoundingBox( stream , min , max );
-	return GetBoundingBoxXForm( min , max , scaleFactor );
-}
-
-template< unsigned int Dim , typename Real >
-struct ConstraintDual
-{
-	Real target , weight;
-	ConstraintDual( Real t , Real w ) : target(t) , weight(w){ }
-	CumulativeDerivativeValues< Real , Dim , 0 > operator()( const Point< Real , Dim >& p ) const { return CumulativeDerivativeValues< Real , Dim , 0 >( target*weight ); };
-};
-template< unsigned int Dim , typename Real >
-struct SystemDual
-{
-	Real weight;
-	SystemDual( Real w ) : weight(w){ }
-	CumulativeDerivativeValues< Real , Dim , 0 > operator()( const Point< Real , Dim >& p , const CumulativeDerivativeValues< Real , Dim , 0 >& dValues ) const { return dValues * weight; };
-	CumulativeDerivativeValues< double , Dim , 0 > operator()( const Point< Real , Dim >& p , const CumulativeDerivativeValues< double , Dim , 0 >& dValues ) const { return dValues * weight; };
-};
-template< unsigned int Dim >
-struct SystemDual< Dim , double >
-{
-	typedef double Real;
-	Real weight;
-	SystemDual( Real w ) : weight(w){ }
-	CumulativeDerivativeValues< Real , Dim , 0 > operator()( const Point< Real , Dim >& p , const CumulativeDerivativeValues< Real , Dim , 0 >& dValues ) const { return dValues * weight; };
-};
-
 template< typename Real , typename SetVertexFunction , typename InputSampleDataType , typename VertexFactory , unsigned int ... FEMSigs >
 void ExtractMesh
 (
@@ -363,9 +249,9 @@ void ExtractMesh
 	static const unsigned int DataSig = FEMDegreeAndBType< DATA_DEGREE , BOUNDARY_FREE >::Signature;
 	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
 
-	FEMTreeProfiler< Dim , Real > profiler;
+	Profiler profiler(20);
 
-	char tempHeader[1024];
+	char tempHeader[2048];
 	{
 		char tempPath[1024];
 		tempPath[0] = 0;
@@ -375,39 +261,43 @@ void ExtractMesh
 		if( tempPath[ strlen( tempPath )-1 ]==FileSeparator ) sprintf( tempHeader , "%sPR_" , tempPath );
 		else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
 	}
-	CoredMeshData< Vertex , node_index_type > *mesh;
-	if( InCore.set ) mesh = new CoredVectorMeshData< Vertex , node_index_type >();
-	else             mesh = new CoredFileMeshData< node_index_type , VertexFactory >( vertexFactory , tempHeader );
+	StreamingMesh< Vertex , node_index_type > *mesh;
+	if( InCore.set ) mesh = new VectorStreamingMesh< Vertex , node_index_type >();
+	else             mesh = new FileStreamingMesh< VertexFactory , node_index_type >( vertexFactory , tempHeader );
 
-	profiler.start();
-	typename IsoSurfaceExtractor< Dim , Real , Vertex >::IsoStats isoStats;
+	profiler.reset();
+	typename LevelSetExtractor< Dim , Real , Vertex >::Stats stats;
 	if( sampleData )
 	{
 		SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setExtrapolatedDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
-		for( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
+		auto nodeFunctor = [&]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *n )
 		{
 			ProjectiveData< InputSampleDataType , Real >* clr = _sampleData( n );
 			if( clr ) (*clr) *= (Real)pow( DataX.value , tree.depth( n ) );
-		}
-		isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , &_sampleData , solution , isoValue , *mesh , zeroInputSampleDataType , SetVertex , !LinearFit.set , Normals.value==NORMALS_GRADIENTS , !NonManifold.set , PolygonMesh.set , false );
+		};
+		tree.tree().processNodes( nodeFunctor );
+		stats = LevelSetExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , &_sampleData , solution , isoValue , *mesh , zeroInputSampleDataType , SetVertex , !LinearFit.set , Normals.value==NORMALS_GRADIENTS , !NonManifold.set , PolygonMesh.set , false );
 	}
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #ifdef SHOW_WARNINGS
 #warning "you've got me gcc version<5"
 #endif // SHOW_WARNINGS
-	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , (SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , zeroInputSampleDataType , SetVertex , !LinearFit.set , Normals.value==NORMALS_GRADIENTS , !NonManifold.set , PolygonMesh.set , false );
+	else stats = LevelSetExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , (SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , zeroInputSampleDataType , SetVertex , !LinearFit.set , Normals.value==NORMALS_GRADIENTS , !NonManifold.set , PolygonMesh.set , false );
 #else // !__GNUC__ || __GNUC__ >=5
-	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , *mesh , zeroInputSampleDataType , SetVertex , !LinearFit.set , Normals.value==NORMALS_GRADIENTS , !NonManifold.set , PolygonMesh.set , false );
+	else stats = LevelSetExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , *mesh , zeroInputSampleDataType , SetVertex , !LinearFit.set , Normals.value==NORMALS_GRADIENTS , !NonManifold.set , PolygonMesh.set , false );
 #endif // __GNUC__ || __GNUC__ < 4
-	messageWriter( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh->outOfCoreVertexNum()+mesh->inCoreVertices.size() ) , (unsigned long long)mesh->polygonNum() );
-	std::string isoStatsString = isoStats.toString() + std::string( "\n" );
-	messageWriter( isoStatsString.c_str() );
-	if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
-	else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
+	if( Verbose.set )
+	{
+		std::cout << "Vertices / Polygons: " << mesh->vertexNum() << " / " << mesh->polygonNum() << std::endl;
+		std::cout << stats.toString() << std::endl;
+		if( PolygonMesh.set ) std::cout << "#         Got polygons: " << profiler << std::endl;
+		else                  std::cout << "#        Got triangles: " << profiler << std::endl;
+	}
 
 	std::vector< std::string > noComments;
 	typename VertexFactory::Transform unitCubeToModelTransform( unitCubeToModel );
-	PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( Out.value , vertexFactory , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , unitCubeToModelTransform );
+	auto xForm = [&]( typename VertexFactory::VertexType & v ){ unitCubeToModelTransform.inPlace( v ); };
+	PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( Out.value , vertexFactory , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , xForm );
 	delete mesh;
 }
 
@@ -515,12 +405,15 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
 	typedef typename FEMTreeInitializer< Dim , Real >::GeometryNodeType GeometryNodeType;
 	std::vector< std::string > comments;
-	messageWriter( comments , "*************************************************************\n" );
-	messageWriter( comments , "*************************************************************\n" );
-	messageWriter( comments , "** Running Screened Poisson Reconstruction (Version %s) **\n" , VERSION );
-	messageWriter( comments , "*************************************************************\n" );
-	messageWriter( comments , "*************************************************************\n" );
-	if( !Threads.set ) messageWriter( comments , "Running with %d threads\n" , Threads.value );
+	if( Verbose.set )
+	{
+		std::cout << "*************************************************************" << std::endl;
+		std::cout << "*************************************************************" << std::endl;
+		std::cout << "** Running Screened Poisson Reconstruction (Version " << VERSION << ") **" << std::endl;
+		std::cout << "*************************************************************" << std::endl;
+		std::cout << "*************************************************************" << std::endl;
+		if( !Threads.set ) std::cout << "Running with " << Threads.value << " threads" << std::endl;
+	}
 
 	bool needNormalData = DataX.value>0 && Normals.value;
 	bool needAuxData = DataX.value>0 && auxDataFactory.bufferSize();
@@ -552,15 +445,16 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		if( params[i]->set )
 		{
 			params[i]->writeValue( str );
-			if( strlen( str ) ) messageWriter( comments , "\t--%s %s\n" , params[i]->name , str );
-			else                messageWriter( comments , "\t--%s\n" , params[i]->name );
+			if( Verbose.set )
+				if( strlen( str ) ) std::cout << "\t--" << params[i]->name << " " << str << std::endl;
+				else                std::cout << "\t--" << params[i]->name << std::endl;
 		}
 
 	double startTime = Time();
 	Real isoValue = 0;
 
 	FEMTree< Dim , Real > tree( MEMORY_ALLOCATOR_BLOCK_SIZE );
-	FEMTreeProfiler< Dim , Real > profiler;
+	Profiler profiler(20);
 
 	if( Depth.set && Width.value>0 )
 	{
@@ -570,7 +464,7 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 
 	size_t pointCount;
 
-	Real pointWeightSum;
+	ProjectiveData< Point< Real , 2 > , Real > pointDepthAndWeight;
 	std::vector< typename FEMTree< Dim , Real >::PointSample >* samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
 	DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > geometryNodeDesignators;
 	std::vector< InputSampleDataType >* sampleData = NULL;
@@ -580,7 +474,7 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 
 	// Read in the samples (and color data)
 	{
-		profiler.start();
+		profiler.reset();
 		InputPointStream* pointStream;
 		char* ext = GetFileExtension( In.value );
 		sampleData = new std::vector< InputSampleDataType >();
@@ -592,7 +486,7 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 			if     ( !strcasecmp( ext , "bnpts" ) ) _pointStream = new BinaryInputDataStream< InputSampleFactory >( In.value , inputSampleFactory );
 			else if( !strcasecmp( ext , "ply"   ) ) _pointStream = new    PLYInputDataStream< InputSampleFactory >( In.value , inputSampleFactory );
 			else                                    _pointStream = new  ASCIIInputDataStream< InputSampleFactory >( In.value , inputSampleFactory );
-			InputSampleType p;
+			InputSampleType p = inputSampleFactory();
 			while( _pointStream->next( p ) ) inCorePoints.push_back( p );
 			delete _pointStream;
 
@@ -607,33 +501,38 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		delete[] ext;
 
 		typename InputSampleFactory::Transform _modelToUnitCube( modelToUnitCube );
-		auto XFormFunctor = [&]( InputSampleType &p ){ p = _modelToUnitCube( p ); };
+		auto XFormFunctor = [&]( InputSampleType &p ){ _modelToUnitCube.inPlace( p ); };
 		XInputPointStream _pointStream( XFormFunctor , *pointStream );
+
+		{
+			typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
+			modelToUnitCube = Scale.value>0 ? GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , zeroData , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
+		}
 		if( Width.value>0 )
 		{
-			modelToUnitCube = GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
-			if( !SolveDepth.set ) SolveDepth.value = Depth.value;
-			if( SolveDepth.value>Depth.value )
-			{
-				WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
-				SolveDepth.value = Depth.value;
-			}
-			if( FullDepth.value>Depth.value )
-			{
-				WARN( "Full depth cannot exceed system depth: " , FullDepth.value , " <= " , Depth.value );
-				FullDepth.value = Depth.value;
-			}
-			if( BaseDepth.value>FullDepth.value )
-			{
-				if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
-				BaseDepth.value = FullDepth.value;
-			}
+			Real maxScale = 0;
+			for( unsigned int i=0 ; i<Dim ; i++ ) maxScale = std::max< Real >( maxScale , (Real)1./modelToUnitCube(i,i) );
+			Depth.value = (unsigned int)ceil( std::max< double >( 0. , log( maxScale/Width.value )/log(2.) ) );
 		}
-		else modelToUnitCube = Scale.value>0 ? GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
+		if( SolveDepth.value>Depth.value )
+		{
+			WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
+			SolveDepth.value = Depth.value;
+		}
+		if( FullDepth.value>Depth.value )
+		{
+			WARN( "Full depth cannot exceed system depth: " , FullDepth.value , " <= " , Depth.value );
+			FullDepth.value = Depth.value;
+		}
+		if( BaseDepth.value>FullDepth.value )
+		{
+			if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
+			BaseDepth.value = FullDepth.value;
+		}
 
 		{
 			typename InputSampleFactory::Transform _modelToUnitCube( modelToUnitCube );
-			auto XFormFunctor = [&]( InputSampleType &p ){ p = _modelToUnitCube( p ); };
+			auto XFormFunctor = [&]( InputSampleType &p ){ _modelToUnitCube.inPlace( p ); };
 			XInputPointStream _pointStream( XFormFunctor , *pointStream );
 			auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , typename InputPointStreamInfo::DataType &d )
 			{
@@ -648,15 +547,21 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 				d.template get<0>() /= l;
 				return (Real)1.;
 			};
-			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators[0] , tree.initializer() , ProcessDataWithConfidence );
-			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators[0] , tree.initializer() , ProcessData );
+
+			typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
+			typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
+			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , tree.spaceRoot() , _pointStream , zeroData , Depth.value , *samples , *sampleData , true , tree.nodeAllocators[0] , tree.initializer() , ProcessDataWithConfidence );
+			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , tree.spaceRoot() , _pointStream , zeroData , Depth.value , *samples , *sampleData , true , tree.nodeAllocators[0] , tree.initializer() , ProcessData );
 		}
 
 		unitCubeToModel = modelToUnitCube.inverse();
 		delete pointStream;
 
-		messageWriter( "Input Points / Samples: %llu / %llu\n" , (unsigned long long)pointCount , (unsigned long long)samples->size() );
-		profiler.dumpOutput2( comments , "# Read input into tree:" );
+		if( Verbose.set )
+		{
+			std::cout << "Input Points / Samples: " << pointCount << " / " << samples->size() << std::endl;
+			std::cout << "# Read input into tree: " << profiler << std::endl;
+		}
 	}
 
 	DenseNodeData< Real , Sigs > solution;
@@ -669,14 +574,14 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 
 		// Get the kernel density estimator
 		{
-			profiler.start();
+			profiler.reset();
 			density = tree.template setDensityEstimator< 1 , WEIGHT_DEGREE >( *samples , KernelDepth.value , SamplesPerNode.value );
-			profiler.dumpOutput2( comments , "#   Got kernel density:" );
+			if( Verbose.set ) std::cout << "#   Got kernel density: " << profiler << std::endl;
 		}
 
 		// Transform the Hermite samples into a vector field
 		{
-			profiler.start();
+			profiler.reset();
 			normalInfo = new SparseNodeData< Point< Real , Dim > , NormalSigs >();
 			std::function< bool ( InputSampleDataType , Point< Real , Dim >& ) > ConversionFunction = []( InputSampleDataType in , Point< Real , Dim > &out )
 			{
@@ -697,33 +602,23 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 				bias = (Real)( log( l ) * ConfidenceBias.value / log( 1<<(Dim-1) ) );
 				return true;
 			};
-#if 1
-			if( ConfidenceBias.value>0 ) *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , BaseDepth.value , Depth.value , (Real)LowDepthCutOff.value , pointWeightSum , ConversionAndBiasFunction );
-			else                         *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , BaseDepth.value , Depth.value , (Real)LowDepthCutOff.value , pointWeightSum , ConversionFunction );
-#else
-			if( ConfidenceBias.value>0 ) *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , 0 , Depth.value , (Real)LowDepthCutOff.value , pointWeightSum , ConversionAndBiasFunction );
-			else                         *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , 0 , Depth.value , (Real)LowDepthCutOff.value , pointWeightSum , ConversionFunction );
-#endif
+			if( ConfidenceBias.value>0 ) *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , BaseDepth.value , Depth.value , (Real)LowDepthCutOff.value , pointDepthAndWeight , ConversionAndBiasFunction );
+			else                         *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , BaseDepth.value , Depth.value , (Real)LowDepthCutOff.value , pointDepthAndWeight , ConversionFunction );
 			ThreadPool::Parallel_for( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
-			profiler.dumpOutput2( comments , "#     Got normal field:" );
-			messageWriter( "Point weight / Estimated Measure: %g / %g\n" , pointWeightSum , pointCount*pointWeightSum );
+			if( Verbose.set )
+			{
+				std::cout << "#     Got normal field: " << profiler << std::endl;
+				std::cout << "Point depth / Point weight / Estimated measure: " << pointDepthAndWeight.value()[0] << " / " << pointDepthAndWeight.value()[1] << " / " << pointCount*pointDepthAndWeight.value()[1] << std::endl;
+			}
 		}
 
 		// Get the geometry designators indicating if the space node are interior to, exterior to, or contain the envelope boundary
 		if( Envelope.set )
 		{
-			profiler.start();
+			profiler.reset();
 			{
 				// Make the octree complete up to the base depth
-				std::function< void ( FEMTreeNode * , unsigned int ) > MakeComplete = [&]( FEMTreeNode *node , unsigned int depth )
-				{
-					if( node->depth()<(int)depth )
-					{
-						if( !node->children ) node->template initChildren< false >( tree.nodeAllocators.size() ?  tree.nodeAllocators[0] : NULL , tree.initializer() );
-						for( int c=0 ; c<(1<<Dim) ; c++ ) MakeComplete( node->children+c , depth );
-					}
-				};
-				MakeComplete( &tree.spaceRoot() , BaseDepth.value );
+				FEMTreeInitializer< Dim , Real >::Initialize( tree.spaceRoot() , BaseDepth.value , []( int , int[] ){ return true; } , tree.nodeAllocators.size() ?  tree.nodeAllocators[0] : NULL , tree.initializer() );
 
 				// Read in the envelope geometry
 				std::vector< Point< Real , Dim > > vertices;
@@ -768,8 +663,12 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 
 					// Get the set of base nodes
 					std::vector< FEMTreeNode * > baseNodes;
-					auto TerminationLambda = []( const FEMTreeNode *node ){ return node->depth()==BaseDepth.value; };
-					for( FEMTreeNode *node=tree.spaceRoot().nextNode( TerminationLambda , NULL ) ; node ; node=tree.spaceRoot().nextNode( TerminationLambda , node ) ) if( node->depth()==BaseDepth.value ) baseNodes.push_back( node );
+					auto nodeFunctor = [&]( FEMTreeNode *node )
+					{
+						if( node->depth()==BaseDepth.value ) baseNodes.push_back( node );
+						return node->depth()<BaseDepth.value;
+					};
+					tree.spaceRoot().processNodes( nodeFunctor );
 
 					std::vector< node_index_type > vectorFieldElementCounts( baseNodes.size() );
 					for( int i=0 ; i<vectorFieldElementCounts.size() ; i++ ) vectorFieldElementCounts[i] = 0;
@@ -777,11 +676,12 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 					// In parallel, iterate over the base nodes and mark the nodes containing non-zero vector field coefficients
 					ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int t , size_t  i )
 					{
-						for( FEMTreeNode *node=baseNodes[i]->nextNode() ; node ; node=baseNodes[i]->nextNode(node) )
+						auto nodeFunctor = [&]( FEMTreeNode *node )
 						{
 							Point< Real , Dim > *n = (*normalInfo)( node );
 							if( n && Point< Real , Dim >::SquareNorm( *n ) ) isVectorFieldElement[ node->nodeData.nodeIndex ] = true , vectorFieldElementCounts[i]++;
-						}
+						};
+						baseNodes[i]->processNodes( nodeFunctor );
 					} );
 					size_t vectorFieldElementCount = 0;
 					for( int i=0 ; i<vectorFieldElementCounts.size() ; i++ ) vectorFieldElementCount += vectorFieldElementCounts[i];
@@ -794,11 +694,12 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 						for( int i=0 ; i<_vectorFieldElements.size() ; i++ ) _vectorFieldElements[i].reserve( vectorFieldElementCounts[i] );
 						ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int t , size_t  i )
 						{
-							for( FEMTreeNode *node=baseNodes[i]->nextNode() ; node ; node=baseNodes[i]->nextNode(node) )
+							auto nodeFunctor = [&]( FEMTreeNode *node )
 							{
 								if( isVectorFieldElement[ node->nodeData.nodeIndex ] ) _vectorFieldElements[i].push_back( node );
 								node->nodeData.setScratchFlag( false );
-							}
+							};
+							baseNodes[i]->processNodes( nodeFunctor );
 						} );
 						for( int i=0 ; i<_vectorFieldElements.size() ; i++ ) vectorFieldElements.insert( vectorFieldElements.end() , _vectorFieldElements[i].begin() , _vectorFieldElements[i].end() );
 					}
@@ -817,7 +718,7 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 					FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( &tree.spaceRoot() , geometryNodeDesignators , BaseDepth.value );
 				}
 			}
-			profiler.dumpOutput2( comments , "#               Initialized envelope constraints:" );
+			if( Verbose.set ) std::cout << "#               Initialized envelope constraints: " << profiler << std::endl;
 		}
 
 		if( !Density.set ) delete density , density = NULL;
@@ -826,20 +727,21 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		// Add the interpolation constraints
 		if( PointWeight.value>0 )
 		{
-			profiler.start();
-			if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 > ( tree , *samples , ConstraintDual< Dim , Real >( targetValue , (Real)PointWeight.value * pointWeightSum ) , SystemDual< Dim , Real >( (Real)PointWeight.value * pointWeightSum ) , true , false );
-			else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( tree , *samples , ConstraintDual< Dim , Real >( targetValue , (Real)PointWeight.value * pointWeightSum ) , SystemDual< Dim , Real >( (Real)PointWeight.value * pointWeightSum ) , true , 1 );
-			profiler.dumpOutput2( comments , "#Initialized point interpolation constraints:" );
+			profiler.reset();
+			if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 > ( tree , *samples , ConstraintDual< Dim , Real >( targetValue , (Real)PointWeight.value * pointDepthAndWeight.value()[1] ) , SystemDual< Dim , Real >( (Real)PointWeight.value * pointDepthAndWeight.value()[1] ) , true , false );
+			else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( tree , *samples , ConstraintDual< Dim , Real >( targetValue , (Real)PointWeight.value * pointDepthAndWeight.value()[1] ) , SystemDual< Dim , Real >( (Real)PointWeight.value * pointDepthAndWeight.value()[1] ) , true , Depth.value , 1 );
+			if( Verbose.set ) std::cout <<  "#Initialized point interpolation constraints: " << profiler << std::endl;
 		}
 
 		// Trim the tree and prepare for multigrid
 		{
-			profiler.start();
+			profiler.reset();
 			constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
 			typename FEMTree< Dim , Real >::template HasNormalDataFunctor< NormalSigs > hasNormalDataFunctor( *normalInfo );
 			auto hasDataFunctor = [&]( const FEMTreeNode *node ){ return hasNormalDataFunctor( node ); };
-			if( geometryNodeDesignators.size() ) tree.template finalizeForMultigrid< MAX_DEGREE , Degrees::Max() >( BaseDepth.value , FullDepth.value , hasDataFunctor , [&]( const FEMTreeNode *node ){ return node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() && geometryNodeDesignators[node]==GeometryNodeType::EXTERIOR; } , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , density , &geometryNodeDesignators ) );
-			else                                 tree.template finalizeForMultigrid< MAX_DEGREE , Degrees::Max() >( BaseDepth.value , FullDepth.value , hasDataFunctor , []( const FEMTreeNode * ){ return false; } , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , density ) );
+			auto addNodeFunctor = [&]( int d , const int off[Dim] ){ return d<=FullDepth.value; };
+			if( geometryNodeDesignators.size() ) tree.template finalizeForMultigridWithDirichlet< MAX_DEGREE , Degrees::Max() >( BaseDepth.value , addNodeFunctor , hasDataFunctor , [&]( const FEMTreeNode *node ){ return node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() && geometryNodeDesignators[node]==GeometryNodeType::EXTERIOR; } , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , density , &geometryNodeDesignators ) );
+			else                                 tree.template finalizeForMultigrid< MAX_DEGREE , Degrees::Max() >( BaseDepth.value , addNodeFunctor , hasDataFunctor , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , density ) );
 
 			if( geometryNodeDesignators.size() && EnvelopeGrid.set )
 			{
@@ -850,7 +752,8 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 				{
 					int res = 0;
 					DenseNodeData< Real , IsotropicUIntPack< Dim , FEMTrivialSignature > > coefficients = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMTrivialSignature >() );
-					for( const FEMTreeNode* n = tree.spaceRoot().nextNode() ; n ; n=tree.spaceRoot().nextNode( n ) )
+					auto nodeFunctor = [&]( const FEMTreeNode *n )
+					{
 						if( n->nodeData.nodeIndex!=-1 && ( ( showFinest && !n->children ) || ( !showFinest && geometryNodeDesignators[n->parent]==GeometryNodeType::BOUNDARY ) ) )
 						{
 #if 0 // Randomize the colors
@@ -864,6 +767,8 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 							else if( geometryNodeDesignators[n]==GeometryNodeType::EXTERIOR ) coefficients[n] = (Real)-1.;
 #endif
 						}
+					};
+					tree.spaceRoot().processNodes( nodeFunctor );
 					Pointer( Real ) values = tree.template regularGridEvaluate< true >( coefficients , res , -1 , false );
 					XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
 					for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / res ) , voxelToUnitCube( Dim , d ) = (Real)( 0.5 / res );
@@ -875,11 +780,12 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 				WriteEnvelopeGrid( true );
 			}
 
-			profiler.dumpOutput2( comments , "#       Finalized tree:" );
+			if( Verbose.set ) std::cout << "#       Finalized tree: " << profiler << std::endl;
 		}
+
 		// Add the FEM constraints
 		{
-			profiler.start();
+			profiler.reset();
 			constraints = tree.initDenseNodeData( Sigs() );
 			typename FEMIntegrator::template Constraint< Sigs , IsotropicUIntPack< Dim , 1 > , NormalSigs , IsotropicUIntPack< Dim , 0 > , Dim > F;
 			unsigned int derivatives2[Dim];
@@ -893,7 +799,7 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 				F.weights[d][ TensorDerivatives< Derivatives1 >::Index( derivatives1 ) ][ TensorDerivatives< Derivatives2 >::Index( derivatives2 ) ] = 1;
 			}
 			tree.addFEMConstraints( F , *normalInfo , constraints , solveDepth );
-			profiler.dumpOutput2( comments , "#  Set FEM constraints:" );
+			if( Verbose.set ) std::cout << "#  Set FEM constraints: " << profiler << std::endl;
 		}
 
 		// Free up the normal info
@@ -902,29 +808,32 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		// Add the interpolation constraints
 		if( PointWeight.value>0 )
 		{
-			profiler.start();
+			profiler.reset();
 			tree.addInterpolationConstraints( constraints , solveDepth , std::make_tuple( iInfo ) );
-			profiler.dumpOutput2( comments , "#Set point constraints:" );
+			if( Verbose.set ) std::cout << "#Set point constraints: " << profiler << std::endl;
 		}
 
-		messageWriter( "Leaf Nodes / Active Nodes / Ghost Nodes / Dirichlet Supported Nodes: %llu / %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() , (unsigned long long)tree.dirichletElements() );
-		messageWriter( "Memory Usage: %.3f MB\n" , float( MemoryInfo::Usage())/(1<<20) );
+		if( Verbose.set )
+		{
+			std::cout << "All Nodes / Active Nodes / Ghost Nodes / Dirichlet Supported Nodes: " << tree.allNodes() << " / " << tree.activeNodes() << " / " << tree.ghostNodes() << " / " << tree.dirichletElements() << std::endl;
+			std::cout << "Memory Usage: " << float( MemoryInfo::Usage())/(1<<20) << " MB" << std::endl;
+		}
 		
 		// Solve the linear system
 		{
-			profiler.start();
+			profiler.reset();
 			typename FEMTree< Dim , Real >::SolverInfo sInfo;
 			sInfo.cgDepth = 0 , sInfo.cascadic = true , sInfo.vCycles = 1 , sInfo.iters = Iters.value , sInfo.cgAccuracy = CGSolverAccuracy.value , sInfo.verbose = Verbose.set , sInfo.showResidual = ShowResidual.set , sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE , sInfo.sliceBlockSize = 1;
 			sInfo.baseVCycles = BaseVCycles.value;
 			typename FEMIntegrator::template System< Sigs , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
-			solution = tree.solveSystem( Sigs() , F , constraints , SolveDepth.value , sInfo , std::make_tuple( iInfo ) );
-			profiler.dumpOutput2( comments , "# Linear system solved:" );
+			solution = tree.solveSystem( Sigs() , F , constraints , BaseDepth.value , SolveDepth.value , sInfo , std::make_tuple( iInfo ) );
+			if( Verbose.set ) std::cout << "# Linear system solved: " << profiler << std::endl;
 			if( iInfo ) delete iInfo , iInfo = NULL;
 		}
 	}
 
 	{
-		profiler.start();
+		profiler.reset();
 		double valueSum = 0 , weightSum = 0;
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &tree , solution );
 		std::vector< double > valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
@@ -938,37 +847,42 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		for( size_t t=0 ; t<valueSums.size() ; t++ ) valueSum += valueSums[t] , weightSum += weightSums[t];
 		isoValue = (Real)( valueSum / weightSum );
 		if( !needNormalData && !needAuxData ) delete samples , samples = NULL;
-		profiler.dumpOutput( "Got average:" );
-		messageWriter( "Iso-Value: %e = %g / %g\n" , isoValue , valueSum , weightSum );
+		if( Verbose.set )
+		{
+			std::cout << "Got average: " << profiler << std::endl;
+			std::cout << "Iso-Value: " << isoValue << " = " << valueSum << " / " << weightSum << std::endl;
+		}
 	}
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
 		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Tree.value );
-		FEMTree< Dim , Real >::WriteParameter( fp );
-		DenseNodeData< Real , Sigs >::WriteSignatures( fp );
-		tree.write( fp , modelToUnitCube );
-		solution.write( fp );
+		FileStream fs(fp);
+		FEMTree< Dim , Real >::WriteParameter( fs );
+		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
+		tree.write( fs , modelToUnitCube , false );
+		solution.write( fs );
 		if( sampleData )
 		{
 			SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setExtrapolatedDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
-			for( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
+			auto nodeFunctor = [&]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *n )
 			{
 				ProjectiveData< InputSampleDataType , Real >* clr = _sampleData( n );
 				if( clr ) (*clr) *= (Real)pow( DataX.value , tree.depth( n ) );
-			}
-			_sampleData.write( fp );
+			};
+			tree.tree().processNodes( nodeFunctor );
+			_sampleData.write( fs );
 		}
-		if( density ) density->write( fp );
+		if( density ) density->write( fs );
 		fclose( fp );
 	}
 
 	if( Grid.set )
 	{
 		int res = 0;
-		profiler.start();
+		profiler.reset();
 		Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , PrimalGrid.set );
-		profiler.dumpOutput( "Got grid:" );
+		if( Verbose.set ) std::cout << "Got grid: " << profiler << std::endl;
 		XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
 		if( PrimalGrid.set ) for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / (res-1) );
 		else                 for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / res ) , voxelToUnitCube( Dim , d ) = (Real)( 0.5 / res );
@@ -1031,7 +945,7 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		if( sampleData ){ delete sampleData ; sampleData = NULL; }
 	}
 	if( density ) delete density , density = NULL;
-	messageWriter( comments , "#          Total Solve: %9.1f (s), %9.1f (MB)\n" , Time()-startTime , FEMTree< Dim , Real >::MaxMemoryUsage() );
+	if( Verbose.set ) std::cout << "#          Total Solve: " << Time()-startTime << " (s), " << MemoryInfo::PeakMemoryUsageMB() << " (MB)" << std::endl;
 }
 
 #ifndef FAST_COMPILE
@@ -1064,11 +978,6 @@ void Execute( const AuxDataFactory &auxDataFactory )
 int main( int argc , char* argv[] )
 {
 	Timer timer;
-#ifdef USE_SEG_FAULT_HANDLER
-	WARN( "using seg-fault handler" );
-	StackTracer::exec = argv[0];
-	signal( SIGSEGV , SignalHandler );
-#endif // USE_SEG_FAULT_HANDLER
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
@@ -1078,7 +987,6 @@ int main( int argc , char* argv[] )
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 
-	messageWriter.echoSTDOUT = Verbose.set;
 	if( !In.set )
 	{
 		ShowUsage( argv[0] );

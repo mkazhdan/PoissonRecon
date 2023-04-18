@@ -102,10 +102,10 @@ void Read( char *const *fileNames , unsigned int fileNum , VertexDataFactory ver
 			if( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputDataStream< FullVertexFactory< Real , Dim , VertexDataFactory > >( fileNames[i] , vertexFactory );
 			else                               pointStream = new  ASCIIInputDataStream< FullVertexFactory< Real , Dim , VertexDataFactory > >( fileNames[i] , vertexFactory );
 			size_t count = 0;
-			VertexType< Real , Dim , VertexDataFactory > v;
+			VertexType< Real , Dim , VertexDataFactory > v = vertexFactory();
 			while( pointStream->next( v ) ) count++;
 			pointStream->reset();
-			_vertices.resize( count );
+			_vertices.resize( count , v );
 			comments.resize( 0 );
 			ft = PLY_BINARY_NATIVE;
 
@@ -549,11 +549,6 @@ int main( int argc , char* argv[] )
 	static constexpr unsigned int Dim = 3;
 
 	cmdLineParse( argc-1 , &argv[1] , params );
-#ifdef USE_SEG_FAULT_HANDLER
-	WARN( "using seg-fault handler" );
-	StackTracer::exec = argv[0];
-	signal( SIGSEGV , SignalHandler );
-#endif // USE_SEG_FAULT_HANDLER
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG

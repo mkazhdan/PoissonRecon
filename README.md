@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 13.8)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 13.99)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#EXECUTABLES">executables</a>
@@ -26,10 +26,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.8/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.99/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.8/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.99/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.80/">V13.80</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/">V13.74</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.73/">V13.73</a>,
 <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/">V13.72</a>,
@@ -123,7 +124,7 @@ of the implicit function.
 </dd><dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]
 </dt><dd> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.
 Larger degrees support higher order approximations, but come at the cost of denser system matrices (incurring a cost in both space and time).<br>
-The default value for this parameter is 2.
+The default value for this parameter is 1.
 
 </dd><dt>[<b>--bType</b> &lt;<i>boundary type</i>&gt;]
 </dt><dd> This integer specifies the boundary type for the finite elements. Valid values are:
@@ -155,7 +156,7 @@ The default value is 1.1.
 octree node as the octree construction is adapted to sampling density. For noise-free samples, small values
 in the range [1.0 - 5.0] can be used. For more noisy samples, larger values in the range [15.0 - 20.0] may
 be needed to provide a smoother, noise-reduced, reconstruction.<br>
-The default value is 1.0.
+The default value is 1.5.
 
 </dd><dt>[<b>--pointWeight</b> &lt;<i>interpolation weight</i>&gt;]
 </dt><dd> This floating point value specifies the importance that interpolation of the point samples
@@ -1087,9 +1088,15 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Fixed a bug that could result in reconstruction failure when the reconstruction depth (e.g. computed using the <b>--width</b> argument) was lower than the full depth value.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.8/">Version 13.8</a>:
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.80/">Version 13.80</a>:
 <ol>
 <LI> Updated the <I>SurfaceTrimmer</I> code to better handle small islands.
+</ol>
+
+<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.99/">Version 13.99</a>:
+<ol>
+<LI> Modified the <b>--width</b> parameter so that it serves as an upper bound on the width of a cell at the finest resolution.
+<LI> Modified the code so that the output mesh no longer has statistics about processing time/memory.
 </ol>
 
 </DETAILS>

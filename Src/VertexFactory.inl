@@ -369,12 +369,16 @@ namespace VertexFactory
 	template< typename Real >
 	DynamicFactory< Real >::DynamicFactory( const std::vector< std::pair< std::string , TypeOnDisk > > &namesAndTypesOnDisk ) : _namesAndTypesOnDisk(namesAndTypesOnDisk)
 	{
+		_realTypeOnDisk = true;
+		for( unsigned int i=0 ; i<_namesAndTypesOnDisk.size() ; i++ ) _realTypeOnDisk &= GetTypeOnDisk< Real>()!=_namesAndTypesOnDisk[i].second;
 	}
 	template< typename Real >
 	DynamicFactory< Real >::DynamicFactory( const std::vector< PlyProperty > &plyProperties )
 	{
 		_namesAndTypesOnDisk.resize( plyProperties.size() );
 		for( int i=0 ; i<plyProperties.size() ; i++ ) _namesAndTypesOnDisk[i] = std::pair< std::string , TypeOnDisk >( plyProperties[i].name , FromPlyType( plyProperties[i].external_type ) );
+		_realTypeOnDisk = true;
+		for( unsigned int i=0 ; i<_namesAndTypesOnDisk.size() ; i++ ) _realTypeOnDisk &= GetTypeOnDisk< Real>()!=_namesAndTypesOnDisk[i].second;
 	}
 
 	template< typename Real >
@@ -386,7 +390,14 @@ namespace VertexFactory
 	template< typename Real >
 	bool DynamicFactory< Real >::readBinary( FILE *fp , VertexType &dt ) const
 	{
-		for( unsigned int i=0 ; i<dt.dim() ; i++ ) if( !VertexIO< Real >::ReadBinary( fp , _namesAndTypesOnDisk[i].second , dt[i] ) ) return false;
+		if( _realTypeOnDisk )
+		{
+			if( fread( &dt[0] , sizeof(Real) , dt.dim() , fp )!=dt.dim() ) return false;
+		}
+		else
+		{
+			for( unsigned int i=0 ; i<dt.dim() ; i++ ) if( !VertexIO< Real >::ReadBinary( fp , _namesAndTypesOnDisk[i].second , dt[i] ) ) return false;
+		}
 		return true;
 	}
 	template< typename Real >
@@ -397,7 +408,8 @@ namespace VertexFactory
 	template< typename Real >
 	void DynamicFactory< Real >::writeBinary( FILE *fp , const VertexType &dt ) const
 	{
-		for( unsigned int i=0 ; i<dt.dim() ; i++ ) VertexIO< Real >::WriteBinary( fp , _namesAndTypesOnDisk[i].second , dt[i] );
+		if( _realTypeOnDisk ) fwrite( &dt[0] , sizeof(Real) , dt.dim() , fp );
+		else  for( unsigned int i=0 ; i<dt.dim() ; i++ ) VertexIO< Real >::WriteBinary( fp , _namesAndTypesOnDisk[i].second , dt[i] );
 	}
 
 	template< typename Real >

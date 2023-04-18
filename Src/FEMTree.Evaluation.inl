@@ -772,11 +772,200 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 		);
 		for( int d=0 ; d<Dim ; d++ ) delete evaluators[d];
 	}
-	MemoryUsage();
 	DeletePointer( _coefficients );
 
 	return values;
 }
+
+template< unsigned int Dim , class Real >
+template< bool XMajor , class V , unsigned int ... DataSigs >
+Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , const unsigned int begin[Dim] , const unsigned int end[Dim] , unsigned int res[Dim] , bool primal ) const
+{
+	LocalDepth depth = _maxDepth;
+	Pointer( V ) _coefficients = regularGridUpSample< XMajor >( coefficients , depth );
+
+	const int _begin[] = { _BSplineBegin< DataSigs >( depth ) ... };
+	const int _end  [] = { _BSplineEnd< DataSigs >( depth ) ... };
+	const int _dim  [] = { ( _BSplineEnd< DataSigs >( depth ) - _BSplineBegin< DataSigs >( depth ) ) ... };
+
+	size_t cellCount = 1;
+	for( unsigned int d=0 ; d<Dim ; d++ ) res[d] = primal ? ( end[d]-begin[d]+1 ) : ( end[d]-begin[d] );
+	for( unsigned int d=0 ; d<Dim ; d++ ) cellCount *= res[d];
+
+	Pointer( V ) values = NewPointer< V >( cellCount );
+	memset( values , 0 , sizeof(V) * cellCount );
+
+	if( primal )
+	{
+		// evaluate at the cell corners
+		typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::CornerSize ... > CornerSizes;
+		typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::CornerEnd ... > CornerEnds;
+
+		EvaluationData::CornerEvaluator* evaluators[] = { ( new typename BSplineEvaluationData< DataSigs >::template CornerEvaluator< 0 >::Evaluator() ) ... };
+		for( int d=0 ; d<Dim ; d++ ) evaluators[d]->set( depth );
+		// Compute the offest from coefficient index to voxel index and the value of the stencil (if the voxel is interior)
+		StaticWindow< long long , UIntPack< ( BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::CornerSize ? BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::CornerSize : 1 ) ... > > offsets;
+		StaticWindow< double    , UIntPack< ( BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::CornerSize ? BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::CornerSize : 1 ) ... > > cornerValues;
+		int dimMultiplier[Dim];
+		if( XMajor )
+		{
+			dimMultiplier[0] = 1;
+			for( int d=1 ; d<Dim ; d++ ) dimMultiplier[d] = dimMultiplier[d-1] * _dim[d-1];
+		}
+		else
+		{
+			dimMultiplier[Dim-1] = 1;
+			for( int d=Dim-2 ; d>=0 ; d-- ) dimMultiplier[d] = dimMultiplier[d+1] * _dim[d+1];
+		}
+
+		{
+			int center = ( 1<<depth )>>1;
+			long long offset[Dim+1] ; offset[0] = 0;
+			double upValue[Dim+1] ; upValue[0] = 1;
+			WindowLoop< Dim >::Run
+			(
+				ZeroUIntPack< Dim >() , CornerSizes() ,
+				[&]( int d , int i ){ offset[d+1] = offset[d] + ( i - (int)CornerEnds::Values[d] - _begin[d] ) * dimMultiplier[d] ; upValue[d+1] = upValue[d] * evaluators[d]->value( center + i - (int)CornerEnds::Values[d] , center , false ); } ,
+				[&]( long long& offsetValue , double& cornerValue ){ offsetValue = offset[Dim] , cornerValue = upValue[Dim]; } ,
+				offsets() , cornerValues()
+			);
+		}
+		ThreadPool::Parallel_for( 0 , cellCount , [&]( unsigned int , size_t c )
+			{
+				V &value = values[c];
+				int idx[Dim];
+				{
+					size_t _c = c;
+					if( XMajor ) for( int d=0 ; d<Dim ; d++ ) idx[      d] = begin[d] + _c % res[d] , _c /= res[d];
+					else         for( int d=0 ; d<Dim ; d++ ) idx[Dim-1-d] = begin[d] + _c % res[d] , _c /= res[d];
+				}
+				long long ii = 0;
+				for( int d=0 ; d<Dim ; d++ ) ii += idx[d] * dimMultiplier[d];
+
+				bool isInterior = true;
+				for( int d=0 ; d<Dim ; d++ ) if( ( idx[d] - (int)CornerEnds::Values[d] )<_begin[d] || ( idx[d] - (int)CornerEnds::Values[d] + (int)CornerSizes::Values[d] )>=_end[d] ) isInterior = false;
+
+				if( isInterior )
+				{
+#ifdef SHOW_WARNINGS
+#pragma message( "[WARNING] This should be modified to support 0-degree elements" )
+#endif // SHOW_WARNINGS
+					ConstPointer( long long ) offsetValues = offsets().data;
+					ConstPointer( double ) _cornerValues = cornerValues().data;
+					for( int i=0 ; i<WindowSize< CornerSizes >::Size ; i++ ) value += _coefficients[ offsetValues[i]+ii ] * (Real)_cornerValues[i];
+				}
+				else
+				{
+					double upValues[Dim+1] ; upValues[0] = 1;	// Accumulates the product of the weights
+					bool isValid[Dim+1] ; isValid[0] = true;
+					WindowLoop< Dim >::Run
+					(
+						ZeroUIntPack< Dim >() , CornerSizes() ,
+						[&]( int d , int i )
+						{
+							int ii = idx[d] + i - (int)CornerEnds::Values[d];
+							if( ii>=_begin[d] && ii<_end[d] )
+							{
+								upValues[d+1] = upValues[d] * evaluators[d]->value( ii , idx[d] , false );
+								isValid[d+1] = isValid[d];
+							}
+							else isValid[d+1] = false;
+						} ,
+						[&]( long long offsetValue ){ if( isValid[Dim] ) value += _coefficients[ offsetValue + ii ] * (Real)upValues[Dim]; } ,
+							offsets()
+							);
+				}
+			}
+		);
+		for( int d=0 ; d<Dim ; d++ ) delete evaluators[d];
+	}
+	else
+	{
+		// evaluate at the cell centers
+		typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
+		typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportEnd ... > SupportEnds;
+
+		EvaluationData::CenterEvaluator* evaluators[] = { ( new typename BSplineEvaluationData< DataSigs >::template CenterEvaluator< 0 >::Evaluator() ) ... };
+		for( int d=0 ; d<Dim ; d++ ) evaluators[d]->set( depth );
+		// Compute the offest from coefficient index to voxel index and the value of the stencil (if the voxel is interior)
+		StaticWindow< long long , UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > > offsets;
+		StaticWindow< double    , UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > > centerValues;
+
+		int dimMultiplier[Dim];
+		if( XMajor )
+		{
+			dimMultiplier[0] = 1;
+			for( int d=1 ; d<Dim ; d++ ) dimMultiplier[d] = dimMultiplier[d-1] * _dim[d-1];
+		}
+		else
+		{
+			dimMultiplier[Dim-1] = 1;
+			for( int d=Dim-2 ; d>=0 ; d-- ) dimMultiplier[d] = dimMultiplier[d+1] * _dim[d+1];
+		}
+
+		{
+			int center = ( 1<<depth )>>1;
+			long long offset[Dim+1] ; offset[0] = 0;
+			double upValue[Dim+1] ; upValue[0] = 1;
+			WindowLoop< Dim >::Run
+			(
+				ZeroUIntPack< Dim >() , SupportSizes() ,
+				[&]( int d , int i ){ offset[d+1] = offset[d] + ( i - (int)SupportEnds::Values[d] - _begin[d] ) * dimMultiplier[d] ; upValue[d+1] = upValue[d] * evaluators[d]->value( center + i - (int)SupportEnds::Values[d] , center , false ); } ,
+				[&]( long long& offsetValue , double& centerValue ){ offsetValue = offset[Dim] , centerValue = upValue[Dim]; } ,
+				offsets() , centerValues()
+			);
+		}
+		ThreadPool::Parallel_for( 0 , cellCount , [&]( unsigned int , size_t c )
+			{
+				V &value = values[c];
+				int idx[Dim];
+				{
+					size_t _c = c;
+					if( XMajor ) for( int d=0 ; d<Dim ; d++ ) idx[      d] = begin[d] + _c % res[d] , _c /= res[d];
+					else         for( int d=0 ; d<Dim ; d++ ) idx[Dim-1-d] = begin[d] + _c % res[d] , _c /= res[d];
+				}
+				long long ii = 0;
+				for( int d=0 ; d<Dim ; d++ ) ii += idx[d] * dimMultiplier[d];
+
+				bool isInterior = true;
+				for( int d=0 ; d<Dim ; d++ ) if( ( idx[d] - (int)SupportEnds::Values[d] )<_begin[d] || ( idx[d] - (int)SupportEnds::Values[d] + (int)SupportSizes::Values[d] )>=_end[d] ) isInterior = false;
+
+				if( isInterior )
+				{
+					ConstPointer( long long ) offsetValues = offsets().data;
+					ConstPointer( double ) _centerValues = centerValues().data;
+					for( int i=0 ; i<WindowSize< SupportSizes >::Size ; i++ ) value += _coefficients[ offsetValues[i] + ii ] * (Real)_centerValues[i];
+				}
+				else
+				{
+					double upValues[Dim+1] ; upValues[0] = 1;	// Accumulates the product of the weights
+					bool isValid[Dim+1] ; isValid[0] = true;
+					WindowLoop< Dim >::Run
+					(
+						ZeroUIntPack< Dim >() , SupportSizes() ,
+						[&]( int d , int i )
+						{
+							int ii = idx[d] + i - (int)SupportEnds::Values[d];
+							if( ii>=_begin[d] && ii<_end[d] )
+							{
+								upValues[d+1] = upValues[d] * evaluators[d]->value( ii , idx[d] , false );
+								isValid[d+1] = isValid[d];
+							}
+							else isValid[d+1] = false;
+						} ,
+						[&]( long long offsetValue ){ if( isValid[Dim] ) value += _coefficients[ offsetValue + ii ] * (Real)upValues[Dim]; } ,
+							offsets()
+							);
+				}
+			}
+		);
+		for( int d=0 ; d<Dim ; d++ ) delete evaluators[d];
+	}
+	DeletePointer( _coefficients );
+
+	return values;
+}
+
 template< unsigned int Dim , class Real >
 template< bool XMajor , class V , unsigned int ... DataSigs >
 Pointer( V ) FEMTree< Dim , Real >::regularGridUpSample( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , LocalDepth depth ) const

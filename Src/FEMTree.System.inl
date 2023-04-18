@@ -287,7 +287,6 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 		}
 
 		t = Time();
-		MemoryUsage();
 		for( int i=0 ; i<iters ; i++ ) M.gsIteration( mcIndices , ( ConstPointer( Real ) )D , B , X , coarseToFine , true );
 		FreePointer( D );
 		solveTime += Time() - t;
@@ -310,7 +309,6 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 		FreePointer( _constraints );
 	}
 	if( computeNorms ) stats.bNorm2 = bNorm , stats.inRNorm2 = inRNorm , stats.outRNorm2 = outRNorm;
-	MemoryUsage();
 
 	return iters;
 }
@@ -539,7 +537,6 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 		DeletePointer( mcIndices );
 		FreePointer( _D );
 	}
-	MemoryUsage();
 	return iters;
 }
 #undef MOD
@@ -637,8 +634,6 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 		stats.bNorm2 = bNorm , stats.inRNorm2 = inRNorm , stats.outRNorm2 = outRNorm;
 	}
 	FreePointer( _constraints );
-
-	MemoryUsage();
 	return iter;
 }
 
@@ -796,8 +791,6 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 		stats.bNorm2 = bNorm , stats.inRNorm2 = inRNorm , stats.outRNorm2 = outRNorm;
 	}
 	solveTime = Time() - solveTime;
-
-	MemoryUsage();
 
 	for( int d=0 ; d<=_baseDepth ; d++ )
 	{
@@ -1621,7 +1614,6 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 #pragma message( "[WARNING] I'm not sure how expensive this system call is on non-Windows system. (You may want to comment this out.)" )
 #endif // SHOW_WARNINGS
 #endif // !_WIN32 && !_WIN64
-	MemoryUsage();
 	return 1;
 }
 
@@ -2627,18 +2619,31 @@ void FEMTree< Dim , Real >::_RegularGridUpSample( UIntPack< FEMSigs ... > , cons
 
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
-DenseNodeData< T , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , TDotT Dot , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos ) const
+DenseNodeData< T , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , TDotT Dot , LocalDepth minSolveDepth , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	DenseNodeData< T , UIntPack< FEMSigs ... > > solution;
-	solveSystem( UIntPack< FEMSigs ... >() , F , constraints , solution , Dot , maxSolveDepth , solverInfo , interpolationInfos );
+	solveSystem( UIntPack< FEMSigs ... >() , F , constraints , solution , Dot , minSolveDepth , maxSolveDepth , solverInfo , interpolationInfos );
 	return solution;
 }
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
-void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos ) const
+void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth minSolveDepth , LocalDepth maxSolveDepth , const typename FEMTree< Dim , Real >::SolverInfo& solverInfo , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	static_assert( Dim==sizeof ... ( FEMSigs ) , "[ERROR] FEMTree:solveSystem: Dimensions and number of signatures don't match" );
-	if( maxSolveDepth>_maxDepth ) ERROR_OUT( "Solver depth cannot exceed maximum depth: " , maxSolveDepth , " <= " , _maxDepth );
+
+	if( maxSolveDepth>_maxDepth )
+	{
+		WARN( "Solver depth should not exceed maximum depth: " , maxSolveDepth , " <= " , _maxDepth );
+		maxSolveDepth = _maxDepth;
+	}
+	if( minSolveDepth>maxSolveDepth ) return;
+	else if( minSolveDepth<_baseDepth )
+	{
+		WARN( "Minimum solver depth should not be smaller than base solver depth: " , minSolveDepth , " >= " , _baseDepth );
+		minSolveDepth = _baseDepth;
+	}
+
+	// Mark all nodes that define valid finite elements
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( sizeof...(InterpolationInfos)==0 ? 0 : maxSolveDepth );
 
@@ -2733,7 +2738,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 			else 
 				if( solverInfo.vCycles<10 ) printf( "Cycle[%d] Depth[%2d/%d]:\t" , cycle , depth , maxSolveDepth );
 				else                        printf( "Cycle[%2d] Depth[%2d/%d]:\t" , cycle , depth , maxSolveDepth );
-			printf( "Updated constraints / Got system / Solved in: %6.3f / %6.3f / %6.3f\t(%.3f MB)\tNodes: %llu\n" , sStats.constraintUpdateTime , sStats.systemTime , sStats.solveTime , _LocalMemoryUsage , (unsigned long long)femNodes );
+			printf( "Updated constraints / Got system / Solved in: %6.3f / %6.3f / %6.3f\t(%d MB)\tNodes: %llu\n" , sStats.constraintUpdateTime , sStats.systemTime , sStats.solveTime , MemoryInfo::PeakMemoryUsageMB() , (unsigned long long)femNodes );
 		}
 		if( solverInfo.showResidual && showResidual )
 		{
@@ -2782,7 +2787,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 		else
 		{
 			bool coarseToFine = false;
-			for( LocalDepth d=depth ; d>=_baseDepth ; d-- )
+			for( LocalDepth d=depth ; d>=minSolveDepth ; d-- )
 			{
 				sStats.constraintUpdateTime = 0;
 				showResidual = ( d!=_baseDepth );
@@ -2793,7 +2798,10 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 				sStats.constraintUpdateTime += Time()-t;
 				actualIters = iters;
 				// In the restriction phase we do not solve at the coarsest resolution since we will do so in the prolongation phase
-				if( d==_baseDepth ) _solveRegularMG( UIntPack< FEMSigs ... >() , F , bsData , std::min< LocalDepth >( _baseDepth , maxSolveDepth ) , _solution , d==_maxDepth ? _constraints : _residualConstraints , Dot , solverInfo.baseVCycles , iters , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfos );
+				if( d==_baseDepth )
+				{
+					if( solverInfo.baseVCycles ) _solveRegularMG( UIntPack< FEMSigs ... >() , F , bsData , std::min< LocalDepth >( _baseDepth , maxSolveDepth ) , _solution , d==_maxDepth ? _constraints : _residualConstraints , Dot , solverInfo.baseVCycles , iters , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfos );
+				}
 				else
 				{
 					if( d>solverInfo.cgDepth ) actualIters = _solveSystemGS( UIntPack< FEMSigs ... >() , Dim!=1 , F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine , solverInfo.sliceBlockSize , sorWeights , sStats , solverInfo.showResidual ,                         interpolationInfos );
@@ -2812,7 +2820,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 		sorWeights.sorFunction = solverInfo.sorProlongationFunction;
 		showResidual = true;
 		bool coarseToFine = true;
-		for( LocalDepth d=_baseDepth ; d<=depth ; d++ )
+		for( LocalDepth d=minSolveDepth ; d<=depth ; d++ )
 		{
 			sStats.constraintUpdateTime = 0;
 			int iters = solverInfo.iters( v , false , d );
@@ -2821,7 +2829,10 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 			SetResidualConstraints( d );
 			sStats.constraintUpdateTime += Time()-t;
 			actualIters = iters;
-			if( d==_baseDepth ) _solveRegularMG( UIntPack< FEMSigs ... >() , F , bsData , std::min< LocalDepth >( _baseDepth , maxSolveDepth ) , _solution , d==_maxDepth ? _constraints : _residualConstraints , Dot , solverInfo.baseVCycles , iters , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfos );
+			if( d==_baseDepth )
+			{
+				if( solverInfo.baseVCycles ) _solveRegularMG( UIntPack< FEMSigs ... >() , F , bsData , std::min< LocalDepth >( _baseDepth , maxSolveDepth ) , _solution , d==_maxDepth ? _constraints : _residualConstraints , Dot , solverInfo.baseVCycles , iters , sStats , solverInfo.showResidual , solverInfo.cgAccuracy , interpolationInfos );
+			}
 			else
 			{
 				if( d>solverInfo.cgDepth ) actualIters = _solveSystemGS( UIntPack< FEMSigs ... >() , Dim!=1 , F , bsData , d , _solution , ( ConstPointer( T ) )_prolongedSolution , d==_maxDepth ? _constraints : _residualConstraints , Dot , iters , coarseToFine , solverInfo.sliceBlockSize , sorWeights , sStats , solverInfo.showResidual , interpolationInfos );
@@ -2838,7 +2849,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	{
 		if( solverInfo.wCycle )
 		{
-			for( int d=maxSolveDepth ; d>_baseDepth ; d-- )
+			for( int d=maxSolveDepth ; d>minSolveDepth ; d-- )
 			{
 				SolveRestriction ( v , d   );
 				SolveProlongation( v , d-1 );
@@ -2858,7 +2869,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 		{
 			bool coarseToFine = false;
 			std::vector< double > rNorms( maxSolveDepth+1 );
-			for( LocalDepth d=maxSolveDepth ; d>=_baseDepth ; d-- )
+			for( LocalDepth d=maxSolveDepth ; d>=minSolveDepth ; d-- )
 			{
 				F.init( d );
 				SetResidualConstraints( d );
@@ -2871,7 +2882,6 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 			printf( "\n" );
 		}
 	}
-	MemoryUsage();
 
 	FreePointer( _residualConstraints );
 	FreePointer( _restrictedConstraints );
@@ -2924,7 +2934,6 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 	maxDepth = std::min< LocalDepth >( maxDepth , _maxDepth );
 	Pointer( T ) _constraints = AllocPointer< T >( _sNodesEnd( maxDepth-1 ) );
 	memset( _constraints , 0 , sizeof(T)*( _sNodesEnd(maxDepth-1) ) );
-	MemoryUsage();
 
 	static const WindowLoopData< UIntPack< BSplineOverlapSizes< CDegrees , FEMDegrees >::OverlapSize ... > > cfemLoopData( []( int c , int* start , int* end ){ BaseFEMIntegrator::ParentOverlapBounds( UIntPack< CDegrees ... >() , UIntPack< FEMDegrees ... >() , c , start , end ); } );
 	static const WindowLoopData< UIntPack< BSplineOverlapSizes< FEMDegrees , CDegrees >::OverlapSize ... > > femcLoopData( []( int c , int* start , int* end ){ BaseFEMIntegrator::ParentOverlapBounds( UIntPack< FEMDegrees ... >() , UIntPack< CDegrees ... >() , c , start , end ); } );
@@ -3044,7 +3053,6 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		}
 		);
 		if( d>0 && d<maxDepth ) _downSample( UIntPack< FEMSigs ... >() , F.tRestrictionProlongation() , d , ( ConstPointer(T) )_constraints + _sNodesBegin(d) , _constraints + _sNodesBegin(d-1) );
-		MemoryUsage();
 	}
 	FreePointer( _constraints );
 	if( hasCoarserCoefficients )
@@ -3132,8 +3140,6 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) && _sNodes.treeNodes[i]->nodeData.getDirichletElementFlag() ) constraints[i] *= (Real)0;
 	} );
-
-	MemoryUsage();
 }
 
 template< unsigned int Dim , class Real >
@@ -3208,7 +3214,6 @@ void FEMTree< Dim , Real >::_addInterpolationConstraints( DenseNodeData< T , UIn
 			}
 			);
 		}
-		MemoryUsage();
 	}
 }
 

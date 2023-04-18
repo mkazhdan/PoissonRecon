@@ -49,14 +49,21 @@ namespace PLY
 	template<> const std::string Traits< unsigned long long >::name="unsigned long long";
 
 	template<>
-	PlyProperty Face<          int       >::Properties[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
+	PlyProperty Face<          int       , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
 	template<>
-	PlyProperty Face< unsigned int       >::Properties[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
+	PlyProperty Face< unsigned int       , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
 	template<>
-	PlyProperty Face<          long long >::Properties[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
+	PlyProperty Face<          long long , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
 	template<>
-	PlyProperty Face< unsigned long long >::Properties[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
-
+	PlyProperty Face< unsigned long long , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
+	template<>
+	PlyProperty Face<          int       , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
+	template<>
+	PlyProperty Face< unsigned int       , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
+	template<>
+	PlyProperty Face<          long long , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
+	template<>
+	PlyProperty Face< unsigned long long , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
 	// Read
 	template< typename VertexFactory >
 	inline int ReadVertexHeader( std::string fileName , const VertexFactory &vFactory , bool *readFlags )
@@ -79,7 +86,7 @@ namespace PLY
 	}
 
 	template< typename VertexFactory >
-	inline int ReadVertexHeader( std::string fileName , const VertexFactory &vFactory , bool *readFlags , std::vector< PlyProperty > &unprocessedProperties )
+	inline int ReadVertexHeader( std::string fileName , const VertexFactory &vFactory , bool *readFlags , std::vector< PlyProperty > &unprocessedProperties , size_t &vNum )
 	{
 		int fileType;
 		std::vector< std::string > elist;
@@ -88,8 +95,7 @@ namespace PLY
 		PlyFile *ply = PlyFile::Read( fileName, elist, fileType, version );
 		if( !ply ) ERROR_OUT( "Failed to open ply file for reading: " , fileName );
 
-		size_t numElems;
-		std::vector< PlyProperty > plist = ply->get_element_description( "vertex" , numElems );
+		std::vector< PlyProperty > plist = ply->get_element_description( "vertex" , vNum );
 		if( !plist.size() ) ERROR_OUT( "Failed to get element description: vertex" );
 		for( unsigned int i=0 ; i<vFactory.plyReadNum() ; i++ ) readFlags[i] = false;
 
@@ -106,8 +112,14 @@ namespace PLY
 		delete ply;
 		return fileType;
 	}
+	template< typename VertexFactory >
+	inline int ReadVertexHeader( std::string fileName , const VertexFactory &vFactory , bool *readFlags , std::vector< PlyProperty > &unprocessedProperties )
+	{
+		size_t vNum;
+		return ReadVertexHeader( fileName , vFactory , readFlags , unprocessedProperties , vNum );
+	}
 
-	inline int ReadVertexHeader( std::string fileName , std::vector< PlyProperty > &properties )
+	inline int ReadVertexHeader( std::string fileName , std::vector< PlyProperty > &properties , size_t &vNum )
 	{
 		int fileType;
 		std::vector< std::string > elist;
@@ -116,13 +128,17 @@ namespace PLY
 		PlyFile *ply = PlyFile::Read( fileName, elist, fileType, version );
 		if( !ply ) ERROR_OUT( "Failed to open ply file for reading: " , fileName );
 
-		size_t numElems;
-		std::vector< PlyProperty > plist = ply->get_element_description( "vertex" , numElems );
+		std::vector< PlyProperty > plist = ply->get_element_description( "vertex" , vNum );
 		for( int i=0 ; i<plist.size() ; i++ ) properties.push_back( plist[i] );
 		delete ply;
 		return fileType;
 	}
 
+	inline int ReadVertexHeader( std::string fileName , std::vector< PlyProperty > &properties )
+	{
+		size_t vNum;
+		return ReadVertexHeader( fileName , properties , vNum );
+	}
 
 	template< typename VertexFactory , typename Index >
 	void ReadPolygons( std::string fileName , const VertexFactory &vFactory , std::vector< typename VertexFactory::VertexType > &vertices , std::vector< std::vector< Index > > &polygons , int &file_type , std::vector< std::string > &comments , bool *readFlags )
@@ -151,17 +167,17 @@ namespace PLY
 					if( readFlags ) readFlags[i] = (hasProperty!=0);
 				}
 				vertices.resize( num_elems , vFactory() );
-				char *buffer = new char[ vFactory.bufferSize() ];
+				Pointer( char ) buffer = NewPointer< char >( vFactory.bufferSize() );
 				for( size_t j=0 ; j<num_elems ; j++ )
 				{
 					if( vFactory.isStaticallyAllocated() ) ply->get_element( (void *)&vertices[j] );
 					else
 					{
-						ply->get_element( (void *)buffer );
+						ply->get_element( PointerAddress( buffer ) );
 						vFactory.fromBuffer( buffer , vertices[j] );
 					}
 				}
-				delete[] buffer;
+				DeletePointer( buffer );
 			}
 			else if( elem_name=="face" )
 			{
@@ -182,7 +198,7 @@ namespace PLY
 		delete ply;
 	}
 
-	template< typename VertexFactory , typename Index >
+	template< typename VertexFactory , typename Index , bool UseCharIndex >
 	void WritePolygons( std::string fileName , const VertexFactory &vFactory , const std::vector< typename VertexFactory::VertexType > &vertices , const std::vector< std::vector< Index > > &polygons , int file_type , const std::vector< std::string > &comments )
 	{
 		size_t nr_vertices = vertices.size();
@@ -202,7 +218,7 @@ namespace PLY
 			ply->describe_property( "vertex" , &prop );
 		}
 		ply->element_count( "face" , nr_faces );
-		ply->describe_property( "face" , Face< Index >::Properties );
+		ply->describe_property( "face" , Face< Index , UseCharIndex >::Properties );
 
 		// Write in the comments
 		for( int i=0 ; i<comments.size() ; i++ ) ply->put_comment( comments[i] );
@@ -211,17 +227,17 @@ namespace PLY
 		// write vertices
 		ply->put_element_setup( elem_names[0] );
 
-		char *buffer = new char[ vFactory.bufferSize() ];
+		Pointer( char ) buffer = NewPointer< char >( vFactory.bufferSize() );
 		for( size_t j=0 ; j<vertices.size() ; j++ )
 		{
 			if( vFactory.isStaticallyAllocated() ) ply->put_element( (void *)&vertices[j] );
 			else
 			{
 				vFactory.toBuffer( vertices[j] , buffer );
-				ply->put_element( (void *)buffer );
+				ply->put_element( PointerAddress( buffer ) );
 			}
 		}
-		delete[] buffer;
+		DeletePointer( buffer );
 
 		// write faces
 		Face< Index > ply_face;
@@ -247,16 +263,16 @@ namespace PLY
 		delete ply;
 	}
 
-	template< typename VertexFactory , typename Index , class Real , int Dim , typename OutputIndex >
-	void WritePolygons( std::string fileName , const VertexFactory &vFactory , CoredMeshData< typename VertexFactory::VertexType , Index >* mesh , int file_type , const std::vector< std::string > &comments , std::function< typename VertexFactory::VertexType ( typename VertexFactory::VertexType ) > xForm )
+	template< typename VertexFactory , typename Index , class Real , int Dim , typename OutputIndex , bool UseCharIndex >
+	void WritePolygons( std::string fileName , const VertexFactory &vFactory , StreamingMesh< typename VertexFactory::VertexType , Index >* mesh , int file_type , const std::vector< std::string > &comments , std::function< void ( typename VertexFactory::VertexType & ) > xForm )
 	{
-		if( mesh->outOfCoreVertexNum()+mesh->inCoreVertices.size()>(size_t)std::numeric_limits< OutputIndex >::max() )
+		if( mesh->vertexNum()>(size_t)std::numeric_limits< OutputIndex >::max() )
 		{
 			if( std::is_same< Index , OutputIndex >::value ) ERROR_OUT( "more vertices than can be represented using " , Traits< Index >::name );
 			WARN( "more vertices than can be represented using " , Traits< OutputIndex >::name , " using " , Traits< Index >::name , " instead" );
 			return WritePolygons< VertexFactory , Index , Real , Dim , Index >( fileName , vFactory , mesh , file_type , comments , xForm );
 		}
-		size_t nr_vertices = mesh->outOfCoreVertexNum()+mesh->inCoreVertices.size();
+		size_t nr_vertices = mesh->vertexNum();
 		size_t nr_faces = mesh->polygonNum();
 		float version;
 		std::vector< std::string > elem_names = { std::string( "vertex" ) , std::string( "face" ) };
@@ -275,7 +291,7 @@ namespace PLY
 			ply->describe_property( "vertex" , &prop );
 		}
 		ply->element_count( "face" , nr_faces );
-		ply->describe_property( "face" , Face< OutputIndex >::Properties );
+		ply->describe_property( "face" , Face< OutputIndex , UseCharIndex >::Properties );
 
 		// Write in the comments
 		for( int i=0 ; i<comments.size() ; i++ ) ply->put_comment( comments[i] );
@@ -285,40 +301,30 @@ namespace PLY
 		ply->put_element_setup( "vertex" );
 		if( vFactory.isStaticallyAllocated() )
 		{
-			for( size_t i=0 ; i<mesh->inCoreVertices.size() ; i++ )
-			{
-				typename VertexFactory::VertexType vertex = xForm( mesh->inCoreVertices[i] );
-				ply->put_element( (void *)&vertex );
-			}
-			for( size_t i=0; i<mesh->outOfCoreVertexNum() ; i++ )
+			for( size_t i=0; i<mesh->vertexNum() ; i++ )
 			{
 				typename VertexFactory::VertexType vertex = vFactory();
-				mesh->nextOutOfCoreVertex( vertex );
-				vertex = xForm( vertex );
+				mesh->nextVertex( vertex );
+				xForm( vertex );
 				ply->put_element( (void *)&vertex );
 			}
 		}
 		else
 		{
-			char *buffer = new char[ vFactory.bufferSize() ];
-			for( size_t i=0 ; i<mesh->inCoreVertices.size() ; i++ )
-			{
-				typename VertexFactory::VertexType vertex = xForm( mesh->inCoreVertices[i] );
-				vFactory.toBuffer( vertex , buffer );
-				ply->put_element( (void *)buffer );
-			}
-			for( size_t i=0; i<mesh->outOfCoreVertexNum() ; i++ )
+			Pointer( char ) buffer = NewPointer< char >( vFactory.bufferSize() );
+			for( size_t i=0; i<mesh->vertexNum() ; i++ )
 			{
 				typename VertexFactory::VertexType vertex = vFactory();
-				mesh->nextOutOfCoreVertex( vertex );
-				vFactory.toBuffer( xForm( vertex ) , buffer );
-				ply->put_element( (void *)buffer );
+				mesh->nextVertex( vertex );
+				xForm( vertex );
+				vFactory.toBuffer( vertex , buffer );
+				ply->put_element( PointerAddress( buffer ) );
 			}
-			delete[] buffer;
+			DeletePointer( buffer );
 		}
 
 	   // write faces
-		std::vector< CoredVertexIndex< Index > > polygon;
+		std::vector< Index > polygon;
 		ply->put_element_setup( "face" );
 		for( size_t i=0 ; i<nr_faces ; i++ )
 		{
@@ -329,12 +335,11 @@ namespace PLY
 			mesh->nextPolygon( polygon );
 			ply_face.nr_vertices = int( polygon.size() );
 			ply_face.vertices = new OutputIndex[ polygon.size() ];
-			for( int j=0 ; j<int(polygon.size()) ; j++ )
-				if( polygon[j].inCore ) ply_face.vertices[j] = (OutputIndex)polygon[j].idx;
-				else                    ply_face.vertices[j] = (OutputIndex)( polygon[j].idx + mesh->inCoreVertices.size() );
+			for( int j=0 ; j<int(polygon.size()) ; j++ ) ply_face.vertices[j] = (OutputIndex)polygon[j];
 			ply->put_element( (void *)&ply_face );
 			delete[] ply_face.vertices;
 		}  // for, write faces
+
 
 		delete ply;
 	}

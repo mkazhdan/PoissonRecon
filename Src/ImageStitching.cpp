@@ -160,17 +160,6 @@ void WriteImage( char* fileName , RGBPixel* pixels , int w , int h )
 	ImageWriter::Write( fileName , (const unsigned char*)pixels , _w , _h , _c );
 }
 
-struct Profiler
-{
-	double t;
-	Profiler( void ){ t = Time(); }
-	void print( bool newLine=false ) const
-	{
-		printf( "%.2f (s) ; %d (MB)" , Time()-t , MemoryInfo::PeakMemoryUsageMB() );
-		if( newLine ) printf( "\n" );
-	}
-};
-
 template< unsigned int Colors >
 void ReadAndWrite( ImageReader* pixels , ImageReader* labels , ImageWriter* output )
 {
@@ -309,7 +298,6 @@ void _Execute( void )
 	int maxDepth;
 	DenseNodeData< Point< Real , Colors > , IsotropicUIntPack< Dim , FEMSig > > constraints;
 	DenseNodeData< Point< Real , Colors > , IsotropicUIntPack< Dim , FEMSig > > solution;
-
 	{
 		Profiler p;
 		ImageReader* pixels = ImageReader::Get( In.values[0] );
@@ -318,14 +306,14 @@ void _Execute( void )
 		BufferedImageDerivativeStream< Real , Colors > dStream( resolution , pixels , labels );
 		for( int j=0 ; j<h ; j++ )
 		{
+			Point< Real , Colors > zeroData;
 			ThreadPool::ParallelSections
-				(
-					[&]( void ){ dStream.prefetch(); } ,
-					[&]( void ){ maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() ); }
-				);
+			(
+				[&]( void ){ dStream.prefetch(); } ,
+				[&]( void ){ maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , zeroData , derivatives , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() ); }
+			);
 			dStream.advance();
 		}
-
 		delete pixels;
 		delete labels;
 		{
@@ -335,11 +323,15 @@ void _Execute( void )
 			for( int i=0 ; i<derivatives[1].size() ; i++ ) nodes.push_back( derivatives[1][i].node );
 			tree.template processNeighbors< 1 , 0 , true >( &nodes[0] , (int)nodes.size() , std::make_tuple() );
 		}
-		tree.template finalizeForMultigrid< Degree , Degree >( BaseDepth.value , FullDepth.value , []( const FEMTreeNode * ){ return true; } , []( const FEMTreeNode * ){ return false; } , std::make_tuple() );
+
+		auto addNodeFunctor = [&]( int d , const int off[Dim] ){ return d<=FullDepth.value; };
+		tree.template finalizeForMultigrid< Degree , Degree >( BaseDepth.value , addNodeFunctor , []( const FEMTreeNode * ){ return true; } , std::make_tuple() );
+
 		if( Verbose.set )
 		{
 			printf( "Valid FEM Nodes / Edges: %llu %llu\n" , (unsigned long long)tree.validFEMNodes( IsotropicUIntPack< Dim , FEMSig >() ) , (unsigned long long)( derivatives[0].size() + derivatives[1].size() ) );
-			printf( "Set tree [%d]: " , maxDepth ) , p.print( true );
+			std::string str = p();
+			printf( "Set tree [%d]: %s\n" , maxDepth , str.c_str() );
 		}
 	}
 
@@ -375,7 +367,11 @@ void _Execute( void )
 			F.weights[0][ TensorDerivatives< FEMDerivative >::Index( derivatives1 ) ][ TensorDerivatives< CDerivative >::Index( derivatives2 ) ] = 1;
 			tree.addFEMConstraints( F , partialY , constraints , maxDepth );
 		}
-		if( Verbose.set ) printf( "Set constraints: " ) , p.print( true );
+		if( Verbose.set )
+		{
+			std::string str = p();
+			printf( "Set constraints: %s\n" , str.c_str() );
+		}
 	}
 	// Solve the system
 	{
@@ -386,14 +382,17 @@ void _Execute( void )
 		sInfo.cgDepth = 0 , sInfo.cascadic = false , sInfo.vCycles = 1 , sInfo.cgAccuracy = 0 , sInfo.verbose = Verbose.set , sInfo.showResidual = ShowResidual.set , sInfo.showGlobalResidual = false , sInfo.sliceBlockSize = ROW_BLOCK_SIZE;
 		sInfo.baseVCycles = BaseVCycles.value;
 		sInfo.iters = GSIterations.value;
-
 		sInfo.useSupportWeights = true;
 		sInfo.sorRestrictionFunction = [&] ( Real w , Real ){ return (Real)( WeightScale.value * pow( w , WeightExponent.value ) ); };
 		sInfo.wCycle = false;
 		typename FEMIntegrator::template System< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
 		DenseNodeData< Point< Real , Colors > , IsotropicUIntPack< Dim , FEMSig > > _constraints = tree.template initDenseNodeData< Point< Real , Colors > >( IsotropicUIntPack< Dim , FEMSig >() );
-		tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , solution , Point< Real , Colors >::Dot , maxDepth , sInfo );
-		if( Verbose.set ) printf( "Solved system: " ) , p.print( true );
+		tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , solution , Point< Real , Colors >::Dot , BaseDepth.value , maxDepth , sInfo );
+		if( Verbose.set )
+		{
+			std::string str = p();
+			printf( "Solved system: %s\n" , str.c_str() );
+		}
 	}
 
 	Point< Real , Colors > average;
@@ -401,7 +400,11 @@ void _Execute( void )
 		Profiler p;
 		Real begin[] = { 0 , 0 } , end[] = { (Real)w/(1<<maxDepth) , (Real)h/(1<<maxDepth) };
 		average = tree.average( solution , begin , end );
-		if( Verbose.set ) printf( "Got average: " ) , p.print( true );
+		if( Verbose.set )
+		{
+			std::string str = p();
+			printf( "Got average: %s\n" , str.c_str() );
+		}
 	}
 	// Stitch the image
 	if( Out.set )
@@ -469,7 +472,11 @@ void _Execute( void )
 		}
 		// Write out the last block
 		SetOutput( blockNum-1 );
-		if( Verbose.set ) printf( "Wrote output: " ) , p.print( true );
+		if( Verbose.set )
+		{
+			std::string str = p();
+			printf( "Wrote output: %s\n" , str.c_str() );
+		}
 		delete[] inRows[0];
 		delete[] outRows[0];
 		delete[] inRows[1];
@@ -496,14 +503,9 @@ void _Execute( void )
 }
 #endif // FAST_COMPILE
 
-int main( int argc , char* argv[] )
+int main( int argc , char* argv[] )	
 {
 	Timer timer;
-#ifdef USE_SEG_FAULT_HANDLER
-	WARN( "using seg-fault handler" );
-	StackTracer::exec = argv[0];
-	signal( SIGSEGV , SignalHandler );
-#endif // USE_SEG_FAULT_HANDLER
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG

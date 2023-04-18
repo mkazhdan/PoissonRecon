@@ -48,6 +48,26 @@ public:
 	}
 };
 
+template< typename InputStream , typename Data >
+struct MultiInputDataStream : public InputDataStream< Data >
+{
+	MultiInputDataStream( InputStream **streams , size_t N ) : _current(0) , _streams( streams , streams+N ) {}
+	MultiInputDataStream( const std::vector< InputStream * > &streams ) : _current(0) , _streams( streams ) {}
+	void reset( void ){ for( unsigned int i=0 ; i<_streams.size() ; i++ ) _streams[i]->reset(); }
+	bool next( Data &d )
+	{
+		while( _current<_streams.size() )
+		{
+			if( _streams[_current]->next( d ) ) return true;
+			else _current++;
+		}
+		return false;
+	}
+protected:
+	std::vector< InputStream * > _streams;
+	unsigned int _current;
+};
+
 template< typename Data >
 class OutputDataStream
 {
@@ -161,7 +181,7 @@ class BinaryOutputDataStream : public OutputDataStream< typename Factory::Vertex
 public:
 	BinaryOutputDataStream( const char* filename , const Factory &factory );
 	~BinaryOutputDataStream( void ){ fclose( _fp ) , _fp=NULL; }
-	void reset( void ){ fseek( _fp , SEEK_SET , 0 ); }
+	void reset( void ){ fseek( _fp , 0 , SEEK_SET ); }
 	void next( const Data &d );
 };
 
@@ -173,12 +193,13 @@ class PLYInputDataStream : public InputDataStream< typename Factory::VertexType 
 	char* _fileName;
 	PlyFile *_ply;
 	std::vector< std::string > _elist;
-	char *_buffer;
+	Pointer( char ) _buffer;
 
 	size_t _pCount , _pIdx;
 	void _free( void );
 public:
 	PLYInputDataStream( const char* fileName , const Factory &factory );
+	PLYInputDataStream( const char* fileName , const Factory &factory , size_t &count );
 	~PLYInputDataStream( void );
 	void reset( void );
 	bool next( Data &d );
@@ -191,7 +212,7 @@ class PLYOutputDataStream : public OutputDataStream< typename Factory::VertexTyp
 	const Factory &_factory;
 	PlyFile *_ply;
 	size_t _pCount , _pIdx;
-	char *_buffer;
+	Pointer( char ) _buffer;
 public:
 	PLYOutputDataStream( const char* fileName , const Factory &factory , size_t count , int fileType=PLY_BINARY_NATIVE );
 	~PLYOutputDataStream( void );

@@ -53,7 +53,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( bool
 		for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].cleanChildren( deleteChildren );
 		if( deleteChildren ) delete[] children;
 	}
-	parent = children = NULL;
+	children = NULL;
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::~RegularTreeNode(void)
@@ -68,7 +68,7 @@ template< typename Initializer >
 RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NewBrood( Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
 {
 	RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* brood;
-	if( nodeAllocator ) brood = nodeAllocator->newElements( 1<<Dim );
+	if( nodeAllocator ) brood = PointerAddress( nodeAllocator->newElements( 1<<Dim ) );
 	else                brood = new RegularTreeNode[ 1<<Dim ];
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 	{
@@ -79,44 +79,19 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , N
 	return brood;
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ResetDepthAndOffset( RegularTreeNode* root , int d , int off[Dim] )
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ResetDepthAndOffset( RegularTreeNode* root , int depth , int offset[Dim] )
 {
-	std::function< void ( int& , int[Dim] ) > ParentDepthAndOffset = [] ( int& d , int off[Dim] ){ d-- ; for( int _d=0 ; _d<Dim ; _d++ ) off[_d]>>=1 ; };
-	std::function< void ( int& , int[Dim] ) >  ChildDepthAndOffset = [] ( int& d , int off[Dim] ){ d++ ; for( int _d=0 ; _d<Dim ; _d++ ) off[_d]<<=1 ; };
-	std::function< RegularTreeNode* ( RegularTreeNode* , int& , int[] ) > _nextBranch = [&]( RegularTreeNode* current , int& d , int off[Dim] )
+	root->_depth = depth;
+	for( unsigned int d=0 ; d<Dim ; d++ ) root->_offset[d] = offset[d];
+	if( root->children )
 	{
-		if( current==root ) return (RegularTreeNode*)NULL;
-		else
+		int _offset[Dim];
+		for( unsigned int d=0 ; d<Dim ; d++ ) _offset[d] = offset[d]<<1;
+		for( unsigned int c=0 ; c<(1<<Dim) ; c++ )
 		{
-			int c = (int)( current - current->parent->children );
-
-			if( c==(1<<Dim)-1 )
-			{
-				ParentDepthAndOffset( d , off );
-				return _nextBranch( current->parent , d , off );
-			}
-			else
-			{
-				ParentDepthAndOffset( d , off ) ; ChildDepthAndOffset( d , off );
-				for( int _d=0 ; _d<Dim ; _d++ ) off[_d] |= ( ( (c+1)>>_d ) & 1 );
-				return current+1;
-			}
+			for( unsigned int d=0 ; d<Dim ; d++ ) _offset[d] = ( offset[d]<<1 ) | ( (c>>d) & 1 );
+			ResetDepthAndOffset( root->children + c , depth+1 , _offset );
 		}
-	};
-	auto _nextNode = [&]( RegularTreeNode* current , int& d , int off[Dim] )
-	{
-		if( !current ) return root;
-		else if( current->children )
-		{
-			ChildDepthAndOffset( d , off );
-			return current->children;
-		}
-		else return _nextBranch( current , d , off );
-	};
-	for( RegularTreeNode* node=_nextNode( NULL , d , off ) ; node ; node = _nextNode( node , d , off ) )
-	{
-		node->_depth = (DepthAndOffsetType)d;
-		for( int _d=0 ; _d<Dim ; _d++ ) node->_offset[_d] = (DepthAndOffsetType)off[_d];
 	}
 }
 
@@ -132,10 +107,21 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::setFullDepth( int m
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename PruneChildrenFunctor >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::pruneChildren( PruneChildrenFunctor pruneFunctor , bool deleteChildren )
+{
+	if( children )
+	{
+		if( pruneFunctor( this ) ) cleanChildren( deleteChildren );
+		else for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].pruneChildren( pruneFunctor , deleteChildren );
+	}
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< typename Initializer >
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren( Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
 {
-	if( nodeAllocator ) children = nodeAllocator->newElements( 1<<Dim );
+	if( nodeAllocator ) children = PointerAddress( nodeAllocator->newElements( 1<<Dim ) );
 	else
 	{
 		if( children ) delete[] children;
@@ -160,7 +146,7 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren_s( Al
 	RegularTreeNode *_children;
 
 	// Allocate the children
-	if( nodeAllocator ) _children = nodeAllocator->newElements( 1<<Dim );
+	if( nodeAllocator ) _children = PointerAddress( nodeAllocator->newElements( 1<<Dim ) );
 	else                _children = new RegularTreeNode[ 1<<Dim ];
 	if( !_children ) ERROR_OUT( "Failed to initialize children" );
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
@@ -296,6 +282,7 @@ size_t RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::maxDepthLeaves( i
 		return c;
 	}
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::root( void ) const
 {
@@ -303,89 +290,133 @@ const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< D
 	while( temp->parent ) temp = temp->parent;
 	return temp;
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextBranch( const RegularTreeNode* current ) const
+template< typename NodeFunctor /* = std::function< bool/void ( RegularTreeNode * ) > */ >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::processNodes( NodeFunctor nodeFunctor )
 {
-	if( !current->parent || current==this ) return NULL;
-	if( current-current->parent->children==(1<<Dim)-1 ) return nextBranch( current->parent );
-	else return current+1;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextBranch(RegularTreeNode* current){
-	if( !current->parent || current==this ) return NULL;
-	if( current-current->parent->children==(1<<Dim)-1 ) return nextBranch(current->parent);
-	else return current+1;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::prevBranch( const RegularTreeNode* current ) const
-{
-	if( !current->parent || current==this ) return NULL;
-	if( current-current->parent->children==0 ) return prevBranch( current->parent );
-	else return current-1;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::prevBranch( RegularTreeNode* current )
-{
-	if( !current->parent || current==this ) return NULL;
-	if( current-current->parent->children==0 ) return prevBranch( current->parent );
-	else return current-1;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextLeaf(const RegularTreeNode* current) const{
-	if(!current)
+	if constexpr( std::is_same< bool , typename std::invoke_result< NodeFunctor , RegularTreeNode * >::type >::value )
 	{
-		const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* temp=this;
-		while( temp->children ) temp = temp->children;
-		return temp;
+		if( nodeFunctor( this ) && children )
+			for( int c=0 ; c<(1<<Dim) ; c++ )
+				if( nodeFunctor( children + c ) && children[c].children )
+					children[c]._processChildNodes( nodeFunctor );
 	}
-	if( current->children ) return current->nextLeaf();
-	const RegularTreeNode* temp=nextBranch( current );
-	if( !temp ) return NULL;
-	else return temp->nextLeaf();
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextLeaf(RegularTreeNode* current){
-	if( !current )
+	else
 	{
-		RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* temp=this;
-		while( temp->children ) temp = temp->children;
-		return temp;
+		nodeFunctor( this );
+		if( children ) for( int c=0 ; c<(1<<Dim) ; c++ )
+		{
+			nodeFunctor( children + c );
+			if( children[c].children ) children[c]._processChildNodes( nodeFunctor );
+		}
 	}
-	if( current->children ) return current->nextLeaf();
-	RegularTreeNode* temp=nextBranch( current) ;
-	if( !temp ) return NULL;
-	else return temp->nextLeaf();
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< typename NodeTerminationLambda >
-const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( NodeTerminationLambda &ntl , const RegularTreeNode *current ) const
-{
-	if( !current ) return this;
-	else if( current->children && !ntl(current) ) return current->children;
-	else return nextBranch( current );
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< typename NodeTerminationLambda >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( NodeTerminationLambda &ntl , RegularTreeNode* current )
-{
-	if( !current ) return this;
-	else if( current->children && !ntl(current) ) return current->children;
-	else return nextBranch( current );
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( const RegularTreeNode* current ) const
+template< typename NodeFunctor /* = std::function< bool/void ( const RegularTreeNode * ) > */ >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::processNodes( NodeFunctor nodeFunctor ) const
 {
-	if( !current ) return this;
-	else if( current->children ) return current->children;
-	else return nextBranch( current );
+	if constexpr( std::is_same< bool , typename std::invoke_result< NodeFunctor , RegularTreeNode * >::type >::value )
+	{
+		if( nodeFunctor( this ) && children )
+			for( int c=0 ; c<(1<<Dim) ; c++ )
+				if( nodeFunctor( children + c ) && children[c].children )
+					children[c]._processChildNodes( nodeFunctor );
+	}
+	else
+	{
+		nodeFunctor( this );
+		if( children ) for( int c=0 ; c<(1<<Dim) ; c++ )
+		{
+			nodeFunctor( children + c );
+			if( children[c].children ) children[c]._processChildNodes( nodeFunctor );
+		}
+	}
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( RegularTreeNode* current )
+template< typename NodeFunctor /* = std::function< void ( RegularTreeNode * ) > */ >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::processLeaves( NodeFunctor nodeFunctor )
 {
-	if( !current ) return this;
-	else if( current->children ) return current->children;
-	else return nextBranch( current );
+	if( children )
+	{
+		for( int c=0 ; c<(1<<Dim) ; c++ )
+			if( children[c].children ) children[c]._processChildLeaves( nodeFunctor );
+			else nodeFunctor( children+c );
+	}
+	else nodeFunctor( this );
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename NodeFunctor /* = std::function< void ( const RegularTreeNode * ) > */ >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::processLeaves( NodeFunctor nodeFunctor ) const
+{
+	if( children )
+	{
+		for( int c=0 ; c<(1<<Dim) ; c++ )
+			if( children[c].children ) children[c]._processChildLeaves( nodeFunctor );
+			else nodeFunctor( children+c );
+	}
+	else nodeFunctor( this );
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename NodeFunctor /* = std::function< bool/void ( RegularTreeNode * ) > */ >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_processChildNodes( NodeFunctor &nodeFunctor )
+{
+	if constexpr( std::is_same< bool , typename std::invoke_result< NodeFunctor , RegularTreeNode * >::type >::value )
+	{
+		for( int c=0 ; c<(1<<Dim) ; c++ )
+			if( nodeFunctor( children + c ) && children[c].children )
+				children[c]._processChildNodes( nodeFunctor );
+	}
+	else
+	{
+		for( int c=0 ; c<(1<<Dim) ; c++ )
+		{
+			nodeFunctor( children + c );
+			if( children[c].children ) children[c]._processChildNodes( nodeFunctor );
+		}
+	}
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename NodeFunctor /* = std::function< bool/void ( const RegularTreeNode * ) > */ >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_processChildNodes( NodeFunctor &nodeFunctor ) const
+{
+	if constexpr( std::is_same< bool , typename std::invoke_result< NodeFunctor , RegularTreeNode * >::type >::value )
+	{
+		for( int c=0 ; c<(1<<Dim) ; c++ )
+			if( nodeFunctor( children + c ) && children[c].children )
+				children[c]._processChildNodes( nodeFunctor );
+	}
+	else
+	{
+		for( int c=0 ; c<(1<<Dim) ; c++ )
+		{
+			nodeFunctor( children + c );
+			if( children[c].children ) children[c]._processChildNodes( nodeFunctor );
+		}
+	}
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename NodeFunctor /* = std::function< void ( RegularTreeNode * ) > */ >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_processChildLeaves( NodeFunctor &nodeFunctor )
+{
+	for( int c=0 ; c<(1<<Dim) ; c++ )
+		if( children[c].children ) children[c]._processChildLeaves( nodeFunctor );
+		else nodeFunctor( children+c );
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename NodeFunctor /* = std::function< void ( const RegularTreeNode * ) > */ >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_processChildLeaves( NodeFunctor &nodeFunctor ) const
+{
+	for( int c=0 ; c<(1<<Dim) ; c++ )
+		if( children[c].children ) children[c]._processChildLeaves( nodeFunctor );
+		else nodeFunctor( children+c );
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
@@ -412,45 +443,126 @@ int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ChildIndex( const Po
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::write( const char* fileName ) const
+template< typename KeepNodeFunctor >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::copySubTree( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > &subTree , const KeepNodeFunctor &keepNodeFunctor , Allocator< RegularTreeNode > *nodeAllocator ) const
 {
-	FILE* fp=fopen( fileName , "wb" );
-	if( !fp ) return false;
-	bool ret = write(fp);
-	fclose(fp);
-	return ret;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::write( FILE* fp ) const
-{
-	fwrite( this , sizeof( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) , 1 , fp );
-	if( children ) for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].write(fp);
-	return true;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< typename Initializer >
-bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( const char* fileName , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
-{
-	FILE* fp = fopen( fileName , "rb" );
-	if( !fp ) return false;
-	bool ret = read( fp , nodeAllocator , initializer );
-	fclose( fp );
-	return ret;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< typename Initializer >
-bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( FILE* fp , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
-{
-	if( fread( this , sizeof( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read node" );
-	parent = NULL;
-	if( children )
+	bool copyChildren = false;
+	if( children ) for( unsigned int c=0 ; c<(1<<Dim) ; c++ ) copyChildren |= keepNodeFunctor( children+c );
+	if( copyChildren )
 	{
-		children = NULL;
-		initChildren< false >( nodeAllocator , initializer );
-		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , initializer ) , children[i].parent = this;
+		if( nodeAllocator ) subTree.children = PointerAddress( nodeAllocator->newElements( 1<<Dim ) );
+		else                subTree.children = new RegularTreeNode[ 1<<Dim ];
+		for( unsigned int c=0 ; c<(1<<Dim) ; c++ )
+		{
+			subTree.children[c] = children[c];
+			subTree.children[c].children = NULL;
+			subTree.children[c].parent = &subTree;
+			children[c].copySubTree( subTree.children[c] , keepNodeFunctor );
+		}
+	}
+}
+
+// KeepNodeFunctor looks like std::function< bool ( const RegularTreeNode * ) >
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename KeepNodeFunctor >
+Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::serializeSubTree( const KeepNodeFunctor &keepNodeFunctor , size_t &nodeCount ) const
+{
+	std::function< size_t ( const RegularTreeNode * ) > ChildNodeCount = [&]( const RegularTreeNode *node )
+	{
+		size_t count = 0;
+		bool keepChildren = false;
+		if( node->children ) for( unsigned int c=0 ; c<(1<<Dim) ; c++ ) keepChildren |= keepNodeFunctor( node->children+c );
+		if( keepChildren )
+		{
+			count += 1<<Dim;
+			for( unsigned int c=0 ; c<(1<<Dim) ; c++ ) count += ChildNodeCount( node->children+c );
+		}
+		return count;
+	};
+
+	nodeCount = 1 + ChildNodeCount( this );
+	Pointer( RegularTreeNode ) nodes = NewPointer< RegularTreeNode >( nodeCount );
+
+	std::function< Pointer( RegularTreeNode ) ( const RegularTreeNode * , RegularTreeNode & , Pointer( RegularTreeNode ) ) > SetChildNodes = [&]( const RegularTreeNode *node , RegularTreeNode &subNode , Pointer( RegularTreeNode ) buffer )
+	{
+		bool keepChildren = false;
+		if( node->children ) for( unsigned int c=0 ; c<(1<<Dim) ; c++ ) keepChildren |= keepNodeFunctor( node->children+c );
+		if( keepChildren )
+		{
+			subNode.children = PointerAddress( buffer );
+			for( unsigned int c=0 ; c<(1<<Dim) ; c++ )
+			{
+				buffer[c] = node->children[c];
+				buffer[c].parent = &subNode;
+				buffer[c].children = NULL;
+			}
+			buffer += 1<<Dim;
+			for( unsigned int c=0 ; c<(1<<Dim) ; c++ ) buffer = SetChildNodes( node->children+c , subNode.children[c] , buffer );
+		}
+		return buffer;
+	};
+
+	nodes[0] = *this;
+	nodes[0].parent = NULL;
+	nodes[0].children = NULL;
+
+	SetChildNodes( this , nodes[0] , nodes+1 );
+
+	return nodes;
+}
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename WriteNodeFunctor >
+bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::write( BinaryStream &stream , bool serialize , const WriteNodeFunctor &writeNodeFunctor ) const
+{
+	if( serialize )
+	{
+		size_t nodeCount;
+		Pointer( RegularTreeNode ) nodes = serializeSubTree( writeNodeFunctor , nodeCount );
+		stream.write( nodes , nodeCount );
+		DeletePointer( nodes );
+	}
+	else
+	{
+		std::function< void ( const RegularTreeNode *node ) > WriteChildren = [&]( const RegularTreeNode *node )
+		{
+			bool writeChildren = false;
+			if( node->children ) for( unsigned int c=0 ; c<(1<<Dim) ; c++ ) writeChildren |= writeNodeFunctor( node->children+c );
+			if( writeChildren )
+			{
+				stream.write( GetPointer( node->children , 1<<Dim ) , 1<<Dim );
+				for( unsigned int c=0 ; c<(1<<Dim) ; c++ ) WriteChildren( node->children+c );
+			}
+		};
+		stream.write( *this );
+		WriteChildren( this );
 	}
 	return true;
 }
+
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename Initializer >
+bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( BinaryStream &stream , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
+{
+	std::function< void ( RegularTreeNode *node ) > ReadChildren = [&]( RegularTreeNode *node )
+	{
+		if( node->children )
+		{
+			node->children = NULL;
+			node->initChildren< false >( nodeAllocator , initializer );
+			if( !stream.read( GetPointer( node->children , 1<<Dim ) , 1<<Dim ) ) ERROR_OUT( "Failed to read children" );
+			for( int i=0 ; i<(1<<Dim) ; i++ )
+			{
+				node->children[i].parent = node;
+				ReadChildren( node->children+i );
+			}
+		}
+	};
+	if( !stream.read( *this ) ) ERROR_OUT( "Failed to read root" );
+	ReadChildren( this );
+	return true;
+}
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::width( int maxDepth ) const
 {
