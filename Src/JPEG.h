@@ -9,6 +9,10 @@
 #include "JPEG/jpeglib.h"
 #include "JPEG/jerror.h"
 #include "JPEG/jmorecfg.h"
+#elif defined(__APPLE__)
+#include "JPEG/jpeglib.h"
+#include "JPEG/jerror.h"
+#include "JPEG/jmorecfg.h"
 #else // !_WIN32
 #include <jpeglib.h>
 #include <jerror.h>

@@ -15,8 +15,11 @@ IS_SOURCE=ImageStitching.cpp
 AV_SOURCE=AdaptiveTreeVisualization.cpp
 CP_SOURCE=ChunkPLY.cpp
 
+ifeq ($(shell uname -s),Darwin)
+COMPILER ?= clang
+else
 COMPILER ?= gcc
-#COMPILER ?= clang
+endif
 
 ifeq ($(COMPILER),gcc)
 	CFLAGS += -fopenmp -Wno-deprecated -std=c++17 -pthread -Wno-invalid-offsetof
@@ -30,8 +33,11 @@ else
 	CFLAGS += -Wno-deprecated -std=c++17 -pthread -Wno-invalid-offsetof -Wno-dangling-else
 	LFLAGS += -lstdc++
 endif
+ifeq ($(COMPILER),gcc)
 LFLAGS += -lz -lpng -ljpeg
-#LFLAGS += -ljpeg -lmypng -lz
+else
+LFLAGS += -lmyjpg -lmypng -lz
+endif
 
 CFLAGS_DEBUG = -DDEBUG -g3
 LFLAGS_DEBUG =

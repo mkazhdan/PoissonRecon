@@ -96,6 +96,8 @@ cmdLineParameter< int >
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef _OPENMP
 	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
+#elif defined(__arm__) || defined(__aarch64__)
+	ParallelType( "parallel" , (int)ThreadPool::NONE) ,
 #else // !_OPENMP
 	ParallelType( "parallel" , (int)ThreadPool::THREAD_POOL ) ,
 #endif // _OPENMP
