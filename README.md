@@ -1,6 +1,7 @@
-<center><h2>Adaptive Multigrid Solvers (Version 13.99)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 14.00)</h2></center>
 <center>
 <a href="#LINKS">links</a>
+<a href="#COMPILATION">compilation</a>
 <a href="#EXECUTABLES">executables</a>
 <a href="#USAGE">usage</a>
 <a href="#CHANGES">changes</a>
@@ -17,80 +18,93 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a name="LINKS"><b>LINKS</b></a><br>
 <ul>
 <b>Papers:</b>
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
-<a href="http://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
-<a href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
+<a href="https://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
+<a href="https://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>,
 <A HREF="https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/">[Crane, Weischedel, and Wardetzky, 2013]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.99/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.00/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.99/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.00/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.80/">V13.80</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/">V13.74</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.73/">V13.73</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/">V13.72</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.71/">V13.71</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.70/">V13.70</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.61/">V13.61</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.60/">V13.60</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/">V13.50</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">V13.00</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">V12.00</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">V11.02</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">V11.01</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">V11.00</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">V10.07</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">V10.06</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">V10.05</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">V10.04</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">V10.03</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">V10.02</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">V10.01</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/">V10.00</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.011/">V9.011</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/">V9.01</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">V9.0</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/">V8.0</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/">V7.0</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/">V6.13a</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13/">V6.13</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.12/">V6.12</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.11/">V6.11</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.1/">V6.1</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6/">V6</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.71/">V5.71</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.6/">V5.6</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.5a/">V5.5a</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.1/">V5.1</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5/">V5</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4.51/">V4.51</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4.5/">V4.5</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4/">V4</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">V3</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version2/">V2</a>,
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</a>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.99/">V13.99</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.80/">V13.80</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/">V13.74</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.73/">V13.73</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/">V13.72</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.71/">V13.71</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.70/">V13.70</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.61/">V13.61</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.60/">V13.60</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/">V13.50</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">V13.00</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">V12.00</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">V11.02</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">V11.01</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">V11.00</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">V10.07</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">V10.06</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">V10.05</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">V10.04</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">V10.03</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">V10.02</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">V10.01</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/">V10.00</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.011/">V9.011</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/">V9.01</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">V9.0</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/">V8.0</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/">V7.0</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/">V6.13a</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13/">V6.13</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.12/">V6.12</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.11/">V6.11</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.1/">V6.1</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6/">V6</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.71/">V5.71</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.6/">V5.6</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.5a/">V5.5a</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.1/">V5.1</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5/">V5</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4.51/">V4.51</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4.5/">V4.5</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4/">V4</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">V3</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version2/">V2</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version1/">V1</a>
+</ul>
+
+<hr>
+<a name="COMPILATION"><b>COMPILATION</b></a><br>
+<ul>
+<LI> For efficiency, the code is designed to compile for the specific FEM degree and boundary condition specified in <I>PoissonRecon.h</I>. (Specifically, <B>DEFAULT_FEM_DEGREE</B> is set to 1 and <B>DEFAULT_FEM_BOUNDARY</B> is set to Neumann.) You can change the default values in <I>PoissonRecon.h</I>. You can also compile the code so that it supports varying FEM degrees and boundary conditions by un-<CODE>#define</CODE>-ing <B>FAST_COMPILE</B> in <I>PreProcess.h</I>. However, this will make the compilation significantly slower.
+<LI> By default, the implementation assumes that all indexing can be done with 32-bit integers. If you are reconstructing large scenes and need more bits for indexing, you should enable the <B>BIG_DATA</B> flag in <I>PreProcessor.h</I>. Note that if the generated mesh has more primitives than can be indexed by a 32-bit integer, the output <i>.ply</i> file will store the integers using 64-bit precision (designated by the <i>long long</i> type) instead of the standard 32-bit precision (designated by the <i>int</i> type). Note that this is not a standard format and software like <A HREF="https://www.meshlab.net/">MeshLab</A> may not be able to read the file.
+<LI> The distributed PSR code uses sockets for communication between the client and the server. These are supported in a cross-platform way via <A HREF="https://www.boost.org">Boost</A>. (The code was developed and tested under Boost <A HREF="https://www.boost.org/users/history/version_1_80_0.html">version 1.80.0</A>.)<br>
+<LI> To support reading/writing images, the code requires installation of the <i>zlib</i>, <i>png</i>, and <i>jpg</i> libraries. Source code for these is included for compilation using Visual Studios. The Makefile assumes that the header files can be found in <i>/usr/local/include/</i> and that the library files can be found in <i>/usr/local/lib/</i>.
+</UL>
 </ul>
 <hr>
 <a name="EXECUTABLES"><b>EXECUTABLES</b></a><br>
+
+
 <ul>
 <dl>
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>PoissonRecon</b></font>:
-Reconstructs a triangle mesh from a set of oriented 3D points by solving a Poisson system (solving a 3D Laplacian system with positional value constraints) <a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
-<a href="http://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
+Reconstructs a triangle mesh from a set of oriented 3D points by solving a Poisson system (solving a 3D Laplacian system with positional value constraints) <a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
 </dt><dd> This string is the name of the file from which the point set will be read.<br>
 If the file extension is <i>.ply</i>, the file should be in
-<a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, giving the list of oriented
+<a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, giving the list of oriented
 vertices with the x-, y-, and z-coordinates of the positions encoded by the properties <i>x</i>, <i>y</i>, and
 <i>z</i> and the x-, y-, and z-coordinates of the normals encoded by the properties <i>nx</i>, <i>ny</i>, and
 <i>nz</i> .<br>
@@ -105,12 +119,12 @@ by the x-, y- and z-coordinates of the point's normal. (No information about the
 <dt>[<b>--envelope</b> &lt;<i>constraint envelope</i>&gt;]
 </dt><dd> This string is the name of the file from which the constraint envelope will be read.<br>
 The file should be a water-tight triangle mesh in
-<a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, oriented so that the normals are pointing
+<a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, oriented so that the normals are pointing
 in the direction that should be outside of the reconstructed surface.<br>
 
 </dd><dt>[<b>--out</b> &lt;<i>output triangle mesh</i>&gt;]
 </dt><dd> This string is the name of the file to which the triangle mesh will be written. 
-The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
+The file is written in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
 
 </dd><dt>[<b>--tree</b> &lt;<i>output octree and coefficients</i>&gt;]
 </dt><dd> This string is the name of the file to which the the octree and solution coefficients are to be written.
@@ -221,17 +235,204 @@ The default value for this parameter is equal to the numer of (virtual) processo
 </ul>
 
 
+
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
+<font size="+1"><b>PoissonReconServer</b></font>:
+The server responsible for distributed Poisson Surface reconstruction
+<!--
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
+-->
+</SUMMARY>
+<dt><b>--in</b> &lt;<i>input points</i>&gt;</dt>
+<dd> This string is the name of the file from which the point set will be read.<br>
+The file is assumed to be in <B>binary</B> <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, giving the list of oriented
+vertices with the x-, y-, and z-coordinates of the positions encoded by the properties <i>x</i>, <i>y</i>, and
+<i>z</i> and the x-, y-, and z-coordinates of the normals encoded by the properties <i>nx</i>, <i>ny</i>, and
+<i>nz</i>. (If additional properties, e.g. color, are provided per sample, these will be interpolated in the reconstruction.)<br>
+</dd>
+
+<dt><b>--tempDir</b> &lt;<i>networked temporary output directory</i>&gt;</dt>
+<dd> This string is the name of the directory to which temporary files will be written.<br>
+The specified (networked) path is assumed to accessible to the server and all clients.
+</dd>
+
+<dt><b>--out</b> &lt;<i>output polygon mesh</i>&gt;</dt>
+<dd> This string is the name of the file to which the polygon mesh will be written.<BR>
+The file is written in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
+</dd>
+
+<dt><b>--count</b> &lt;<i>client count</i>&gt;</dt>
+<dd> This integer values specifies the number of clients that will be connecting to the server to peform the partitioning.
+</dd>
+
+<dt>[<b>--port</b> &lt;<i>listening port</i>&gt;]</dt>
+<dd> This optional integer specifies the port at which the server should listen for client requests.<BR>
+If no port is specified, the server will ask the system to provide one.<BR>
+Regardless of verbosity value, the server will print out the address and port to the command line.
+</dd>
+
+<dt>[<b>--depth</b> &lt;<i>reconstruction depth</i>&gt;=8]
+</dt><dd> This integer is the maximum depth of the tree that will be used for surface reconstruction.
+Running at depth <i>d</i> corresponds to solving on a grid whose resolution is no larger than
+2^<i>d</i> x 2^<i>d</i> x ... Note that since the reconstructor adapts the octree to the
+sampling density, the specified reconstruction depth is only an upper bound.<br>
+</dd>
+
+<dt>[<b>--pDepth</b> &lt;<i>partition/server depth</i>&gt;=5]
+</dt><dd> This integer is the depth of the tree at which the server performs the reconstruction and is also the depth at which the partitioning of the points happens. Running at a partition/server depth <i>d</i> corresponds to having the server solve over a grid whose resolution is 2^<i>d</i> x 2^<i>d</i> x ... and partitions the point set into 2^<i>d</i> slabs.<BR>
+</dd>
+
+<dt>[<b>--width</b> &lt;<i>finest cell width</i>&gt;]
+</dt><dd> This floating point value specifies the target width of the finest level octree cells.<br>
+This parameter is ignored if the <B>--depth</B> flag is also specified.
+</dd>
+
+<dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;=1]
+</dt><dd> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.
+Larger degrees support higher order approximations, but come at the cost of denser system matrices (incurring a cost in both space and time).<br>
+This option is only available if the code is compiled without the <B>FAST_COMPILE</B> flag <code>#define</code>-ed.
+</dd>
+
+<dt>[<b>--bType</b> &lt;<i>boundary type</i>&gt;=3]
+</dt><dd> This integer specifies the boundary type for the finite elements. Valid values are:
+<ul>
+<li> <b>1</b>: Free boundary constraints
+</li><li> <b>2</b>: Dirichlet boundary constraints
+</li><li> <b>3</b>: Neumann boundary constraints
+</li></ul>
+This option is only available if the code is compiled without the <B>FAST_COMPILE</B> flag <code>#define</code>-ed.
+</dd>
+
+<dt>[<b>--scale</b> &lt;<i>scale factor</i>&gt;=1.1]
+</dt><dd> This floating point value specifies the ratio between the diameter of the cube used for reconstruction
+and the diameter of the samples' bounding cube.<br>
+</dd>
+
+<dt>[<b>--samplesPerNode</b> &lt;<i>minimum number of samples</i>&gt;=1.5]
+</dt><dd> This floating point value specifies the minimum number of sample points that should fall within an
+octree node as the octree construction is adapted to sampling density. For noise-free samples, small values
+in the range [1.0 - 5.0] can be used. For more noisy samples, larger values in the range [15.0 - 20.0] may
+be needed to provide a smoother, noise-reduced, reconstruction.<br>
+</dd>
+
+<dt>[<b>--pointWeight</b> &lt;<i>interpolation weight</i>&gt;=2*&lt;<i>B-spline degree</i>&gt;]
+</dt><dd> This floating point value specifies the importance that interpolation of the point samples
+is given in the formulation of the screened Poisson equation.<br>
+The results of the original (unscreened) Poisson Reconstruction can be obtained by setting this value to 0.<br>
+</dd>
+
+<dt>[<b>--iters</b> &lt;<i>Gauss-Seidel iterations per level</i>&gt;=8]
+</dt><dd> This integer value specifies the number of Gauss-Seidel relaxations to be performed at each level of the octree hierarchy.<br>
+</dd>
+
+<dt>[<b>--density</b>]
+</dt><dd> Enabling this flag tells the reconstructor to output the estimated depth values of the iso-surface vertices.
+</dd>
+
+<dt>[<b>--data</b> &lt;<i>pull factor</i>&gt;=32]
+</dt><dd> If the input points have additional data (e.g. color) that is to be sampled at the output vertices, this floating point value specifies the relative importance
+of finer data over lower data in performing the extrapolation.<BR>
+</dd>
+
+<dt>[<b>--confidence</b> &lt;<i>normal confidence exponent</i>&gt;=0]
+</dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to adjust its weight. (A point's confidence is defined by the magnitude of its normal.)<BR>
+</dd>
+
+<dt>[<b>--confidenceBias</b> &lt;<i>normal confidence bias exponent</i>&gt;=0]
+</dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to bias the resolution at which the sample contributes to the linear system. (Points with lower confidence are biased to contribute at coarser resolutions.)<BR>
+</dd>
+
+<dt>[<b>--verbose</b> &lt;<i>verbosity</i>&gt;=0]
+</dt><dd> This integer value specifies the level of verbosity of output provided by the client and server, with "0" corresponding to no output and "4" giving the most.<BR>
+</dd>
+
+<dt>[<b>--linearFit</b>]
+</dt><dd> Enabling this flag has the reconstructor use linear interpolation to estimate the positions of iso-vertices.
+</dd>
+
+<dt>[<b>--threads</b> &lt;<i>number of processing threads</i>&gt;={number of (virtual) processors on the executing machine}]
+</dt><dd> This integer specifies the number of threads across which the algorithm should be parallelized.
+</dd>
+
+<dt>[<b>--maxMemory</b> &lt;<i>maximum memory usage (in GB)</i>&gt;]
+</dt><dd> If positive, this integer value specifies the peak memory utilization for running the reconstruction code (forcing the execution to terminate if the limit is exceeded).<BR>
+The default value for this parameter is 0.
+</dd>
+
+</dd><dt>[<b>--performance</b>]
+</dt><dd> Enabling this flag provides running time and peak memory usage at the end of the execution.
+</dd>
+
+</dd><dt>[<b>--noFuse</b>]
+</dt><dd> Enabling this flag keeps the server from fusing shared vertices across slabs. (The reconstructions from the different clients will still be merged into a single .ply file.)
+</dd>
+
+</DETAILS>
+</dl>
+</ul>
+
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
+<font size="+1"><b>PoissonReconClient</b></font>:
+The client responsible for distributed Poisson Surface reconstruction
+<!--
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
+-->
+</SUMMARY>
+<dt><b>--port</b> &lt;<i>server port</i>&gt;</dt>
+<dd> This integer specifies the port at which to connect to the server.
+</dd>
+
+<dt>[<b>--address</b> &lt;<i>server address</i>&gt;="127.0.0.1"]</dt>
+<dd> This optional string specifies the IPv4 address of the server.<br>
+</dd>
+
+<dt>[<b>--multi</b> &lt;<i>sub-client multiplicity</i>&gt;=1]</dt>
+<dd> This optional integer specifies the number of sub-clients the client should be running serially.
+</dd>
+
+<dt>[<b>--threads</b> &lt;<i>number of processing threads</i>&gt;={number of (virtual) processors on the executing machine}]
+</dt><dd> This integer specifies the number of threads across which the algorithm should be parallelized.<br>
+The default value for this parameter is equal to the numer of (virtual) processors on the executing  machine.
+</dd>
+
+<dt>[<b>--maxMemory</b> &lt;<i>maximum memory usage (in GB)</i>&gt;=0]
+</dt><dd> If positive, this integer value specifies the peak memory utilization for running the reconstruction code (forcing the execution to terminate if the limit is exceeded).
+</dd>
+
+</dd><dt>[<b>--pause</b>]
+</dt><dd> Enabling this flag has the client wait for the user to enter [ENTER] before closing the process. (Useful if the client is opened in a temporary window, you are running the client with verbose output, and want to see the output.)
+</dd>
+
+</DETAILS>
+</dl>
+</ul>
+
+
+
+
 <ul>
 <dl>
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>SSDRecon</b></font>:
-Reconstructs a surface mesh from a set of oriented 3D points by solving for a Smooth Signed Distance function (solving a 3D bi-Laplacian system with positional value and gradient constraints) <a href="http://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>
+Reconstructs a surface mesh from a set of oriented 3D points by solving for a Smooth Signed Distance function (solving a 3D bi-Laplacian system with positional value and gradient constraints) <a href="https://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
 </dt><dd> This string is the name of the file from which the point set will be read.<br>
 If the file extension is <i>.ply</i>, the file should be in
-<a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, giving the list of oriented
+<a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, giving the list of oriented
 vertices with the x-, y-, and z-coordinates of the positions encoded by the properties <i>x</i>, <i>y</i>, and
 <i>z</i> and the x-, y-, and z-coordinates of the normals encoded by the properties <i>nx</i>, <i>ny</i>, and
 <i>nz</i> .<br>
@@ -244,7 +445,7 @@ by the x-, y- and z-coordinates of the point's normal. (No information about the
 
 </dd><dt>[<b>--out</b> &lt;<i>output triangle mesh</i>&gt;]
 </dt><dd> This string is the name of the file to which the triangle mesh will be written. 
-The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
+The file is written in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
 
 </dd><dt>[<b>--tree</b> &lt;<i>output octree and coefficients</i>&gt;]
 </dt><dd> This string is the name of the file to which the the octree and solution coefficients are to be written.
@@ -269,7 +470,7 @@ The default value for this parameter is 8.
 
 </dd><dt>[<b>--width</b> &lt;<i>finest cell width</i>&gt;]
 </dt><dd> This floating point value specifies the target width of the finest level octree cells.<br>
-This parameter is ignored if the <B>--depth</B> is also specified.
+This parameter is ignored if the <B>--depth</B> flag is also specified.
 
 </dd><dt>[<b>--scale</b> &lt;<i>scale factor</i>&gt;]
 </dt><dd> This floating point value specifies the ratio between the diameter of the cube used for reconstruction
@@ -465,14 +666,14 @@ Trims off parts of a triangle mesh with a per-vertex signal whose value falls be
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input triangle mesh</i>&gt;
 </dt><dd> This string is the name of the file from which the triangle mesh will be read. 
-The file is read in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format and it is assumed that the vertices have a <i>value</i> field which stores the signal's value. (When run with <b>--density</b> flag, the reconstructor will output this field with the mesh vertices.)
+The file is read in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format and it is assumed that the vertices have a <i>value</i> field which stores the signal's value. (When run with <b>--density</b> flag, the reconstructor will output this field with the mesh vertices.)
 
 </dd><dt><b>--trim</b> &lt;<i>trimming value</i>&gt;
 </dt><dd> This floating point values specifies the value for mesh trimming. The subset of the mesh with signal value less than the trim value is discarded.
 
 </dd><dt>[<b>--out</b> &lt;<i>output triangle mesh</i>&gt;]
 </dt><dd> This string is the name of the file to which the triangle mesh will be written. 
-The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
+The file is written in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
 
 </dd><dt>[<b>--smooth</b> &lt;<i>smoothing iterations</i>&gt;]
 </dt><dd> This integer values the number of umbrella smoothing operations to perform on the signal before trimming.<br>
@@ -502,7 +703,7 @@ The default value 0.001.
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>ImageStitching</b></font>:
-Stitches together a composite of image tiles into a seamless panorama by solving for the correction term (solving a 2D Laplacian system) <a href="http://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
+Stitches together a composite of image tiles into a seamless panorama by solving for the correction term (solving a 2D Laplacian system) <a href="https://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input composite image</i>&gt; &lt;<i>input label image</i>&gt;
 </dt><dd> This pair of strings give the name of the composite image file and the associated label file.<BR>
@@ -516,7 +717,7 @@ PNG and JPG files are supported.
 </dd><dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]
 </dt><dd> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.
 Larger degrees support higher order approximations, but come at the cost of denser system matrices (incurring a cost in both space and time).<br>
-The default value for this parameter is 1.
+The default value for this parameter is 1.<BR>
 
 </dd><dt>[<b>--wScl</b> &lt;<i>successive under-relaxation scale</i>&gt;]
 </dt><dd> This floating point value specifies the scale for the adapted successive under-relaxation used to remove ringing.<br>
@@ -559,7 +760,7 @@ Computes the unsigned Euclidean Distance Transform of a triangle mesh (solving t
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input mesh</i>&gt;
 </dt><dd> This string is the name of the file from which the triangle mesh will be read. 
-The file is assumed to be in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
+The file is assumed to be in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
 
 </dd><dt>[<b>--out</b> &lt;<i>output octree and coefficients</i>&gt;]
 </dt><dd> This string is the name of the file to which the the octree and solution coefficients are to be written.
@@ -646,7 +847,7 @@ and the next 4 x <I>R</I>^<i>D</i> bytes corresponding to the (single precision)
 
 </dd><dt>[<b>--mesh</b> &lt;<i>output triangle mesh</i>&gt;]
 </dt><dd> This string is the name of the file to which the triangle mesh will be written. 
-The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.<BR>
+The file is written in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.<BR>
 This is only supported for dimension 3.
 
 </dd><dt>[<b>--iso</b> &lt;<i>iso-value for mesh extraction</i>&gt;]
@@ -723,10 +924,10 @@ individual components of the visualizer.
 <SUMMARY>
 <font size="+1"><b>PoissonRecon / SSDRecon / SurfaceTrimmer / ChunkPly</b></font>
 </SUMMARY>
-For testing purposes, three point sets are provided:
+For testing purposes, four point sets are provided:
 <ol>
 
-<li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/horse.npts"><b>Horse</b></a>:
+<li> <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/horse.npts"><b>Horse</b></a>:
 A set of 100,000 oriented point samples (represented in ASCII format) was obtained by sampling a virtual horse model with a sampling density proportional to curvature, giving a set of non-uniformly distributed points.<br>
 The surface of the model can be reconstructed by calling the either Poisson surface reconstructor:
 <blockquote><code>% PoissonRecon --in horse.npts --out horse.ply --depth 10</code></blockquote>
@@ -734,7 +935,7 @@ or the SSD surface reconstructor
 <blockquote><code>% SSDRecon --in horse.npts --out horse.ply --depth 10</code></blockquote>
 </li>
 
-<li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/bunny.points.ply"><b>Bunny</b></a>:
+<li> <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/bunny.points.ply"><b>Bunny</b></a>:
 A set of 362,271 oriented point samples (represented in PLY format) was obtained by merging the data from the original Stanford Bunny
 <a href="ftp://graphics.stanford.edu/pub/3Dscanrep/bunny.tar.gz">range scans</a>. The orientation of the sample points was estimated
 using the connectivity information within individual range scans.<br>
@@ -745,8 +946,8 @@ By default, the Poisson surface reconstructor uses degree-2 B-splines. A more ef
 (The SSD reconstructor requires B-splines of degree at least 2 since second derivatives are required to formulate the bi-Laplacian energy.)
 </li>
 
-<li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.points.ply"><b>Eagle</b></a>:
-A set of 796,825 oriented point samples with color (represented in PLY format) was obtained in the EPFL <a href="http://lgg.epfl.ch/statues.php">Scanning 3D Statues from Photos</a> course.<br>
+<li> <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.points.ply"><b>Eagle</b></a>:
+A set of 796,825 oriented point samples with color (represented in PLY format) was obtained in the EPFL <a href="https://lgg.epfl.ch/statues.php">Scanning 3D Statues from Photos</a> course.<br>
 A reconstruction of the eagle can be obtained by calling:
 <blockquote><code>% PoissonRecon --in eagle.points.ply --out eagle.pr.ply --depth 10</code></blockquote>
 (with the RGBA color properties automatically detected from the .ply header).<BR>
@@ -759,11 +960,46 @@ This reconstruction can be chunked into cubes of size 4&times;4&times;4 by calli
 <blockquote><code>% ChunkPly --in 1 eagle.ssd.trimmed.ply --out eagle.ssd.trimmed.chnks --width 4</code></blockquote>
 which partitions the reconstruction into 11 pieces.
 
-<li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/torso.zip"><b>Torso</b></a>:
+<li> <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/torso.zip"><b>Torso</b></a>:
 A set of 3,488,432 (torso.points.ply) and an envelope (torso.envelope.ply).<br>
 A reconstruction of the torso that constrains the reconstruction to be contained within the envelope can be obtained by calling:
 <blockquote><code>% PoissonRecon --in torso.points.ply --envelope torso.envelope.ply --out torso.pr.ply --depth 10</code></blockquote>
 using the <b>--envelope</b> flag to specify the water-tight mesh constraining the reconstruction.<BR>
+</li>
+
+</ol>
+
+</DETAILS>
+</dl>
+</ul>
+
+
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
+<font size="+1"><b>PoissonReconServer / PoissonReconClient</b></font>
+</SUMMARY>
+For testing purposes, two point sets are provided:
+<ol>
+
+<li> <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/eagle.points.ply"><b>Eagle</b></a>:
+A set of 796,825 oriented point samples with color was obtained in the EPFL <a href="https://lgg.epfl.ch/statues.php">Scanning 3D Statues from Photos</a> course.<br>
+Assuming the point-set is placed in the <b>networked</b> file <code>&lt;in dir&gt;</CODE> and that a <b>networked</b> temporary folder <code>&lt;temp dir&gt;</code> exists, a distributed reconstruction of the eagle over 4 clients at depth 10, outputting the reconstruction to <code>eagle.ply</code> (relative to the directory from the server is run), can be obtained by calling:
+<blockquote><code>% PoissonReconServer --count 4 --depth 10 --in &lt;in dir&gt;/eagle.points.ply --tempDir &lt;temp dir&gt;/temp --out eagle.ply </code></blockquote>
+(with the RGBA color properties automatically detected from the .ply header).<BR>
+This will initiate the server which will output the address and port for the clients to connect to:
+<blockquote><code>Server Address: &lt;IPv4 address&gt;:&lt;port&gt;</code></blockquote>
+The four clients can then be executed by connecting them to the server:
+<blockquote><code>% PoissonReconClient --port &lt;port&gt; --address &lt;IPv4 address&gt;</code></blockquote>
+<blockquote><code>% PoissonReconClient --port &lt;port&gt; --address &lt;IPv4 address&gt;</code></blockquote>
+<blockquote><code>% PoissonReconClient --port &lt;port&gt; --address &lt;IPv4 address&gt;</code></blockquote>
+<blockquote><code>% PoissonReconClient --port &lt;port&gt; --address &lt;IPv4 address&gt;</code></blockquote>
+Alternatively, the four clients can be executed serially:
+<blockquote><code>% PoissonReconClient --port &lt;port&gt; --address &lt;IPv4 address&gt; --multi 4</code></blockquote>
+
+<li> <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/SafraSquare.points.ply"><b>Safra Square</b></a>:
+For testing purposes, the <A HREF="10163.points.ply">Safra-Square</A> point set, containing 2,364,268,059 oriented point samples with color, has been generously provided by <A HREF="https://www.resonai.com/">Resonai</A>.
 </li>
 
 </ol>
@@ -781,9 +1017,9 @@ using the <b>--envelope</b> flag to specify the water-tight mesh constraining th
 For testing purposes, a pair of point-sets is provided:
 <ol>
 
-<li> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/quadratic.2D.fitting.samples"><b>fitting samples</b></a>:
+<li> <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/quadratic.2D.fitting.samples"><b>fitting samples</b></a>:
 A set of 1000 random 2D samples from within the square [-1,1,]x[-1,1] along with the evaluation of the quadratic <i>f(x,y)=x*x+y*y</i> at each sample point (represented in ASCII format).
-<LI> <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/quadratic.2D.evaluation.samples"><b>evaluation samples</b></a>:
+<LI> <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/quadratic.2D.evaluation.samples"><b>evaluation samples</b></a>:
 A set of 4 2D positions at which the fit function is to be evaluated (represented in ASCII format).
 </ol>
 
@@ -807,7 +1043,7 @@ Note that because the (last) evaluation position (2,2) is outside the bounding b
 <SUMMARY>
 <font size="+1"><b>ImageStitching</b></font>
 </SUMMARY>
-For testing purposes, two panoramas are provided: <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Jaffa.zip"><b>Jaffa</b></a> (23794 x 9492 pixels) and <a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/OldRag.zip"><b>OldRag</b></a> (87722 x 12501 pixels).
+For testing purposes, two panoramas are provided: <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Jaffa.zip"><b>Jaffa</b></a> (23794 x 9492 pixels) and <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/OldRag.zip"><b>OldRag</b></a> (87722 x 12501 pixels).
 
 A seamless panorama can be obtained by running:
 <blockquote><code>% ImageSitching --in pixels.png labels.png --out out.png</code></blockquote>
@@ -845,107 +1081,107 @@ To obtain a sampling of the implicit function over a regular grid:
 <SUMMARY>
 <A NAME="CHANGES"><font size="+1"><b><B>HISTORY OF CHANGES</B></b></font></A>
 </SUMMARY>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">Version 3</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version3/">Version 3</a>:
 <ol>
 <li> The implementation of the <b>--samplesPerNode</b> parameter has been modified so that a value of "1" more closely corresponds to a distribution with one sample per leaf node.
 </li><li> The code has been modified to support compilation under MSVC 2010 and the associated solution and project files are now provided. (Due to a bug in the Visual Studios compiler, this required modifying the implementation of some of the bit-shifting operators.)
 </li></ol>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4/">Version 4</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4/">Version 4</a>:
 <ol>
 <li> The code supports screened reconstruction, with interpolation weight specified through the <b>--pointWeight</b> parameter.
 </li><li> The code has been implemented to support parallel processing, with the number of threads used for parallelization specified by the <b>--threads</b> parameter.
-</li><li> The input point set can now also be in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, and the file-type is determined by the extension, so that the <b>--binary</b> flag is now obsolete.
+</li><li> The input point set can now also be in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format, and the file-type is determined by the extension, so that the <b>--binary</b> flag is now obsolete.
 </li><li> At depths coarser than the one specified by the value <b>--minDepth</b> the octree is no longer adaptive but rather complete, simplifying the prolongation operator.
 </li></ol>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4.5/">Version 4.5</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4.5/">Version 4.5</a>:
 <ol>
 <li> The algorithmic complexity of the solver was reduced from log-linear to linear.
 </li></ol>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4.5/">Version 4.51</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version4.5/">Version 4.51</a>:
 <ol>
 <li> Smart pointers were added to ensure that memory accesses were in bounds.
 </li></ol>
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5/">Version 5</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5/">Version 5</a>:
 <ol>
 <li> The <b>--density</b> flag was added to the reconstructor to output the estimated depth of the iso-vertices.
 </li><li> The <i>SurfaceTrimmer</i> executable was added to support trimming off the subset of the reconstructed surface that are far away from the input samples, thereby allowing for the generation of non-water-tight surface.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.1/">Version 5.1</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.1/">Version 5.1</a>:
 <ol>
 <li> Minor bug-fix to address incorrect neighborhood estimation in the octree finalization.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.5a/">Version 5.5a</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.5a/">Version 5.5a</a>:
 <ol>
 <li> Modified to support depths greater than 14. (Should work up to 18 or 19 now.)
 </li><li> Improved speed and memory performance by removing the construction of integral and value tables.
 </li><li> Fixed a bug in Version 5.5 that used memory and took more time without doing anything useful.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.6/">Version 5.6</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.6/">Version 5.6</a>:
 <ol>
 <li> Added the <b>--normalWeight</b> flag to support setting a point's interpolation weight in proportion to the magnitude of its normal.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.7/">Version 5.7</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.7/">Version 5.7</a>:
 <ol>
 <li> Modified the setting of the constraints, replacing the map/reduce implementation with OpenMP atomics to reduce memory usage.
 </li><li> Fixed bugs that caused numerical overflow when processing large point clouds on multi-core machines.
 </li><li> Improved efficiency of the iso-surface extraction phse.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.71/">Version 5.71</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version5.71/">Version 5.71</a>:
 <ol>
 <li> Added the function <i>GetSolutionValue</i> to support the evaluation of the implicit function at a specific point.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6/">Version 6</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6/">Version 6</a>:
 <ol>
 <li> Modified the solver to use Gauss-Seidel relaxation instead of conjugate-gradients at finer resolution.
 </li><li> Re-ordered the implementation of the solver so that only a windowed subset of the matrix is in memory at any time, thereby reducing the memory usage during the solver phase.
 </li><li> Separated the storage of the data associated with the octree nodes from the topology.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.1/">Version 6.1</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.1/">Version 6.1</a>:
 <ol>
 <li> Re-ordered the implementation of the iso-surface extraction so that only a windowed subset of the octree is in memory at any time, thereby reducing the memory usage during the extracted phase.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.11/">Version 6.11</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.11/">Version 6.11</a>:
 <ol>
 <li> Fixed a bug that created a crash in the evaluation phase when <b>--pointWeight</b> is set zero.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.12/">Version 6.12</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.12/">Version 6.12</a>:
 <ol>
 <li> Removed the OpenMP <i>firstprivate</i> directive as it seemed to cause trouble under Linux compilations.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13/">Version 6.13</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13/">Version 6.13</a>:
 <ol>
 <li> Added a <b>MemoryPointStream</b> class in <i>PointStream.inl</i> to support in-memory point clouds.
 </li><li> Modified the signature of <u>Octree::SetTree</u> in <i>MultiGridOctreeData.h</i> to take in a pointer to an object of type <b>PointStream</b> rather than a file-name.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/">Version 6.13a</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version6.13a/">Version 6.13a</a>:
 <ol>
-<li> Modified the signature of <u>Octree::SetIsoSurface</u> to rerun a <i>void</i>. [<a href="http://www.danielgm.net/cc/">cloudcompare</a>]
-</li><li> Added a definition of <u>SetIsoVertexValue</u> supporting double precision vertices. [<a href="http://www.danielgm.net/cc/">cloudcompare</a>]
-</li><li> Removed <i>Time.[h/cpp]</i> from the repository. [<a href="http://www.danielgm.net/cc/">cloudcompare</a>/<a href="http://asmaloney.com/">asmaloney</a>]
-</li><li> Fixed assignment bug in <u>Octree::SetSliceIsoVertices</u>. [<a href="http://asmaloney.com/">asmaloney</a>]
-</li><li> Fixed initialization bug in <u>SortedTreeNodes::SliceTableData</u> and <u>SortedTreeNodes::XSliceTableData</u>. [<a href="http://asmaloney.com/">asmaloney</a>]
-</li><li> Included <i>stdlib.h</i> in <i>Geometry.h</i>. [<a href="http://asmaloney.com/">asmaloney</a>]
-</li><li> Fixed default value bug in declaration of <u>Octree::SetTree</u>. [<a href="http://asmaloney.com/">asmaloney</a>]
+<li> Modified the signature of <u>Octree::SetIsoSurface</u> to rerun a <i>void</i>. [<a href="https://www.danielgm.net/cc/">cloudcompare</a>]
+</li><li> Added a definition of <u>SetIsoVertexValue</u> supporting double precision vertices. [<a href="https://www.danielgm.net/cc/">cloudcompare</a>]
+</li><li> Removed <i>Time.[h/cpp]</i> from the repository. [<a href="https://www.danielgm.net/cc/">cloudcompare</a>/<a href="https://asmaloney.com/">asmaloney</a>]
+</li><li> Fixed assignment bug in <u>Octree::SetSliceIsoVertices</u>. [<a href="https://asmaloney.com/">asmaloney</a>]
+</li><li> Fixed initialization bug in <u>SortedTreeNodes::SliceTableData</u> and <u>SortedTreeNodes::XSliceTableData</u>. [<a href="https://asmaloney.com/">asmaloney</a>]
+</li><li> Included <i>stdlib.h</i> in <i>Geometry.h</i>. [<a href="https://asmaloney.com/">asmaloney</a>]
+</li><li> Fixed default value bug in declaration of <u>Octree::SetTree</u>. [<a href="https://asmaloney.com/">asmaloney</a>]
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/">Version 7.0</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version7.0/">Version 7.0</a>:
 <ol>
 <li> Added functionality to support color extrapolation if present in the input.
 </li><li> Modified a bug with the way in which sample contributions were scaled.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/">Version 8.0</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version8.0/">Version 8.0</a>:
 <ol>
 <li> Added support for different degree B-splines.
 (Note that as the B-spline degree is a template parameter, only degree 1 through 4 are supported.
@@ -955,148 +1191,153 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 </li><li> Changed the implementation of the grid sampling so that computation is now linear, rather than log-linear, in the number of samples.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">Version 9.0</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">Version 9.0</a>:
 <ol>
 <li> Added support for free boundary conditions.
-</li><li> Extended the solver to support more general linear systems. This makes it possible to use the same framework to implement the <a href="http://mesh.brown.edu/ssd/">Smoothed Signed Distance Reconstruction</a> of Calakli and Taubin (2011).
+</li><li> Extended the solver to support more general linear systems. This makes it possible to use the same framework to implement the <a href="https://mesh.brown.edu/ssd/">Smoothed Signed Distance Reconstruction</a> of Calakli and Taubin (2011).
 </li><li> Modified the implementation of density estimation and input representation. This tends to define a slightly larger system. On its own, this results in slightly increased running-time/footprint for full-res reconstructions, but provides a substantially faster implementation when the output complexity is smaller than the input.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/">Version 9.01</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/">Version 9.01</a>:
 <ol>
 <li> Reverted the density estimation to behave as in Version 8.0.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/">Version 9.011</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.01/">Version 9.011</a>:
 <ol>
 <li> Added a parameter for specifying the temporary directory.
 </li></ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/">Version 10.00</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.00/">Version 10.00</a>:
 <ol>
 <li> The code has been reworked to support arbitrary dimensions, finite elements of arbitrary degree, generally SPD systems in the evaluated/integrated values and derivatives of the functions, etc.</LI>
 <LI> For the reconstruction code, added the <B>--width</B> flag which allows the system to compute the depth of the octree given a target depth for the finest resolution nodes.</LI>
 <LI> For the reconstruction code, fixed a bug in the handling of the confidence encoded in the lengths of the normals. In addition, added the flags <B>--confidence</B> and <B>--confidenceBias</B> which allow the user more control of how confidence is used to affect the contribution of a sample.</LI>
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">Version 10.01</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.01/">Version 10.01</a>:
 <ol>
 <li> Modified the reconstruction code to facilitate interpolation of other input-sample quantities, in addition to color.</LI>
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">Version 10.02</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.02/">Version 10.02</a>:
 <ol>
 <li> Set the default value for <b>--degree</B> in PoissonRecon to 1 and change the definitiion of <I>DATA_DEGREE</I> to 0 for sharper color interpolation.</LI>
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">Version 10.03</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.03/">Version 10.03</a>:
 <ol>
 <li> Cleaned up memory leaks and fixed a bug causing ImageStitching and EDTInHeat to SEGFAULT on Linux.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">Version 10.04</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.04/">Version 10.04</a>:
 <ol>
 <li> Replaced the ply I/O code with an object-oriented implementation.
 <LI> Updated the code to support compilation under gcc version 4.8.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">Version 10.05</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.05/">Version 10.05</a>:
 <ol>
 <LI> Added cleaner support for warning and error handling.
 <LI> Minor bug fixes.
 <LI> Added a <B>--inCore</B> flag that enables keeping the pointset in memory instead of streaming it in from disk.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">Version 10.06</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.06/">Version 10.06</a>:
 <ol>
 <LI> Improved performance.
 <LI> Modified <CODE>PoissonRecon</CODE> and <CODE>SSDRecon</CODE> to support processing of 2D point sets.
 <LI> Modified the 2D implementations of <CODE>PoissonRecon</CODE>, <CODE>SSDRecon</CODE>, and <CODE>AdaptiveTreeVisualization</CODE> to support ouput to <CODE>.jpg</CODE> and <CODE>.png</CODE> image files.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">Version 10.07</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version10.07/">Version 10.07</a>:
 <ol>
 <LI> Removed a bug that would cause memory access errors when some slices were empty.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 11.00</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.00/">Version 11.00</a>:
 <ol>
 <LI> Added support for processing point-sets so large that 32-bit indices for octrees are not sufficient. (Enabled by defining the preprocessor variable <B>BIG_DATA</B> in the file <I>PreProcessor.h</I>.
 <LI> Added C++11 parallelism for compilers that do not support OpenMP.
 <LI> Added the code for <I>ChunkPly</I> which breaks up large meshes and/or point-sets into chunks.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">Version 11.01</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.01/">Version 11.01</a>:
 <ol>
 <LI> Fixed bug with <I>_mktemp</I> that caused the code to crash on Windows machine with more than 26 cores.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">Version 11.02</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version11.02/">Version 11.02</a>:
 <ol>
 <LI> Added error handling for numerical imprecision issues arrising when too many samples fall into a leaf node.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">Version 12.00</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version12.00/">Version 12.00</a>:
 <ol>
 <LI> Added functionality enabling <I>AdaptiveTreeVisualization</I> to output the values of a function at prescribed sample positions.
 <LI> Added the implementation of <I>PointInterpolant</I> that fits a function to a discrete set of sample values.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">Version 13.00</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.00/">Version 13.00</a>:
 <ol>
 <LI> Enabled passing in a constraint envelope to <I>PoissonRecon</I>, allowing one to define a region that is known to be outside the surface.
 <LI> Updated <I>ChunkPLY</I> to support processing of input points in either ASCII or binary format.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/">Version 13.50</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.50/">Version 13.50</a>:
 <ol>
 <LI> Enabled support for automatically detecting attirbutes of input point cloud (in addition to positions and normals) when provided in .ply format.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.60/">Version 13.60</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.60/">Version 13.60</a>:
 <ol>
 <LI> Modified the implementation of <I>PointInterpolant</I> to support separately prescribing value and gradient constraints.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.61/">Version 13.61</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.61/">Version 13.61</a>:
 <ol>
 <LI> Bug fix addressing the problem that the memory for a <CODE>DynamicFactory</CODE> object is dynamically allocated and not only known at construction time.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.70/">Version 13.70</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.70/">Version 13.70</a>:
 <ol>
 <LI> Using the updated <A HREF="https://www.cc.gatech.edu/~turk/ply.tar.gz">PLY libraray</A> with the less restrictive BSD license.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.71/">Version 13.71</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.71/">Version 13.71</a>:
 <ol>
 <LI> Fixed a bug that resulted in incorrect point weighting when the samples were too sparse.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/">Version 13.72</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.72/">Version 13.72</a>:
 <ol>
 <LI> Fixed a bug that could result in the reconstruction not solving up to the finest depth when the <b>--width</b> argument is used.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.73/">Version 13.73</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.73/">Version 13.73</a>:
 <ol>
 <LI> Re-fixed a bug that could result in the reconstruction not solving up to the finest depth when the <b>--width</b> argument is used.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/">Version 13.74</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/">Version 13.74</a>:
 <ol>
 <LI> Fixed a bug that could result in reconstruction failure when the reconstruction depth (e.g. computed using the <b>--width</b> argument) was lower than the full depth value.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.80/">Version 13.80</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.80/">Version 13.80</a>:
 <ol>
 <LI> Updated the <I>SurfaceTrimmer</I> code to better handle small islands.
 </ol>
 
-<a href="http://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.99/">Version 13.99</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.99/">Version 13.99</a>:
 <ol>
 <LI> Modified the <b>--width</b> parameter so that it serves as an upper bound on the width of a cell at the finest resolution.
 <LI> Modified the code so that the output mesh no longer has statistics about processing time/memory.
+</ol>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.00/">Version 14.00</a>:
+<ol>
+<LI> Added support for distributed screened Poisson Surface Reconstruction.
 </ol>
 
 </DETAILS>
@@ -1104,4 +1345,8 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 
 <hr>
 <a name="SUPPORT"><b>SUPPORT</b></a><br>
-This work genersouly supported by NSF grants #0746039 and #1422325.
+<UL>
+<LI>This work was genersouly supported by the National Science Foundation (NSF) grant numbers <A HREF="https://www.nsf.gov/awardsearch/showAward?AWD_ID=0746039">0746039</A> and <A HREF="https://www.nsf.gov/awardsearch/showAward?AWD_ID=1422325">1422325</A>.
+<LI>We are extremely grateful to the EPFL <a href="https://lgg.epfl.ch/statues.php">Scanning 3D Statues from Photos</a> course, the <A HREF="http://graphics.stanford.edu/data/3Dscanrep/">Stanford 3D Scanning Repository</A>, and <A HREF="https://www.resonai.com/">Resonai</A> for sharing their data.
+<LI>This work was carried out at the <A HREF="https://www.arch.jhu.edu/">Advanced Research Computing at Hopkins (ARCH)</A> core facility, which is supported by the National Science Foundation (NSF) grant number <A HREF="https://www.nsf.gov/awardsearch/showAward?AWD_ID=1920103">1920103</A>.
+</UL>
