@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2006, Michael Kazhdan and Matthew Bolitho
+Copyright (c) 2022, Michael Kazhdan
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,

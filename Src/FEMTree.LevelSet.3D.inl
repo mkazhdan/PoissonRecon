@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2006, Michael Kazhdan and Matthew Bolitho
+Copyright (c) 2022, Michael Kazhdan
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -1838,7 +1838,9 @@ public:
 		unsigned int maxDepth = std::max< unsigned int >( tree._maxDepth , slabDepth );
 		unsigned int slabStartAtMaxDepth = slabStart << ( maxDepth - slabDepth );
 		unsigned int slabEndAtMaxDepth = slabEnd << ( maxDepth - slabDepth );
+#ifdef SHOW_WARNINGS
 		if( slabDepth>(unsigned int)fullDepth && ( ( slabStart!=0 && !backBoundary ) || ( slabEnd+1!=1<<(slabDepth) && !frontBoundary ) ) ) WARN( "Slab depth exceeds full depth, reconstruction may not be water-tight: " , slabDepth , " <= " , fullDepth , " [ " , slabStart , " , " , slabEnd , " )" );
+#endif // SHOW_WARNINGS
 
 		_BadRootCount = 0u;
 		Stats stats;

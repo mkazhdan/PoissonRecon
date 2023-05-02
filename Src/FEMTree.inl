@@ -256,7 +256,9 @@ void FEMTree< Dim , Real >::slice( const FEMTree< Dim+1 , Real > &tree , unsigne
 #endif // __GNUC__
 				{
 					double eps = 1e-4/(1<<depth);
+#ifdef SHOW_WARNINGS
 					WARN_ONCE( "Using discrete derivative: " , eps );
+#endif // SHOW_WARNINGS
 					// If we are dealing with a degree-zero polynomial, we offset
 					if( d==0 )
 					{

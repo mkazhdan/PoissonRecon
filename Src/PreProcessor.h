@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2019, Michael Kazhdan and Matthew Bolitho
+Copyright (c) 2019, Michael Kazhdan
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -29,11 +29,13 @@ DAMAGE.
 #ifndef PRE_PROCESSOR_INCLUDED
 #define PRE_PROCESSOR_INCLUDED
 
+#ifndef BIG_DATA								// Allow over-riding if defined before PreProcessor.h
 #undef BIG_DATA									// Supports processing requiring more than 32-bit integers for indexing
 												// Note: enabling BIG_DATA can generate .ply files using "longlong" for vertex indices instead of "int".
 												// These are not standardly supported by .ply reading/writing applications.
 												// The executable ChunkPLY can help by partitioning the mesh into more manageable chunks
 												// (each of which is small enough to be represented using 32-bit indexing.)
+#endif // BIG_DATA
 						
 #define FAST_COMPILE								// If enabled, only a single version of the code is compiled
 #undef SHOW_WARNINGS							// Display compilation warnings
@@ -43,7 +45,7 @@ DAMAGE.
 #define USE_DEEP_TREE_NODES						// Chances are that if you are using big data, you want to support a tree with depth>15.
 #endif // BIG_DATA
 
-#define VERSION "13.99"							// The version of the code
+#define VERSION "14.00"							// The version of the code
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12		// The chunk size for memory allocation
 
 #endif // PRE_PROCESSOR_INCLUDED

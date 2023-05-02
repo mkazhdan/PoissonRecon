@@ -26,7 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include "PreProcessor.h"
 #include "MarchingCubes.h"
 
 // Level-set extraction data

@@ -64,7 +64,64 @@ namespace PLY
 	PlyProperty Face<          long long , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
 	template<>
 	PlyProperty Face< unsigned long long , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
+
 	// Read
+	inline PlyFile *ReadHeader( std::string fileName , int &fileType , std::vector< std::tuple< std::string , size_t , std::vector< PlyProperty > > > &elems , std::vector< std::string > &comments )
+	{
+		std::vector< std::string > elist;
+		float version;
+
+		PlyFile *ply = PlyFile::Read( fileName , elist , fileType , version );
+		if( !ply ) ERROR_OUT( "Could not open ply file for reading: " , fileName );
+
+		elems.resize( elist.size() );
+		for( unsigned int i=0 ; i<elist.size() ; i++ )
+		{
+			std::get<0>( elems[i] ) = elist[i];
+			std::get<2>( elems[i] ) = ply->get_element_description( std::get<0>( elems[i] ) , std::get<1>( elems[i] ) );
+		}
+
+		comments.resize( ply->comments.size() );
+		for( int i=0 ; i<ply->comments.size() ; i++ ) comments[i] = ply->comments[i];
+
+		return ply;
+	}
+
+	inline PlyFile *WriteHeader( std::string fileName , int fileType , const std::vector< std::tuple< std::string , size_t , std::vector< PlyProperty > > > &elems , const std::vector< std::string > &comments )
+	{
+		PlyFile *ply = NULL;
+		{
+			float version;
+			std::vector< std::string > elist( elems.size() );
+			for( unsigned int i=0 ; i<elems.size() ; i++ ) elist[i] = std::get<0>( elems[i] );
+			ply = PlyFile::Write( fileName , elist , fileType , version );
+		}
+		if( !ply ) ERROR_OUT( "Could not open ply for writing: " , fileName );
+		for( unsigned int i=0 ; i<elems.size() ; i++ )
+		{
+			ply->element_count( std::get<0>( elems[i] ) , std::get<1>( elems[i] ) );
+			const std::vector< PlyProperty > &props = std::get<2>( elems[i] );
+			for( unsigned int j=0 ; j<props.size() ; j++ ) ply->describe_property( std::get<0>( elems[i] ) , &props[j] );
+		}
+
+		for( int i=0 ; i<comments.size() ; i++ ) ply->put_comment( comments[i] );
+		ply->header_complete();
+
+		return ply;
+	}
+
+	inline PlyFile *ReadHeader( std::string fileName , int &fileType , std::vector< std::tuple< std::string , size_t , std::vector< PlyProperty > > > &elems )
+	{
+		std::vector< std::string > comments;
+		return ReadHeader( fileName , fileType , elems , comments );
+	}
+
+	inline PlyFile *WriteHeader( std::string fileName , int fileType , const std::vector< std::tuple< std::string , size_t , std::vector< PlyProperty > > > &elems )
+	{
+		std::vector< std::string > comments;
+		return WriteHeader( fileName , fileType , elems , comments );
+	}
+
 	template< typename VertexFactory >
 	inline int ReadVertexHeader( std::string fileName , const VertexFactory &vFactory , bool *readFlags )
 	{
@@ -143,7 +200,7 @@ namespace PLY
 	template< typename VertexFactory , typename Index >
 	void ReadPolygons( std::string fileName , const VertexFactory &vFactory , std::vector< typename VertexFactory::VertexType > &vertices , std::vector< std::vector< Index > > &polygons , int &file_type , std::vector< std::string > &comments , bool *readFlags )
 	{
-		std::vector< std::string > elist = { std::string( "vertex" ) , std::string( "face" ) };
+		std::vector< std::string > elist;
 		float version;
 
 		PlyFile *ply = PlyFile::Read( fileName , elist , file_type , version );

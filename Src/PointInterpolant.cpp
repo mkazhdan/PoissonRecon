@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2006, Michael Kazhdan and Matthew Bolitho
+Copyright (c) 2014, Michael Kazhdan
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -383,7 +383,8 @@ void ExtractMesh
 
 	std::vector< std::string > noComments;
 	typename VertexFactory::Transform unitCubeToModelTransform( unitCubeToModel );
-	PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( Out.value , vertexFactory , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , unitCubeToModelTransform );
+	auto xForm = [&]( typename VertexFactory::VertexType &v ){ unitCubeToModelTransform.inPlace(v); };
+	PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( Out.value , vertexFactory , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , xForm );
 	delete mesh;
 }
 

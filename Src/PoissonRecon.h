@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2022, Michael Kazhdan and Matthew Bolitho
+Copyright (c) 2023, Michael Kazhdan
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -38,7 +38,7 @@ DAMAGE.
 #define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
 #define NORMAL_DEGREE 2							// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
 #define DEFAULT_FEM_DEGREE 1					// The default finite-element degree
-#define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
+#define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type {BOUNDARY_FREE, BOUNDARY_DIRICHLET, BOUNDARY_NEUMANN}
 #define DEFAULT_DIMENSION 3						// The dimension of the system
 
 const float DefaultPointWeightMultiplier = 2.f;

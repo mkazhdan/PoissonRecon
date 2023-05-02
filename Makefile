@@ -1,4 +1,6 @@
 PR_TARGET=PoissonRecon
+PRC_TARGET=PoissonReconClient
+PRS_TARGET=PoissonReconServer
 SR_TARGET=SSDRecon
 PI_TARGET=PointInterpolant
 ST_TARGET=SurfaceTrimmer
@@ -7,6 +9,8 @@ IS_TARGET=ImageStitching
 AV_TARGET=AdaptiveTreeVisualization
 CP_TARGET=ChunkPLY
 PR_SOURCE=PoissonRecon.cpp
+PRC_SOURCE=PoissonReconClient.cpp
+PRS_SOURCE=PoissonReconServer.cpp
 SR_SOURCE=SSDRecon.cpp
 PI_SOURCE=PointInterpolant.cpp
 ST_SOURCE=SurfaceTrimmer.cpp
@@ -30,7 +34,7 @@ else
 	CFLAGS += -Wno-deprecated -std=c++17 -pthread -Wno-invalid-offsetof -Wno-dangling-else
 	LFLAGS += -lstdc++
 endif
-LFLAGS += -lz -lpng -ljpeg
+LFLAGS_IMG += -lz -lpng -ljpeg
 #LFLAGS += -ljpeg -lmypng -lz
 
 CFLAGS_DEBUG = -DDEBUG -g3
@@ -60,6 +64,8 @@ endif
 MD=mkdir
 
 PR_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(PR_SOURCE))))
+PRC_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(PRC_SOURCE))))
+PRS_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(PRS_SOURCE))))
 SR_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(SR_SOURCE))))
 PI_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(PI_SOURCE))))
 ST_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(ST_SOURCE))))
@@ -73,6 +79,8 @@ all: CFLAGS += $(CFLAGS_RELEASE)
 all: LFLAGS += $(LFLAGS_RELEASE)
 all: make_dir
 all: $(BIN)$(PR_TARGET)
+all: $(BIN)$(PRC_TARGET)
+all: $(BIN)$(PRS_TARGET)
 all: $(BIN)$(SR_TARGET)
 all: $(BIN)$(PI_TARGET)
 all: $(BIN)$(ST_TARGET)
@@ -85,6 +93,8 @@ debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: LFLAGS += $(LFLAGS_DEBUG)
 debug: make_dir
 debug: $(BIN)$(PR_TARGET)
+debug: $(BIN)$(PRC_TARGET)
+debug: $(BIN)$(PRS_TARGET)
 debug: $(BIN)$(SR_TARGET)
 debug: $(BIN)$(PI_TARGET)
 debug: $(BIN)$(ST_TARGET)
@@ -97,6 +107,16 @@ poissonrecon: CFLAGS += $(CFLAGS_RELEASE)
 poissonrecon: LFLAGS += $(LFLAGS_RELEASE)
 poissonrecon: make_dir
 poissonrecon: $(BIN)$(PR_TARGET)
+
+poissonreconclient: CFLAGS += $(CFLAGS_RELEASE)
+poissonreconclient: LFLAGS += $(LFLAGS_RELEASE)
+poissonreconclient: make_dir
+poissonreconclient: $(BIN)$(PRC_TARGET)
+
+poissonreconserver: CFLAGS += $(CFLAGS_RELEASE)
+poissonreconserver: LFLAGS += $(LFLAGS_RELEASE)
+poissonreconserver: make_dir
+poissonreconserver: $(BIN)$(PRS_TARGET)
 
 ssdrecon: CFLAGS += $(CFLAGS_RELEASE)
 ssdrecon: LFLAGS += $(LFLAGS_RELEASE)
@@ -135,6 +155,8 @@ chunkply: $(BIN)$(CP_TARGET)
 
 clean:
 	rm -rf $(BIN)$(PR_TARGET)
+	rm -rf $(BIN)$(PRC_TARGET)
+	rm -rf $(BIN)$(PRS_TARGET)
 	rm -rf $(BIN)$(SR_TARGET)
 	rm -rf $(BIN)$(PI_TARGET)
 	rm -rf $(BIN)$(ST_TARGET)
@@ -143,6 +165,8 @@ clean:
 	rm -rf $(BIN)$(AV_TARGET)
 	rm -rf $(BIN)$(CP_TARGET)
 	rm -rf $(PR_OBJECTS)
+	rm -rf $(PRC_OBJECTS)
+	rm -rf $(PRS_OBJECTS)
 	rm -rf $(SR_OBJECTS)
 	rm -rf $(PI_OBJECTS)
 	rm -rf $(ST_OBJECTS)
@@ -158,15 +182,21 @@ make_dir:
 
 $(BIN)$(PR_TARGET): $(PR_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS)
+	$(CXX) -pthread -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
+
+$(BIN)$(PRC_TARGET): $(PRC_OBJECTS)
+	$(CXX) -pthread -o $@ $(PRC_OBJECTS) -L$(BIN) -lboost_system $(LFLAGS)
+
+$(BIN)$(PRS_TARGET): $(PRS_OBJECTS)
+	$(CXX) -pthread -o $@ $(PRS_OBJECTS) -L$(BIN) -lboost_system $(LFLAGS)
 
 $(BIN)$(SR_TARGET): $(SR_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(SR_OBJECTS) -L$(BIN) $(LFLAGS)
+	$(CXX) -pthread -o $@ $(SR_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
 
 $(BIN)$(PI_TARGET): $(PI_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(PI_OBJECTS) -L$(BIN) $(LFLAGS)
+	$(CXX) -pthread -o $@ $(PI_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
 
 $(BIN)$(ST_TARGET): $(ST_OBJECTS)
 	$(CXX) -pthread -o $@ $(ST_OBJECTS) $(LFLAGS)
@@ -176,15 +206,15 @@ $(BIN)$(EH_TARGET): $(EH_OBJECTS)
 
 $(BIN)$(IS_TARGET): $(IS_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS)
+	$(CXX) -pthread -o $@ $(IS_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
 
 $(BIN)$(AV_TARGET): $(AV_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(AV_OBJECTS) -L$(BIN) $(LFLAGS)
+	$(CXX) -pthread -o $@ $(AV_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
 
 $(BIN)$(CP_TARGET): $(CP_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
-	$(CXX) -pthread -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS)
+	$(CXX) -pthread -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
 
 $(BIN)%.o: $(SRC)%.c
 	$(CC) -c -o $@ -I$(INCLUDE) $<

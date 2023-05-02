@@ -89,7 +89,16 @@ struct Timer
 {
 	Timer( void ){ _startCPUClock = std::clock() , _startWallClock = std::chrono::system_clock::now(); }
 	double cpuTime( void ) const{ return (std::clock() - _startCPUClock) / (double)CLOCKS_PER_SEC; };
-	double wallTime( void ) const{  std::chrono::duration<double> diff = (std::chrono::system_clock::now() - _startWallClock) ; return diff.count(); }
+	double wallTime( void ) const{ std::chrono::duration<double> diff = (std::chrono::system_clock::now() - _startWallClock) ; return diff.count(); }
+	std::string operator()( bool showCpuTime , unsigned int precision=1 ) const
+	{
+		std::stringstream ss;
+		StreamFloatPrecision sfp( ss , precision );
+		ss << wallTime() << " (s)";
+		if( showCpuTime ) ss << " / " << cpuTime() << " (s)";
+		return ss.str();
+	}
+	friend std::ostream &operator << ( std::ostream &os , const Timer &timer ){ return os << timer(false); }
 protected:
 	std::clock_t _startCPUClock;
 	std::chrono::time_point< std::chrono::system_clock > _startWallClock;
@@ -787,7 +796,7 @@ struct Profiler
 		else if( currentPeak>_currentPeak ) _currentPeak = currentPeak;
 	}
 
-	std::string operator()( std::string header="" ) const
+	std::string operator()( bool showTime=true ) const
 	{
 		std::stringstream ss;
 		double dt = Time()-_t;
@@ -795,8 +804,8 @@ struct Profiler
 		double globalPeakMB = ( (double)getPeakRSS() )/(1<<20);
 		{
 			StreamFloatPrecision sfp( ss , 1 );
-			if( header.length() ) ss << header << " ";
-			ss << dt << " (s), " << localPeakMB << " (MB) / " << globalPeakMB << " (MB)";
+			if( showTime ) ss << dt << " (s), ";
+			ss << localPeakMB << " (MB) / " << globalPeakMB << " (MB)";
 		}
 		return ss.str();
 	}

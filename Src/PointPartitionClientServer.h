@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2010, Michael Kazhdan
+Copyright (c) 2023, Michael Kazhdan
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -26,55 +26,45 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#ifndef JPEG_INCLUDED
-#define JPEG_INCLUDED
-#include "Image.h"
+#ifndef POINT_PARTITION_CLIENT_SERVER_INCLUDED
+#define POINT_PARTITION_CLIENT_SERVER_INCLUDED
 
-#include <setjmp.h>
+#include <string>
+#include "PointPartition.h"
+#include "Socket.h"
+#include "MyMiscellany.h"
+#include "CmdLineParser.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#include "JPEG/jpeglib.h"
-#include "JPEG/jerror.h"
-#include "JPEG/jmorecfg.h"
-#else // !_WIN32
-#include <jpeglib.h>
-#include <jerror.h>
-#include <jmorecfg.h>
-#endif // _WIN32
 
-struct my_error_mgr
+namespace PointPartitionClientServer
 {
-	struct jpeg_error_mgr pub;    // "public" fields
-	jmp_buf setjmp_buffer;        // for return to caller
-};
-typedef struct my_error_mgr * my_error_ptr;
+	template< typename Real >
+	struct ClientPartitionInfo
+	{
+		std::string in , tempDir , outDir , outHeader;
+		unsigned int slabs , filesPerDir , bufferSize , clientCount;
+		Real scale;
+		bool verbose;
 
-struct JPEGReader : public ImageReader
-{
-	JPEGReader( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels );
-	~JPEGReader( void );
-	unsigned int nextRow( unsigned char* row );
-	static bool GetInfo( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels );
-protected:
-	FILE* _fp;
-	struct jpeg_decompress_struct _cInfo;
-	struct my_error_mgr _jErr;
-	unsigned int _currentRow;
-};
+		ClientPartitionInfo( void );
+		ClientPartitionInfo( BinaryStream &stream );
 
-struct JPEGWriter : public ImageWriter
-{
-	JPEGWriter( const char* fileName , unsigned int width , unsigned int height , unsigned int channels , unsigned int quality=100 );
-	~JPEGWriter( void );
-	unsigned int nextRow( const unsigned char* row );
-	unsigned int nextRows( const unsigned char* rows , unsigned int rowNum );
-protected:
-	FILE* _fp;
-	struct jpeg_compress_struct _cInfo;
-	struct my_error_mgr _jErr;
-	unsigned int _currentRow;
-};
+		void write( BinaryStream &stream ) const;
+	};
 
-#include "JPEG.inl"
-#endif //JPEG_INCLUDED
+
+	template< typename Real , unsigned int Dim >
+	std::pair< PointPartition::PointSetInfo< Real , Dim > , PointPartition::Partition > RunServer
+	(
+		std::vector< Socket > &clientSockets ,
+		ClientPartitionInfo< Real > clientPartitionInfo ,
+		bool loadBalance
+	);
+
+	template< typename Real , unsigned int Dim >
+	void RunClients( std::vector< Socket > &serverSockets );
+
+#include "PointPartitionClientServer.inl"
+}
+
+#endif // POINT_PARTITION_CLIENT_SERVER_INCLUDED

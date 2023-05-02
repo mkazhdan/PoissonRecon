@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2010, Michael Kazhdan
+Copyright (c) 2023, Michael Kazhdan
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -26,55 +26,46 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#ifndef JPEG_INCLUDED
-#define JPEG_INCLUDED
-#include "Image.h"
+#ifndef MERGE_PLY_CLIENT_SERVER_INCLUDED
+#define MERGE_PLY_CLIENT_SERVER_INCLUDED
 
-#include <setjmp.h>
+#include <string>
+#include "Socket.h"
+#include "MyMiscellany.h"
+#include "CmdLineParser.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#include "JPEG/jpeglib.h"
-#include "JPEG/jerror.h"
-#include "JPEG/jmorecfg.h"
-#else // !_WIN32
-#include <jpeglib.h>
-#include <jerror.h>
-#include <jmorecfg.h>
-#endif // _WIN32
 
-struct my_error_mgr
+namespace MergePlyClientServer
 {
-	struct jpeg_error_mgr pub;    // "public" fields
-	jmp_buf setjmp_buffer;        // for return to caller
-};
-typedef struct my_error_mgr * my_error_ptr;
+	struct ClientMergePlyInfo
+	{
+		std::vector< PlyProperty > auxProperties;
+		size_t bufferSize;
+		bool verbose;
 
-struct JPEGReader : public ImageReader
-{
-	JPEGReader( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels );
-	~JPEGReader( void );
-	unsigned int nextRow( unsigned char* row );
-	static bool GetInfo( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels );
-protected:
-	FILE* _fp;
-	struct jpeg_decompress_struct _cInfo;
-	struct my_error_mgr _jErr;
-	unsigned int _currentRow;
-};
+		ClientMergePlyInfo( void );
+		ClientMergePlyInfo( BinaryStream &stream );
 
-struct JPEGWriter : public ImageWriter
-{
-	JPEGWriter( const char* fileName , unsigned int width , unsigned int height , unsigned int channels , unsigned int quality=100 );
-	~JPEGWriter( void );
-	unsigned int nextRow( const unsigned char* row );
-	unsigned int nextRows( const unsigned char* rows , unsigned int rowNum );
-protected:
-	FILE* _fp;
-	struct jpeg_compress_struct _cInfo;
-	struct my_error_mgr _jErr;
-	unsigned int _currentRow;
-};
+		void write( BinaryStream &stream ) const;
+	};
 
-#include "JPEG.inl"
-#endif //JPEG_INCLUDED
+	template< typename Real , unsigned int Dim >
+	void RunServer
+	(
+		std::string inDir , 
+		std::string tempDir ,
+		std::string header ,
+		std::string out ,
+		std::vector< Socket > &clientSockets ,
+		const std::vector< unsigned int > &sharedVertexCounts ,
+		ClientMergePlyInfo clientMergePlyInfo ,
+		unsigned int sampleMS
+	);
+
+	template< typename Real , unsigned int Dim >
+	void RunClients( std::vector< Socket > &serverSockets , unsigned int sampleMS );
+
+#include "MergePlyClientServer.inl"
+}
+
+#endif // MERGE_PLY_CLIENT_SERVER_INCLUDED
