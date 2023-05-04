@@ -28,6 +28,7 @@ DAMAGE.
 #ifndef VERTEX_FACTORY_INCLUDED
 #define VERTEX_FACTORY_INCLUDED
 
+#include <inttypes.h>
 #include "Ply.h"
 #include "Array.h"
 
@@ -43,6 +44,14 @@ namespace VertexFactory
 		UINT ,
 		FLOAT ,
 		DOUBLE ,
+		INT_8 ,
+		UINT_8 ,
+		INT_16 ,
+		UINT_16 ,
+		INT_32 ,
+		UINT_32 ,
+		INT_64 ,
+		UINT_64 ,
 		UNKNOWN
 	};
 

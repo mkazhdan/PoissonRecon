@@ -32,12 +32,20 @@ namespace VertexFactory
 	{
 		switch( typeOnDisk )
 		{
-			case TypeOnDisk::CHAR:   return PLY::Type<          char >();
-			case TypeOnDisk::UCHAR:  return PLY::Type< unsigned char >();
-			case TypeOnDisk::INT:    return PLY::Type<           int >();
-			case TypeOnDisk::UINT:   return PLY::Type< unsigned  int >();
-			case TypeOnDisk::FLOAT:  return PLY::Type<         float >();
-			case TypeOnDisk::DOUBLE: return PLY::Type<        double >();
+			case TypeOnDisk::CHAR:    return PLY::Type<          char >();
+			case TypeOnDisk::UCHAR:   return PLY::Type< unsigned char >();
+			case TypeOnDisk::INT:     return PLY::Type<           int >();
+			case TypeOnDisk::UINT:    return PLY::Type< unsigned  int >();
+			case TypeOnDisk::FLOAT:   return PLY::Type<         float >();
+			case TypeOnDisk::DOUBLE:  return PLY::Type<        double >();
+			case TypeOnDisk::INT_8:   return PLY::Type<        int8_t >();
+			case TypeOnDisk::UINT_8:  return PLY::Type<       uint8_t >();
+			case TypeOnDisk::INT_16:  return PLY::Type<       int16_t >();
+			case TypeOnDisk::UINT_16: return PLY::Type<      uint16_t >();
+			case TypeOnDisk::INT_32:  return PLY::Type<       int32_t >();
+			case TypeOnDisk::UINT_32: return PLY::Type<      uint32_t >();
+			case TypeOnDisk::INT_64:  return PLY::Type<       int64_t >();
+			case TypeOnDisk::UINT_64: return PLY::Type<      uint64_t >();
 			default: ERROR_OUT( "Unrecognized type: " , typeOnDisk );
 		}
 		return -1;
@@ -53,17 +61,38 @@ namespace VertexFactory
 			case PLY_UCHAR:  return TypeOnDisk::UCHAR;
 			case PLY_FLOAT:  return TypeOnDisk::FLOAT;
 			case PLY_DOUBLE: return TypeOnDisk::DOUBLE;
+			case PLY_INT_8:   return TypeOnDisk::INT_8;
+			case PLY_UINT_8:  return TypeOnDisk::UINT_8;
+			case PLY_INT_16:  return TypeOnDisk::INT_16;
+			case PLY_UINT_16: return TypeOnDisk::UINT_16;
+			case PLY_INT_32:  return TypeOnDisk::INT_32;
+			case PLY_UINT_32: return TypeOnDisk::UINT_32;
+			case PLY_INT_64:  return TypeOnDisk::INT_64;
+			case PLY_UINT_64: return TypeOnDisk::UINT_64;
 			default: ERROR_OUT( "Unrecognized type: " , plyType );
 		}
 		return TypeOnDisk::UNKNOWN;
 	}
 
-	template<> TypeOnDisk GetTypeOnDisk<          char >( void ){ return TypeOnDisk::CHAR;  }
-	template<> TypeOnDisk GetTypeOnDisk< unsigned char >( void ){ return TypeOnDisk::UCHAR; }
-	template<> TypeOnDisk GetTypeOnDisk<           int >( void ){ return TypeOnDisk::INT;  }
-	template<> TypeOnDisk GetTypeOnDisk< unsigned  int >( void ){ return TypeOnDisk::UINT; }
-	template<> TypeOnDisk GetTypeOnDisk<         float >( void ){ return TypeOnDisk::FLOAT;  }
-	template<> TypeOnDisk GetTypeOnDisk<        double >( void ){ return TypeOnDisk::DOUBLE; }
+	template< typename Type > TypeOnDisk GetTypeOnDisk( void )
+	{
+		if      constexpr( std::is_same< Type ,          char >::value ) return TypeOnDisk::CHAR;
+		else if constexpr( std::is_same< Type , unsigned char >::value ) return TypeOnDisk::UCHAR;
+		else if constexpr( std::is_same< Type ,           int >::value ) return TypeOnDisk::INT;
+		else if constexpr( std::is_same< Type , unsigned  int >::value ) return TypeOnDisk::UINT;
+		else if constexpr( std::is_same< Type ,        int8_t >::value ) return TypeOnDisk::INT_8;
+		else if constexpr( std::is_same< Type ,       uint8_t >::value ) return TypeOnDisk::UINT_8;
+		else if constexpr( std::is_same< Type ,       int16_t >::value ) return TypeOnDisk::INT_16;
+		else if constexpr( std::is_same< Type ,      uint16_t >::value ) return TypeOnDisk::UINT_16;
+		else if constexpr( std::is_same< Type ,       int32_t >::value ) return TypeOnDisk::INT_32;
+		else if constexpr( std::is_same< Type ,      uint32_t >::value ) return TypeOnDisk::UINT_32;
+		else if constexpr( std::is_same< Type ,       int64_t >::value ) return TypeOnDisk::INT_64;
+		else if constexpr( std::is_same< Type ,      uint64_t >::value ) return TypeOnDisk::UINT_64;
+		else if constexpr( std::is_same< Type ,         float >::value ) return TypeOnDisk::FLOAT;
+		else if constexpr( std::is_same< Type ,        double >::value ) return TypeOnDisk::DOUBLE;
+		else ERROR_OUT( "Unrecognized type" );
+		return TypeOnDisk::UNKNOWN;
+	}
 
 	template< typename Real >
 	template< typename Type >
@@ -94,12 +123,20 @@ namespace VertexFactory
 		if( TypeOnDisk()==typeOnDisk ) return fread( &s , sizeof(Real) , 1 , fp )==1;
 		switch( typeOnDisk )
 		{
-			case TypeOnDisk::CHAR:   return _ReadBinary<          char >( fp , s );
-			case TypeOnDisk::UCHAR:  return _ReadBinary< unsigned char >( fp , s );
-			case TypeOnDisk::INT:    return _ReadBinary<           int >( fp , s );
-			case TypeOnDisk::UINT:   return _ReadBinary< unsigned  int >( fp , s );
-			case TypeOnDisk::FLOAT:  return _ReadBinary<         float >( fp , s );
-			case TypeOnDisk::DOUBLE: return _ReadBinary<        double >( fp , s );
+			case TypeOnDisk::CHAR:    return _ReadBinary<          char >( fp , s );
+			case TypeOnDisk::UCHAR:   return _ReadBinary< unsigned char >( fp , s );
+			case TypeOnDisk::INT:     return _ReadBinary<           int >( fp , s );
+			case TypeOnDisk::UINT:    return _ReadBinary< unsigned  int >( fp , s );
+			case TypeOnDisk::FLOAT:   return _ReadBinary<         float >( fp , s );
+			case TypeOnDisk::DOUBLE:  return _ReadBinary<        double >( fp , s );
+			case TypeOnDisk::INT_8:   return _ReadBinary<        int8_t >( fp , s );
+			case TypeOnDisk::UINT_8:  return _ReadBinary<       uint8_t >( fp , s );
+			case TypeOnDisk::INT_16:  return _ReadBinary<       int16_t >( fp , s );
+			case TypeOnDisk::UINT_16: return _ReadBinary<      uint16_t >( fp , s );
+			case TypeOnDisk::INT_32:  return _ReadBinary<       int32_t >( fp , s );
+			case TypeOnDisk::UINT_32: return _ReadBinary<      uint32_t >( fp , s );
+			case TypeOnDisk::INT_64:  return _ReadBinary<       int64_t >( fp , s );
+			case TypeOnDisk::UINT_64: return _ReadBinary<      uint64_t >( fp , s );
 			default: ERROR_OUT( "Unrecognized type: " , typeOnDisk );
 		}
 		return true;
@@ -109,12 +146,20 @@ namespace VertexFactory
 	{
 		switch( typeOnDisk )
 		{
-			case TypeOnDisk::CHAR:   fprintf( fp , " %d" , (         char)s ) ; break;
-			case TypeOnDisk::UCHAR:  fprintf( fp , " %u" , (unsigned char)s ) ; break;
-			case TypeOnDisk::INT:    fprintf( fp , " %d" , (          int)s ) ; break;
-			case TypeOnDisk::UINT:   fprintf( fp , " %u" , (unsigned  int)s ) ; break;
-			case TypeOnDisk::FLOAT:  fprintf( fp , " %f" , (        float)s ) ; break;
-			case TypeOnDisk::DOUBLE: fprintf( fp , " %f" , (       double)s ) ; break;
+			case TypeOnDisk::CHAR:    fprintf( fp , " %d"       , (         char)s ) ; break;
+			case TypeOnDisk::UCHAR:   fprintf( fp , " %u"       , (unsigned char)s ) ; break;
+			case TypeOnDisk::INT:     fprintf( fp , " %d"       , (          int)s ) ; break;
+			case TypeOnDisk::UINT:    fprintf( fp , " %u"       , (unsigned  int)s ) ; break;
+			case TypeOnDisk::FLOAT:   fprintf( fp , " %f"       , (        float)s ) ; break;
+			case TypeOnDisk::DOUBLE:  fprintf( fp , " %f"       , (       double)s ) ; break;
+			case TypeOnDisk::INT_8:   fprintf( fp , " %" PRId8  , (       int8_t)s ) ; break;
+			case TypeOnDisk::UINT_8:  fprintf( fp , " %" PRIu8  , (      uint8_t)s ) ; break;
+			case TypeOnDisk::INT_16:  fprintf( fp , " %" PRId16 , (      int16_t)s ) ; break;
+			case TypeOnDisk::UINT_16: fprintf( fp , " %" PRIu16 , (     uint16_t)s ) ; break;
+			case TypeOnDisk::INT_32:  fprintf( fp , " %" PRId32 , (      int32_t)s ) ; break;
+			case TypeOnDisk::UINT_32: fprintf( fp , " %" PRIu32 , (     uint32_t)s ) ; break;
+			case TypeOnDisk::INT_64:  fprintf( fp , " %" PRId64 , (      int64_t)s ) ; break;
+			case TypeOnDisk::UINT_64: fprintf( fp , " %" PRIu64 , (     uint64_t)s ) ; break;
 			default: ERROR_OUT( "Unrecongized type: " , typeOnDisk );
 		}
 	}
@@ -125,12 +170,20 @@ namespace VertexFactory
 		if( TypeOnDisk()==typeOnDisk ) fwrite( &s , sizeof(Real) , 1 , fp );
 		switch( typeOnDisk )
 		{
-			case TypeOnDisk::CHAR:   _WriteBinary<          char >( fp , s ) ; break;
-			case TypeOnDisk::UCHAR:  _WriteBinary< unsigned char >( fp , s ) ; break;
-			case TypeOnDisk::INT:    _WriteBinary<           int >( fp , s ) ; break;
-			case TypeOnDisk::UINT:   _WriteBinary< unsigned  int >( fp , s ) ; break;
-			case TypeOnDisk::FLOAT:  _WriteBinary<         float >( fp , s ) ; break;
-			case TypeOnDisk::DOUBLE: _WriteBinary<        double >( fp , s ) ; break;
+			case TypeOnDisk::CHAR:    _WriteBinary<          char >( fp , s ) ; break;
+			case TypeOnDisk::UCHAR:   _WriteBinary< unsigned char >( fp , s ) ; break;
+			case TypeOnDisk::INT:     _WriteBinary<           int >( fp , s ) ; break;
+			case TypeOnDisk::UINT:    _WriteBinary< unsigned  int >( fp , s ) ; break;
+			case TypeOnDisk::FLOAT:   _WriteBinary<         float >( fp , s ) ; break;
+			case TypeOnDisk::DOUBLE:  _WriteBinary<        double >( fp , s ) ; break;
+			case TypeOnDisk::INT_8:   _WriteBinary<        int8_t >( fp , s ) ; break;
+			case TypeOnDisk::UINT_8:  _WriteBinary<       uint8_t >( fp , s ) ; break;
+			case TypeOnDisk::INT_16:  _WriteBinary<       int16_t >( fp , s ) ; break;
+			case TypeOnDisk::UINT_16: _WriteBinary<      uint16_t >( fp , s ) ; break;
+			case TypeOnDisk::INT_32:  _WriteBinary<       int32_t >( fp , s ) ; break;
+			case TypeOnDisk::UINT_32: _WriteBinary<      uint32_t >( fp , s ) ; break;
+			case TypeOnDisk::INT_64:  _WriteBinary<       int64_t >( fp , s ) ; break;
+			case TypeOnDisk::UINT_64: _WriteBinary<      uint64_t >( fp , s ) ; break;
 			default: ERROR_OUT( "Unrecongized type: " , typeOnDisk );
 		}
 	}

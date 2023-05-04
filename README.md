@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 14.00)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 14.01)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -27,10 +27,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.00/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.01/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.00/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.01/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.00/">V14.00</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.99/">V13.99</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.80/">V13.80</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version13.74/">V13.74</a>,
@@ -1338,6 +1339,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.00/">Version 14.00</a>:
 <ol>
 <LI> Added support for distributed screened Poisson Surface Reconstruction.
+</ol>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.01/">Version 14.01</a>:
+<ol>
+<LI> Added support for fixed width integer types.
 </ol>
 
 </DETAILS>
