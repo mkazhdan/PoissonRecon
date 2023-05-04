@@ -47,7 +47,7 @@ namespace VertexFactory
 	{
 		switch( plyType )
 		{
-		    case PLY_INT_32:
+			case PLY_INT_32:
 			case PLY_INT:    return TypeOnDisk::INT;
 			case PLY_UINT_32:
 			case PLY_UINT:   return TypeOnDisk::UINT;
