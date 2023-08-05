@@ -1465,7 +1465,7 @@ void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth full
 	// [NOTE] Have to use an array of chars instead of bools because the latter is not thread safe
 	size_t sz = nodeCount();
 	Pointer( char ) nodeHasData = NewPointer< char >( sz );
-	for( unsigned int i=0 ; i<sz ; i++ ) nodeHasData[i] = 0;
+	for( size_t i=0 ; i<sz ; i++ ) nodeHasData[i] = 0;
 	ThreadPool::Parallel_for( 0 , regularNodes.size() , [&]( unsigned int , size_t i )
 		{
 			regularNodes[i]->processNodes( [&]( FEMTreeNode *node ){ if( node->nodeData.nodeIndex!=-1 ) nodeHasData[node->nodeData.nodeIndex] = f( node ) ? 1 : 0; } );
