@@ -25,6 +25,7 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP20.pdf">[Kazhdan, Chuang, Rusinkiewicz, and Hoppe, 2020]</a>
+<a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.02/AdaptiveSolvers.x64.zip">Win64</a><br>
