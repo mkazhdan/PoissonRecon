@@ -46,7 +46,7 @@ namespace Reconstructor
 #include "Reconstructors.streams.h"
 
 	// Declare a type for storing the solution information
-	template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... AuxData > struct ImplicitRepresentation;
+	template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... AuxData > struct Implicit;
 
 	// Parameters for mesh extraction
 	struct LevelSetExtractionParameters
@@ -60,12 +60,12 @@ namespace Reconstructor
 	};
 
 	// "Private" function for extracting meshes
-	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitRepresentationType , unsigned int ... FEMSigs >
-	void _ExtractLevelSet( UIntPack< FEMSigs ... >  , const ImplicitRepresentationType &implicit , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params );
+	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
+	void _ExtractLevelSet( UIntPack< FEMSigs ... >  , const ImplicitType &implicit , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params );
 
 	// Specialized solution information without auxiliary data
 	template< typename Real , unsigned int Dim , unsigned int FEMSig >
-	struct ImplicitRepresentation< Real , Dim , FEMSig >
+	struct Implicit< Real , Dim , FEMSig >
 	{
 		// The signature pack
 		typedef IsotropicUIntPack< Dim , FEMSig > Sigs;
@@ -74,10 +74,10 @@ namespace Reconstructor
 		typedef typename FEMTree< Dim , Real >::template DensityEstimator< Reconstructor::WeightDegree > DensityEstimator;
 
 		// The constructor
-		ImplicitRepresentation( void ) : density(NULL) , isoValue(0) , tree(MEMORY_ALLOCATOR_BLOCK_SIZE) , unitCubeToModel( XForm< Real , Dim+1 >::Identity() ){}
+		Implicit( void ) : density(NULL) , isoValue(0) , tree(MEMORY_ALLOCATOR_BLOCK_SIZE) , unitCubeToModel( XForm< Real , Dim+1 >::Identity() ){}
 
 		// The desctructor
-		~ImplicitRepresentation( void ){ delete density ; density = NULL; }
+		~Implicit( void ){ delete density ; density = NULL; }
 
 		// The transformation taking points in the unit cube back to world coordinates
 		XForm< Real , Dim+1 > unitCubeToModel;
@@ -98,13 +98,13 @@ namespace Reconstructor
 		void extractLevelSet( OutputVertexStream< Real , Dim > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params ) const
 		{
 			typedef unsigned char AuxData;
-			_ExtractLevelSet< false , Real , Dim , FEMSig , AuxData , OutputVertexStream< Real , Dim > , ImplicitRepresentation< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , polygonStream , params );
+			_ExtractLevelSet< false , Real , Dim , FEMSig , AuxData , OutputVertexStream< Real , Dim > , Implicit< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , polygonStream , params );
 		}
 	};
 
 	// Specialized solution information with auxiliary data
 	template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
-	struct ImplicitRepresentation< Real , Dim , FEMSig , AuxData > : public ImplicitRepresentation< Real , Dim , FEMSig >
+	struct Implicit< Real , Dim , FEMSig , AuxData > : public Implicit< Real , Dim , FEMSig >
 	{
 		typedef IsotropicUIntPack< Dim , FEMSig > Sigs;
 
@@ -112,10 +112,10 @@ namespace Reconstructor
 		static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;
 
 		// The constructor
-		ImplicitRepresentation( AuxData zeroAuxData ) : auxData(NULL) , zeroAuxData(zeroAuxData) {}
+		Implicit( AuxData zeroAuxData ) : auxData(NULL) , zeroAuxData(zeroAuxData) {}
 
 		// The desctructor
-		~ImplicitRepresentation( void ){ delete auxData ; auxData = NULL; }
+		~Implicit( void ){ delete auxData ; auxData = NULL; }
 
 		// The auxiliary information stored with the oriented vertices
 		SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > *auxData;
@@ -129,15 +129,15 @@ namespace Reconstructor
 			auto nodeFunctor = [&]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *n )
 			{
 				ProjectiveData< AuxData , Real >* clr = (*auxData)( n );
-				if( clr ) (*clr) *= (Real)pow( (Real)perLevelScaleFactor , ImplicitRepresentation< Real , Dim , FEMSig>::tree.depth( n ) );
+				if( clr ) (*clr) *= (Real)pow( (Real)perLevelScaleFactor , Implicit< Real , Dim , FEMSig>::tree.depth( n ) );
 			};
-			ImplicitRepresentation< Real , Dim , FEMSig>::tree.tree().processNodes( nodeFunctor );
+			Implicit< Real , Dim , FEMSig>::tree.tree().processNodes( nodeFunctor );
 		}
 
 		// A method for writing the extracted mesh to the streams
 		void extractLevelSet( OutputVertexWithDataStream< Real , Dim , AuxData > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params ) const
 		{
-			_ExtractLevelSet< true , Real , Dim , FEMSig , AuxData , OutputVertexWithDataStream< Real , Dim , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , polygonStream , params );
+			_ExtractLevelSet< true , Real , Dim , FEMSig , AuxData , OutputVertexWithDataStream< Real , Dim , AuxData > , Implicit< Real , Dim , FEMSig , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , polygonStream , params );
 		}
 	};
 
@@ -218,17 +218,17 @@ namespace Reconstructor
 			std::vector< SimplexIndex< Dim-1 , node_index_type > > simplices;
 		};
 
-		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct ImplicitRepresentation;
+		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
 		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-		void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh );
+		void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh );
 
-		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct ImplicitRepresentation;
+		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig >
-		struct ImplicitRepresentation< Real , Dim , FEMSig > : public Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig >
+		struct Implicit< Real , Dim , FEMSig > : public Reconstructor::Implicit< Real , Dim , FEMSig >
 		{
-			ImplicitRepresentation( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
+			Implicit( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
 			{
 				typedef unsigned char AuxData;
 				_Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh );
@@ -236,10 +236,10 @@ namespace Reconstructor
 		};
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
-		struct ImplicitRepresentation< Real , Dim , FEMSig , AuxData > : public Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData >
+		struct Implicit< Real , Dim , FEMSig , AuxData > : public Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >
 		{
-			ImplicitRepresentation( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
-				: Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData >( pointStream.zero() )
+			Implicit( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
+				: Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >( pointStream.zero() )
 			{
 				_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh );
 			}
@@ -382,15 +382,15 @@ namespace Reconstructor
 
 		};
 
-		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct ImplicitRepresentation;
+		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
 		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-		void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params );
+		void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params );
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig >
-		struct ImplicitRepresentation< Real , Dim , FEMSig > : public Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig >
+		struct Implicit< Real , Dim , FEMSig > : public Reconstructor::Implicit< Real , Dim , FEMSig >
 		{
-			ImplicitRepresentation( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params )
+			Implicit( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params )
 			{
 				typedef unsigned char AuxData;
 				_Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
@@ -398,10 +398,10 @@ namespace Reconstructor
 		};
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
-		struct ImplicitRepresentation< Real , Dim , FEMSig , AuxData > : public Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData >
+		struct Implicit< Real , Dim , FEMSig , AuxData > : public Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >
 		{
-			ImplicitRepresentation( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params )
-				: Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData >( pointStream.zero() )
+			Implicit( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params )
+				: Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >( pointStream.zero() )
 			{
 				_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
 			}
@@ -460,13 +460,13 @@ namespace Reconstructor
 		return GetBoundingBoxXForm( min , max , scaleFactor );
 	}
 
-	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitRepresentationType , unsigned int ... FEMSigs >
-	void _ExtractLevelSet( UIntPack< FEMSigs ... > , const ImplicitRepresentationType &implicit , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params )
+	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
+	void _ExtractLevelSet( UIntPack< FEMSigs ... > , const ImplicitType &implicit , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params )
 	{
 		typedef UIntPack< FEMSigs ... > Sigs;
 		static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs ... > >::value , "[ERROR] Signatures don't match" );
 		static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;
-		typedef typename ImplicitRepresentationType::DensityEstimator DensityEstimator;
+		typedef typename ImplicitType::DensityEstimator DensityEstimator;
 
 		if constexpr( Dim!=3 )
 		{
@@ -504,7 +504,7 @@ namespace Reconstructor
 	}
 
 	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-	void Poisson::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh )
+	void Poisson::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh )
 	{
 		static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs... > >::value , "[ERROR] Signatures don't match" );
 
@@ -534,7 +534,7 @@ namespace Reconstructor
 		typedef typename std::conditional< HasAuxData , VectorTypeUnion< Real , Normal< Real , Dim > , AuxData > , Normal< Real , Dim > >::type NormalAndAuxData;
 
 		// The type describing the sampling density
-		typedef typename std::conditional< HasAuxData , ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
+		typedef typename std::conditional< HasAuxData , Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
 		// <-- Types //
 		///////////////
 
@@ -925,7 +925,7 @@ namespace Reconstructor
 	}
 
 	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-	void SSD::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params )
+	void SSD::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params )
 	{
 		static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs... > >::value , "[ERROR] Signatures don't match" );
 
@@ -953,7 +953,7 @@ namespace Reconstructor
 		typedef typename std::conditional< HasAuxData , VectorTypeUnion< Real , Normal< Real , Dim > , AuxData > , Normal< Real , Dim > >::type NormalAndAuxData;
 
 		// The type describing the sampling density
-		typedef typename std::conditional< HasAuxData , ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
+		typedef typename std::conditional< HasAuxData , Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
 		// <-- Types //
 		///////////////
 

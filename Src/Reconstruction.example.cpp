@@ -57,6 +57,7 @@ void ShowUsage( char* ex )
 
 // A simple structure for representing colors. 
 // Assuming values are in the range [0,1].
+template< typename Real >
 struct RGBColor
 {
 	// The channels
@@ -262,18 +263,18 @@ void Execute( void )
 	if constexpr( UseColor )
 	{
 		// The type of the reconstructor
-		using ImplicitRepresentation = typename std::conditional
+		using Implicit = typename std::conditional
 			<
 				SSD ,
-				Reconstructor::    SSD::ImplicitRepresentation< Real , Dim , FEMSig , RGBColor< Real > > ,
-				Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig , RGBColor< Real > >
+				Reconstructor::    SSD::Implicit< Real , Dim , FEMSig , RGBColor< Real > > ,
+				Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , RGBColor< Real > >
 			>::type;
 
 		// A stream generating random points on the sphere with color
 		SphereSampleWithColorStream< Real , Dim > sampleStream( SampleNum.value );
 
 		// Construct the implicit representation
-		ImplicitRepresentation implicit( sampleStream , solverParams );
+		Implicit implicit( sampleStream , solverParams );
 
 		// Scale the color information to give extrapolation preference to data at finer depths
 		implicit.weightAuxDataByDepth( (Real)32. );
@@ -295,18 +296,18 @@ void Execute( void )
 	else
 	{
 		// The type of the reconstructor
-		using ImplicitRepresentation = typename std::conditional
+		using Implicit = typename std::conditional
 			<
 				SSD ,
-				Reconstructor::    SSD::ImplicitRepresentation< Real , Dim , FEMSig > ,
-				Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig >
+				Reconstructor::    SSD::Implicit< Real , Dim , FEMSig > ,
+				Reconstructor::Poisson::Implicit< Real , Dim , FEMSig >
 			>::type;
 
 		// A stream generating random points on the sphere
 		SphereSampleStream< Real , Dim > sampleStream( SampleNum.value );
 
 		// Construct the implicit representation
-		ImplicitRepresentation implicit( sampleStream , solverParams );
+		Implicit implicit( sampleStream , solverParams );
 
 		// vectors for storing the polygons (specifically, triangles) and the coordinates of the vertices
 		std::vector< std::vector< int > > polygons;

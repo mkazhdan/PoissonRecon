@@ -200,7 +200,7 @@ template< typename Real , unsigned int Dim , unsigned int FEMSig , bool HasGradi
 void WriteMesh
 (
 	bool inCore ,
-	Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig > &implicit ,
+	Reconstructor::Implicit< Real , Dim , FEMSig > &implicit ,
 	const Reconstructor::LevelSetExtractionParameters &meParams ,
 	std::string fileName ,
 	bool ascii
@@ -235,7 +235,7 @@ void WriteMeshWithData
 (
 	const AuxDataFactory &auxDataFactory ,
 	bool inCore ,
-	Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > &implicit ,
+	Reconstructor::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > &implicit ,
 	const Reconstructor::LevelSetExtractionParameters &meParams ,
 	std::string fileName ,
 	bool ascii
@@ -284,7 +284,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	typedef InputDataStream< typename InputSampleFactory::VertexType > InputPointStream;
 
 	// The type storing the reconstruction solution (depending on whether auxiliary data is provided or not)
-	using ImplicitRepresentation = typename std::conditional< HasAuxData , Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > , Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig > >::type;
+	using Implicit = typename std::conditional< HasAuxData , Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > , Reconstructor::Poisson::Implicit< Real , Dim , FEMSig > >::type;
 	// <-- Types //
 	///////////////
 
@@ -307,7 +307,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	}
 
 	Profiler profiler(20);
-	ImplicitRepresentation *implicit = NULL;
+	Implicit *implicit = NULL;
 	typename Reconstructor::Poisson::SolutionParameters< Real > sParams;
 	Reconstructor::LevelSetExtractionParameters meParams;
 
@@ -458,10 +458,10 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		if( Transform.set )
 		{
 			Reconstructor::TransformedInputSampleWithDataStream< Real , Dim , typename AuxDataFactory::VertexType > _sampleStream( toModel , sampleStream );
-			implicit = new typename Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( _sampleStream , sParams , envelopeMesh );
+			implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( _sampleStream , sParams , envelopeMesh );
 			implicit->unitCubeToModel = toModel.inverse() * implicit->unitCubeToModel;
 		}
-		else implicit = new typename Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( sampleStream , sParams , envelopeMesh );
+		else implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( sampleStream , sParams , envelopeMesh );
 	}
 	else
 	{
@@ -470,10 +470,10 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		if( Transform.set )
 		{
 			Reconstructor::TransformedInputSampleStream< Real , Dim > _sampleStream( toModel , sampleStream );
-			implicit = new typename Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig >( _sampleStream , sParams , envelopeMesh );
+			implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig >( _sampleStream , sParams , envelopeMesh );
 			implicit->unitCubeToModel = toModel.inverse() * implicit->unitCubeToModel;
 		}
-		else implicit = new typename Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig >( sampleStream , sParams , envelopeMesh );
+		else implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig >( sampleStream , sParams , envelopeMesh );
 	}
 
 	delete pointStream;
