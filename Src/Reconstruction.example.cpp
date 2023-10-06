@@ -57,7 +57,6 @@ void ShowUsage( char* ex )
 
 // A simple structure for representing colors. 
 // Assuming values are in the range [0,1].
-template< typename Real >
 struct RGBColor
 {
 	// The channels
@@ -241,7 +240,7 @@ void WritePly( std::string fileName , size_t vNum , const Real *vCoordinates , c
 	}
 }
 
-template< typename Real , unsigned int Dim , unsigned int FEMSig , bool SSD >
+template< typename Real , unsigned int Dim , unsigned int FEMSig , bool SSD , bool UseColor >
 void Execute( void )
 {
 	// Parameters for performing the reconstruction
@@ -256,24 +255,29 @@ void Execute( void )
 	solverParams.depth = (unsigned int)Depth.value;
 
 	// Parameters for exracting the level-set surface
-	typename Reconstructor::MeshExtractionParameters extractionParams;
+	Reconstructor::LevelSetExtractionParameters extractionParams;
 	extractionParams.linearFit = SSD;		// Since the SSD solution approximates a TSDF, linear fitting works well
 	extractionParams.verbose = Verbose.set;
 
-	if( UseColor.set )
+	if constexpr( UseColor )
 	{
-		// Storage for the reconstruction information
-		Reconstructor::ReconstructionInfo< Real , Dim , FEMSig , RGBColor< Real > > *reconstructionInfo = NULL;
+		// The type of the reconstructor
+		using ImplicitRepresentation = typename std::conditional
+			<
+				SSD ,
+				Reconstructor::    SSD::ImplicitRepresentation< Real , Dim , FEMSig , RGBColor< Real > > ,
+				Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig , RGBColor< Real > >
+			>::type;
 
 		// A stream generating random points on the sphere with color
 		SphereSampleWithColorStream< Real , Dim > sampleStream( SampleNum.value );
 
-		// Compute the reconstruction coefficients
-		if constexpr( SSD ) reconstructionInfo = Reconstructor::    SSD::Solve< Real , Dim , FEMSig , RGBColor< Real > >( sampleStream , solverParams );
-		else                reconstructionInfo = Reconstructor::Poisson::Solve< Real , Dim , FEMSig , RGBColor< Real > >( sampleStream , solverParams );
+		// Construct the implicit representation
+		ImplicitRepresentation implicit( sampleStream , solverParams );
 
 		// Scale the color information to give extrapolation preference to data at finer depths
-		reconstructionInfo->weightAuxDataByDepth( (Real)32. );
+		implicit.weightAuxDataByDepth( (Real)32. );
+
 
 		// vectors for storing the polygons (specifically, triangles), the coordinates of the vertices, and the colors at the vertices
 		std::vector< std::vector< int > > polygons;
@@ -284,23 +288,25 @@ void Execute( void )
 		PolygonStream< int > pStream( polygons );
 
 		// Extract the iso-surface
-		Reconstructor::ExtractMesh< Real , Dim , FEMSig , RGBColor< Real > >( *reconstructionInfo , vStream , pStream , extractionParams );
+		implicit.extractLevelSet( vStream , pStream , extractionParams );
 
 		if( Out.set ) WritePly( Out.value , vStream.size() , &vCoordinates[0] , &rgbCoordinates[0] , polygons );
-
-		delete reconstructionInfo;
 	}
 	else
 	{
-		// Storage for the reconstruction information
-		Reconstructor::ReconstructionInfo< Real , Dim , FEMSig > *reconstructionInfo = NULL;
+		// The type of the reconstructor
+		using ImplicitRepresentation = typename std::conditional
+			<
+				SSD ,
+				Reconstructor::    SSD::ImplicitRepresentation< Real , Dim , FEMSig > ,
+				Reconstructor::Poisson::ImplicitRepresentation< Real , Dim , FEMSig >
+			>::type;
 
 		// A stream generating random points on the sphere
 		SphereSampleStream< Real , Dim > sampleStream( SampleNum.value );
 
-		// Compute the reconstruction coefficients
-		if constexpr( SSD ) reconstructionInfo = Reconstructor::    SSD::Solve< Real , Dim , FEMSig >( sampleStream , solverParams );
-		else                reconstructionInfo = Reconstructor::Poisson::Solve< Real , Dim , FEMSig >( sampleStream , solverParams );
+		// Construct the implicit representation
+		ImplicitRepresentation implicit( sampleStream , solverParams );
 
 		// vectors for storing the polygons (specifically, triangles) and the coordinates of the vertices
 		std::vector< std::vector< int > > polygons;
@@ -311,11 +317,9 @@ void Execute( void )
 		VertexStream< Real , Dim > vStream( vCoordinates );
 
 		// Extract the iso-surface
-		Reconstructor::ExtractMesh< Real , Dim , FEMSig >( *reconstructionInfo , vStream , pStream , extractionParams );
+		implicit.extractLevelSet( vStream , pStream , extractionParams );
 
 		if( Out.set ) WritePly( Out.value , vStream.size() , &vCoordinates[0] , (Real*)NULL , polygons );
-
-		delete reconstructionInfo;
 	}
 }
 
@@ -338,8 +342,12 @@ int main( int argc , char* argv[] )
 	}
 	
 	// Solve using single float precision, in dimension 3, w/ finite-elements of degree 2 for SSD and degree 1 for Poisson, and using Neumann boundaries
-	if( SSDReconstruction.set ) Execute< float , 3 , FEMDegreeAndBType<     SSD::DefaultFEMDegree ,     SSD::DefaultFEMBoundary >::Signature , true  >();
-	else                        Execute< float , 3 , FEMDegreeAndBType< Poisson::DefaultFEMDegree , Poisson::DefaultFEMBoundary >::Signature , false >();
+	if( SSDReconstruction.set )
+		if( UseColor.set ) Execute< float , 3 , FEMDegreeAndBType<     SSD::DefaultFEMDegree ,     SSD::DefaultFEMBoundary >::Signature , true  , true  >();
+		else               Execute< float , 3 , FEMDegreeAndBType<     SSD::DefaultFEMDegree ,     SSD::DefaultFEMBoundary >::Signature , true  , false >();
+	else
+		if( UseColor.set ) Execute< float , 3 , FEMDegreeAndBType< Poisson::DefaultFEMDegree , Poisson::DefaultFEMBoundary >::Signature , false , true  >();
+		else               Execute< float , 3 , FEMDegreeAndBType< Poisson::DefaultFEMDegree , Poisson::DefaultFEMBoundary >::Signature , false , false >();
 
 	if( Verbose.set )
 	{

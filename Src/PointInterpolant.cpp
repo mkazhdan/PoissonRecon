@@ -328,7 +328,7 @@ struct SystemDual< Dim , double , VectorTypeUnion< double , Point< double , Dim 
 };
 
 template< typename Real , unsigned int ... FEMSigs >
-void ExtractMesh
+void ExtractLevelSet
 (
 	UIntPack< FEMSigs ... > ,
 	FEMTree< sizeof ... ( FEMSigs ) , Real >& tree ,
@@ -885,7 +885,7 @@ void Execute( UIntPack< FEMSigs ... > )
 	{
 		if constexpr ( Dim==3 )
 		{
-			ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , (Real)IsoValue.value , unitCubeToModel , comments );
+			ExtractLevelSet( UIntPack< FEMSigs ... >() , tree , solution , (Real)IsoValue.value , unitCubeToModel , comments );
 		}
 		else if constexpr ( Dim==2 )
 		{

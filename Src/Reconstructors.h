@@ -46,11 +46,26 @@ namespace Reconstructor
 #include "Reconstructors.streams.h"
 
 	// Declare a type for storing the solution information
-	template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... AuxData > struct ReconstructionInfo;
+	template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... AuxData > struct ImplicitRepresentation;
+
+	// Parameters for mesh extraction
+	struct LevelSetExtractionParameters
+	{
+		bool linearFit;
+		bool outputGradients;
+		bool forceManifold;
+		bool polygonMesh;
+		bool verbose;
+		LevelSetExtractionParameters( void ) : linearFit(false) , outputGradients(false) , forceManifold(true) , polygonMesh(false) , verbose(false) {}
+	};
+
+	// "Private" function for extracting meshes
+	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitRepresentationType , unsigned int ... FEMSigs >
+	void _ExtractLevelSet( UIntPack< FEMSigs ... >  , const ImplicitRepresentationType &implicit , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params );
 
 	// Specialized solution information without auxiliary data
 	template< typename Real , unsigned int Dim , unsigned int FEMSig >
-	struct ReconstructionInfo< Real , Dim , FEMSig >
+	struct ImplicitRepresentation< Real , Dim , FEMSig >
 	{
 		// The signature pack
 		typedef IsotropicUIntPack< Dim , FEMSig > Sigs;
@@ -59,10 +74,10 @@ namespace Reconstructor
 		typedef typename FEMTree< Dim , Real >::template DensityEstimator< Reconstructor::WeightDegree > DensityEstimator;
 
 		// The constructor
-		ReconstructionInfo( void ) : density(NULL) , isoValue(0) , tree(MEMORY_ALLOCATOR_BLOCK_SIZE) , unitCubeToModel( XForm< Real , Dim+1 >::Identity() ){}
+		ImplicitRepresentation( void ) : density(NULL) , isoValue(0) , tree(MEMORY_ALLOCATOR_BLOCK_SIZE) , unitCubeToModel( XForm< Real , Dim+1 >::Identity() ){}
 
 		// The desctructor
-		~ReconstructionInfo( void ){ delete density ; density = NULL; }
+		~ImplicitRepresentation( void ){ delete density ; density = NULL; }
 
 		// The transformation taking points in the unit cube back to world coordinates
 		XForm< Real , Dim+1 > unitCubeToModel;
@@ -78,11 +93,18 @@ namespace Reconstructor
 
 		// The density estimator computed from the samples
 		DensityEstimator *density;
+
+		// A method that writes the extracted mesh to the streams
+		void extractLevelSet( OutputVertexStream< Real , Dim > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params ) const
+		{
+			typedef unsigned char AuxData;
+			_ExtractLevelSet< false , Real , Dim , FEMSig , AuxData , OutputVertexStream< Real , Dim > , ImplicitRepresentation< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , polygonStream , params );
+		}
 	};
 
 	// Specialized solution information with auxiliary data
 	template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
-	struct ReconstructionInfo< Real , Dim , FEMSig , AuxData > : public ReconstructionInfo< Real , Dim , FEMSig >
+	struct ImplicitRepresentation< Real , Dim , FEMSig , AuxData > : public ImplicitRepresentation< Real , Dim , FEMSig >
 	{
 		typedef IsotropicUIntPack< Dim , FEMSig > Sigs;
 
@@ -90,10 +112,10 @@ namespace Reconstructor
 		static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;
 
 		// The constructor
-		ReconstructionInfo( AuxData zeroAuxData ) : auxData(NULL) , zeroAuxData(zeroAuxData) {}
+		ImplicitRepresentation( AuxData zeroAuxData ) : auxData(NULL) , zeroAuxData(zeroAuxData) {}
 
 		// The desctructor
-		~ReconstructionInfo( void ){ delete auxData ; auxData = NULL; }
+		~ImplicitRepresentation( void ){ delete auxData ; auxData = NULL; }
 
 		// The auxiliary information stored with the oriented vertices
 		SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > *auxData;
@@ -107,37 +129,17 @@ namespace Reconstructor
 			auto nodeFunctor = [&]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *n )
 			{
 				ProjectiveData< AuxData , Real >* clr = (*auxData)( n );
-				if( clr ) (*clr) *= (Real)pow( (Real)perLevelScaleFactor , ReconstructionInfo< Real , Dim , FEMSig>::tree.depth( n ) );
+				if( clr ) (*clr) *= (Real)pow( (Real)perLevelScaleFactor , ImplicitRepresentation< Real , Dim , FEMSig>::tree.depth( n ) );
 			};
-			ReconstructionInfo< Real , Dim , FEMSig>::tree.tree().processNodes( nodeFunctor );
+			ImplicitRepresentation< Real , Dim , FEMSig>::tree.tree().processNodes( nodeFunctor );
+		}
+
+		// A method for writing the extracted mesh to the streams
+		void extractLevelSet( OutputVertexWithDataStream< Real , Dim , AuxData > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params ) const
+		{
+			_ExtractLevelSet< true , Real , Dim , FEMSig , AuxData , OutputVertexWithDataStream< Real , Dim , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , polygonStream , params );
 		}
 	};
-
-	struct MeshExtractionParameters
-	{
-		bool linearFit;
-		bool outputGradients;
-		bool forceManifold;
-		bool polygonMesh;
-		bool verbose;
-		MeshExtractionParameters( void ) : linearFit(false) , outputGradients(false) , forceManifold(true) , polygonMesh(false) , verbose(false) {}
-	};
-
-	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ReconstructionInfoType , unsigned int ... FEMSigs >
-	void _ExtractMesh( UIntPack< FEMSigs ... >  , const ReconstructionInfoType &sInfo , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , MeshExtractionParameters params );
-
-	template< typename Real , unsigned int Dim , unsigned int FEMSig >
-	void ExtractMesh( const ReconstructionInfo< Real , Dim , FEMSig > &sInfo , OutputVertexStream< Real , Dim > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , MeshExtractionParameters params )
-	{
-		typedef unsigned char AuxData;
-		_ExtractMesh< false , Real , Dim , FEMSig , AuxData , OutputVertexStream< Real , Dim > , ReconstructionInfo< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , sInfo , vertexStream , polygonStream , params );
-	}
-
-	template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
-	void ExtractMesh( const ReconstructionInfo< Real , Dim , FEMSig , AuxData > &sInfo , OutputVertexWithDataStream< Real , Dim , AuxData > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , MeshExtractionParameters params )
-	{
-		_ExtractMesh< true , Real , Dim , FEMSig , AuxData , OutputVertexWithDataStream< Real , Dim , AuxData > , ReconstructionInfo< Real , Dim , FEMSig , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , sInfo , vertexStream , polygonStream , params );
-	}
 
 	namespace Poisson
 	{
@@ -191,9 +193,6 @@ namespace Reconstructor
 			Real pointWeight;
 			Real samplesPerNode;
 			Real cgSolverAccuracy;
-#ifdef SOFT_DIRICHLET
-			Real dirichletWeight;
-#endif // SOFT_DIRICHLET
 			unsigned int depth;
 			unsigned int solveDepth;
 			unsigned int baseDepth;
@@ -207,9 +206,6 @@ namespace Reconstructor
 				verbose(false) , dirichletErode(false) , outputDensity(false) , exactInterpolation(false) , showResidual(false) ,
 				scale((Real)1.1) , confidence((Real)0.) , confidenceBias((Real)0.) , lowDepthCutOff((Real)0.) , width((Real)0.) ,
 				pointWeight((Real)0.) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) ,
-#ifdef SOFT_DIRICHLET
-				dirichletWeight((Real)0.) ,
-#endif // SOFT_DIRICHLET
 				depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) ,
 				envelopeDepth((unsigned int)-1) , baseVCycles((unsigned int)1) , iters((unsigned int)8)
 			{}
@@ -222,38 +218,32 @@ namespace Reconstructor
 			std::vector< SimplexIndex< Dim-1 , node_index_type > > simplices;
 		};
 
+		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct ImplicitRepresentation;
+
 		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-		static typename std::conditional< HasAuxData , ReconstructionInfo< Real , Dim , FEMSig , AuxData > , ReconstructionInfo< Real , Dim , FEMSig > >::type *_Solve( UIntPack< FEMSigs... > , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh );
+		void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh );
 
-#ifdef DE_VIRTUALIZE_INPUT
-		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename InputSampleStreamType >
-		ReconstructionInfo< Real , Dim , FEMSig > *Solve( InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
-		{
-			static_assert( std::is_base_of< InputSampleStream< Real , Dim > , InputSampleStreamType >::value , "[ERROR] Unexpected sample stream type" );
-			typedef unsigned char AuxData;
-			return _Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStreamType >( IsotropicUIntPack< Dim , FEMSig >() , pointStream , params , envelopeMesh );
-		}
+		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct ImplicitRepresentation;
 
-		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType >
-		ReconstructionInfo< Real , Dim , FEMSig , AuxData > *Solve( InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
-		{
-			static_assert( std::is_base_of< InputSampleWithDataStream< Real , Dim , AuxData > , InputSampleStreamType >::value , "[ERROR] Unexpected sample stream type" );
-			return _Solve< true , Real , Dim , FEMSig , AuxData , InputSampleStreamType >( IsotropicUIntPack< Dim , FEMSig >() , pointStream , params , envelopeMesh );
-		}
-#else // !DE_VIRTUALIZE_INPUT
 		template< typename Real , unsigned int Dim , unsigned int FEMSig >
-		ReconstructionInfo< Real , Dim , FEMSig > *Solve( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
+		struct ImplicitRepresentation< Real , Dim , FEMSig > : public Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig >
 		{
-			typedef unsigned char AuxData;
-			return _Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , pointStream , params , envelopeMesh );
-		}
+			ImplicitRepresentation( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
+			{
+				typedef unsigned char AuxData;
+				_Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh );
+			}
+		};
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
-		ReconstructionInfo< Real , Dim , FEMSig , AuxData > *Solve( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
+		struct ImplicitRepresentation< Real , Dim , FEMSig , AuxData > : public Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData >
 		{
-			return _Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , pointStream , params , envelopeMesh );
-		}
-#endif // DE_VIRTUALIZE_INPUT
+			ImplicitRepresentation( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
+				: Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData >( pointStream.zero() )
+			{
+				_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh );
+			}
+		};
 	}
 
 	namespace SSD
@@ -392,38 +382,30 @@ namespace Reconstructor
 
 		};
 
+		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct ImplicitRepresentation;
+
 		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-		typename std::conditional< HasAuxData , ReconstructionInfo< Real , Dim , FEMSig , AuxData > , ReconstructionInfo< Real , Dim , FEMSig > >::type *_Solve( UIntPack< FEMSigs ... > , InputSampleStreamType &pointStream , SolutionParameters< Real > params );
+		void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params );
 
-#ifdef DE_VIRTUALIZE_INPUT
-		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename InputSampleStreamType >
-		ReconstructionInfo< Real , Dim , FEMSig > *Solve( InputSampleStreamType &pointStream , SolutionParameters< Real > params )
-		{
-			static_assert( std::is_base_of< InputSampleStream< Real , Dim > , InputSampleStreamType >::value , "[ERROR] Unexpected sample stream type" );
-			typedef unsigned char AuxData;
-			return _Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStreamType >( IsotropicUIntPack< Dim , FEMSig >() , pointStream , params );
-		}
-
-		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType >
-		ReconstructionInfo< Real , Dim , FEMSig , AuxData > *Solve( InputSampleStreamType &pointStream , SolutionParameters< Real > params )
-		{
-			static_assert( std::is_base_of< InputSampleWithDataStream< Real , Dim , AuxData > , InputSampleStreamType >::value , "[ERROR] Unexpected sample stream type" );
-			return _Solve< true , Real , Dim , FEMSig , AuxData , InputSampleStreamType >( IsotropicUIntPack< Dim , FEMSig >() , pointStream , params );
-		}
-#else // !DE_VIRTUALIZE_INPUT
 		template< typename Real , unsigned int Dim , unsigned int FEMSig >
-		ReconstructionInfo< Real , Dim , FEMSig > *Solve( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params )
+		struct ImplicitRepresentation< Real , Dim , FEMSig > : public Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig >
 		{
-			typedef unsigned char AuxData;
-			return _Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , pointStream , params );
-		}
+			ImplicitRepresentation( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params )
+			{
+				typedef unsigned char AuxData;
+				_Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
+			}
+		};
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
-		ReconstructionInfo< Real , Dim , FEMSig , AuxData > *Solve( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params )
+		struct ImplicitRepresentation< Real , Dim , FEMSig , AuxData > : public Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData >
 		{
-			return _Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , pointStream , params );
-		}
-#endif // DE_VIRTUALIZE_INPUT
+			ImplicitRepresentation( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params )
+				: Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData >( pointStream.zero() )
+			{
+				_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
+			}
+		};
 	}
 
 	template< class Real , unsigned int Dim >
@@ -444,49 +426,6 @@ namespace Reconstructor
 		return rXForm * sXForm * tXForm;
 	}
 
-#ifdef DE_VIRTUALIZE_INPUT
-	template< class Real , unsigned int Dim , typename SampleStream >
-	void SetBoundingBox( SampleStream &stream , Point< Real , Dim >& min , Point< Real , Dim >& max )
-	{
-		using Sample = Point< Real , Dim >;
-		static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
-		Sample s;
-		for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::numeric_limits< Real >::infinity() , max[d] = -std::numeric_limits< Real >::infinity();
-		while( stream.read( s ) ) for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( min[d] , s[d] ) , max[d] = std::max< Real >( max[d] , s[d] );
-		stream.reset();
-	}
-
-	template< class Real , unsigned int Dim , typename AuxData , typename SampleStream >
-	void SetBoundingBox( SampleStream &stream , AuxData d , Point< Real , Dim >& min , Point< Real , Dim >& max )
-	{
-		using Sample = VectorTypeUnion< Real , Point< Real , Dim > , AuxData >;
-		static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
-		Sample s( Point< Real , Dim >() , d );
-		for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::numeric_limits< Real >::infinity() , max[d] = -std::numeric_limits< Real >::infinity();
-		while( stream.read( s ) ) for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( min[d] , s.template get<0>()[d] ) , max[d] = std::max< Real >( max[d] , s.template get<0>()[d] );
-		stream.reset();
-	}
-
-	template< class Real , unsigned int Dim , typename SampleStream >
-	XForm< Real , Dim+1 > GetPointXForm( SampleStream &stream , Real scaleFactor )
-	{
-		using Sample = Point< Real , Dim >;
-		static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
-		Point< Real , Dim > min , max;
-		SetBoundingBox< Real , Dim , SampleStream >( stream , min , max );
-		return GetBoundingBoxXForm( min , max , scaleFactor );
-	}
-
-	template< class Real , unsigned int Dim , typename AuxData , typename SampleStream >
-	XForm< Real , Dim+1 > GetPointXForm( SampleStream &stream , AuxData d , Real scaleFactor )
-	{
-		using Sample = VectorTypeUnion< Real , Point< Real , Dim > , AuxData >;
-		static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
-		Point< Real , Dim > min , max;
-		SetBoundingBox< Real , Dim , AuxData , SampleStream >( stream , d , min , max );
-		return GetBoundingBoxXForm( min , max , scaleFactor );
-	}
-#else // !DE_VIRTUALIZE_INPUT
 	template< class Real , unsigned int Dim >
 	void SetBoundingBox( InputDataStream< Point< Real , Dim > > &stream , Point< Real , Dim >& min , Point< Real , Dim >& max )
 	{
@@ -520,15 +459,14 @@ namespace Reconstructor
 		SetBoundingBox( stream , d , min , max );
 		return GetBoundingBoxXForm( min , max , scaleFactor );
 	}
-#endif // DE_VIRTUALIZE_INPUT
 
-	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ReconstructionInfoType , unsigned int ... FEMSigs >
-	void _ExtractMesh( UIntPack< FEMSigs ... > , const ReconstructionInfoType &sInfo , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , MeshExtractionParameters params )
+	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitRepresentationType , unsigned int ... FEMSigs >
+	void _ExtractLevelSet( UIntPack< FEMSigs ... > , const ImplicitRepresentationType &implicit , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params )
 	{
 		typedef UIntPack< FEMSigs ... > Sigs;
 		static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs ... > >::value , "[ERROR] Signatures don't match" );
 		static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;
-		typedef typename ReconstructionInfoType::DensityEstimator DensityEstimator;
+		typedef typename ImplicitRepresentationType::DensityEstimator DensityEstimator;
 
 		if constexpr( Dim!=3 )
 		{
@@ -544,15 +482,15 @@ namespace Reconstructor
 			if constexpr( HasAuxData )
 			{
 				typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
-				TransformedOutputVertexWithDataStream< Real , Dim , AuxData > _vertexStream( sInfo.unitCubeToModel , vertexStream );
-				stats = LevelSetExtractor< Real , Dim , AuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , sInfo.tree , sInfo.density , sInfo.auxData , sInfo.solution , sInfo.isoValue , _vertexStream , polygonStream , sInfo.zeroAuxData , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
+				TransformedOutputVertexWithDataStream< Real , Dim , AuxData > _vertexStream( implicit.unitCubeToModel , vertexStream );
+				stats = LevelSetExtractor< Real , Dim , AuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , implicit.tree , implicit.density , implicit.auxData , implicit.solution , implicit.isoValue , _vertexStream , polygonStream , implicit.zeroAuxData , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
 				statsString = stats.toString();
 			}
 			else
 			{
 				typename LevelSetExtractor< Real , Dim >::Stats stats;
-				TransformedOutputVertexStream< Real , Dim > _vertexStream( sInfo.unitCubeToModel , vertexStream );
-				stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , sInfo.tree , sInfo.density , sInfo.solution , sInfo.isoValue , _vertexStream , polygonStream , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
+				TransformedOutputVertexStream< Real , Dim > _vertexStream( implicit.unitCubeToModel , vertexStream );
+				stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , implicit.tree , implicit.density , implicit.solution , implicit.isoValue , _vertexStream , polygonStream , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
 				statsString = stats.toString();
 			}
 			if( params.verbose )
@@ -566,7 +504,7 @@ namespace Reconstructor
 	}
 
 	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-	static typename std::conditional< HasAuxData , ReconstructionInfo< Real , Dim , FEMSig , AuxData > , ReconstructionInfo< Real , Dim , FEMSig > >::type *Poisson::_Solve( UIntPack< FEMSigs ... > , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh )
+	void Poisson::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh )
 	{
 		static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs... > >::value , "[ERROR] Signatures don't match" );
 
@@ -596,17 +534,12 @@ namespace Reconstructor
 		typedef typename std::conditional< HasAuxData , VectorTypeUnion< Real , Normal< Real , Dim > , AuxData > , Normal< Real , Dim > >::type NormalAndAuxData;
 
 		// The type describing the sampling density
-		typedef typename std::conditional< HasAuxData , ReconstructionInfo< Real , Dim , FEMSig , AuxData > , ReconstructionInfo< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
+		typedef typename std::conditional< HasAuxData , ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
 		// <-- Types //
 		///////////////
 
-		// The solution info to be returned
-		typename std::conditional< HasAuxData , ReconstructionInfo< Real , Dim , FEMSig , AuxData > , ReconstructionInfo< Real , Dim , FEMSig > >::type *sInfo;
-		if constexpr( HasAuxData ) sInfo = new ReconstructionInfo< Real , Dim , FEMSig , AuxData >( pointStream.zero() );
-		else sInfo = new ReconstructionInfo< Real , Dim , FEMSig >();
-
 		NormalAndAuxData zeroNormalAndAuxData;
-		if constexpr( HasAuxData ) zeroNormalAndAuxData = NormalAndAuxData( Normal< Real , Dim >() , sInfo->zeroAuxData );
+		if constexpr( HasAuxData ) zeroNormalAndAuxData = NormalAndAuxData( Normal< Real , Dim >() , implicit.zeroAuxData );
 
 		XForm< Real , Dim+1 > modelToUnitCube = XForm< Real , Dim+1 >::Identity();
 
@@ -615,9 +548,6 @@ namespace Reconstructor
 		size_t pointCount;
 
 		ProjectiveData< Point< Real , 2 > , Real > pointDepthAndWeight;
-#ifdef SOFT_DIRICHLET
-		std::vector< typename FEMTree< Dim , Real >::PointSample > *dirichletSamples = NULL;
-#endif // SOFT_DIRICHLET
 		DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > geometryNodeDesignators;
 		SparseNodeData< Point< Real , Dim > , NormalSigs > *normalInfo = NULL;
 		std::vector< typename FEMTree< Dim , Real >::PointSample > *samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
@@ -684,8 +614,8 @@ namespace Reconstructor
 					};
 
 				typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-				if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , sInfo->tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , sInfo->tree.nodeAllocators.size() ? sInfo->tree.nodeAllocators[0] : NULL , sInfo->tree.initializer() , ProcessDataWithConfidence );
-				else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , sInfo->tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , sInfo->tree.nodeAllocators.size() ? sInfo->tree.nodeAllocators[0] : NULL , sInfo->tree.initializer() , ProcessData );
+				if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+				else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
 			}
 			else
 			{
@@ -709,11 +639,11 @@ namespace Reconstructor
 					};
 
 				typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-				if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , sInfo->tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , sInfo->tree.nodeAllocators.size() ? sInfo->tree.nodeAllocators[0] : NULL , sInfo->tree.initializer() , ProcessDataWithConfidence );
-				else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , sInfo->tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , sInfo->tree.nodeAllocators.size() ? sInfo->tree.nodeAllocators[0] : NULL , sInfo->tree.initializer() , ProcessData );
+				if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+				else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
 			}
 
-			sInfo->unitCubeToModel = modelToUnitCube.inverse();
+			implicit.unitCubeToModel = modelToUnitCube.inverse();
 
 			if( params.verbose )
 			{
@@ -722,19 +652,16 @@ namespace Reconstructor
 			}
 		}
 		{
-#ifdef SOFT_DIRICHLET
-			InterpolationInfo *dirichletInfo = NULL;
-#endif // SOFT_DIRICHLET
 			DenseNodeData< Real , Sigs > constraints;
 			InterpolationInfo *iInfo = NULL;
 			int solveDepth = params.depth;
 
-			sInfo->tree.resetNodeIndices( 0 , std::make_tuple() );
+			implicit.tree.resetNodeIndices( 0 , std::make_tuple() );
 
 			// Get the kernel density estimator
 			{
 				profiler.reset();
-				sInfo->density = sInfo->tree.template setDensityEstimator< 1 , Reconstructor::WeightDegree >( *samples , params.kernelDepth , params.samplesPerNode );
+				implicit.density = implicit.tree.template setDensityEstimator< 1 , Reconstructor::WeightDegree >( *samples , params.kernelDepth , params.samplesPerNode );
 				if( params.verbose ) std::cout << "#   Got kernel density: " << profiler << std::endl;
 			}
 
@@ -787,8 +714,8 @@ namespace Reconstructor
 							return true;
 						};
 				}
-				if( params.confidenceBias>0 ) *normalInfo = sInfo->tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , sInfo->density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionAndBiasFunction );
-				else                          *normalInfo = sInfo->tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , sInfo->density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionFunction );
+				if( params.confidenceBias>0 ) *normalInfo = implicit.tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionAndBiasFunction );
+				else                          *normalInfo = implicit.tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionFunction );
 				ThreadPool::Parallel_for( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
 				if( params.verbose )
 				{
@@ -801,31 +728,13 @@ namespace Reconstructor
 			if( envelopeMesh )
 			{
 				profiler.reset();
-#ifdef SOFT_DIRICHLET
-				if( params.dirichletWeight>0 )
-				{
-					std::vector< Point< Real , Dim > > vertices( envelopeMesh->vertices.size() );
-					for( unsigned int i=0 ; i<vertices.size() ; i++ ) vertices[i] = modelToUnitCube * envelopeMesh->vertices[i];
-
-#if 0
-					// Get the coarsest interior/boundary/exterior designators
-					if( exteriorConstraintType!=ExteriorConstraint::NONE || interiorConstraintType!=InteriorConstraint::NONE )
-						geometryNodeDesignators = FEMTreeInitializer< Dim , Real >::template GetGeometryNodeDesignators( sInfo->tree.spaceRoot() , vertices , envelopeMesh->simplices , params.envelopeDepth , tree.nodeAllocators , tree.initializer() );
-#endif
-					// Get the samples of the envelope that will act as Dirichlet point constraints and turn on the scratch flags for nodes containing constraints
-					dirichletSamples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
-					FEMTreeInitializer< Dim , Real >::Initialize( sInfo->tree.spaceRoot() , vertices , envelopeMesh->simplices , params.envelopeDepth , *dirichletSamples , true , sInfo->tree.nodeAllocators , sInfo->tree.initializer() );
-					ThreadPool::Parallel_for( 0 , dirichletSamples->size() , [&]( unsigned int , size_t i ){ for( FEMTreeNode *node=(*dirichletSamples)[i].node ; node ; node=node->parent ) node->nodeData.setScratchFlag( true ); } );
-				}
-				else
-#endif // SOFT_DIRICHLET
 				{
 					// Make the octree complete up to the base depth
-					FEMTreeInitializer< Dim , Real >::Initialize( sInfo->tree.spaceRoot() , params.baseDepth , []( int , int[] ){ return true; } , sInfo->tree.nodeAllocators.size() ?  sInfo->tree.nodeAllocators[0] : NULL , sInfo->tree.initializer() );
+					FEMTreeInitializer< Dim , Real >::Initialize( implicit.tree.spaceRoot() , params.baseDepth , []( int , int[] ){ return true; } , implicit.tree.nodeAllocators.size() ?  implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() );
 
 					std::vector< Point< Real , Dim > > vertices( envelopeMesh->vertices.size() );
 					for( unsigned int i=0 ; i<vertices.size() ; i++ ) vertices[i] = modelToUnitCube * envelopeMesh->vertices[i];
-					geometryNodeDesignators = FEMTreeInitializer< Dim , Real >::template GetGeometryNodeDesignators( &sInfo->tree.spaceRoot() , vertices , envelopeMesh->simplices , params.baseDepth , params.envelopeDepth , sInfo->tree.nodeAllocators , sInfo->tree.initializer() );
+					geometryNodeDesignators = FEMTreeInitializer< Dim , Real >::template GetGeometryNodeDesignators( &implicit.tree.spaceRoot() , vertices , envelopeMesh->simplices , params.baseDepth , params.envelopeDepth , implicit.tree.nodeAllocators , implicit.tree.initializer() );
 
 					// Make nodes in the support of the vector field @{ExactDepth} interior
 					if( params.dirichletErode )
@@ -847,7 +756,7 @@ namespace Reconstructor
 							};
 
 						// Flags indicating if a node contains a non-zero vector field coefficient
-						std::vector< bool > isVectorFieldElement( sInfo->tree.nodeCount() , false );
+						std::vector< bool > isVectorFieldElement( implicit.tree.nodeCount() , false );
 
 						// Get the set of base nodes
 						std::vector< FEMTreeNode * > baseNodes;
@@ -856,7 +765,7 @@ namespace Reconstructor
 								if( node->depth()==params.baseDepth ) baseNodes.push_back( node );
 								return node->depth()<(int)params.baseDepth;
 							};
-						sInfo->tree.spaceRoot().processNodes( nodeFunctor );
+						implicit.tree.spaceRoot().processNodes( nodeFunctor );
 
 						std::vector< node_index_type > vectorFieldElementCounts( baseNodes.size() );
 						for( int i=0 ; i<vectorFieldElementCounts.size() ; i++ ) vectorFieldElementCounts[i] = 0;
@@ -896,29 +805,29 @@ namespace Reconstructor
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] In principal, we should unlock finite elements whose support overlaps the vector field" )
 #endif // SHOW_WARNINGS
-						sInfo->tree.template processNeighboringLeaves< -BSplineSupportSizes< Poisson::NormalDegree >::SupportStart , BSplineSupportSizes< Poisson::NormalDegree >::SupportEnd >( &vectorFieldElements[0] , vectorFieldElements.size() , SetScratchFlag , false );
+						implicit.tree.template processNeighboringLeaves< -BSplineSupportSizes< Poisson::NormalDegree >::SupportStart , BSplineSupportSizes< Poisson::NormalDegree >::SupportEnd >( &vectorFieldElements[0] , vectorFieldElements.size() , SetScratchFlag , false );
 
 						// Set sub-trees rooted at interior nodes @ ExactDepth to interior
 						ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int , size_t  i ){ if( baseNodes[i]->nodeData.getScratchFlag() ) PropagateToLeaves( baseNodes[i] ); } );
 
 						// Adjust the coarser node designators in case exterior nodes have become boundary.
 						ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int , size_t  i ){ FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( baseNodes[i] , geometryNodeDesignators ); } );
-						FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( &sInfo->tree.spaceRoot() , geometryNodeDesignators , params.baseDepth );
+						FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( &implicit.tree.spaceRoot() , geometryNodeDesignators , params.baseDepth );
 					}
 				}
 				if( params.verbose ) std::cout << "#               Initialized envelope constraints: " << profiler << std::endl;
 			}
 
-			if( !params.outputDensity ){ delete sInfo->density ; sInfo->density = NULL; }
-			if constexpr( HasAuxData ) sInfo->auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( sInfo->tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( samples->size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return (*samples)[i]; } , [&]( size_t i ) -> const AuxData & { return (*sampleNormalAndAuxData)[i].template get<1>(); } , (DensityEstimator*)NULL ) );
+			if( !params.outputDensity ){ delete implicit.density ; implicit.density = NULL; }
+			if constexpr( HasAuxData ) implicit.auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( implicit.tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( samples->size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return (*samples)[i]; } , [&]( size_t i ) -> const AuxData & { return (*sampleNormalAndAuxData)[i].template get<1>(); } , (DensityEstimator*)NULL ) );
 			delete sampleNormalAndAuxData;
 
 			// Add the interpolation constraints
 			if( params.pointWeight>0 )
 			{
 				profiler.reset();
-				if( params.exactInterpolation ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 > ( sInfo->tree , *samples , Poisson::ConstraintDual< Dim , Real >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] ) , Poisson::SystemDual< Dim , Real >( params.pointWeight * pointDepthAndWeight.value()[1] ) , true , false );
-				else                            iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( sInfo->tree , *samples , Poisson::ConstraintDual< Dim , Real >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] ) , Poisson::SystemDual< Dim , Real >( params.pointWeight * pointDepthAndWeight.value()[1] ) , true , params.depth , 1 );
+				if( params.exactInterpolation ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 > ( implicit.tree , *samples , Poisson::ConstraintDual< Dim , Real >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] ) , Poisson::SystemDual< Dim , Real >( params.pointWeight * pointDepthAndWeight.value()[1] ) , true , false );
+				else                            iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( implicit.tree , *samples , Poisson::ConstraintDual< Dim , Real >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] ) , Poisson::SystemDual< Dim , Real >( params.pointWeight * pointDepthAndWeight.value()[1] ) , true , params.depth , 1 );
 				if( params.verbose ) std::cout <<  "#Initialized point interpolation constraints: " << profiler << std::endl;
 			}
 
@@ -931,13 +840,13 @@ namespace Reconstructor
 				auto addNodeFunctor = [&]( int d , const int off[Dim] ){ return d<=(int)params.fullDepth; };
 				if constexpr( HasAuxData )
 				{
-					if( geometryNodeDesignators.size() ) sInfo->tree.template finalizeForMultigridWithDirichlet< MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor , [&]( const FEMTreeNode *node ){ return node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() && geometryNodeDesignators[node]==GeometryNodeType::EXTERIOR; } , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , sInfo->density , sInfo->auxData , &geometryNodeDesignators ) );
-					else                                 sInfo->tree.template finalizeForMultigrid             < MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor ,                                                                                                                                                                                   std::make_tuple( iInfo ) , std::make_tuple( normalInfo , sInfo->density , sInfo->auxData ) );
+					if( geometryNodeDesignators.size() ) implicit.tree.template finalizeForMultigridWithDirichlet< MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor , [&]( const FEMTreeNode *node ){ return node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() && geometryNodeDesignators[node]==GeometryNodeType::EXTERIOR; } , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , implicit.density , implicit.auxData , &geometryNodeDesignators ) );
+					else                                 implicit.tree.template finalizeForMultigrid             < MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor ,                                                                                                                                                                                   std::make_tuple( iInfo ) , std::make_tuple( normalInfo , implicit.density , implicit.auxData ) );
 				}
 				else
 				{
-					if( geometryNodeDesignators.size() ) sInfo->tree.template finalizeForMultigridWithDirichlet< MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor , [&]( const FEMTreeNode *node ){ return node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() && geometryNodeDesignators[node]==GeometryNodeType::EXTERIOR; } , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , sInfo->density , &geometryNodeDesignators ) );
-					else                                 sInfo->tree.template finalizeForMultigrid             < MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor ,                                                                                                                                                                                   std::make_tuple( iInfo ) , std::make_tuple( normalInfo , sInfo->density ) );
+					if( geometryNodeDesignators.size() ) implicit.tree.template finalizeForMultigridWithDirichlet< MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor , [&]( const FEMTreeNode *node ){ return node->nodeData.nodeIndex<(node_index_type)geometryNodeDesignators.size() && geometryNodeDesignators[node]==GeometryNodeType::EXTERIOR; } , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , implicit.density , &geometryNodeDesignators ) );
+					else                                 implicit.tree.template finalizeForMultigrid             < MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor ,                                                                                                                                                                                   std::make_tuple( iInfo ) , std::make_tuple( normalInfo , implicit.density ) );
 				}
 
 				if( params.verbose ) std::cout << "#       Finalized tree: " << profiler << std::endl;
@@ -946,7 +855,7 @@ namespace Reconstructor
 			// Add the FEM constraints
 			{
 				profiler.reset();
-				constraints = sInfo->tree.initDenseNodeData( Sigs() );
+				constraints = implicit.tree.initDenseNodeData( Sigs() );
 
 				// Add Poisson constraints
 				{
@@ -961,7 +870,7 @@ namespace Reconstructor
 						for( int dd=0 ; dd<Dim ; dd++ ) derivatives1[dd] = dd==d ? 1 : 0;
 						F.weights[d][ TensorDerivatives< Derivatives1 >::Index( derivatives1 ) ][ TensorDerivatives< Derivatives2 >::Index( derivatives2 ) ] = 1;
 					}
-					sInfo->tree.addFEMConstraints( F , *normalInfo , constraints , solveDepth );
+					implicit.tree.addFEMConstraints( F , *normalInfo , constraints , solveDepth );
 				}
 				if( params.verbose ) std::cout << "#  Set FEM constraints: " << profiler << std::endl;
 			}
@@ -972,29 +881,11 @@ namespace Reconstructor
 			if( params.pointWeight>0 )
 			{
 				profiler.reset();
-				sInfo->tree.addInterpolationConstraints( constraints , solveDepth , std::make_tuple( iInfo ) );
+				implicit.tree.addInterpolationConstraints( constraints , solveDepth , std::make_tuple( iInfo ) );
 				if( params.verbose ) std::cout << "#Set point constraints: " << profiler << std::endl;
 			}
 
-#ifdef SOFT_DIRICHLET
-			if( dirichletSamples )
-			{
-				if( params.exactInterpolation ) dirichletInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 > ( sInfo->tree , *dirichletSamples , Poisson::ConstraintDual< Dim , Real >( 0. , params.dirichletWeight ) , Poisson::SystemDual< Dim , Real >( params.dirichletWeight ) , true , false );
-				else                            dirichletInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( sInfo->tree , *dirichletSamples , Poisson::ConstraintDual< Dim , Real >( 0. , params.dirichletWeight ) , Poisson::SystemDual< Dim , Real >( params.dirichletWeight ) , true , 1 );
-				//			if( exteriorConstraintValue ) sInfo->tree.addInterpolationConstraints( constraints , solveDepth , *dirichletInfo );
-				if( params.verbose ) std::cout << "# Set exterior envelope constraints: " << profiler << std::endl;
-				delete dirichletSamples , dirichletSamples = NULL;
-			}
-#endif // SOFT_DIRICHLET
-
-
-#ifdef SOFT_DIRICHLET
-			if( params.verbose )
-				if( params.dirichletWeight>0 ) std::cout << "All Nodes / Active Nodes / Ghost Nodes: " << sInfo->tree.allNodes() << " / " << sInfo->tree.activeNodes() << " / " << sInfo->tree.ghostNodes() << std::endl;
-				else                           std::cout << "All Nodes / Active Nodes / Ghost Nodes / Dirichlet Supported Nodes: " << sInfo->tree.allNodes() << " / " << sInfo->tree.activeNodes() << " / " << sInfo->tree.ghostNodes() << " / " << sInfo->tree.dirichletElements() << std::endl;
-#else // !SOFT_DIRICHLET
-			if( params.verbose ) std::cout << "All Nodes / Active Nodes / Ghost Nodes / Dirichlet Supported Nodes: " << sInfo->tree.allNodes() << " / " << sInfo->tree.activeNodes() << " / " << sInfo->tree.ghostNodes() << " / " << sInfo->tree.dirichletElements() << std::endl;
-#endif // SOFT_DIRICHLET
+			if( params.verbose ) std::cout << "All Nodes / Active Nodes / Ghost Nodes / Dirichlet Supported Nodes: " << implicit.tree.allNodes() << " / " << implicit.tree.activeNodes() << " / " << implicit.tree.ghostNodes() << " / " << implicit.tree.dirichletElements() << std::endl;
 			if( params.verbose ) std::cout << "Memory Usage: " << float( MemoryInfo::Usage())/(1<<20) << " MB" << std::endl;
 
 			// Solve the linear system
@@ -1004,17 +895,9 @@ namespace Reconstructor
 				_sInfo.cgDepth = 0 , _sInfo.cascadic = true , _sInfo.vCycles = 1 , _sInfo.iters = params.iters , _sInfo.cgAccuracy = params.cgSolverAccuracy , _sInfo.verbose = params.verbose , _sInfo.showResidual = params.showResidual , _sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE , _sInfo.sliceBlockSize = 1;
 				_sInfo.baseVCycles = params.baseVCycles;
 				typename FEMIntegrator::template System< Sigs , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
-#ifdef SOFT_DIRICHLET
-				if( dirichletInfo ) sInfo->solution = sInfo->tree.solveSystem( Sigs() , F , constraints , params.baseDepth , params.solveDepth , _sInfo , std::make_tuple( iInfo , dirichletInfo ) );
-				else                sInfo->solution = sInfo->tree.solveSystem( Sigs() , F , constraints , params.baseDepth , params.solveDepth , _sInfo , std::make_tuple( iInfo ) );
-#else // !SOFT_DIRICHLET
-				sInfo->solution = sInfo->tree.solveSystem( Sigs() , F , constraints , params.baseDepth , params.solveDepth , _sInfo , std::make_tuple( iInfo ) );
-#endif // SOFT_DIRICHLET
+				implicit.solution = implicit.tree.solveSystem( Sigs() , F , constraints , params.baseDepth , params.solveDepth , _sInfo , std::make_tuple( iInfo ) );
 				if( params.verbose ) std::cout << "# Linear system solved: " << profiler << std::endl;
 				if( iInfo ) delete iInfo , iInfo = NULL;
-#ifdef SOFT_DIRICHLET
-				if( dirichletInfo ) delete dirichletInfo , dirichletInfo = NULL;
-#endif // SOFT_DIRICHLET
 			}
 		}
 
@@ -1022,7 +905,7 @@ namespace Reconstructor
 		{
 			profiler.reset();
 			double valueSum = 0 , weightSum = 0;
-			typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &sInfo->tree , sInfo->solution );
+			typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &implicit.tree , implicit.solution );
 			std::vector< double > valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
 			ThreadPool::Parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
 				{
@@ -1031,19 +914,18 @@ namespace Reconstructor
 					if( w>0 ) weightSums[thread] += w , valueSums[thread] += evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node )[0] * w;
 				} );
 			for( size_t t=0 ; t<valueSums.size() ; t++ ) valueSum += valueSums[t] , weightSum += weightSums[t];
-			sInfo->isoValue = (Real)( valueSum / weightSum );
+			implicit.isoValue = (Real)( valueSum / weightSum );
 			if( params.verbose )
 			{
 				std::cout << "Got average: " << profiler << std::endl;
-				std::cout << "Iso-Value: " << sInfo->isoValue << " = " << valueSum << " / " << weightSum << std::endl;
+				std::cout << "Iso-Value: " << implicit.isoValue << " = " << valueSum << " / " << weightSum << std::endl;
 			}
 		}
 		delete samples;
-		return sInfo;
 	}
 
 	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-	typename std::conditional< HasAuxData , ReconstructionInfo< Real , Dim , FEMSig , AuxData > , ReconstructionInfo< Real , Dim , FEMSig > >::type *SSD::_Solve( UIntPack< FEMSigs ... >  , InputSampleStreamType &pointStream , SolutionParameters< Real > params )
+	void SSD::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params )
 	{
 		static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs... > >::value , "[ERROR] Signatures don't match" );
 
@@ -1071,17 +953,12 @@ namespace Reconstructor
 		typedef typename std::conditional< HasAuxData , VectorTypeUnion< Real , Normal< Real , Dim > , AuxData > , Normal< Real , Dim > >::type NormalAndAuxData;
 
 		// The type describing the sampling density
-		typedef typename std::conditional< HasAuxData , ReconstructionInfo< Real , Dim , FEMSig , AuxData > , ReconstructionInfo< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
+		typedef typename std::conditional< HasAuxData , ImplicitRepresentation< Real , Dim , FEMSig , AuxData > , ImplicitRepresentation< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
 		// <-- Types //
 		///////////////
 
-		// The solution info to be returned
-		typename std::conditional< HasAuxData , ReconstructionInfo< Real , Dim , FEMSig , AuxData > , ReconstructionInfo< Real , Dim , FEMSig > >::type *sInfo;
-		if constexpr( HasAuxData ) sInfo = new ReconstructionInfo< Real , Dim , FEMSig , AuxData >( pointStream.zero() );
-		else sInfo = new ReconstructionInfo< Real , Dim , FEMSig >();
-
 		NormalAndAuxData zeroNormalAndAuxData;
-		if constexpr( HasAuxData ) zeroNormalAndAuxData = NormalAndAuxData( Normal< Real , Dim >() , sInfo->zeroAuxData );
+		if constexpr( HasAuxData ) zeroNormalAndAuxData = NormalAndAuxData( Normal< Real , Dim >() , implicit.zeroAuxData );
 
 		XForm< Real , Dim+1 > modelToUnitCube = XForm< Real , Dim+1 >::Identity();
 
@@ -1155,8 +1032,8 @@ namespace Reconstructor
 					};
 
 				typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-				if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , sInfo->tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , sInfo->tree.nodeAllocators.size() ? sInfo->tree.nodeAllocators[0] : NULL , sInfo->tree.initializer() , ProcessDataWithConfidence );
-				else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , sInfo->tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , sInfo->tree.nodeAllocators.size() ? sInfo->tree.nodeAllocators[0] : NULL , sInfo->tree.initializer() , ProcessData );
+				if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+				else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
 			}
 			else
 			{
@@ -1180,11 +1057,11 @@ namespace Reconstructor
 					};
 
 				typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-				if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , sInfo->tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , sInfo->tree.nodeAllocators.size() ? sInfo->tree.nodeAllocators[0] : NULL , sInfo->tree.initializer() , ProcessDataWithConfidence );
-				else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , sInfo->tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , sInfo->tree.nodeAllocators.size() ? sInfo->tree.nodeAllocators[0] : NULL , sInfo->tree.initializer() , ProcessData );
+				if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+				else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
 			}
 
-			sInfo->unitCubeToModel = modelToUnitCube.inverse();
+			implicit.unitCubeToModel = modelToUnitCube.inverse();
 
 			if( params.verbose )
 			{
@@ -1197,12 +1074,12 @@ namespace Reconstructor
 			InterpolationInfo *iInfo = NULL;
 			int solveDepth = params.depth;
 
-			sInfo->tree.resetNodeIndices( 0 , std::make_tuple() );
+			implicit.tree.resetNodeIndices( 0 , std::make_tuple() );
 
 			// Get the kernel density estimator
 			{
 				profiler.reset();
-				sInfo->density = sInfo->tree.template setDensityEstimator< 1 , Reconstructor::WeightDegree >( *samples , params.kernelDepth , params.samplesPerNode );
+				implicit.density = implicit.tree.template setDensityEstimator< 1 , Reconstructor::WeightDegree >( *samples , params.kernelDepth , params.samplesPerNode );
 				if( params.verbose ) std::cout << "#   Got kernel density: " << profiler << std::endl;
 			}
 
@@ -1255,8 +1132,8 @@ namespace Reconstructor
 							return true;
 						};
 				}
-				if( params.confidenceBias>0 ) *normalInfo = sInfo->tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , sInfo->density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionAndBiasFunction );
-				else                          *normalInfo = sInfo->tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , sInfo->density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionFunction );
+				if( params.confidenceBias>0 ) *normalInfo = implicit.tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionAndBiasFunction );
+				else                          *normalInfo = implicit.tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionFunction );
 				if( params.verbose )
 				{
 					std::cout << "#     Got normal field: " << profiler << std::endl;
@@ -1264,8 +1141,8 @@ namespace Reconstructor
 				}
 			}
 
-			if( !params.outputDensity ){ delete sInfo->density ; sInfo->density = NULL; }
-			if constexpr( HasAuxData ) sInfo->auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( sInfo->tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( samples->size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return (*samples)[i]; } , [&]( size_t i ) -> const AuxData & { return (*sampleNormalAndAuxData)[i].template get<1>(); } , (DensityEstimator*)NULL ) );
+			if( !params.outputDensity ){ delete implicit.density ; implicit.density = NULL; }
+			if constexpr( HasAuxData ) implicit.auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( implicit.tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( samples->size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return (*samples)[i]; } , [&]( size_t i ) -> const AuxData & { return (*sampleNormalAndAuxData)[i].template get<1>(); } , (DensityEstimator*)NULL ) );
 
 				// Add the interpolation constraints
 				if( params.pointWeight>0 || params.gradientWeight>0 )
@@ -1273,13 +1150,13 @@ namespace Reconstructor
 					profiler.reset();
 						if constexpr( HasAuxData )
 						{
-							if( params.exactInterpolation ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , NormalAndAuxData , 1 >( sInfo->tree , *samples , GetPointer( *sampleNormalAndAuxData ) , SSD::ConstraintDual< Dim , Real , AuxData >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1]  ) , SSD::SystemDual< Dim , Real , AuxData >( params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1] ) , true , false );
-							else                            iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , NormalAndAuxData , 1 >( sInfo->tree , *samples , GetPointer( *sampleNormalAndAuxData ) , SSD::ConstraintDual< Dim , Real , AuxData >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1]  ) , SSD::SystemDual< Dim , Real , AuxData >( params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1] ) , true , params.depth , 1 );
+							if( params.exactInterpolation ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , NormalAndAuxData , 1 >( implicit.tree , *samples , GetPointer( *sampleNormalAndAuxData ) , SSD::ConstraintDual< Dim , Real , AuxData >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1]  ) , SSD::SystemDual< Dim , Real , AuxData >( params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1] ) , true , false );
+							else                            iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , NormalAndAuxData , 1 >( implicit.tree , *samples , GetPointer( *sampleNormalAndAuxData ) , SSD::ConstraintDual< Dim , Real , AuxData >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1]  ) , SSD::SystemDual< Dim , Real , AuxData >( params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1] ) , true , params.depth , 1 );
 						}
 						else
 						{
-							if( params.exactInterpolation ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , Point< Real , Dim > , 1 >( sInfo->tree , *samples , GetPointer( *sampleNormalAndAuxData ) , SSD::ConstraintDual< Dim , Real >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1]  ) , SSD::SystemDual< Dim , Real >( params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1] ) , true , false );
-							else                            iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , Point< Real , Dim > , 1 >( sInfo->tree , *samples , GetPointer( *sampleNormalAndAuxData ) , SSD::ConstraintDual< Dim , Real >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1]  ) , SSD::SystemDual< Dim , Real >( params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1] ) , true , params.depth , 1 );
+							if( params.exactInterpolation ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , Point< Real , Dim > , 1 >( implicit.tree , *samples , GetPointer( *sampleNormalAndAuxData ) , SSD::ConstraintDual< Dim , Real >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1]  ) , SSD::SystemDual< Dim , Real >( params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1] ) , true , false );
+							else                            iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , Point< Real , Dim > , 1 >( implicit.tree , *samples , GetPointer( *sampleNormalAndAuxData ) , SSD::ConstraintDual< Dim , Real >( targetValue , params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1]  ) , SSD::SystemDual< Dim , Real >( params.pointWeight * pointDepthAndWeight.value()[1] , params.gradientWeight * pointDepthAndWeight.value()[1] ) , true , params.depth , 1 );
 						}
 					if( params.verbose ) std::cout <<  "#Initialized point interpolation constraints: " << profiler << std::endl;
 				}
@@ -1294,8 +1171,8 @@ namespace Reconstructor
 				typename FEMTree< Dim , Real >::template HasNormalDataFunctor< NormalSigs > hasNormalDataFunctor( *normalInfo );
 				auto hasDataFunctor = [&]( const FEMTreeNode *node ){ return hasNormalDataFunctor( node ); };
 				auto addNodeFunctor = [&]( int d , const int off[Dim] ){ return d<=(int)params.fullDepth; };
-				if constexpr( HasAuxData ) sInfo->tree.template finalizeForMultigrid< MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , sInfo->density , sInfo->auxData ) );
-				else sInfo->tree.template finalizeForMultigrid< MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , sInfo->density ) );
+				if constexpr( HasAuxData ) implicit.tree.template finalizeForMultigrid< MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , implicit.density , implicit.auxData ) );
+				else implicit.tree.template finalizeForMultigrid< MaxDegree , Degrees::Max() >( params.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , implicit.density ) );
 
 				if( params.verbose ) std::cout << "#       Finalized tree: " << profiler << std::endl;
 			}
@@ -1306,12 +1183,12 @@ namespace Reconstructor
 			if( params.pointWeight>0 || params.gradientWeight>0 )
 			{
 				profiler.reset();
-				constraints = sInfo->tree.initDenseNodeData( Sigs() );
-				sInfo->tree.addInterpolationConstraints( constraints , solveDepth , std::make_tuple( iInfo ) );
+				constraints = implicit.tree.initDenseNodeData( Sigs() );
+				implicit.tree.addInterpolationConstraints( constraints , solveDepth , std::make_tuple( iInfo ) );
 				if( params.verbose ) std::cout << "#Set point constraints: " << profiler << std::endl;
 			}
 
-			if( params.verbose ) std::cout << "All Nodes / Active Nodes / Ghost Nodes: " << sInfo->tree.allNodes() << " / " << sInfo->tree.activeNodes() << " / " << sInfo->tree.ghostNodes() << std::endl;
+			if( params.verbose ) std::cout << "All Nodes / Active Nodes / Ghost Nodes: " << implicit.tree.allNodes() << " / " << implicit.tree.activeNodes() << " / " << implicit.tree.ghostNodes() << std::endl;
 			if( params.verbose ) std::cout << "Memory Usage: " << float( MemoryInfo::Usage())/(1<<20) << " MB" << std::endl;
 
 			// Solve the linear system
@@ -1321,7 +1198,7 @@ namespace Reconstructor
 				_sInfo.cgDepth = 0 , _sInfo.cascadic = true , _sInfo.vCycles = 1 , _sInfo.iters = params.iters , _sInfo.cgAccuracy = params.cgSolverAccuracy , _sInfo.verbose = params.verbose , _sInfo.showResidual = params.showResidual , _sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE , _sInfo.sliceBlockSize = 1;
 				_sInfo.baseVCycles = params.baseVCycles;
 				typename FEMIntegrator::template System< Sigs , IsotropicUIntPack< Dim , 2 > > F( { 0. , 0. , (double)params.biLapWeight } );
-				sInfo->solution = sInfo->tree.solveSystem( Sigs() , F , constraints , params.baseDepth , params.solveDepth , _sInfo , std::make_tuple( iInfo ) );
+				implicit.solution = implicit.tree.solveSystem( Sigs() , F , constraints , params.baseDepth , params.solveDepth , _sInfo , std::make_tuple( iInfo ) );
 				if( params.verbose ) std::cout << "# Linear system solved: " << profiler << std::endl;
 				if( iInfo ) delete iInfo , iInfo = NULL;
 			}
@@ -1331,7 +1208,7 @@ namespace Reconstructor
 		{
 			profiler.reset();
 			double valueSum = 0 , weightSum = 0;
-			typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &sInfo->tree , sInfo->solution );
+			typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &implicit.tree , implicit.solution );
 			std::vector< double > valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
 			ThreadPool::Parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
 				{
@@ -1340,15 +1217,14 @@ namespace Reconstructor
 					if( w>0 ) weightSums[thread] += w , valueSums[thread] += evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node )[0] * w;
 				} );
 			for( size_t t=0 ; t<valueSums.size() ; t++ ) valueSum += valueSums[t] , weightSum += weightSums[t];
-			sInfo->isoValue = (Real)( valueSum / weightSum );
+			implicit.isoValue = (Real)( valueSum / weightSum );
 			if( params.verbose )
 			{
 				std::cout << "Got average: " << profiler << std::endl;
-				std::cout << "Iso-Value: " << sInfo->isoValue << " = " << valueSum << " / " << weightSum << std::endl;
+				std::cout << "Iso-Value: " << implicit.isoValue << " = " << valueSum << " / " << weightSum << std::endl;
 			}
 		}
 		delete samples;
-		return sInfo;
 	}
 }
 

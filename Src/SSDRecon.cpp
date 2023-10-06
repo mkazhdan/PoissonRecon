@@ -196,8 +196,8 @@ template< typename Real , unsigned int Dim , unsigned int FEMSig , bool HasGradi
 void WriteMesh
 (
 	bool inCore ,
-	Reconstructor::ReconstructionInfo< Real , Dim , FEMSig > &reconInfo ,
-	const Reconstructor::MeshExtractionParameters &meParams ,
+	Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig > &implicit ,
+	const Reconstructor::LevelSetExtractionParameters &meParams ,
 	std::string fileName ,
 	bool ascii
 )
@@ -217,8 +217,8 @@ void WriteMesh
 		// The wrapper converting native to output types
 		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
 
-		// Extract the mesh
-		Reconstructor::ExtractMesh< Real >( reconInfo , _vertexStream , polygonStream , meParams );
+		// Extract the level set
+		implicit.extractLevelSet( _vertexStream , polygonStream , meParams );
 	}
 
 	// Write the mesh to a .ply file
@@ -231,8 +231,8 @@ void WriteMeshWithData
 (
 	const AuxDataFactory &auxDataFactory ,
 	bool inCore ,
-	Reconstructor::ReconstructionInfo< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > &reconInfo ,
-	const Reconstructor::MeshExtractionParameters &meParams ,
+	Reconstructor::ImplicitRepresentation< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > &implicit ,
+	const Reconstructor::LevelSetExtractionParameters &meParams ,
 	std::string fileName ,
 	bool ascii
 )
@@ -252,8 +252,8 @@ void WriteMeshWithData
 		// The wrapper converting native to output types
 		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
 
-		// Extract the mesh
-		Reconstructor::ExtractMesh< Real >( reconInfo , _vertexStream , polygonStream , meParams );
+		// Extract the level set
+		implicit.extractLevelSet( _vertexStream , polygonStream , meParams );
 	}
 
 	// Write the mesh to a .ply file
@@ -280,7 +280,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	typedef InputDataStream< typename InputSampleFactory::VertexType > InputPointStream;
 
 	// The type storing the reconstruction solution (depending on whether auxiliary data is provided or not)
-	using ReconstructionInfo = typename std::conditional< HasAuxData , Reconstructor::ReconstructionInfo< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > , Reconstructor::ReconstructionInfo< Real , Dim , FEMSig > >::type;
+	using ImplicitRepresentation = typename std::conditional< HasAuxData , Reconstructor::SSD::ImplicitRepresentation< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > , Reconstructor::SSD::ImplicitRepresentation< Real , Dim , FEMSig > >::type;
 	// <-- Types //
 	///////////////
 
@@ -303,9 +303,9 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	}
 
 	Profiler profiler(20);
-	ReconstructionInfo *sInfo = NULL;
+	ImplicitRepresentation *implicit = NULL;
 	typename Reconstructor::SSD::SolutionParameters< Real > sParams;
-	typename Reconstructor::MeshExtractionParameters meParams;
+	Reconstructor::LevelSetExtractionParameters meParams;
 
 	sParams.verbose = Verbose.set;
 	sParams.outputDensity = Density.set;
@@ -437,10 +437,10 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		if( Transform.set )
 		{
 			Reconstructor::TransformedInputSampleWithDataStream< Real , Dim , typename AuxDataFactory::VertexType > _sampleStream( toModel , sampleStream );
-			sInfo = Reconstructor::SSD::Solve< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( _sampleStream , sParams );
-			sInfo->unitCubeToModel = toModel.inverse() * sInfo->unitCubeToModel;
+			implicit = new Reconstructor::SSD::ImplicitRepresentation< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( _sampleStream , sParams );
+			implicit->unitCubeToModel = toModel.inverse() * implicit->unitCubeToModel;
 		}
-		else sInfo = Reconstructor::SSD::Solve< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( sampleStream , sParams );
+		else implicit = new Reconstructor::SSD::ImplicitRepresentation< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( sampleStream , sParams );
 	}
 	else
 	{
@@ -449,16 +449,16 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		if( Transform.set )
 		{
 			Reconstructor::TransformedInputSampleStream< Real , Dim > _sampleStream( toModel , sampleStream );
-			sInfo = Reconstructor::SSD::Solve< Real , Dim , FEMSig >( _sampleStream , sParams );
-			sInfo->unitCubeToModel = toModel.inverse() * sInfo->unitCubeToModel;
+			implicit = new Reconstructor::SSD::ImplicitRepresentation< Real , Dim , FEMSig >( _sampleStream , sParams );
+			implicit->unitCubeToModel = toModel.inverse() * implicit->unitCubeToModel;
 		}
-		else sInfo = Reconstructor::SSD::Solve< Real , Dim , FEMSig >( sampleStream , sParams );
+		else implicit = new Reconstructor::SSD::ImplicitRepresentation< Real , Dim , FEMSig >( sampleStream , sParams );
 	}
 
 	delete pointStream;
 	delete _inputSampleFactory;
 
-	if constexpr( HasAuxData ) if( sInfo->auxData ) sInfo->weightAuxDataByDepth( (Real)DataX.value );
+	if constexpr( HasAuxData ) if( implicit->auxData ) implicit->weightAuxDataByDepth( (Real)DataX.value );
 
 	if( Tree.set )
 	{
@@ -467,10 +467,10 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		FileStream fs(fp);
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
-		sInfo->tree.write( fs , sInfo->unitCubeToModel.inverse() , false );
-		sInfo->solution.write( fs );
-		if constexpr( HasAuxData ) if( sInfo->auxData ) sInfo->auxData->write( fs );
-		if( sInfo->density ) sInfo->density->write( fs );
+		implicit->tree.write( fs , implicit->unitCubeToModel.inverse() , false );
+		implicit->solution.write( fs );
+		if constexpr( HasAuxData ) if( implicit->auxData ) implicit->auxData->write( fs );
+		if( implicit->density ) implicit->density->write( fs );
 		fclose( fp );
 	}
 
@@ -479,7 +479,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	{
 		int res = 0;
 		profiler.reset();
-		Pointer( Real ) values = sInfo->tree.template regularGridEvaluate< true >( sInfo->solution , res , -1 , PrimalGrid.set );
+		Pointer( Real ) values = implicit->tree.template regularGridEvaluate< true >( implicit->solution , res , -1 , PrimalGrid.set );
 		if( Verbose.set ) std::cout << "Got grid: " << profiler << std::endl;
 		XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
 		if( PrimalGrid.set ) for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / (res-1) );
@@ -487,7 +487,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 
 		unsigned int _res[Dim];
 		for( int d=0 ; d<Dim ; d++ ) _res[d] = res;
-		RegularGrid< Real , Dim >::Write( Grid.value , _res , values , sInfo->unitCubeToModel * voxelToUnitCube );
+		RegularGrid< Real , Dim >::Write( Grid.value , _res , values , implicit->unitCubeToModel * voxelToUnitCube );
 
 		DeletePointer( values );
 	}
@@ -508,38 +508,38 @@ void Execute( const AuxDataFactory &auxDataFactory )
 			else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
 		}
 
-		XForm< Real , Dim+1 > pXForm = sInfo->unitCubeToModel;
+		XForm< Real , Dim+1 > pXForm = implicit->unitCubeToModel;
 		XForm< Real , Dim > nXForm = XForm< Real , Dim >( pXForm ).inverse().transpose();
 
 		if( Gradients.set )
 		{
 			if( Density.set )
 			{
-				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , true >( auxDataFactory , InCore.set , *sInfo , meParams , Out.value , ASCII.set );
-				else                       WriteMesh        < Real , Dim , FEMSig ,                  true , true >(                  InCore.set , *sInfo , meParams , Out.value , ASCII.set );
+				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , true >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				else                       WriteMesh        < Real , Dim , FEMSig ,                  true , true >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
 			}
 			else
 			{
-				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , false >( auxDataFactory , InCore.set , *sInfo , meParams , Out.value , ASCII.set );
-				else                       WriteMesh        < Real , Dim , FEMSig ,                  true , false >(                  InCore.set , *sInfo , meParams , Out.value , ASCII.set );
+				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , false >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				else                       WriteMesh        < Real , Dim , FEMSig ,                  true , false >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
 			}
 		}
 		else
 		{
 			if( Density.set )
 			{
-				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , true >( auxDataFactory , InCore.set , *sInfo , meParams , Out.value , ASCII.set );
-				else                       WriteMesh        < Real , Dim , FEMSig ,                  false , true >(                  InCore.set , *sInfo , meParams , Out.value , ASCII.set );
+				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , true >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				else                       WriteMesh        < Real , Dim , FEMSig ,                  false , true >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
 			}
 			else
 			{
-				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , false >( auxDataFactory , InCore.set , *sInfo , meParams , Out.value , ASCII.set );
-				else                       WriteMesh        < Real , Dim , FEMSig ,                  false , false >(                  InCore.set , *sInfo , meParams , Out.value , ASCII.set );
+				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , false >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				else                       WriteMesh        < Real , Dim , FEMSig ,                  false , false >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
 			}
 		}
 	}
 	if( Verbose.set ) std::cout << "#          Total Solve: " << Time()-startTime << " (s), " << MemoryInfo::PeakMemoryUsageMB() << " (MB)" << std::endl;
-	delete sInfo;
+	delete implicit;
 }
 
 #ifndef FAST_COMPILE
