@@ -21,7 +21,7 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <b>Papers:</b>
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/SGP06.pdf">[Kazhdan, Bolitho, and Hoppe, 2006]</a>,
 <a href="https://www.agarwala.org/efficient_gdc/">[Agarwala, 2007]</A>
-<a href="https://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>,
+<a href="http://mesh.brown.edu/ssd/">[Calakli and Taubin, 2011]</a>,
 <A HREF="https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/">[Crane, Weischedel, and Wardetzky, 2013]</a>,
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/ToG13.pdf">[Kazhdan and Hoppe, 2013]</a>,
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF18.pdf">[Kazhdan and Hoppe, 2018]</a>,
@@ -432,7 +432,7 @@ The default value for this parameter is equal to the numer of (virtual) processo
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>SSDRecon</b></font>:
-Reconstructs a surface mesh from a set of oriented 3D points by solving for a Smooth Signed Distance function (solving a 3D bi-Laplacian system with positional value and gradient constraints) <a href="https://mesh.brown.edu/ssd/paper.html">[Calakli and Taubin, 2011]</a>
+Reconstructs a surface mesh from a set of oriented 3D points by solving for a Smooth Signed Distance function (solving a 3D bi-Laplacian system with positional value and gradient constraints) <a href="http://mesh.brown.edu/ssd/">[Calakli and Taubin, 2011]</a>
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input points</i>&gt;
 </dt><dd> This string is the name of the file from which the point set will be read.<br>
@@ -968,7 +968,7 @@ These steps can be found in the <cpp>Reconstruction.example.cpp</cpp> code.
 <LI>The reconstructor is called on line 303.
 <LI>The mesh extraction is called on line 314.
 </UL>
-Note that a similar approach can be used to perform the <A HREF="https://mesh.brown.edu/ssd/paper.html">Smoothed Signed Distance</A> reconstruction (line 302). The approach also supports reconstruction of meshes with auxiliary information like color (lines 263-292), with the only constraint that the auxiliary data type supports the computation affine combinations (e.g. the <CODE>RGBColor</CODE> type defined in lines 60-75).
+Note that a similar approach can be used to perform the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance</A> reconstruction (line 302). The approach also supports reconstruction of meshes with auxiliary information like color (lines 263-292), with the only constraint that the auxiliary data type supports the computation affine combinations (e.g. the <CODE>RGBColor</CODE> type defined in lines 60-75).
 </DL>
 </UL>
 
@@ -1251,7 +1251,7 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version9.0/">Version 9.0</a>:
 <ol>
 <li> Added support for free boundary conditions.
-</li><li> Extended the solver to support more general linear systems. This makes it possible to use the same framework to implement the <a href="https://mesh.brown.edu/ssd/">Smoothed Signed Distance Reconstruction</a> of Calakli and Taubin (2011).
+</li><li> Extended the solver to support more general linear systems. This makes it possible to use the same framework to implement the <a href="http://mesh.brown.edu/ssd/">Smoothed Signed Distance Reconstruction</a> of Calakli and Taubin (2011).
 </li><li> Modified the implementation of density estimation and input representation. This tends to define a slightly larger system. On its own, this results in slightly increased running-time/footprint for full-res reconstructions, but provides a substantially faster implementation when the output complexity is smaller than the input.
 </li></ol>
 
