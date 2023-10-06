@@ -53,7 +53,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <functional>
 #include "PlyFile.h"
 #include "Geometry.h"
-#include "StreamingMesh.h"
+#include "DataStream.h"
 #include "MyMiscellany.h"
 #include "Array.h"
 
@@ -92,7 +92,7 @@ namespace PLY
 
 	// PLY write mesh functionality
 	template< typename VertexFactory , typename Index , class Real , int Dim , typename OutputIndex=int , bool UseCharIndex=false >
-	void WritePolygons( std::string fileName , const VertexFactory &vFactory , StreamingMesh< typename VertexFactory::VertexType , Index > *mesh , int file_type , const std::vector< std::string >& comments , std::function< void ( typename VertexFactory::VertexType & ) > xForm = []( typename VertexFactory::VertexType &v ){} );
+	void WritePolygons( std::string fileName , const VertexFactory &vFactory , size_t vertexNum , size_t polygonNum , InputDataStream< typename VertexFactory::VertexType > &vertexStream , InputDataStream< std::vector< Index > > &polygonStream , int file_type , const std::vector< std::string >& comments );
 
 	template< typename VertexFactory , typename Index , bool UseCharIndex=false >
 	void WritePolygons( std::string fileName , const VertexFactory &vFactory , const std::vector< typename VertexFactory::VertexType > &vertices , const std::vector< std::vector< Index > > &polygons , int file_type , const std::vector< std::string > &comments );

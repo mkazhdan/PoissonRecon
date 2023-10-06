@@ -34,6 +34,8 @@ DAMAGE.
 #include "Socket.h"
 #include "MyMiscellany.h"
 #include "CmdLineParser.h"
+#include "VertexFactory.h"
+#include "Reconstructors.h"
 
 
 namespace PointPartitionClientServer

@@ -96,7 +96,7 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( StreamInitializationData &s
 		std::vector< node_index_type > &nodeToIndexMap = sid._nodeToIndexMap;
 		typename InputPointStream< AuxData >::PointAndDataType pd;
 		pd.template get<1>() = zeroData;
-		while( pointStream.next( pd ) )
+		while( pointStream.read( pd ) )
 		{
 			Point< Real , Dim > p = pd.template get<0>();
 			typename InputPointStream< AuxData >::DataType d = InputPointStream< AuxData >::GetData( pd );

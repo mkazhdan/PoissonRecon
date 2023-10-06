@@ -331,6 +331,49 @@ inline void SignalHandler( int signal )
 template< typename Value > bool SetAtomic( volatile Value *value , Value newValue , Value oldValue );
 template< typename Data > void AddAtomic( Data& a , Data b );
 
+//////////////////////////////////
+// File-backed streaming memory //
+//////////////////////////////////
+#include "Array.h"
+class FileBackedReadWriteStream
+{
+public:
+	struct FileDescription
+	{
+		FILE *fp;
+		char fileName[2048];
+
+		FileDescription( void ) : fp(NULL) { fileName[0] = 0; }
+		FileDescription( const FileDescription &fd ) : fp(fd.fp) { strcpy( fileName , fd.fileName ); }
+		FileDescription( FILE *fp ) : fp(fp) { fileName[0] = 0; }
+		FileDescription( const char *fileHeader ) : fp(NULL)
+		{
+			if( fileHeader && strlen(fileHeader) ) sprintf( fileName , "%sXXXXXX" , fileHeader );
+			else strcpy( fileName , "XXXXXX" );
+#ifdef _WIN32
+			_mktemp( fileName );
+			fp = fopen( fileName , "w+b" );
+#else // !_WIN32
+			fp = fdopen( mkstemp( fileName ) , "w+b" );
+#endif // _WIN32
+			if( !fp ) ERROR_OUT( "Failed to open file: " , fileName );
+		}
+		void remove( void ){ if( fp ){ fclose( fp ) ; fp = NULL ; std::remove( fileName ); } }
+	};
+
+	FileBackedReadWriteStream( const char* fileHeader="" ) : _fd( fileHeader ) , _fileHandleOwner(true) {}
+	FileBackedReadWriteStream( FILE *fp ) : _fd(fp) , _fileHandleOwner(false) {}
+	~FileBackedReadWriteStream( void ){ if( _fileHandleOwner ) _fd.remove(); }
+	bool write( ConstPointer(char) data , size_t size ){ return fwrite( data , sizeof(char) , size , _fd.fp )==size; }
+	bool read( Pointer(char) data , size_t size ){ return fread( data , sizeof(char) , size , _fd.fp )==size; }
+	void reset( void ){ fseek( _fd.fp , 0 , SEEK_SET ); }
+protected:
+	bool _fileHandleOwner;
+	FileDescription _fd;
+};
+
+
+
 ////////////////////
 // MKThread Stuff //
 ////////////////////

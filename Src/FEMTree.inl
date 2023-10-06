@@ -1069,13 +1069,28 @@ template< unsigned int Dim , class Real >
 template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
 SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real >::setExtrapolatedDataField( const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest )
 {
-	SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > dataField;
-	this->template updateExtrapolatedDataField< DataSig , CreateNodes >( dataField , samples , sampleData , density , nearest );
-	return dataField;
+	return this->template setExtrapolatedDataField< DataSig , CreateNodes , DensityDegree , Data >( samples.size() , [&]( size_t i ) -> const PointSample & { return samples[i]; } , [&]( size_t i ) -> const Data & { return sampleData[i]; } , density , nearest );
 }
+
 template< unsigned int Dim , class Real >
 template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
 void FEMTree< Dim , Real >::updateExtrapolatedDataField( SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > &dataField , const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest )
+{
+	return this->template updateExtrapolatedDataField< DataSig , CreateNodes , DensityDegree , Data >( dataField , samples.size() , [&]( size_t i ) -> const PointSample & { return samples[i]; } , [&]( size_t i ) -> const Data & { return sampleData[i]; } , density , nearest );
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data , class SampleFunctor /* = std::function< const PointSample & (size_t) >*/ , class SampleDataFunctor /* = std::function< const Data & (size_t) > */ >
+SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real >::setExtrapolatedDataField( size_t sampleNum , SampleFunctor sampleFunctor , SampleDataFunctor sampleDataFunctor , const DensityEstimator< DensityDegree >* density , bool nearest )
+{
+	SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > dataField;
+	this->template updateExtrapolatedDataField< DataSig , CreateNodes , DensityDegree , Data >( dataField , sampleNum , sampleFunctor , sampleDataFunctor , density , nearest );
+	return dataField;
+}
+
+template< unsigned int Dim , class Real >
+template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data , class SampleFunctor /* = std::function< const PointSample & (size_t) >*/ , class SampleDataFunctor /* = std::function< const Data & (size_t) > */ >
+void FEMTree< Dim , Real >::updateExtrapolatedDataField( SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > &dataField , size_t sampleNum , SampleFunctor sampleFunctor , SampleDataFunctor sampleDataFunctor , const DensityEstimator< DensityDegree >* density , bool nearest )
 {
 	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
@@ -1083,18 +1098,19 @@ void FEMTree< Dim , Real >::updateExtrapolatedDataField( SparseNodeData< Project
 	PointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > > dataKey;
 	densityKey.set( _localToGlobal( maxDepth ) ) , dataKey.set( _localToGlobal( maxDepth ) );
 
-	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
+	for( node_index_type i=0 ; i<(node_index_type)sampleNum ; i++ )
 	{
-		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
-		const Data& data = sampleData[i];
+		const PointSample &sampleAndNode = sampleFunctor(i);
+		const ProjectiveData< Point< Real , Dim > , Real >& sample = sampleAndNode.sample;
+		const Data& data = sampleDataFunctor(i);
 		Point< Real , Dim > p = sample.weight==0 ? sample.data : sample.data / sample.weight;
 		if( !_InBounds(p) )
 		{
 			WARN( "Point is out of bounds" );
 			continue;
 		}
-		if( nearest ) _nearestMultiSplatPointData< DensityDegree >( density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , 2 );
-		else          _multiSplatPointData< CreateNodes , false , DensityDegree >( nodeAllocator , density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
+		if( nearest ) _nearestMultiSplatPointData< DensityDegree >( density , (FEMTreeNode*)sampleAndNode.node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , 2 );
+		else          _multiSplatPointData< CreateNodes , false , DensityDegree >( nodeAllocator , density , (FEMTreeNode*)sampleAndNode.node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
 	}
 }
 

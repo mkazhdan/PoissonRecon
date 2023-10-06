@@ -29,21 +29,21 @@ DAMAGE.
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
 struct Client
 {
-	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
-	typedef typename FEMTree< Dim , Real >::template ApproximatePointInterpolationInfo< Real , 0 , ConstraintDual< Dim , Real > , SystemDual< Dim , Real > > ApproximatePointInterpolationInfo;
+	typedef typename FEMTree< Dim , Real >::template DensityEstimator< Reconstructor::WeightDegree > DensityEstimator;
+	typedef typename FEMTree< Dim , Real >::template ApproximatePointInterpolationInfo< Real , 0 , Reconstructor::Poisson::ConstraintDual< Dim , Real > , Reconstructor::Poisson::SystemDual< Dim , Real > > ApproximatePointInterpolationInfo;
 	typedef IsotropicUIntPack< Dim , FEMDegreeAndBType< Degree , BType >::Signature > Sigs;
 	typedef IsotropicUIntPack< Dim , Degree > Degrees;
-	typedef IsotropicUIntPack< Dim , FEMDegreeAndBType< NORMAL_DEGREE , DerivativeBoundary< BType , 1 >::BType >::Signature > NormalSigs;
-	static const unsigned int DataSig = FEMDegreeAndBType< DATA_DEGREE , BOUNDARY_FREE >::Signature;
+	typedef IsotropicUIntPack< Dim , FEMDegreeAndBType< Reconstructor::Poisson::NormalDegree , DerivativeBoundary< BType , 1 >::BType >::Signature > NormalSigs;
+	static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;
 	typedef VertexFactory::DynamicFactory< Real > AuxDataFactory;
+	typedef typename AuxDataFactory::VertexType AuxData;
 	typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::Factory< Real , VertexFactory::NormalFactory< Real , Dim > , AuxDataFactory > > InputSampleFactory;
 	typedef VertexFactory::Factory< Real , VertexFactory::NormalFactory< Real , Dim > , AuxDataFactory > InputSampleDataFactory;
-	typedef InputOrientedPointStreamInfo< Real , Dim , typename AuxDataFactory::VertexType > InputPointStreamInfo;
-	typedef typename InputPointStreamInfo::PointAndDataType InputSampleType;
-	typedef typename InputPointStreamInfo::DataType InputSampleDataType;
+	typedef VectorTypeUnion< Real , Point< Real , Dim > , typename AuxDataFactory::VertexType > InputSampleDataType;
+	typedef VectorTypeUnion< Real , Point< Real , Dim > , InputSampleDataType > InputSampleType;
 	typedef InputDataStream< InputSampleType > InputPointStream;
 	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
-	using BoundaryData = typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions;
+	using BoundaryData = typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions;
 
 	~Client( void );
 
@@ -63,7 +63,7 @@ protected:
 	DenseNodeData< Real , Sigs > _constraints;																			// Phases [3,5]
 	DenseNodeData< Real , Sigs > _solution;																				// Phases [5,7]
 	ApproximatePointInterpolationInfo *_iInfo;																			// Phases [3,5]
-	SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > _dataField;		// Phases [3,7]
+	SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > _auxDataField;				// Phases [3,7]
 
 	static std::pair< unsigned int , unsigned int > _PaddedRange( std::pair< unsigned int , unsigned int > range , unsigned int depth , unsigned int padSize );
 
@@ -75,17 +75,17 @@ protected:
 		size_t subNodeCount;
 		DenseNodeData< Real , Sigs > constraints;
 		ApproximatePointInterpolationInfo iInfo;
-		SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > dataField;
+		SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > auxDataField;
 	};
 	struct _State5
 	{
-		using Data = ProjectiveData< InputSampleDataType , Real >;
+		using Data = ProjectiveData< AuxData , Real >;
 
-		_State5( void ) : dataField(NULL) , subNodes( NullPointer( FEMTreeNode ) ) {}
+		_State5( void ) : auxDataField(NULL) , subNodes( NullPointer( FEMTreeNode ) ) {}
 		~_State5( void )
 		{
 			DeletePointer( subNodes );
-			if( dataField ) delete dataField;
+			delete auxDataField;
 		}
 
 		struct BoundaryInfo
@@ -99,7 +99,7 @@ protected:
 
 		Pointer( FEMTreeNode ) subNodes;
 		DenseNodeData< Real , Sigs > solution;
-		SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > *dataField;
+		SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > *auxDataField;
 		std::pair< BoundaryInfo , BoundaryInfo > boundaryInfo;
 	};
 	struct _State7
@@ -142,6 +142,9 @@ protected:
 
 	template< typename _Real , unsigned int _Dim , BoundaryType _BType , unsigned int _Degree >
 	friend void RunClient( std::vector< Socket > &serverSockets , unsigned int sampleMS );
+
+	template< bool HasGradients , bool HasDensity >
+	void _writeMeshWithData( const ClientReconstructionInfo< Real , Dim > &clientReconInfo , _State7 &state7 , XForm< Real , Dim+1 > unitCubeToModel );
 };
 
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
@@ -484,13 +487,13 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 	// Read in the samples (and color data)
 	{
 		Timer timer;
-		auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , typename InputPointStreamInfo::DataType &d )
+		auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , InputSampleDataType &d )
 		{
 			Real l = (Real)Length( d.template get<0>() );
 			if( !l || !std::isfinite( l ) ) return (Real)-1.;
 			return (Real)pow( l , clientReconInfo.confidence );
 		};
-		auto ProcessData = []( const Point< Real , Dim > &p , typename InputPointStreamInfo::DataType &d )
+		auto ProcessData = []( const Point< Real , Dim > &p , InputSampleDataType &d )
 		{
 			Real l = (Real)Length( d.template get<0>() );
 			if( !l || !std::isfinite( l ) ) return (Real)-1.;
@@ -498,7 +501,7 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 			return (Real)1.;
 		};
 
-		std::vector< PointPartition::BufferedBinaryInputDataStream< InputSampleFactory > * > pointStreams( endPaddedIndex - beginPaddedIndex , NULL );
+		std::vector< InputDataStream< typename InputSampleFactory::VertexType > * > pointStreams( endPaddedIndex - beginPaddedIndex , NULL );
 		auto PointStreamFunctor = [&]( unsigned int idx )
 		{
 			std::string fileName = PointPartition::FileName( clientReconInfo.header , idx , 1<<clientReconInfo.sharedDepth , clientReconInfo.filesPerDir );
@@ -513,7 +516,7 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 			for( unsigned int i=0 ; i<( endPaddedIndex - beginPaddedIndex ) ; i++ ) pointStreamThreads[i].join();
 		}
 
-		using MultiPointStream = MultiInputDataStream< PointPartition::BufferedBinaryInputDataStream< InputSampleFactory > , typename InputSampleFactory::VertexType >;
+		using MultiPointStream = MultiInputDataStream< typename InputSampleFactory::VertexType >;
 
 		auto ProcessInteriorPointSlabs = [&]( typename FEMTreeInitializer< Dim , Real >::StreamInitializationData &sid , unsigned int start , unsigned int end )
 		{
@@ -541,8 +544,8 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 
 		auto ProcessPointSlab = [&]( typename FEMTreeInitializer< Dim , Real >::StreamInitializationData &sid , unsigned int idx )
 		{
-			PointPartition::BufferedBinaryInputDataStream< InputSampleFactory > &pointStream = *pointStreams[idx-beginPaddedIndex];
-
+			InputDataStream< typename InputSampleFactory::VertexType > &pointStream = *pointStreams[idx-beginPaddedIndex];
+				
 			if( idx>=beginIndex && idx<endIndex )
 			{
 				typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
@@ -589,11 +592,11 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 	// Get the kernel density estimator
 	{
 		Timer timer;
-		_density = _tree.template setDensityEstimator< 1 , WEIGHT_DEGREE >( _samples , clientReconInfo.kernelDepth , clientReconInfo.samplesPerNode );
+		_density = _tree.template setDensityEstimator< 1 , Reconstructor::WeightDegree >( _samples , clientReconInfo.kernelDepth , clientReconInfo.samplesPerNode );
 #ifdef ADAPTIVE_PADDING
-		_tree.template updateDensityEstimator< 1 , WEIGHT_DEGREE >( *_density , _paddedSamples , 0 , clientReconInfo.kernelDepth , pointDepthFunctor , clientReconInfo.samplesPerNode );
+		_tree.template updateDensityEstimator< 1 , Reconstructor::WeightDegree >( *_density , _paddedSamples , 0 , clientReconInfo.kernelDepth , pointDepthFunctor , clientReconInfo.samplesPerNode );
 #else // !ADAPTIVE_PADDING
-		_tree.template updateDensityEstimator< 1 , WEIGHT_DEGREE >( *_density , _paddedSamples , 0 , clientReconInfo.kernelDepth , clientReconInfo.samplesPerNode );
+		_tree.template updateDensityEstimator< 1 , Reconstructor::WeightDegree >( *_density , _paddedSamples , 0 , clientReconInfo.kernelDepth , clientReconInfo.samplesPerNode );
 #endif // ADAPTIVE_PADDING
 		profiler.update();
 		if( clientReconInfo.verbose>1 ) std::cout << "#            Got kernel density: " << timer << std::endl;
@@ -731,10 +734,10 @@ size_t Client< Real , Dim , BType , Degree >::_send3( const ClientReconstruction
 		{
 			if( !auxDataFactory.isStaticallyAllocated() )
 			{
-				ProjectiveSampleDataTypeSerializer< Real , Dim > serializer( clientReconInfo.auxProperties );
-				state3.dataField.write( serverStream , serializer );
+				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
+				state3.auxDataField.write( serverStream , serializer );
 			}
-			else state3.dataField.write( serverStream );
+			else state3.auxDataField.write( serverStream );
 		}
 		ioBytes += serverStream.ioBytes;
 		profiler.update();
@@ -764,8 +767,8 @@ void Client< Real , Dim , BType , Degree >::_process3( const ClientReconstructio
 	// Add the interpolation constraints
 	{
 		Timer timer;
-		iInfo       = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( _tree ,       _samples , ConstraintDual< Dim , Real >( targetValue , clientReconInfo.pointWeight * cumulativePointWeight.value() ) , SystemDual< Dim , Real >( clientReconInfo.pointWeight * cumulativePointWeight.value() ) , true , clientReconInfo.reconstructionDepth , 1 );
-		paddedIInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( _tree , _paddedSamples , ConstraintDual< Dim , Real >( targetValue , clientReconInfo.pointWeight * cumulativePointWeight.value() ) , SystemDual< Dim , Real >( clientReconInfo.pointWeight * cumulativePointWeight.value() ) , true , clientReconInfo.reconstructionDepth , 1 );
+		iInfo       = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( _tree ,       _samples , Reconstructor::Poisson::ConstraintDual< Dim , Real >( targetValue , clientReconInfo.pointWeight * cumulativePointWeight.value() ) , Reconstructor::Poisson::SystemDual< Dim , Real >( clientReconInfo.pointWeight * cumulativePointWeight.value() ) , true , clientReconInfo.reconstructionDepth , 1 );
+		paddedIInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 > ( _tree , _paddedSamples , Reconstructor::Poisson::ConstraintDual< Dim , Real >( targetValue , clientReconInfo.pointWeight * cumulativePointWeight.value() ) , Reconstructor::Poisson::SystemDual< Dim , Real >( clientReconInfo.pointWeight * cumulativePointWeight.value() ) , true , clientReconInfo.reconstructionDepth , 1 );
 		profiler.update();
 
 		if( clientReconInfo.verbose>1 ) std::cout << "# Set interpolation constraints: " << timer << std::endl;
@@ -775,13 +778,13 @@ void Client< Real , Dim , BType , Degree >::_process3( const ClientReconstructio
 	{
 		Timer timer;
 
-		constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
+		constexpr int MaxDegree = Reconstructor::Poisson::NormalDegree > Degrees::Max() ? Reconstructor::Poisson::NormalDegree : Degrees::Max();
 		typename FEMTree< Dim , Real >::template HasNormalDataFunctor< NormalSigs > hasNormalDataFunctor( *_normalInfo );
 		typename FEMTree< Dim , Real >::template HasNormalDataFunctor< NormalSigs > hasPaddedNormalDataFunctor( *_paddedNormalInfo );
 		auto hasDataFunctor = [&]( const FEMTreeNode *node ){ return hasNormalDataFunctor( node ) || hasPaddedNormalDataFunctor( node ); };
 
-		const int StartOffset = BSplineSupportSizes< MAX_DEGREE >::SupportStart;
-		const int   EndOffset = BSplineSupportSizes< MAX_DEGREE >::SupportEnd+1;
+		const int StartOffset = BSplineSupportSizes< MaxDegree >::SupportStart;
+		const int   EndOffset = BSplineSupportSizes< MaxDegree >::SupportEnd+1;
 		auto addNodeFunctor = [&]( int d , const int off[Dim] )
 		{
 			if( d<0 ) return true;
@@ -793,7 +796,7 @@ void Client< Real , Dim , BType , Degree >::_process3( const ClientReconstructio
 				return start<(int)endPaddedIndex && end>(int)beginPaddedIndex;
 			}
 		};
-		_tree.template finalizeForMultigrid< MAX_DEGREE , Degrees::Max() >( clientReconInfo.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple( iInfo , paddedIInfo ) , std::make_tuple( _normalInfo , _paddedNormalInfo , _density ) );
+		_tree.template finalizeForMultigrid< MaxDegree , Degrees::Max() >( clientReconInfo.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple( iInfo , paddedIInfo ) , std::make_tuple( _normalInfo , _paddedNormalInfo , _density ) );
 		profiler.update();
 		if( clientReconInfo.verbose>1 )
 		{
@@ -835,7 +838,7 @@ void Client< Real , Dim , BType , Degree >::_process3( const ClientReconstructio
 			if( clientReconInfo.verbose>1 ) std::cout << "#Set interior point constraints: " << timer << std::endl;
 		}
 	}
-	if( needAuxData ) _dataField = _tree.template setExtrapolatedDataField< DataSig , false >( _samples , _sampleData , (DensityEstimator*)NULL );
+	if( needAuxData ) _auxDataField = _tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( _samples.size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return _samples[i]; } , [&]( size_t i ) -> const AuxData & { return _sampleData[i].template get<1>(); } , (DensityEstimator*)NULL );
 
 	// Get the shared tree, constraints, interpolation info, and data-field
 	{
@@ -849,15 +852,15 @@ void Client< Real , Dim , BType , Degree >::_process3( const ClientReconstructio
 		state3.subNodes = _tree.tree().serializeSubTree( keepNodeFunctor , state3.subNodeCount );
 		state3.constraints = _tree.trimToDepth( _constraints , clientReconInfo.sharedDepth );
 		state3.iInfo = _tree.trimToDepth( *iInfo , clientReconInfo.sharedDepth );
-		if( needAuxData ) state3.dataField = _tree.trimToDepth( _dataField , clientReconInfo.sharedDepth );
+		if( needAuxData ) state3.auxDataField = _tree.trimToDepth( _auxDataField , clientReconInfo.sharedDepth );
 	}
 
 	if( needAuxData )
 	{
-		_tree.template updateExtrapolatedDataField< DataSig , false >( _dataField , _paddedSamples , _paddedSampleData , (DensityEstimator*)NULL );
+		_tree.template updateExtrapolatedDataField< DataSig , false >( _auxDataField , _paddedSamples.size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return _paddedSamples[i]; } , [&]( size_t i ) -> const AuxData & { return _paddedSampleData[i].template get<1>(); } , (DensityEstimator*)NULL );
 		auto nodeFunctor = [&]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *n )
 		{
-			ProjectiveData< InputSampleDataType , Real >* clr = _dataField( n );
+			ProjectiveData< AuxData , Real >* clr = _auxDataField( n );
 			if( clr ) (*clr) *= (Real)pow( clientReconInfo.dataX , _tree.depth( n ) );
 		};
 		_tree.tree().processNodes( nodeFunctor );
@@ -903,7 +906,7 @@ void Client< Real , Dim , BType , Degree >::_process3( const ClientReconstructio
 		auto  preMergeFunctor = []( InterpolationData data ){ data.position *= data.weight ; return data; };
 		auto postMergeFunctor = []( InterpolationData data ){ data.position /= data.weight ; return data; };
 
-		_iInfo = new ApproximatePointInterpolationInfo( ConstraintDual< Dim , Real >( targetValue , clientReconInfo.pointWeight * cumulativePointWeight.value() ) , SystemDual< Dim , Real >( clientReconInfo.pointWeight * cumulativePointWeight.value() ) , true );
+		_iInfo = new ApproximatePointInterpolationInfo( Reconstructor::Poisson::ConstraintDual< Dim , Real >( targetValue , clientReconInfo.pointWeight * cumulativePointWeight.value() ) , Reconstructor::Poisson::SystemDual< Dim , Real >( clientReconInfo.pointWeight * cumulativePointWeight.value() ) , true );
 		_iInfo->iData.reserve( _tree.nodesSize() );
 
 		_iInfo->iData.merge( iInfo->iData , preMergeFunctor );
@@ -967,14 +970,13 @@ size_t Client< Real , Dim , BType , Degree >::_receive5( const ClientReconstruct
 	{
 		using Data = typename _State5::Data;
 		Data defaultValue;
-		defaultValue.data.template get<1>() = auxDataFactory();
 
 		if( !auxDataFactory.isStaticallyAllocated() )
 		{
-			ProjectiveSampleDataTypeSerializer< Real , Dim > serializer( clientReconInfo.auxProperties );
-			state5.dataField = new SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > >( serverStream , serializer );
+			ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
+			state5.auxDataField = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( serverStream , serializer );
 		}
-		else state5.dataField = new SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > >( serverStream );
+		else state5.auxDataField = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( serverStream );
 	}
 	profiler.update();
 
@@ -1039,12 +1041,12 @@ std::pair< double , double > Client< Real , Dim , BType , Degree >::_process5( c
 		auto addNodeFunctor = [&]( int d , const int off[Dim] ){ return d<=(int)clientReconInfo.baseDepth; };
 		auto hasDataFunctor = []( const FEMTreeNode * ){ return true; };
 
-		constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
-		SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > *dataField = needAuxData ? &_dataField : NULL;
+		constexpr int MaxDegree = Reconstructor::Poisson::NormalDegree > Degrees::Max() ? Reconstructor::Poisson::NormalDegree : Degrees::Max();
+		SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > *auxDataField = needAuxData ? &_auxDataField : NULL;
 		DenseNodeData< Real , Sigs > *constraints = &_constraints;
 
 		// [WARNING] This assumes that nothing needs to be done with the Dirichlet flags
-		_tree.setSortedTreeNodes( std::make_tuple( _iInfo ) , std::make_tuple( _density , constraints , dataField ) );
+		_tree.setSortedTreeNodes( std::make_tuple( _iInfo ) , std::make_tuple( _density , constraints , auxDataField ) );
 		profiler.update();
 
 		if( clientReconInfo.verbose>1 ) std::cout << "#  Updated client tree: " << timer << std::endl;
@@ -1075,17 +1077,16 @@ std::pair< double , double > Client< Real , Dim , BType , Degree >::_process5( c
 		if( needAuxData )
 		{
 			Timer timer;
-			using Data = ProjectiveData< InputSampleDataType , Real >;
-			Data defaultValue;
-			defaultValue.data.template get<1>() = auxDataFactory();
+			using Data = ProjectiveData< AuxData , Real >;
+			Data defaultValue = auxDataFactory();
 
 			// Clearing the low freqeuncy
 			auto nodeFunctor = [&]( const FEMTreeNode *n )
 			{
 				if( n->nodeData.nodeIndex!=-1 )
 				{
-					node_index_type idx = state5.dataField->index( clientToServer[ n->nodeData.nodeIndex ] );
-					if( idx!=-1 ) _dataField[n] = (*state5.dataField)[idx];
+					node_index_type idx = state5.auxDataField->index( clientToServer[ n->nodeData.nodeIndex ] );
+					if( idx!=-1 ) _auxDataField[n] = (*state5.auxDataField)[idx];
 				}
 				return _tree.depth( n )<(int)clientReconInfo.sharedDepth;
 			};
@@ -1209,88 +1210,98 @@ size_t Client< Real , Dim , BType , Degree >::_receive7( const ClientReconstruct
 }
 
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
+template< bool HasGradients , bool HasDensity >
+void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReconstructionInfo< Real , Dim > &clientReconInfo , _State7 &state7 , XForm< Real , Dim+1 > unitCubeToModel )
+{
+	Timer timer;
+	std::string tempHeader( "PR_" );
+	using AuxData = typename AuxDataFactory::VertexType;
+	AuxDataFactory auxDataFactory( clientReconInfo.auxProperties );
+	if( clientReconInfo.tempDir.length() ) tempHeader = PointPartition::FileDir( clientReconInfo.tempDir , tempHeader );
+
+	SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > *auxDataField = NULL;
+	if( _auxDataField.size() ) auxDataField = &_auxDataField;
+
+	std::string outFileName;
+	{
+		std::stringstream ss;
+		ss << clientReconInfo.header << "." << _index << ".ply";
+		outFileName = ss.str();
+	}
+
+	if( clientReconInfo.outDir.length() ) outFileName = PointPartition::FileDir( clientReconInfo.outDir , outFileName );
+
+
+	// A description of the output vertex information
+	using VInfo = Reconstructor::OutputVertexWithDataInfo< Real , Dim , AuxDataFactory , HasGradients , HasDensity >;
+
+	// A factory generating the output vertices
+	using Factory = typename VInfo::Factory;
+	Factory factory = VInfo::GetFactory( auxDataFactory );
+
+	// A backing stream for the vertices
+	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false , tempHeader + std::string( "v_" ) );
+	Reconstructor::OutputInputPolygonStream polygonStream( false , true , tempHeader + std::string( "p_" ) );
+
+	typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
+
+	{
+		// The wrapper converting native to output types
+		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
+
+		// The transformed stream
+		Reconstructor::TransformedOutputVertexWithDataStream< Real , Dim , AuxData > __vertexStream( unitCubeToModel , _vertexStream );
+
+		// Extract the mesh
+		stats = LevelSetExtractor< Real , Dim , AuxData >::template Extract< Reconstructor::WeightDegree , DataSig >
+			(
+				Sigs() ,
+				UIntPack< Reconstructor::WeightDegree >() ,
+				UIntPack< DataSig >() ,
+				_tree ,
+				clientReconInfo.reconstructionDepth ,
+				_density ,
+				auxDataField ,
+				_solution ,
+				state7.isoValue ,
+				clientReconInfo.sharedDepth ,
+				_range.first ,
+				_range.second ,
+				__vertexStream ,
+				polygonStream ,
+				auxDataFactory() ,
+				!clientReconInfo.linearFit ,
+				HasGradients , false , true , false ,
+				state7.backBoundary ,
+				state7.frontBoundary ,
+				state7.backDValues ,
+				state7.frontDValues ,
+				clientReconInfo.mergeType==ClientReconstructionInfo< Real , Dim >::MergeType::TOPOLOGY_AND_FUNCTION
+			);
+	}
+
+	if( clientReconInfo.verbose>1 )
+	{
+		std::cout << "Vertices / Polygons: " << vertexStream.size() << " / " << polygonStream.size() << std::endl;
+		std::cout << stats.toString() << std::endl;
+		std::cout << "#         Got polygons: " << timer << std::endl;
+	}
+
+	// Write the mesh to a .ply file
+	std::vector< std::string > noComments;
+	PLY::WritePolygons< Factory , node_index_type , Real , Dim >( outFileName.c_str() , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , PLY_BINARY_NATIVE , noComments );
+}
+
+template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
 void Client< Real , Dim , BType , Degree >::_process7( const ClientReconstructionInfo< Real , Dim > &clientReconInfo , _State7 &state7 , Profiler &profiler )
 {
+	static const bool HasAuxData = !std::is_same< AuxDataFactory , VertexFactory::EmptyFactory< Real > >::value;
 	AuxDataFactory auxDataFactory( clientReconInfo.auxProperties );
-
-	typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::ValueFactory< Real > , AuxDataFactory > OutputVertexFactory;
-	typedef typename OutputVertexFactory::VertexType OutputVertex;
 
 	// Extract the mesh
 	{
-		using namespace VertexFactory;
-
-		typedef Factory< Real , NormalFactory< Real , Dim > , AuxDataFactory > InputSampleDataFactory;
-		InputSampleDataFactory inputSampleDataFactory( NormalFactory< Real , Dim >() , auxDataFactory );
-
-		Timer timer;
-
-		std::string tempHeader( "PR_" );
-		if( clientReconInfo.tempDir.length() ) tempHeader = PointPartition::FileDir( clientReconInfo.tempDir , tempHeader );
-
-		SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > *dataField = NULL;
-		if( _dataField.size() ) dataField = &_dataField;
-
-		XForm< Real , Dim+1 > unitCubeToModel = _modelToUnitCube.inverse();
-		std::string outFileName;
-		{
-			std::stringstream ss;
-			ss << clientReconInfo.header << "." << _index << ".ply";
-			outFileName = ss.str();
-		}
-
-		if( clientReconInfo.outDir.length() ) outFileName = PointPartition::FileDir( clientReconInfo.outDir , outFileName );
-		if( clientReconInfo.density )
-		{
-			typedef Factory< Real , PositionFactory< Real , Dim > , ValueFactory< Real > , AuxDataFactory > VertexFactory;
-			VertexFactory vertexFactory( PositionFactory< Real , Dim >() , ValueFactory< Real >() , auxDataFactory );
-			typedef typename VertexFactory::VertexType Vertex;
-
-			FileStreamingMesh< VertexFactory , node_index_type > mesh( vertexFactory , tempHeader.c_str() );
-
-			auto SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > g , Real w , InputSampleDataType d ){ v.template get<0>() = p , v.template get<1>() = w , v.template get<2>() = d.template get<1>(); };
-			typename LevelSetExtractor< Dim , Real , Vertex >::Stats stats;
-			stats = LevelSetExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , _tree , clientReconInfo.reconstructionDepth , _density , dataField , _solution , state7.isoValue , clientReconInfo.sharedDepth , _range.first , _range.second , mesh , inputSampleDataFactory() , SetVertex , !clientReconInfo.linearFit , false , false , true , false , state7.backBoundary , state7.frontBoundary , state7.backDValues , state7.frontDValues , clientReconInfo.mergeType==ClientReconstructionInfo< Real , Dim >::MergeType::TOPOLOGY_AND_FUNCTION );
-
-			if( clientReconInfo.verbose>1 )
-			{
-				std::cout << "Vertices / Polygons: " << mesh.vertexNum() << " / " << mesh.polygonNum() << std::endl;
-				std::cout << stats.toString() << std::endl;
-				std::cout << "#         Got polygons: " << timer << std::endl;
-			}
-
-			std::vector< std::string > noComments;
-			typename VertexFactory::Transform unitCubeToModelTransform( unitCubeToModel );
-
-			auto xForm = [&]( typename VertexFactory::VertexType & v ){ unitCubeToModelTransform.inPlace( v ); };
-			PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( outFileName.c_str() , vertexFactory , &mesh , PLY_BINARY_NATIVE , noComments , xForm );
-		}
-		else
-		{
-			typedef Factory< Real , PositionFactory< Real , Dim > , AuxDataFactory > VertexFactory;
-			VertexFactory vertexFactory( PositionFactory< Real , Dim >() , auxDataFactory );
-			typedef typename VertexFactory::VertexType Vertex;
-
-			FileStreamingMesh< VertexFactory , node_index_type > mesh( vertexFactory , tempHeader.c_str() );
-
-			const typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > *density=NULL;
-			auto SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > g , Real w , InputSampleDataType d ){ v.template get<0>() = p , v.template get<1>() = d.template get<1>(); };
-			typename LevelSetExtractor< Dim , Real , Vertex >::Stats stats;
-			stats = LevelSetExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , _tree , clientReconInfo.reconstructionDepth , _density , dataField , _solution , state7.isoValue , clientReconInfo.sharedDepth , _range.first , _range.second , mesh , inputSampleDataFactory() , SetVertex , !clientReconInfo.linearFit , false , false , true , false , state7.backBoundary , state7.frontBoundary , state7.backDValues , state7.frontDValues , clientReconInfo.mergeType==ClientReconstructionInfo< Real , Dim >::MergeType::TOPOLOGY_AND_FUNCTION );
-
-			if( clientReconInfo.verbose>1 )
-			{
-				std::cout << "Vertices / Polygons: " << mesh.vertexNum() << " / " << mesh.polygonNum() << std::endl;
-				std::cout << stats.toString() << std::endl;
-				std::cout << "#         Got polygons: " << timer << std::endl;
-			}
-
-			std::vector< std::string > noComments;
-			typename VertexFactory::Transform unitCubeToModelTransform( unitCubeToModel );
-
-			auto xForm = [&]( typename VertexFactory::VertexType & v ){ unitCubeToModelTransform.inPlace( v ); };
-			PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( outFileName.c_str() , vertexFactory , &mesh , PLY_BINARY_NATIVE , noComments , xForm );
-		}
+		if( clientReconInfo.density ) _writeMeshWithData< false , true >( clientReconInfo , state7 , _modelToUnitCube.inverse() );
+		else _writeMeshWithData< false , false >( clientReconInfo , state7 , _modelToUnitCube.inverse() );
 	}
 
 	if( clientReconInfo.ouputVoxelGrid )
@@ -1409,10 +1420,10 @@ if( idx!=nodes.size() ) ERROR_OUT( "uhoh" );
 		{
 			if( !auxDataFactory.isStaticallyAllocated() )
 			{
-				ProjectiveSampleDataTypeSerializer< Real , Dim > serializer( clientReconInfo.auxProperties );
-				_dataField.read( stream , serializer );
+				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
+				_auxDataField.read( stream , serializer );
 			}
-			else _dataField.read( stream );
+			else _auxDataField.read( stream );
 		}
 	}
 	else if( phase==7 )
@@ -1424,10 +1435,10 @@ if( idx!=nodes.size() ) ERROR_OUT( "uhoh" );
 		{
 			if( !auxDataFactory.isStaticallyAllocated() )
 			{
-				ProjectiveSampleDataTypeSerializer< Real , Dim > serializer( clientReconInfo.auxProperties );
-				_dataField.read( stream , serializer );
+				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
+				_auxDataField.read( stream , serializer );
 			}
-			else _dataField.read( stream );
+			else _auxDataField.read( stream );
 		}
 	}
 }
@@ -1512,24 +1523,24 @@ void Client< Real , Dim , BType , Degree >::_write( const ClientReconstructionIn
 		{
 			if( !auxDataFactory.isStaticallyAllocated() )
 			{
-				ProjectiveSampleDataTypeSerializer< Real , Dim > serializer( clientReconInfo.auxProperties );
-				_dataField.write( stream , serializer );
+				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
+				_auxDataField.write( stream , serializer );
 			}
-			else _dataField.write( stream );
+			else _auxDataField.write( stream );
 		}
 	}
 	else if( phase==5 )
 	{
 		_solution.write( stream );
 
-		if( _dataField.size() )
+		if( _auxDataField.size() )
 		{
 			if( !auxDataFactory.isStaticallyAllocated() )
 			{
-				ProjectiveSampleDataTypeSerializer< Real , Dim > serializer( clientReconInfo.auxProperties );
-				_dataField.write( stream , serializer );
+				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
+				_auxDataField.write( stream , serializer );
 			}
-			else _dataField.write( stream );			
+			else _auxDataField.write( stream );			
 		}
 	}
 }

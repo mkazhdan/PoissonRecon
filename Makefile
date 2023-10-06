@@ -8,6 +8,8 @@ EH_TARGET=EDTInHeat
 IS_TARGET=ImageStitching
 AV_TARGET=AdaptiveTreeVisualization
 CP_TARGET=ChunkPLY
+RE_TARGET=ReconExample
+
 PR_SOURCE=PoissonRecon.cpp
 PRC_SOURCE=PoissonReconClient.cpp
 PRS_SOURCE=PoissonReconServer.cpp
@@ -18,6 +20,7 @@ EH_SOURCE=EDTInHeat.cpp
 IS_SOURCE=ImageStitching.cpp
 AV_SOURCE=AdaptiveTreeVisualization.cpp
 CP_SOURCE=ChunkPLY.cpp
+RE_SOURCE=Reconstruction.example.cpp
 
 COMPILER ?= gcc
 #COMPILER ?= clang
@@ -73,6 +76,7 @@ EH_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(EH_SOURCE))))
 IS_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(IS_SOURCE))))
 AV_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(AV_SOURCE))))
 CP_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(CP_SOURCE))))
+RE_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(RE_SOURCE))))
 
 
 all: CFLAGS += $(CFLAGS_RELEASE)
@@ -88,6 +92,7 @@ all: $(BIN)$(EH_TARGET)
 all: $(BIN)$(IS_TARGET)
 all: $(BIN)$(AV_TARGET)
 all: $(BIN)$(CP_TARGET)
+all: $(BIN)$(RE_TARGET)
 
 debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: LFLAGS += $(LFLAGS_DEBUG)
@@ -102,6 +107,7 @@ debug: $(BIN)$(EH_TARGET)
 debug: $(BIN)$(IS_TARGET)
 debug: $(BIN)$(AV_TARGET)
 debug: $(BIN)$(CP_TARGET)
+debug: $(BIN)$(RE_TARGET)
 
 poissonrecon: CFLAGS += $(CFLAGS_RELEASE)
 poissonrecon: LFLAGS += $(LFLAGS_RELEASE)
@@ -152,6 +158,10 @@ chunkply: CFLAGS += $(CFLAGS_RELEASE)
 chunkply: LFLAGS += $(LFLAGS_RELEASE)
 chunkply: make_dir
 chunkply: $(BIN)$(CP_TARGET)
+reconexample: CFLAGS += $(CFLAGS_RELEASE)
+reconexample: LFLAGS += $(LFLAGS_RELEASE)
+reconexample: make_dir
+reconexample: $(BIN)$(RE_TARGET)
 
 clean:
 	rm -rf $(BIN)$(PR_TARGET)
@@ -164,6 +174,7 @@ clean:
 	rm -rf $(BIN)$(IS_TARGET)
 	rm -rf $(BIN)$(AV_TARGET)
 	rm -rf $(BIN)$(CP_TARGET)
+	rm -rf $(BIN)$(RE_TARGET)
 	rm -rf $(PR_OBJECTS)
 	rm -rf $(PRC_OBJECTS)
 	rm -rf $(PRS_OBJECTS)
@@ -174,6 +185,7 @@ clean:
 	rm -rf $(IS_OBJECTS)
 	rm -rf $(AV_OBJECTS)
 	rm -rf $(CP_OBJECTS)
+	rm -rf $(RE_OBJECTS)
 	cd PNG  && make clean
 
 
@@ -215,6 +227,9 @@ $(BIN)$(AV_TARGET): $(AV_OBJECTS)
 $(BIN)$(CP_TARGET): $(CP_OBJECTS)
 	cd PNG  && make COMPILER=$(COMPILER)
 	$(CXX) -pthread -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
+
+$(BIN)$(RE_TARGET): $(RE_OBJECTS)
+	$(CXX) -pthread -o $@ $(RE_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
 
 $(BIN)%.o: $(SRC)%.c
 	$(CC) -c -o $@ -I$(INCLUDE) $<

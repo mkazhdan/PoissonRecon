@@ -26,6 +26,52 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
+template< typename Real >
+using AuxDataType = typename VertexFactory::DynamicFactory< Real >::VertexType;
+
+template< typename Real >
+struct AuxDataTypeSerializer : public Serializer< AuxDataType< Real > >
+{
+	AuxDataTypeSerializer( const std::vector< PlyProperty > &properties ) : _factory( properties ){}
+
+	size_t size( void ) const { return _factory.bufferSize(); }
+
+	void serialize( const AuxDataType< Real > &data , Pointer( char )buffer ) const
+	{
+		_factory.toBuffer( data , buffer );
+	}
+	void deserialize( ConstPointer( char ) buffer , AuxDataType< Real > &data ) const
+	{
+		data = _factory();
+		_factory.fromBuffer( buffer , data );
+	}
+protected:
+	VertexFactory::DynamicFactory< Real > _factory;
+};
+
+template< typename Real >
+struct ProjectiveAuxDataTypeSerializer : public Serializer< ProjectiveData< AuxDataType< Real > , Real > >
+{
+	using Data = ProjectiveData< AuxDataType< Real > , Real >;
+
+	ProjectiveAuxDataTypeSerializer( const std::vector< PlyProperty > &properties ) : _factory( properties ){}
+
+	size_t size( void ) const { return sizeof( Real ) + _factory.bufferSize(); }
+
+	void serialize( const Data &data , Pointer( char )buffer ) const
+	{
+		memcpy( buffer , &data.weight , sizeof(Real) );
+		_factory.toBuffer( data.data , buffer+sizeof(Real) );
+	}
+	void deserialize( ConstPointer( char ) buffer , Data &data ) const
+	{
+		data.data = _factory();
+		memcpy( &data.weight , buffer , sizeof(Real) );
+		_factory.fromBuffer( buffer+sizeof(Real) , data.data );
+	}
+protected:
+	VertexFactory::DynamicFactory< Real > _factory;
+};
 
 template< typename Real , unsigned int Dim >
 using SampleDataType = VectorTypeUnion< Real , typename VertexFactory::NormalFactory< Real , Dim >::VertexType , typename VertexFactory::DynamicFactory< Real >::VertexType >;

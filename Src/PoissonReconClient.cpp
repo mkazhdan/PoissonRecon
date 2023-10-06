@@ -38,8 +38,10 @@ DAMAGE.
 #include <stdlib.h>
 #include <algorithm>
 #include "MyMiscellany.h"
-#include "PoissonRecon.h"
+#include "Reconstructors.h"
 #include "CmdLineParser.h"
+
+#define DEFAULT_DIMENSION 3
 
 cmdLineParameter< std::string >
 	Address( "address" , "127.0.0.1" );
@@ -185,7 +187,7 @@ int main( int argc , char* argv[] )
 		Partition< Real , Dim >( serverSockets );
 
 #ifdef FAST_COMPILE
-		Reconstruct< Real , Dim , DEFAULT_FEM_BOUNDARY , DEFAULT_FEM_DEGREE >( serverSockets );
+		Reconstruct< Real , Dim , Reconstructor::Poisson::DefaultFEMBoundary , Reconstructor::Poisson::DefaultFEMDegree >( serverSockets );
 #else // !FAST_COMPILE
 		Reconstruct< Real , Dim >( serverSockets );
 #endif // FAST_COMPILE

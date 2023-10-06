@@ -38,7 +38,7 @@ DAMAGE.
 #include "FEMTree.h"
 #include "VertexFactory.h"
 #include "Socket.h"
-#include "PoissonRecon.h"
+#include "Reconstructors.h"
 
 namespace PoissonReconClientServer
 {

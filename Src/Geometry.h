@@ -391,8 +391,13 @@ struct XForm
 	XForm( void ) { memset( coords , 0 , sizeof(Real) * Dim * Dim ); }
 	XForm( const Matrix< Real , Dim , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ); }
 	XForm( const XForm &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ); }
-	XForm operator = ( const Matrix< Real , Dim , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ) ; return *this; }
-	XForm operator = ( const XForm< Real , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ) ; return *this; }
+	XForm( const Matrix< Real , Dim+1 , Dim+1 > &M ){ for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) this->operator()(i,j) = M(i,j); }
+	XForm( const XForm< Real , Dim+1 > &M ){ for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) this->operator()(i,j) = M(i,j); }
+	XForm &operator = ( const Matrix< Real , Dim , Dim > &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ) ; return *this; }
+	XForm &operator = ( const  XForm< Real , Dim >       &M ){ memcpy( coords , M.coords , sizeof(Real)*Dim*Dim ) ; return *this; }
+	XForm &operator = ( const Matrix< Real , Dim+1 , Dim+1> &M ){ for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) this->operator()(i,j) = M(i,j) ; return *this; }
+	XForm &operator = ( const  XForm< Real , Dim+1 >        &M ){ for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) this->operator()(i,j) = M(i,j) ; return *this; }
+
 	static XForm Identity( void )
 	{
 		XForm xForm;

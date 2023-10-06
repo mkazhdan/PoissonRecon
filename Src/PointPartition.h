@@ -35,7 +35,7 @@ DAMAGE.
 #include "Streams.h"
 #include "MyMiscellany.h"
 #include "Ply.h"
-#include "VertexStream.h"
+#include "DataStream.h"
 
 #define ADAPTIVE_PADDING			// Only pushes padding points deep enough so that they are "close" to the slab in terms of units at that depth
 #define BUFFER_IO (1<<14)			// Buffer the points before reading/writing
@@ -118,7 +118,7 @@ namespace PointPartition
 		BufferedBinaryInputDataStream( const char *fileName , const InputFactory &factory , size_t bufferSize );
 		~BufferedBinaryInputDataStream( void );
 		void reset( void );
-		bool next( Data &d );
+		bool base_read( Data &d );
 	protected:
 		size_t _bufferSize , _current , _inBuffer , _elementSize;
 		Pointer( char ) _buffer;
@@ -134,7 +134,7 @@ namespace PointPartition
 		BufferedBinaryOutputDataStream( const char *fileName , const OutputFactory &factory , size_t bufferSize );
 		~BufferedBinaryOutputDataStream( void );
 		void reset( void );
-		void next( const Data &d );
+		void base_write( const Data &d );
 	protected:
 		size_t _bufferSize , _current , _elementSize;
 		Pointer( char ) _buffer;

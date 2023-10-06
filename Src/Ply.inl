@@ -321,33 +321,32 @@ namespace PLY
 	}
 
 	template< typename VertexFactory , typename Index , class Real , int Dim , typename OutputIndex , bool UseCharIndex >
-	void WritePolygons( std::string fileName , const VertexFactory &vFactory , StreamingMesh< typename VertexFactory::VertexType , Index >* mesh , int file_type , const std::vector< std::string > &comments , std::function< void ( typename VertexFactory::VertexType & ) > xForm )
+	void WritePolygons( std::string fileName , const VertexFactory &vFactory , size_t vertexNum , size_t polygonNum , InputDataStream< typename VertexFactory::VertexType > &vertexStream , InputDataStream< std::vector< Index > > &polygonStream , int file_type , const std::vector< std::string > &comments )
 	{
-		if( mesh->vertexNum()>(size_t)std::numeric_limits< OutputIndex >::max() )
+		if( vertexNum>(size_t)std::numeric_limits< OutputIndex >::max() )
 		{
 			if( std::is_same< Index , OutputIndex >::value ) ERROR_OUT( "more vertices than can be represented using " , Traits< Index >::name );
 			WARN( "more vertices than can be represented using " , Traits< OutputIndex >::name , " using " , Traits< Index >::name , " instead" );
-			return WritePolygons< VertexFactory , Index , Real , Dim , Index >( fileName , vFactory , mesh , file_type , comments , xForm );
+			return WritePolygons< VertexFactory , Index , Real , Dim , Index >( fileName , vFactory , vertexNum , polygonNum , vertexStream , polygonStream , file_type , comments );
 		}
-		size_t nr_vertices = mesh->vertexNum();
-		size_t nr_faces = mesh->polygonNum();
 		float version;
 		std::vector< std::string > elem_names = { std::string( "vertex" ) , std::string( "face" ) };
 		PlyFile *ply = PlyFile::Write( fileName , elem_names , file_type , version );
 		if( !ply ) ERROR_OUT( "Could not create ply file for writing: " , fileName );
 
-		mesh->resetIterator();
+		vertexStream.reset();
+		polygonStream.reset();
 
 		//
 		// describe vertex and face properties
 		//
-		ply->element_count( "vertex" , nr_vertices );
+		ply->element_count( "vertex" , vertexNum );
 		for( unsigned int i=0 ; i<vFactory.plyWriteNum() ; i++ )
 		{
 			PlyProperty prop = vFactory.isStaticallyAllocated() ? vFactory.plyStaticWriteProperty(i) : vFactory.plyWriteProperty(i);
 			ply->describe_property( "vertex" , &prop );
 		}
-		ply->element_count( "face" , nr_faces );
+		ply->element_count( "face" , polygonNum );
 		ply->describe_property( "face" , Face< OutputIndex , UseCharIndex >::Properties );
 
 		// Write in the comments
@@ -358,38 +357,36 @@ namespace PLY
 		ply->put_element_setup( "vertex" );
 		if( vFactory.isStaticallyAllocated() )
 		{
-			for( size_t i=0; i<mesh->vertexNum() ; i++ )
+			for( size_t i=0; i<vertexNum ; i++ )
 			{
 				typename VertexFactory::VertexType vertex = vFactory();
-				mesh->nextVertex( vertex );
-				xForm( vertex );
+				if( !vertexStream.read( vertex ) ) ERROR_OUT( "Failed to read vertex " , i , " / " , vertexNum );
 				ply->put_element( (void *)&vertex );
 			}
 		}
 		else
 		{
 			Pointer( char ) buffer = NewPointer< char >( vFactory.bufferSize() );
-			for( size_t i=0; i<mesh->vertexNum() ; i++ )
+			for( size_t i=0; i<vertexNum ; i++ )
 			{
 				typename VertexFactory::VertexType vertex = vFactory();
-				mesh->nextVertex( vertex );
-				xForm( vertex );
+				if( !vertexStream.read( vertex ) ) ERROR_OUT( "Failed to read vertex " , i , " / " , vertexNum );
 				vFactory.toBuffer( vertex , buffer );
 				ply->put_element( PointerAddress( buffer ) );
 			}
 			DeletePointer( buffer );
 		}
 
-	   // write faces
+		// write faces
 		std::vector< Index > polygon;
 		ply->put_element_setup( "face" );
-		for( size_t i=0 ; i<nr_faces ; i++ )
+		for( size_t i=0 ; i<polygonNum ; i++ )
 		{
 			//
 			// create and fill a struct that the ply code can handle
 			//
 			Face< OutputIndex > ply_face;
-			mesh->nextPolygon( polygon );
+			if( !polygonStream.read( polygon ) ) ERROR_OUT( "Failed to read polygon " , i , " / " , polygonNum ); 
 			ply_face.nr_vertices = int( polygon.size() );
 			ply_face.vertices = new OutputIndex[ polygon.size() ];
 			for( int j=0 ; j<int(polygon.size()) ; j++ ) ply_face.vertices[j] = (OutputIndex)polygon[j];

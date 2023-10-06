@@ -119,7 +119,7 @@ void _MergeSlabs( std::string inDir , std::string outDir , std::string header , 
 		{
 			std::string inFileName = PointPartition::FileName( inDir , header , c , s , slabs , filesPerDir );
 			PointPartition::BufferedBinaryInputDataStream< Factory > inStream( inFileName.c_str() , factory , bufferSize );
-			while( inStream.next( v ) ) outStream.next( v );
+			while( inStream.read( v ) ) outStream.write( v );
 		}
 	}
 }
@@ -150,7 +150,7 @@ std::vector< size_t > _PartitionIntoSlabs( std::string in , std::string dir , st
 		int slab = (int)floor( p[Dim-1] * slabs );
 		if( slab>=0 && slab<(int)slabs )
 		{
-			outStreams[slab]->next( v );
+			outStreams[slab]->write( v );
 			slabSizes[slab]++;
 		}
 		else outOfRangeCount++;
@@ -259,7 +259,7 @@ std::pair< PointPartition::PointSetInfo< Real , Dim > , PointPartition::Partitio
 		Point< Real , Dim >  bBox[2];
 		for( unsigned int d=0 ; d<3 ; d++ ) bBox[0][d] = e.extents[ PointPartition::Extent< Real >::Frames[idx][d] ].first , bBox[1][d] = e.extents[ PointPartition::Extent< Real >::Frames[idx][d] ].second;
 
-		pointSetInfo.modelToUnitCube = GetBoundingBoxXForm( bBox[0] , bBox[1] , clientPartitionInfo.scale ) * R;
+		pointSetInfo.modelToUnitCube = Reconstructor::GetBoundingBoxXForm( bBox[0] , bBox[1] , clientPartitionInfo.scale ) * R;
 	}
 
 	// Send the transformation to the clients

@@ -40,6 +40,8 @@ DAMAGE.
 #include "VertexFactory.h"
 #include "Image.h"
 #include "RegularGrid.h"
+#include "DataStream.imp.h"
+#include "Reconstructors.h"
 
 cmdLineParameter< char* >
 	In( "in" ) ,
@@ -219,7 +221,13 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 		Point< Real , Dim > points[ CHUNK_SIZE ];
 		Real values[ CHUNK_SIZE ];
 		size_t pointsRead;
-		while( ( pointsRead=pointStream->next( points , CHUNK_SIZE ) ) )
+		auto ReadBatch = [&]( void )
+		{
+			size_t c=0;
+			for( size_t i=0 ; i<CHUNK_SIZE ; i++ , c++ ) if( !pointStream->read( points[i] ) ) break;
+			return c;
+		};
+		while( ( pointsRead=ReadBatch() ) )
 		{
 			ThreadPool::Parallel_for( 0 , pointsRead , [&]( unsigned int thread , size_t j )
 			{
@@ -393,28 +401,33 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 	if constexpr( Dim==3 ) if( OutMesh.set )
 	{
 		double t = Time();
-		typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > > FullVertexFactory;
-		typedef typename FullVertexFactory::VertexType VertexType;
-		FullVertexFactory vertexFactory;
-		FileStreamingMesh< FullVertexFactory , node_index_type > mesh( vertexFactory );
-		std::function< void ( VertexType& , Point< Real , Dim > , Point< Real , Dim > , Real , Real ) > SetVertex = []( VertexType& v , Point< Real , Dim > p , Point< Real , Dim > , Real , Real ){ v.template get<0>() = p; };
-#if defined( __GNUC__ ) && __GNUC__ < 5
-#ifdef SHOW_WARNINGS
-#warning "you've got me gcc version<5"
-#endif // SHOW_WARNINGS
-		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
-		LevelSetExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , mesh , (Real)0 , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
-#else // !__GNUC__ || __GNUC__ >=5
-		LevelSetExtractor< Dim , Real , VertexType >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , mesh , (Real)0 , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
-#endif // __GNUC__ || __GNUC__ < 4
 
-		if( Verbose.set ) printf( "Got level-set surface: %.2f(s)\n" , Time()-t );
-		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)mesh.vertexNum() , (unsigned long long)mesh.polygonNum() );
+		// A description of the output vertex information
+		using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , false , false >;
 
-		std::vector< std::string > comments;
-		typename FullVertexFactory::Transform unitCubeToModelTransform( modelToUnitCube.inverse() );
-		auto xForm = [&]( typename FullVertexFactory::VertexType & v ){ unitCubeToModelTransform.inPlace( v ); };
-		PLY::WritePolygons< FullVertexFactory , node_index_type , Real , Dim >( OutMesh.value , FullVertexFactory() , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , xForm );
+		// A factory generating the output vertices
+		using Factory = typename VInfo::Factory;
+		Factory factory = VInfo::GetFactory();
+
+		// A backing stream for the vertices
+		Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false , std::string( "v_" ) );
+		Reconstructor::OutputInputPolygonStream polygonStream( false , true , std::string( "p_" ) );
+
+		{
+			// The wrapper converting native to output types
+			typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
+			Reconstructor::TransformedOutputVertexStream< Real , Dim > __vertexStream( modelToUnitCube.inverse() , _vertexStream );
+
+			// Extract the mesh
+			LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , __vertexStream , polygonStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		}
+
+		if( Verbose.set ) printf( "Got level-set: %.2f(s)\n" , Time()-t );
+		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)vertexStream.size() , (unsigned long long)polygonStream.size() );
+
+		// Write the mesh to a .ply file
+		std::vector< std::string > noComments;
+		PLY::WritePolygons< Factory , node_index_type , Real , Dim >( OutMesh.value , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 	}
 }
 

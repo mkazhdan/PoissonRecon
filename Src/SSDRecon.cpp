@@ -27,15 +27,7 @@ DAMAGE.
 */
 
 #include "PreProcessor.h"
-
-#undef USE_DOUBLE								// If enabled, double-precesion is used
-#define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
-												// This can be changed to zero if more interpolatory performance is desired.
-#define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
-#define NORMAL_DEGREE 2							// The order of the B-Spline used to splat int the normals for constructing the Laplacian constraints
-#define DEFAULT_FEM_DEGREE 2					// The default finite-element degree
-#define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
-#define DEFAULT_DIMENSION 3						// The dimension of the system
+#include "Reconstructors.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,17 +41,9 @@ DAMAGE.
 #include "VertexFactory.h"
 #include "Image.h"
 #include "RegularGrid.h"
+#include "DataStream.imp.h"
 
-double BaseSSDWeights[] = { 5e+1f , 5e-4f , 1e-5f }; 
-
-enum NormalType
-{
-	NORMALS_NONE ,
-	NORMALS_SAMPLES ,
-	NORMALS_GRADIENTS ,
-	NORMALS_COUNT
-};
-const char* NormalsNames[] = { "none" , "samples" , "gradients" };
+#define DEFAULT_DIMENSION 3
 
 cmdLineParameter< char* >
 	In( "in" ) ,
@@ -72,7 +56,6 @@ cmdLineParameter< char* >
 cmdLineReadable
 	Performance( "performance" ) ,
 	ShowResidual( "showResidual" ) ,
-	NoComments( "noComments" ) ,
 	PolygonMesh( "polygonMesh" ) ,
 	NonManifold( "nonManifold" ) ,
 	ASCII( "ascii" ) ,
@@ -82,11 +65,12 @@ cmdLineReadable
 	ExactInterpolation( "exact" ) ,
 	Colors( "colors" ) ,
 	InCore( "inCore" ) ,
+	Gradients( "gradients" ) ,
 	Verbose( "verbose" );
 
 cmdLineParameter< int >
 #ifndef FAST_COMPILE
-	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
+	Degree( "degree" , Reconstructor::SSD::DefaultFEMDegree ) ,
 #endif // !FAST_COMPILE
 	Depth( "depth" , 8 ) ,
 	KernelDepth( "kernelDepth" ) ,
@@ -96,9 +80,8 @@ cmdLineParameter< int >
 	BaseDepth( "baseDepth" ) ,
 	BaseVCycles( "baseVCycles" , 4 ) ,
 #ifndef FAST_COMPILE
-	BType( "bType" , DEFAULT_FEM_BOUNDARY+1 ) ,
+	BType( "bType" , Reconstructor::SSD::DefaultFEMBoundary+1 ) ,
 #endif // !FAST_COMPILE
-	Normals( "normals" , NORMALS_NONE ) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef _OPENMP
 	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
@@ -131,7 +114,7 @@ cmdLineReadable* params[] =
 	&SolveDepth ,
 	&In , &Depth , &Out , &Transform ,
 	&Width ,
-	&Scale , &Verbose , &CGSolverAccuracy , &NoComments ,
+	&Scale , &Verbose , &CGSolverAccuracy ,
 	&KernelDepth , &SamplesPerNode , &Confidence , &NonManifold , &PolygonMesh , &ASCII , &ShowResidual ,
 	&ConfidenceBias ,
 	&ValueWeight , &GradientWeight , &BiLapWeight ,
@@ -143,7 +126,7 @@ cmdLineReadable* params[] =
 	&Iters ,
 	&DataX ,
 	&Colors ,
-	&Normals ,
+	&Gradients ,
 	&NonLinearFit ,
 	&PrimalGrid ,
 	&TempDir ,
@@ -185,8 +168,7 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s]\n" , ExactInterpolation.name );
 	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
 	printf( "\t[--%s]\n" , Colors.name );
-	printf( "\t[--%s <normal type>=%d]\n" , Normals.name , Normals.value );
-	for( int i=0 ; i<NORMALS_COUNT ; i++ ) printf( "\t\t%d] %s\n" , i , NormalsNames[i] );
+	printf( "\t[--%s]\n" , Gradients.name );
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
@@ -205,281 +187,103 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s]\n" , NonLinearFit.name );
 	printf( "\t[--%s]\n" , PrimalGrid.name );
 	printf( "\t[--%s]\n" , ASCII.name );
-	printf( "\t[--%s]\n" , NoComments.name );
 	printf( "\t[--%s]\n" , TempDir.name );
 	printf( "\t[--%s]\n" , InCore.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
 
-double Weight( double v , double start , double end )
-{
-	v = ( v - start ) / ( end - start );
-	if     ( v<0 ) return 1.;
-	else if( v>1 ) return 0.;
-	else
-	{
-		// P(x) = a x^3 + b x^2 + c x + d
-		//		P (0) = 1 , P (1) = 0 , P'(0) = 0 , P'(1) = 0
-		// =>	d = 1 , a + b + c + d = 0 , c = 0 , 3a + 2b + c = 0
-		// =>	c = 0 , d = 1 , a + b = -1 , 3a + 2b = 0
-		// =>	a = 2 , b = -3 , c = 0 , d = 1
-		// =>	P(x) = 2 x^3 - 3 x^2 + 1
-		return 2. * v * v * v - 3. * v * v + 1.;
-	}
-}
-
-template< class Real , unsigned int Dim >
-XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor )
-{
-	Point< Real , Dim > center = ( max + min ) / 2;
-	Real scale = max[0] - min[0];
-	for( int d=1 ; d<Dim ; d++ ) scale = std::max< Real >( scale , max[d]-min[d] );
-	scale *= scaleFactor;
-	for( int i=0 ; i<Dim ; i++ ) center[i] -= scale/2;
-	XForm< Real , Dim+1 > tXForm = XForm< Real , Dim+1 >::Identity() , sXForm = XForm< Real , Dim+1 >::Identity();
-	for( int i=0 ; i<Dim ; i++ ) sXForm(i,i) = (Real)(1./scale ) , tXForm(Dim,i) = -center[i];
-	return sXForm * tXForm;
-}
-
-
-template< typename Real , unsigned int Dim , typename AuxData >
-using InputOrientedPointStreamInfo = typename FEMTreeInitializer< Dim , Real >::template InputPointStream< VectorTypeUnion< Real , typename VertexFactory::NormalFactory< Real , Dim >::VertexType , AuxData > >;
-
-template< typename Real , unsigned int Dim , typename AuxData >
-using InputOrientedPointStream = typename InputOrientedPointStreamInfo< Real , Dim , AuxData >::StreamType;
-
-template< class Real , unsigned int Dim , typename AuxData >
-XForm< Real , Dim+1 > GetPointXForm( InputOrientedPointStream< Real , Dim , AuxData > &stream , typename InputOrientedPointStreamInfo< Real , Dim , AuxData >::DataType d , Real scaleFactor )
-{
-	Point< Real , Dim > min , max;
-	InputOrientedPointStreamInfo< Real , Dim , AuxData >::BoundingBox( stream , d , min , max );
-	return GetBoundingBoxXForm( min , max , scaleFactor );
-}
-
-template< unsigned int Dim , typename Real , typename TotalPointSampleData >
-struct ConstraintDual
-{
-	Real target , vWeight , gWeight;
-	ConstraintDual( Real t , Real v , Real g ) : target(t) , vWeight(v) , gWeight(g) { }
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const TotalPointSampleData& data ) const 
-	{
-		Point< Real , Dim > n = data.template get<0>();
-		CumulativeDerivativeValues< Real , Dim , 1 > cdv;
-		cdv[0] = target*vWeight;
-		for( int d=0 ; d<Dim ; d++ ) cdv[1+d] = -n[d]*gWeight;
-		return cdv;
-	}
-};
-template< unsigned int Dim , typename Real , typename TotalPointSampleData >
-struct SystemDual
-{
-	CumulativeDerivativeValues< Real , Dim , 1 > weight;
-	SystemDual( Real v , Real g )
-	{
-		weight[0] = v;
-		for( int d=0 ; d<Dim ; d++ ) weight[d+1] = g;
-	}
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const TotalPointSampleData& data , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
-	{
-		return dValues * weight;
-	}
-	CumulativeDerivativeValues< double , Dim , 1 > operator()( Point< Real , Dim > p , const TotalPointSampleData& data , const CumulativeDerivativeValues< double , Dim , 1 >& dValues ) const
-	{
-		return dValues * weight;
-	};
-};
-template< unsigned int Dim , class TotalPointSampleData >
-struct SystemDual< Dim , double , TotalPointSampleData >
-{
-	typedef double Real;
-	CumulativeDerivativeValues< Real , Dim , 1 > weight;
-	SystemDual( Real v , Real g ) : weight( v , g , g , g ) { }
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const TotalPointSampleData& data , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
-	{
-		return dValues * weight;
-	}
-};
-
-template< typename Real , typename SetVertexFunction , typename InputSampleDataType , typename VertexFactory , unsigned int ... FEMSigs >
-void ExtractMesh
+template< typename Real , unsigned int Dim , unsigned int FEMSig , bool HasGradients , bool HasDensity >
+void WriteMesh
 (
-	UIntPack< FEMSigs ... > ,
-	FEMTree< sizeof ... ( FEMSigs ) , Real >& tree ,
-	const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution ,
-	Real isoValue ,
-	const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample > *samples ,
-	std::vector< InputSampleDataType > *sampleData ,
-	const typename FEMTree< sizeof ... ( FEMSigs ) , Real >::template DensityEstimator< WEIGHT_DEGREE > *density ,
-	const VertexFactory &vertexFactory ,
-	const InputSampleDataType &zeroInputSampleDataType ,
-	SetVertexFunction SetVertex ,
-	std::vector< std::string > &comments ,
-	XForm< Real , sizeof...(FEMSigs)+1 > unitCubeToModel
+	bool inCore ,
+	Reconstructor::ReconstructionInfo< Real , Dim , FEMSig > &reconInfo ,
+	const Reconstructor::MeshExtractionParameters &meParams ,
+	std::string fileName ,
+	bool ascii
 )
 {
-	static const int Dim = sizeof ... ( FEMSigs );
-	typedef UIntPack< FEMSigs ... > Sigs;
-	typedef typename VertexFactory::VertexType Vertex;
-	static const unsigned int DataSig = FEMDegreeAndBType< DATA_DEGREE , BOUNDARY_FREE >::Signature;
-	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
+	// A description of the output vertex information
+	using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , HasGradients , HasDensity >;
 
-	Profiler profiler(20);
+	// A factory generating the output vertices
+	using Factory = typename VInfo::Factory;
+	Factory factory = VInfo::GetFactory();
 
-	char tempHeader[2048];
+	// A backing stream for the vertices
+	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , inCore , false , std::string( "v_" ) );
+	Reconstructor::OutputInputPolygonStream polygonStream( inCore , true , std::string( "p_" ) );
+
 	{
-		char tempPath[1024];
-		tempPath[0] = 0;
-		if( TempDir.set ) strcpy( tempPath , TempDir.value );
-		else SetTempDirectory( tempPath , sizeof(tempPath) );
-		if( strlen(tempPath)==0 ) sprintf( tempPath , ".%c" , FileSeparator );
-		if( tempPath[ strlen( tempPath )-1 ]==FileSeparator ) sprintf( tempHeader , "%sPR_" , tempPath );
-		else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
+		// The wrapper converting native to output types
+		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
+
+		// Extract the mesh
+		Reconstructor::ExtractMesh< Real >( reconInfo , _vertexStream , polygonStream , meParams );
 	}
 
-	StreamingMesh< Vertex , node_index_type > *mesh;
-	if( InCore.set ) mesh = new VectorStreamingMesh< Vertex , node_index_type >();
-	else             mesh = new FileStreamingMesh< VertexFactory , node_index_type >( vertexFactory , tempHeader );
-
-	profiler.reset();
-	typename LevelSetExtractor< Dim , Real , Vertex >::Stats stats;
-	if( sampleData )
-	{
-		SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setExtrapolatedDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
-		auto nodeFunctor = [&]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *n )
-		{
-			ProjectiveData< InputSampleDataType , Real >* clr = _sampleData( n );
-			if( clr ) (*clr) *= (Real)pow( DataX.value , tree.depth( n ) );
-		};
-		tree.tree().processNodes( nodeFunctor );
-		stats = LevelSetExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , &_sampleData , solution , isoValue , *mesh , zeroInputSampleDataType , SetVertex , NonLinearFit.set , Normals.value==NORMALS_GRADIENTS , !NonManifold.set , PolygonMesh.set , false );
-	}
-#if defined( __GNUC__ ) && __GNUC__ < 5
-#ifdef SHOW_WARNINGS
-#warning "you've got me gcc version<5"
-#endif // SHOW_WARNINGS
-	else stats = LevelSetExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , (SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , zeroInputSampleDataType , SetVertex , NonLinearFit.set , Normals.value==NORMALS_GRADIENTS , !NonManifold.set , PolygonMesh.set , false );
-#else // !__GNUC__ || __GNUC__ >=5
-	else stats = LevelSetExtractor< Dim , Real , Vertex >::template Extract< InputSampleDataType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , *mesh , zeroInputSampleDataType , SetVertex , NonLinearFit.set , Normals.value==NORMALS_GRADIENTS , !NonManifold.set , PolygonMesh.set , false );
-#endif // __GNUC__ || __GNUC__ < 4
-	if( Verbose.set )
-	{
-		std::cout << "Vertices / Polygons: " << mesh->vertexNum() << " / " << mesh->polygonNum() << std::endl;
-		std::cout << stats.toString() << std::endl;
-		if( PolygonMesh.set ) std::cout << "#         Got polygons: " << profiler << std::endl;
-		else                  std::cout << "#        Got triangles: " << profiler << std::endl;
-	}
-
+	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
-	typename VertexFactory::Transform unitCubeToModelTransform( unitCubeToModel );
-	auto xForm = [&]( typename VertexFactory::VertexType & v ){ unitCubeToModelTransform.inPlace( v ); };
-	PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( Out.value , vertexFactory , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , xForm );
-
-	delete mesh;
+	PLY::WritePolygons< Factory , node_index_type , Real , Dim >( fileName , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , ascii ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 }
 
-template< typename Real , unsigned int Dim >
-void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned int res , XForm< Real , Dim+1 > voxelToModel , bool verbose )
+template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxDataFactory , bool HasGradients , bool HasDensity >
+void WriteMeshWithData
+(
+	const AuxDataFactory &auxDataFactory ,
+	bool inCore ,
+	Reconstructor::ReconstructionInfo< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > &reconInfo ,
+	const Reconstructor::MeshExtractionParameters &meParams ,
+	std::string fileName ,
+	bool ascii
+)
 {
-	char *ext = GetFileExtension( fileName );
+	// A description of the output vertex information
+	using VInfo = Reconstructor::OutputVertexWithDataInfo< Real , Dim , AuxDataFactory , HasGradients , HasDensity >;
 
-	if( Dim==2 && ImageWriter::ValidExtension( ext ) )
+	// A factory generating the output vertices
+	using Factory = typename VInfo::Factory;
+	Factory factory = VInfo::GetFactory( auxDataFactory );
+
+	// A backing stream for the vertices
+	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , inCore , false , std::string( "v_" ) );
+	Reconstructor::OutputInputPolygonStream polygonStream( inCore , true , std::string( "p_" ) );
+
 	{
-		unsigned int totalResolution = 1;
-		for( int d=0 ; d<Dim ; d++ ) totalResolution *= res;
+		// The wrapper converting native to output types
+		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
 
-		// Compute average
-		Real avg = 0;
-		std::vector< Real > avgs( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
-		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) avg += avgs[t];
-		avg /= (Real)totalResolution;
-
-		// Compute standard deviation
-		Real std = 0;
-		std::vector< Real > stds( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
-		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) std += stds[t];
-		std = (Real)sqrt( std / totalResolution );
-
-		if( verbose )
-		{
-			printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
-			printf( "Transform:\n" );
-			for( int i=0 ; i<Dim+1 ; i++ )
-			{
-				printf( "\t" );
-				for( int j=0 ; j<Dim+1 ; j++ ) printf( " %f" , voxelToModel(j,i) );
-				printf( "\n" );
-			}
-		}
-
-		unsigned char *pixels = new unsigned char[ totalResolution*3 ];
-		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int , size_t i )
-		{
-			Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
-			v = (Real)( ( v + 1. ) / 2. * 256. );
-			unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
-			for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
-		}
-		);
-		ImageWriter::Write( fileName , pixels , res , res , 3 );
-		delete[] pixels;
+		// Extract the mesh
+		Reconstructor::ExtractMesh< Real >( reconInfo , _vertexStream , polygonStream , meParams );
 	}
-	else if( !strcasecmp( ext , "iso" ) )
-	{
-		FILE *fp = fopen( fileName , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , fileName );
-		int r = (int)res;
-		fwrite( &r , sizeof(int) , 1 , fp );
-		size_t count = 1;
-		for( unsigned int d=0 ; d<Dim ; d++ ) count *= res;
-		fwrite( values , sizeof(Real) , count , fp );
-		fclose( fp );
-	}
-	else
-	{
-		unsigned int _res[Dim];
-		for( int d=0 ; d<Dim ; d++ ) _res[d] = res;
-		RegularGrid< Real , Dim >::Write( fileName , _res , values , voxelToModel );
-	}
-	delete[] ext;
+
+	// Write the mesh to a .ply file
+	std::vector< std::string > noComments;
+	PLY::WritePolygons< Factory , node_index_type , Real , Dim >( fileName , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , ascii ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 }
 
-template< class Real , typename AuxDataFactory , unsigned int ... FEMSigs >
-void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
+template< class Real , unsigned int Dim , unsigned int FEMSig , typename AuxDataFactory >
+void Execute( const AuxDataFactory &auxDataFactory )
 {
-	static const int Dim = sizeof ... ( FEMSigs );
-	typedef UIntPack< FEMSigs ... > Sigs;
-	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > Degrees;
-	typedef UIntPack< FEMDegreeAndBType< NORMAL_DEGREE , DerivativeBoundary< FEMSignature< FEMSigs >::BType , 1 >::BType >::Signature ... > NormalSigs;
-	static const unsigned int DataSig = FEMDegreeAndBType< DATA_DEGREE , BOUNDARY_FREE >::Signature;
-	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
-	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 1 > InterpolationInfo;
+	static const bool HasAuxData = !std::is_same< AuxDataFactory , VertexFactory::EmptyFactory< Real > >::value;
+
+	///////////////
+	// Types --> //
+	typedef IsotropicUIntPack< Dim , FEMSig > Sigs;
 	using namespace VertexFactory;
 
-	// The factory for constructing an input sample
-	typedef Factory< Real , PositionFactory< Real , Dim > , Factory< Real , NormalFactory< Real , Dim > , AuxDataFactory > > InputSampleFactory;
-
 	// The factory for constructing an input sample's data
-	typedef Factory< Real , NormalFactory< Real , Dim > , AuxDataFactory > InputSampleDataFactory;
+	typedef typename std::conditional< HasAuxData , Factory< Real , NormalFactory< Real , Dim > , AuxDataFactory > , NormalFactory< Real , Dim > >::type InputSampleDataFactory;
 
-	// The input point stream information: First piece of data is the normal; the remainder is the auxiliary data
-	typedef InputOrientedPointStreamInfo< Real , Dim , typename AuxDataFactory::VertexType > InputPointStreamInfo;
+	// The factory for constructing an input sample
+	typedef Factory< Real , PositionFactory< Real , Dim > , InputSampleDataFactory >  InputSampleFactory;
 
-	// The type of the input sample
-	typedef typename InputPointStreamInfo::PointAndDataType InputSampleType;
+	typedef InputDataStream< typename InputSampleFactory::VertexType > InputPointStream;
 
-	// The type of the input sample's data
-	typedef typename InputPointStreamInfo::DataType InputSampleDataType;
+	// The type storing the reconstruction solution (depending on whether auxiliary data is provided or not)
+	using ReconstructionInfo = typename std::conditional< HasAuxData , Reconstructor::ReconstructionInfo< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > , Reconstructor::ReconstructionInfo< Real , Dim , FEMSig > >::type;
+	// <-- Types //
+	///////////////
 
-	typedef            InputDataStream< InputSampleType >  InputPointStream;
-	typedef TransformedInputDataStream< InputSampleType > XInputPointStream;
-
-	InputSampleFactory inputSampleFactory( PositionFactory< Real , Dim >() , InputSampleDataFactory( NormalFactory< Real , Dim >() , auxDataFactory ) );
-	InputSampleDataFactory inputSampleDataFactory( NormalFactory< Real , Dim >() , auxDataFactory );
-
-	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
-	std::vector< std::string > comments;
 	if( Verbose.set )
 	{
 		std::cout << "************************************************" << std::endl;
@@ -488,86 +292,93 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		std::cout << "************************************************" << std::endl;
 		std::cout << "************************************************" << std::endl;
 		if( !Threads.set ) std::cout << "Running with " << Threads.value << " threads" << std::endl;
+
+		char str[1024];
+		for( int i=0 ; params[i] ; i++ ) if( params[i]->set )
+		{
+			params[i]->writeValue( str );
+			if( strlen( str ) ) std::cout << "\t--" << params[i]->name << " " << str << std::endl;
+			else                std::cout << "\t--" << params[i]->name << std::endl;
+		}
 	}
 
-	bool needNormalData = DataX.value>0 && Normals.value;
-	bool needAuxData = DataX.value>0 && auxDataFactory.bufferSize();
+	Profiler profiler(20);
+	ReconstructionInfo *sInfo = NULL;
+	typename Reconstructor::SSD::SolutionParameters< Real > sParams;
+	typename Reconstructor::MeshExtractionParameters meParams;
 
-	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
+	sParams.verbose = Verbose.set;
+	sParams.outputDensity = Density.set;
+	sParams.exactInterpolation = ExactInterpolation.set;
+	sParams.showResidual = ShowResidual.set;
+	sParams.scale = (Real)Scale.value;
+	sParams.confidence = (Real)Confidence.value;
+	sParams.confidenceBias = (Real)ConfidenceBias.value;
+	sParams.lowDepthCutOff = (Real)LowDepthCutOff.value;
+	sParams.width = (Real)Width.value;
+	sParams.pointWeight = (Real)ValueWeight.value;
+	sParams.gradientWeight = (Real)GradientWeight.value;
+	sParams.biLapWeight = (Real)BiLapWeight.value;
+	sParams.samplesPerNode = (Real)SamplesPerNode.value;
+	sParams.cgSolverAccuracy = (Real)CGSolverAccuracy.value;
+	sParams.depth = (unsigned int)Depth.value;
+	sParams.baseDepth = (unsigned int)BaseDepth.value;
+	sParams.solveDepth = (unsigned int)SolveDepth.value;
+	sParams.fullDepth = (unsigned int)FullDepth.value;
+	sParams.kernelDepth = (unsigned int)KernelDepth.value;
+	sParams.baseVCycles = (unsigned int)BaseVCycles.value;
+	sParams.iters = (unsigned int)Iters.value;
 
-	XForm< Real , Dim+1 > modelToUnitCube , unitCubeToModel;
+	meParams.linearFit = !NonLinearFit.set;
+	meParams.outputGradients = Gradients.set;
+	meParams.forceManifold = !NonManifold.set;
+	meParams.polygonMesh = PolygonMesh.set;
+	meParams.verbose = Verbose.set;
+
+	double startTime = Time();
+
+	InputSampleFactory *_inputSampleFactory;
+	if constexpr( HasAuxData ) _inputSampleFactory = new InputSampleFactory( VertexFactory::PositionFactory< Real , Dim >() , InputSampleDataFactory( VertexFactory::NormalFactory< Real , Dim >() , auxDataFactory ) );
+	else _inputSampleFactory = new InputSampleFactory( VertexFactory::PositionFactory< Real , Dim >() , VertexFactory::NormalFactory< Real , Dim >() );
+	InputSampleFactory &inputSampleFactory = *_inputSampleFactory;
+	XForm< Real , Dim+1 > toModel = XForm< Real , Dim+1 >::Identity();
+
+	// Read in the transform, if we want to apply one to the points before processing
 	if( Transform.set )
 	{
 		FILE* fp = fopen( Transform.value , "r" );
-		if( !fp )
-		{
-			WARN( "Could not read x-form from: " , Transform.value );
-			modelToUnitCube = XForm< Real , Dim+1 >::Identity();
-		}
+		if( !fp ) WARN( "Could not read x-form from: " , Transform.value );
 		else
 		{
 			for( int i=0 ; i<Dim+1 ; i++ ) for( int j=0 ; j<Dim+1 ; j++ )
 			{
 				float f;
 				if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read xform" );
-				modelToUnitCube(i,j) = (Real)f;
+				toModel(i,j) = (Real)f;
 			}
 			fclose( fp );
 		}
 	}
-	else modelToUnitCube = XForm< Real , Dim+1 >::Identity();
+	std::vector< typename InputSampleFactory::VertexType > inCorePoints;
+	InputPointStream *pointStream;
 
-	char str[1024];
-	for( int i=0 ; params[i] ; i++ )
-		if( params[i]->set )
-		{
-			params[i]->writeValue( str );
-			if( Verbose.set )
-			{
-				if( strlen( str ) ) std::cout << "\t--" << params[i]->name << " " << str << std::endl;
-				else                std::cout << "\t--" << params[i]->name << std::endl;
-			}
-		}
-
-	double startTime = Time();
-	Real isoValue = 0;
-
-	FEMTree< Dim , Real > tree( MEMORY_ALLOCATOR_BLOCK_SIZE );
-	Profiler profiler(20);
-
-	if( Depth.set && Width.value>0 )
-	{
-		WARN( "Both --" , Depth.name , " and --" , Width.name , " set, ignoring --" , Width.name );
-		Width.value = 0;
-	}
-
-	size_t pointCount;
-
-	ProjectiveData< Point< Real , 2 > , Real > pointDepthAndWeight;
-	std::vector< typename FEMTree< Dim , Real >::PointSample >* samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
-	std::vector< InputSampleDataType >* sampleData = NULL;
-	DensityEstimator* density = NULL;
-	SparseNodeData< Point< Real , Dim > , NormalSigs >* normalInfo = NULL;
-	Real targetValue = (Real)0.;
-
-	// Read in the samples (and color data)
+	// Get the point stream
 	{
 		profiler.reset();
-		InputPointStream* pointStream;
-		char* ext = GetFileExtension( In.value );
-		sampleData = new std::vector< InputSampleDataType >();
-		std::vector< InputSampleType > inCorePoints;
+		char *ext = GetFileExtension( In.value );
+
 		if( InCore.set )
 		{
 			InputPointStream *_pointStream;
 			if     ( !strcasecmp( ext , "bnpts" ) ) _pointStream = new BinaryInputDataStream< InputSampleFactory >( In.value , inputSampleFactory );
 			else if( !strcasecmp( ext , "ply"   ) ) _pointStream = new    PLYInputDataStream< InputSampleFactory >( In.value , inputSampleFactory );
 			else                                    _pointStream = new  ASCIIInputDataStream< InputSampleFactory >( In.value , inputSampleFactory );
-			InputSampleType p = inputSampleFactory();
-			while( _pointStream->next( p ) ) inCorePoints.push_back( p );
+			typename InputSampleFactory::VertexType p = inputSampleFactory();
+			while( _pointStream->read( p ) ) inCorePoints.push_back( p );
 			delete _pointStream;
 
-			pointStream = new MemoryInputDataStream< InputSampleType >( inCorePoints.size() , &inCorePoints[0] );		}
+			pointStream = new VectorBackedInputDataStream< typename InputSampleFactory::VertexType >( inCorePoints );
+		}
 		else
 		{
 			if     ( !strcasecmp( ext , "bnpts" ) ) pointStream = new BinaryInputDataStream< InputSampleFactory >( In.value , inputSampleFactory );
@@ -575,198 +386,80 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 			else                                    pointStream = new  ASCIIInputDataStream< InputSampleFactory >( In.value , inputSampleFactory );
 		}
 		delete[] ext;
-
-		typename InputSampleFactory::Transform _modelToUnitCube( modelToUnitCube );
-		auto XFormFunctor = [&]( InputSampleType &p ){ _modelToUnitCube.inPlace( p ); };
-		XInputPointStream _pointStream( XFormFunctor , *pointStream );
-
-		{
-			typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
-			modelToUnitCube = Scale.value>0 ? GetPointXForm< Real , Dim , typename AuxDataFactory::VertexType >( _pointStream , zeroData , (Real)Scale.value ) * modelToUnitCube : modelToUnitCube;
-		}
-		if( Width.value>0 )
-		{
-			Real maxScale = 0;
-			for( unsigned int i=0 ; i<Dim ; i++ ) maxScale = std::max< Real >( maxScale , (Real)1./modelToUnitCube(i,i) );
-			Depth.value = (unsigned int)ceil( std::max< double >( 0. , log( maxScale/Width.value )/log(2.) ) );
-		}
-		if( SolveDepth.value>Depth.value )
-		{
-			WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
-			SolveDepth.value = Depth.value;
-		}
-		if( FullDepth.value>Depth.value )
-		{
-			WARN( "Full depth cannot exceed system depth: " , FullDepth.value , " <= " , Depth.value );
-			FullDepth.value = Depth.value;
-		}
-		if( BaseDepth.value>FullDepth.value )
-		{
-			if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
-			BaseDepth.value = FullDepth.value;
-		}
-
-		{
-			typename InputSampleFactory::Transform _modelToUnitCube( modelToUnitCube );
-			auto XFormFunctor = [&]( InputSampleType &p ){ _modelToUnitCube.inPlace( p ); };
-			XInputPointStream _pointStream( XFormFunctor , *pointStream );
-			auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , typename InputPointStreamInfo::DataType &d )
-			{
-				Real l = (Real)Length( d.template get<0>() );
-				if( !l || !std::isfinite( l ) ) return (Real)-1.;
-				return (Real)pow( l , Confidence.value );
-			};
-			auto ProcessData = []( const Point< Real , Dim > &p , typename InputPointStreamInfo::DataType &d )
-			{
-				Real l = (Real)Length( d.template get<0>() );
-				if( !l || !std::isfinite( l ) ) return (Real)-1.;
-				d.template get<0>() /= l;
-				return (Real)1.;
-			};
-			typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
-			typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , tree.spaceRoot() , _pointStream , zeroData , Depth.value , *samples , *sampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessDataWithConfidence );
-			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , tree.spaceRoot() , _pointStream , zeroData , Depth.value , *samples , *sampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
-		}
-		unitCubeToModel = modelToUnitCube.inverse();
-		delete pointStream;
-
-		if( Verbose.set )
-		{
-			std::cout << "Input Points / Samples: " << pointCount << " / " << samples->size() << std::endl;
-			std::cout << "# Read input into tree: " << profiler << std::endl;
-		}
 	}
-	int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;
-	if( kernelDepth>Depth.value )
+
+	// A wrapper class to realize InputPointStream as an InputSampleWithDataStream
+	struct _InputSampleStream : public Reconstructor::InputSampleStream< Real , Dim >
 	{
-		WARN( KernelDepth.name , " can't be greater than " , Depth.name , ": " , KernelDepth.value , " <= " , Depth.value );
-		kernelDepth = Depth.value;
-	}
+		typedef Reconstructor::Normal< Real , Dim > DataType;
+		typedef VectorTypeUnion< Real , Reconstructor::Position< Real , Dim > , DataType > SampleType;
+		typedef InputDataStream< SampleType > _InputPointStream;
+		_InputPointStream &pointStream;
+		SampleType scratch;
+		_InputSampleStream( _InputPointStream &pointStream ) : pointStream( pointStream )
+		{
+			scratch = SampleType( Reconstructor::Position< Real , Dim >() , Reconstructor::Normal< Real , Dim >() );
+		}
+		void reset( void ){ pointStream.reset(); }
+		bool base_read( Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n ) 
+		{
+			bool ret = pointStream.read( scratch );
+			if( ret ) p = scratch.template get<0>() , n = scratch.template get<1>();
+			return ret;
+		}
+	};
 
-	DenseNodeData< Real , Sigs > solution;
+	// A wrapper class to realize InputPointStream as an InputSampleWithDataStream
+	struct _InputSampleWithDataStream : public Reconstructor::InputSampleWithDataStream< Real , Dim , typename AuxDataFactory::VertexType >
 	{
-		DenseNodeData< Real , Sigs > constraints;
-		InterpolationInfo* iInfo = NULL;
-		int solveDepth = Depth.value;
-
-		tree.resetNodeIndices( 0 );
-
-		// Get the kernel density estimator
+		typedef VectorTypeUnion< Real , Reconstructor::Normal< Real , Dim > , typename AuxDataFactory::VertexType > DataType;
+		typedef VectorTypeUnion< Real , Reconstructor::Position< Real , Dim > , DataType > SampleType;
+		typedef InputDataStream< SampleType > _InputPointStream;
+		_InputPointStream &pointStream;
+		SampleType scratch;
+		_InputSampleWithDataStream( _InputPointStream &pointStream , typename AuxDataFactory::VertexType zero ) : Reconstructor::InputSampleWithDataStream< Real , Dim , typename AuxDataFactory::VertexType >( zero ) , pointStream( pointStream )
 		{
-			profiler.reset();
-			density = tree.template setDensityEstimator< 1 , WEIGHT_DEGREE >( *samples , kernelDepth , SamplesPerNode.value );
-			if( Verbose.set ) std::cout << "#   Got kernel density: " << profiler << std::endl;
+			scratch = SampleType( Reconstructor::Position< Real , Dim >() , DataType( Reconstructor::Normal< Real , Dim >() , zero ) );
 		}
-
-		// Transform the Hermite samples into a vector field
+		void reset( void ){ pointStream.reset(); }
+		bool base_read( Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n , typename AuxDataFactory::VertexType &d ) 
 		{
-			profiler.reset();
-			normalInfo = new SparseNodeData< Point< Real , Dim > , NormalSigs >();
-			std::function< bool ( InputSampleDataType , Point< Real , Dim >& ) > ConversionFunction = []( InputSampleDataType in , Point< Real , Dim > &out )
-			{
-				Point< Real , Dim > n = in.template get<0>();
-				Real l = (Real)Length( n );
-				// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
-				if( !l ) return false;
-				out = n / l;
-				return true;
-			};
-			std::function< bool ( InputSampleDataType , Point< Real , Dim >& , Real & ) > ConversionAndBiasFunction = []( InputSampleDataType in , Point< Real , Dim > &out , Real &bias )
-			{
-				Point< Real , Dim > n = in.template get<0>();
-				Real l = (Real)Length( n );
-				// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
-				if( !l ) return false;
-				out = n / l;
-				bias = (Real)( log( l ) * ConfidenceBias.value / log( 1<<(Dim-1) ) );
-				return true;
-			};
-
-			if( ConfidenceBias.value>0 ) *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , 0 , Depth.value , (Real)LowDepthCutOff.value , pointDepthAndWeight , ConversionAndBiasFunction );
-			else                         *normalInfo = tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleData , density , 0 , Depth.value , (Real)LowDepthCutOff.value , pointDepthAndWeight , ConversionFunction );
-			if( Verbose.set )
-			{
-				std::cout << "#     Got normal field: " << profiler << std::endl;
-				std::cout << "Point depth / Point weight / Estimated Measure: " << pointDepthAndWeight.value()[0] << " / " <<  pointDepthAndWeight.value()[1]<< " / " << pointCount*pointDepthAndWeight.value()[1] << std::endl;
-			}
+			bool ret = pointStream.read( scratch );
+			if( ret ) p = scratch.template get<0>() , n = scratch.template get<1>().template get<0>() , d = scratch.template get<1>().template get<1>();
+			return ret;
 		}
+	};
 
-		if( !Density.set ) delete density , density = NULL;
-
-		// Add the interpolation constraints
-		if( ValueWeight.value>0 || GradientWeight.value>0 )
-		{
-			profiler.reset();
-			if( ExactInterpolation.set ) iInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , InputSampleDataType , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , InputSampleDataType >( targetValue , (Real)ValueWeight.value * pointDepthAndWeight.value()[1] , (Real)GradientWeight.value * pointDepthAndWeight.value()[1]  ) , SystemDual< Dim , Real , InputSampleDataType >( (Real)ValueWeight.value * pointDepthAndWeight.value()[1] , (Real)GradientWeight.value * pointDepthAndWeight.value()[1] ) , true , false );
-			else                         iInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , InputSampleDataType , 1 >( tree , *samples , GetPointer( *sampleData ) , ConstraintDual< Dim , Real , InputSampleDataType >( targetValue , (Real)ValueWeight.value * pointDepthAndWeight.value()[1] , (Real)GradientWeight.value * pointDepthAndWeight.value()[1]  ) , SystemDual< Dim , Real , InputSampleDataType >( (Real)ValueWeight.value * pointDepthAndWeight.value()[1] , (Real)GradientWeight.value * pointDepthAndWeight.value()[1] ) , true , Depth.value , 1 );
-			if( Verbose.set ) std::cout << "#Initialized point interpolation constraints: " << profiler << std::endl;
-		}
-
-		// Trim the tree and prepare for multigrid
-		{
-			profiler.reset();
-
-			auto addNodeFunctor = [&]( int d , const int off[Dim] ){ return d<=FullDepth.value; };
-			constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
-			tree.template finalizeForMultigrid< MAX_DEGREE , Degrees::Max() >( BaseDepth.value , addNodeFunctor , typename FEMTree< Dim , Real >::template HasNormalDataFunctor< NormalSigs >( *normalInfo ) , std::make_tuple( iInfo ) , std::make_tuple( normalInfo , density ) );
-
-			if( Verbose.set ) std::cout << "#       Finalized tree: " << profiler << std::endl;
-		}
-
-		// Free up the normal info [If we don't need it for subsequent iterations.]
-		if( normalInfo ) delete normalInfo , normalInfo = NULL;
-
-		// Add the interpolation constraints
-		if( ValueWeight.value>0 || GradientWeight.value>0 )
-		{
-			profiler.reset();
-			constraints = tree.initDenseNodeData( Sigs() );
-			tree.addInterpolationConstraints( constraints , solveDepth , std::make_tuple( iInfo ) );
-			if( Verbose.set ) std::cout << "#Set point constraints: " << profiler << std::endl;
-			if( !needNormalData && !needAuxData ) delete sampleData , sampleData = NULL;
-		}
-
-		if( Verbose.set )
-		{
-			std::cout << "All Nodes / Active Nodes / Ghost Nodes: " << tree.allNodes() << " / " << tree.activeNodes() << " / " << tree.ghostNodes() << std::endl;
-			std::cout << "Memory Usage: " << float( MemoryInfo::Usage())/(1<<20) << std::endl;
-		}
-
-		// Solve the linear system
-		{
-			profiler.reset();
-			typename FEMTree< Dim , Real >::SolverInfo sInfo;
-			sInfo.cgDepth = 0 , sInfo.cascadic = true , sInfo.vCycles = 1 , sInfo.iters = Iters.value , sInfo.cgAccuracy = CGSolverAccuracy.value , sInfo.verbose = Verbose.set , sInfo.showResidual = ShowResidual.set , sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE , sInfo.sliceBlockSize = 1;
-			sInfo.baseVCycles = BaseVCycles.value;
-			typename FEMIntegrator::template System< Sigs , IsotropicUIntPack< Dim , 2 > > F( { 0. , 0. , (double)BiLapWeight.value } );
-			solution = tree.solveSystem( Sigs() , F , constraints , BaseDepth.value , SolveDepth.value , sInfo , std::make_tuple( iInfo ) );
-			if( Verbose.set ) std::cout << "# Linear system solved: " << profiler << std::endl;
-			if( iInfo ) delete iInfo , iInfo = NULL;
-		}
-	}
-
+	if constexpr( HasAuxData )
 	{
-		profiler.reset();
-		double valueSum = 0 , weightSum = 0;
-		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &tree , solution );
-		std::vector< double > valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
+		_InputSampleWithDataStream sampleStream( *pointStream , auxDataFactory() );
+
+		if( Transform.set )
 		{
-			ProjectiveData< Point< Real , Dim > , Real >& sample = (*samples)[j].sample;
-			Real w = sample.weight;
-			if( w>0 ) weightSums[thread] += w , valueSums[thread] += evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node )[0] * w;
+			Reconstructor::TransformedInputSampleWithDataStream< Real , Dim , typename AuxDataFactory::VertexType > _sampleStream( toModel , sampleStream );
+			sInfo = Reconstructor::SSD::Solve< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( _sampleStream , sParams );
+			sInfo->unitCubeToModel = toModel.inverse() * sInfo->unitCubeToModel;
 		}
-		);
-		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) valueSum += valueSums[t] , weightSum += weightSums[t];
-		isoValue = (Real)( valueSum / weightSum );
-		if( !needNormalData && !needAuxData ) delete samples , samples = NULL;
-		if( Verbose.set )
-		{
-			std::cout << "Got average: " << profiler << std::endl;
-			std::cout << "Iso-Value: " << isoValue << " = " << valueSum << " / " << weightSum << std::endl;
-		}
+		else sInfo = Reconstructor::SSD::Solve< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( sampleStream , sParams );
 	}
+	else
+	{
+		_InputSampleStream sampleStream( *pointStream );
+
+		if( Transform.set )
+		{
+			Reconstructor::TransformedInputSampleStream< Real , Dim > _sampleStream( toModel , sampleStream );
+			sInfo = Reconstructor::SSD::Solve< Real , Dim , FEMSig >( _sampleStream , sParams );
+			sInfo->unitCubeToModel = toModel.inverse() * sInfo->unitCubeToModel;
+		}
+		else sInfo = Reconstructor::SSD::Solve< Real , Dim , FEMSig >( sampleStream , sParams );
+	}
+
+	delete pointStream;
+	delete _inputSampleFactory;
+
+	if constexpr( HasAuxData ) if( sInfo->auxData ) sInfo->weightAuxDataByDepth( (Real)DataX.value );
+
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
@@ -774,81 +467,79 @@ void Execute( UIntPack< FEMSigs ... > , const AuxDataFactory &auxDataFactory )
 		FileStream fs(fp);
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
-		tree.write( fs , modelToUnitCube , false );
-		solution.write( fs );
+		sInfo->tree.write( fs , sInfo->unitCubeToModel.inverse() , false );
+		sInfo->solution.write( fs );
+		if constexpr( HasAuxData ) if( sInfo->auxData ) sInfo->auxData->write( fs );
+		if( sInfo->density ) sInfo->density->write( fs );
 		fclose( fp );
 	}
+
 
 	if( Grid.set )
 	{
 		int res = 0;
 		profiler.reset();
-		Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , PrimalGrid.set );
-		size_t resolution = 1;
+		Pointer( Real ) values = sInfo->tree.template regularGridEvaluate< true >( sInfo->solution , res , -1 , PrimalGrid.set );
 		if( Verbose.set ) std::cout << "Got grid: " << profiler << std::endl;
 		XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
 		if( PrimalGrid.set ) for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / (res-1) );
 		else                 for( int d=0 ; d<Dim ; d++ ) voxelToUnitCube( d , d ) = (Real)( 1. / res ) , voxelToUnitCube( Dim , d ) = (Real)( 0.5 / res );
-		WriteGrid< Real , DEFAULT_DIMENSION >( Grid.value , values , res , unitCubeToModel * voxelToUnitCube , Verbose.set );
+
+		unsigned int _res[Dim];
+		for( int d=0 ; d<Dim ; d++ ) _res[d] = res;
+		RegularGrid< Real , Dim >::Write( Grid.value , _res , values , sInfo->unitCubeToModel * voxelToUnitCube );
+
 		DeletePointer( values );
 	}
 
-	if( Out.set )
+
+	if( Out.set && Dim!=3 ) WARN( "Mesh extraction is only supported in dimension 3" );
+	else if( Out.set && Dim==3 )
 	{
-		if( Normals.value )
+		// Create the output mesh
+		char tempHeader[2048];
+		{
+			char tempPath[1024];
+			tempPath[0] = 0;
+			if( TempDir.set ) strcpy( tempPath , TempDir.value );
+			else SetTempDirectory( tempPath , sizeof(tempPath) );
+			if( strlen(tempPath)==0 ) sprintf( tempPath , ".%c" , FileSeparator );
+			if( tempPath[ strlen( tempPath )-1 ]==FileSeparator ) sprintf( tempHeader , "%sPR_" , tempPath );
+			else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
+		}
+
+		XForm< Real , Dim+1 > pXForm = sInfo->unitCubeToModel;
+		XForm< Real , Dim > nXForm = XForm< Real , Dim >( pXForm ).inverse().transpose();
+
+		if( Gradients.set )
 		{
 			if( Density.set )
 			{
-				typedef Factory< Real , PositionFactory< Real , Dim > , NormalFactory< Real , Dim > , ValueFactory< Real > , AuxDataFactory > VertexFactory;
-				VertexFactory vertexFactory( PositionFactory< Real , Dim >() , NormalFactory< Real , Dim >() , ValueFactory< Real >() , auxDataFactory );
-				if( Normals.value==NORMALS_SAMPLES )
-				{
-					auto SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > g , Real w , InputSampleDataType d ){ v.template get<0>() = p , v.template get<1>() = d.template get<0>() , v.template get<2>() = w , v.template get<3>() = d.template get<1>(); };
-					ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , isoValue , samples , sampleData , density , vertexFactory , inputSampleDataFactory() , SetVertex , comments , unitCubeToModel );
-				}
-				else if( Normals.value==NORMALS_GRADIENTS )
-				{
-					auto SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > g , Real w , InputSampleDataType d ){ v.template get<0>() = p , v.template get<1>() = -g/(1<<Depth.value) , v.template get<2>() = w , v.template get<3>() = d.template get<1>(); };
-					ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , isoValue , samples , sampleData , density , vertexFactory , inputSampleDataFactory() , SetVertex , comments , unitCubeToModel );
-				}
+				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , true >( auxDataFactory , InCore.set , *sInfo , meParams , Out.value , ASCII.set );
+				else                       WriteMesh        < Real , Dim , FEMSig ,                  true , true >(                  InCore.set , *sInfo , meParams , Out.value , ASCII.set );
 			}
 			else
 			{
-				typedef Factory< Real , PositionFactory< Real , Dim > , NormalFactory< Real , Dim > , AuxDataFactory > VertexFactory;
-				VertexFactory vertexFactory( PositionFactory< Real , Dim >() , NormalFactory< Real , Dim >() , auxDataFactory );
-				if( Normals.value==NORMALS_SAMPLES )
-				{
-					auto SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > g , Real w , InputSampleDataType d ){ v.template get<0>() = p                                                 , v.template get<1>() = d.template get<0>() , v.template get<2>() = d.template get<1>(); };
-					ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , isoValue , samples , sampleData , density , vertexFactory , inputSampleDataFactory() , SetVertex , comments , unitCubeToModel );
-				}
-				else if( Normals.value==NORMALS_GRADIENTS )
-				{
-					auto SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > g , Real w , InputSampleDataType d ){ v.template get<0>() = p                                                 , v.template get<1>() = -g/(1<<Depth.value) , v.template get<2>() = d.template get<1>(); };
-					ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , isoValue , samples , sampleData , density , vertexFactory , inputSampleDataFactory() , SetVertex , comments , unitCubeToModel );
-				}
+				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , false >( auxDataFactory , InCore.set , *sInfo , meParams , Out.value , ASCII.set );
+				else                       WriteMesh        < Real , Dim , FEMSig ,                  true , false >(                  InCore.set , *sInfo , meParams , Out.value , ASCII.set );
 			}
 		}
 		else
 		{
 			if( Density.set )
 			{
-				typedef Factory< Real , PositionFactory< Real , Dim > , ValueFactory< Real > , AuxDataFactory > VertexFactory;
-				VertexFactory vertexFactory( PositionFactory< Real , Dim >() , ValueFactory< Real >() , auxDataFactory );
-				auto SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > g , Real w , InputSampleDataType d ){ v.template get<0>() = p , v.template get<1>() = w , v.template get<2>() = d.template get<1>(); };
-				ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , isoValue , samples , sampleData , density , vertexFactory , inputSampleDataFactory() , SetVertex , comments , unitCubeToModel );
+				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , true >( auxDataFactory , InCore.set , *sInfo , meParams , Out.value , ASCII.set );
+				else                       WriteMesh        < Real , Dim , FEMSig ,                  false , true >(                  InCore.set , *sInfo , meParams , Out.value , ASCII.set );
 			}
 			else
 			{
-				typedef Factory< Real , PositionFactory< Real , Dim > , AuxDataFactory > VertexFactory;
-				VertexFactory vertexFactory( PositionFactory< Real , Dim >() , auxDataFactory );
-				auto SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > g , Real w , InputSampleDataType d ){ v.template get<0>() = p , v.template get<1>() = d.template get<1>(); };
-				ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , isoValue , samples , sampleData , density , vertexFactory , inputSampleDataFactory() , SetVertex , comments , unitCubeToModel );
+				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , false >( auxDataFactory , InCore.set , *sInfo , meParams , Out.value , ASCII.set );
+				else                       WriteMesh        < Real , Dim , FEMSig ,                  false , false >(                  InCore.set , *sInfo , meParams , Out.value , ASCII.set );
 			}
 		}
-		if( sampleData ){ delete sampleData ; sampleData = NULL; }
 	}
-	if( density ) delete density , density = NULL;
 	if( Verbose.set ) std::cout << "#          Total Solve: " << Time()-startTime << " (s), " << MemoryInfo::PeakMemoryUsageMB() << " (MB)" << std::endl;
+	delete sInfo;
 }
 
 #ifndef FAST_COMPILE
@@ -857,10 +548,9 @@ void Execute( const AuxDataFactory &auxDataFactory )
 {
 	switch( Degree.value )
 	{
-//		case 1: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 1 , BType >::Signature >() , auxDataFactory );
-		case 2: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BType >::Signature >() , auxDataFactory );
-		case 3: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BType >::Signature >() , auxDataFactory );
-//		case 4: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BType >::Signature >() , auxDataFactory );
+		case 2: return Execute< Real , Dim , FEMDegreeAndBType< 2 , BType >::Signature >( auxDataFactory );
+		case 3: return Execute< Real , Dim , FEMDegreeAndBType< 3 , BType >::Signature >( auxDataFactory );
+//		case 4: return Execute< Real , Dim , FEMDegreeAndBType< 4 , BType >::Signature >( auxDataFactory );
 		default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
 	}
 }
@@ -889,6 +579,7 @@ int main( int argc , char* argv[] )
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
+	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 
 	if( !In.set )
 	{
@@ -910,9 +601,9 @@ int main( int argc , char* argv[] )
 		SolveDepth.value = Depth.value;
 	}
 
-	ValueWeight.value    *= (float)BaseSSDWeights[0];
-	GradientWeight.value *= (float)BaseSSDWeights[1];
-	BiLapWeight.value    *= (float)BaseSSDWeights[2];
+	ValueWeight.value    *= (float)Reconstructor::SSD::WeightMultipliers[0];
+	GradientWeight.value *= (float)Reconstructor::SSD::WeightMultipliers[1];
+	BiLapWeight.value    *= (float)Reconstructor::SSD::WeightMultipliers[2];
 
 #ifdef USE_DOUBLE
 	typedef double Real;
@@ -921,9 +612,10 @@ int main( int argc , char* argv[] )
 #endif // USE_DOUBLE
 
 #ifdef FAST_COMPILE
-	static const int Degree = DEFAULT_FEM_DEGREE;
-	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
-	typedef IsotropicUIntPack< DEFAULT_DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
+	static const int Degree = Reconstructor::SSD::DefaultFEMDegree;
+	static const BoundaryType BType = Reconstructor::SSD::DefaultFEMBoundary;
+	static const unsigned int Dim = DEFAULT_DIMENSION;
+	static const unsigned int FEMSig = FEMDegreeAndBType< Degree , BType >::Signature;
 	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 
 	char *ext = GetFileExtension( In.value );
@@ -938,13 +630,13 @@ int main( int argc , char* argv[] )
 		if( !factory.plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain normals" );
 		delete[] readFlags;
 
-		if( unprocessedProperties.size() ) Execute< Real >( FEMSigs() , VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );
-		else                               Execute< Real >( FEMSigs() , VertexFactory::EmptyFactory< Real >() );
+		if( unprocessedProperties.size() ) Execute< Real , Dim , FEMSig >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );
+		else                               Execute< Real , Dim , FEMSig >( VertexFactory::EmptyFactory< Real >() );
 	}
 	else
 	{
-		if( Colors.set ) Execute< Real >( FEMSigs() , VertexFactory::RGBColorFactory< Real >() );
-		else             Execute< Real >( FEMSigs() , VertexFactory::EmptyFactory< Real >() );
+		if( Colors.set ) Execute< Real , Dim , FEMSig >( VertexFactory::RGBColorFactory< Real >() );
+		else             Execute< Real , Dim , FEMSig >( VertexFactory::EmptyFactory< Real >() );
 	}
 	delete[] ext;
 #else // !FAST_COMPILE

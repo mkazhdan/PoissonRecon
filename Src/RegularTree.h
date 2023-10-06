@@ -30,6 +30,7 @@ DAMAGE.
 #define REGULAR_TREE_NODE_INCLUDED
 
 #include <functional>
+#include "Streams.h"
 #include "Allocator.h"
 #include "BinaryNode.h"
 #include "Window.h"

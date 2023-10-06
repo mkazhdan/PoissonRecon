@@ -49,6 +49,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Header Files", "Header File
 		Src\BlockedVector.h = Src\BlockedVector.h
 		Src\BSplineData.h = Src\BSplineData.h
 		Src\CmdLineParser.h = Src\CmdLineParser.h
+		Src\DataStream.h = Src\DataStream.h
+		Src\DataStream.imp.h = Src\DataStream.imp.h
 		Src\Factor.h = Src\Factor.h
 		Src\FEMTree.h = Src\FEMTree.h
 		Src\FunctionData.h = Src\FunctionData.h
@@ -64,20 +66,19 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Header Files", "Header File
 		Src\PNG.h = Src\PNG.h
 		Src\PointPartition.h = Src\PointPartition.h
 		Src\PointPartitionClientServer.h = Src\PointPartitionClientServer.h
-		Src\PoissonRecon.h = Src\PoissonRecon.h
 		Src\PoissonReconClientServer.h = Src\PoissonReconClientServer.h
 		Src\Polynomial.h = Src\Polynomial.h
 		Src\PPolynomial.h = Src\PPolynomial.h
 		Src\PreProcessor.h = Src\PreProcessor.h
 		Src\Rasterizer.h = Src\Rasterizer.h
+		Src\Reconstructors.h = Src\Reconstructors.h
+		Src\Reconstructors.streams.h = Src\Reconstructors.streams.h
 		Src\RegularGrid.h = Src\RegularGrid.h
 		Src\RegularTree.h = Src\RegularTree.h
 		Src\Socket.h = Src\Socket.h
 		Src\SparseMatrix.h = Src\SparseMatrix.h
 		Src\SparseMatrixInterface.h = Src\SparseMatrixInterface.h
-		Src\StreamingMesh.h = Src\StreamingMesh.h
 		Src\VertexFactory.h = Src\VertexFactory.h
-		Src\VertexStream.h = Src\VertexStream.h
 		Src\Window.h = Src\Window.h
 	EndProjectSection
 EndProject
@@ -87,6 +88,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Inline Files", "Inline File
 		Src\BMPStream.inl = Src\BMPStream.inl
 		Src\BSplineData.inl = Src\BSplineData.inl
 		Src\CmdLineParser.inl = Src\CmdLineParser.inl
+		Src\DataStream.imp.inl = Src\DataStream.imp.inl
 		Src\FEMTree.Evaluation.inl = Src\FEMTree.Evaluation.inl
 		Src\FEMTree.Initialize.inl = Src\FEMTree.Initialize.inl
 		Src\FEMTree.inl = Src\FEMTree.inl
@@ -117,9 +119,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Inline Files", "Inline File
 		Src\Socket.inl = Src\Socket.inl
 		Src\SparseMatrix.inl = Src\SparseMatrix.inl
 		Src\SparseMatrixInterface.inl = Src\SparseMatrixInterface.inl
-		Src\StreamingMesh.inl = Src\StreamingMesh.inl
 		Src\VertexFactory.inl = Src\VertexFactory.inl
-		Src\VertexStream.inl = Src\VertexStream.inl
 		Src\Window.inl = Src\Window.inl
 	EndProjectSection
 EndProject
@@ -130,6 +130,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PoissonReconClient", "PoissonReconClient.vcxproj", "{D9DFEEF0-7F6E-4381-9098-1363F385DEC3}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PoissonReconServer", "PoissonReconServer.vcxproj", "{649D8C83-6BE2-4419-B0A8-66F65CD4D4CB}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Reconstruction.example", "..\..\..\Users\mkazh\OneDrive - Johns Hopkins\Research\PoissonRecon\PoissonRecon\Reconstruction.example.vcxproj", "{F40103C1-D18D-4C34-992C-F78D4DCD4A87}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -244,6 +246,14 @@ Global
 		{649D8C83-6BE2-4419-B0A8-66F65CD4D4CB}.Release|x64.Build.0 = Release|x64
 		{649D8C83-6BE2-4419-B0A8-66F65CD4D4CB}.Release|x86.ActiveCfg = Release|Win32
 		{649D8C83-6BE2-4419-B0A8-66F65CD4D4CB}.Release|x86.Build.0 = Release|Win32
+		{F40103C1-D18D-4C34-992C-F78D4DCD4A87}.Debug|x64.ActiveCfg = Debug|x64
+		{F40103C1-D18D-4C34-992C-F78D4DCD4A87}.Debug|x64.Build.0 = Debug|x64
+		{F40103C1-D18D-4C34-992C-F78D4DCD4A87}.Debug|x86.ActiveCfg = Debug|Win32
+		{F40103C1-D18D-4C34-992C-F78D4DCD4A87}.Debug|x86.Build.0 = Debug|Win32
+		{F40103C1-D18D-4C34-992C-F78D4DCD4A87}.Release|x64.ActiveCfg = Release|x64
+		{F40103C1-D18D-4C34-992C-F78D4DCD4A87}.Release|x64.Build.0 = Release|x64
+		{F40103C1-D18D-4C34-992C-F78D4DCD4A87}.Release|x86.ActiveCfg = Release|Win32
+		{F40103C1-D18D-4C34-992C-F78D4DCD4A87}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

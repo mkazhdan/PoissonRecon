@@ -49,7 +49,7 @@ DAMAGE.
 #include "MyMiscellany.h"
 #include "BSplineData.h"
 #include "Geometry.h"
-#include "VertexStream.h"
+#include "DataStream.h"
 #include "RegularTree.h"
 #include "SparseMatrix.h"
 #include "BlockedVector.h"
@@ -1333,7 +1333,11 @@ template< unsigned int Dim > inline void SetGhostFlag(       RegularTreeNode< Di
 template< unsigned int Dim > inline bool GetGhostFlag( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return node==NULL || node->parent==NULL || node->parent->nodeData.getGhostFlag( ); }
 template< unsigned int Dim > inline bool IsActiveNode( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return !GetGhostFlag( node ); }
 
-template< unsigned int Dim , class Real , class Vertex > struct LevelSetExtractor;
+// A class representing an extractot with and without auxiliary data
+template< typename Real , unsigned int Dim , typename ... Params > struct LevelSetExtractor;
+
+// A helper class which consolidates the two extractors, templated over HasData
+template< bool HasData , typename Real , unsigned int Dim , typename Data > struct _LevelSetExtractor;
 
 template< unsigned int Dim , class Data >
 struct NodeSample
@@ -1417,7 +1421,9 @@ protected:
 		int &_depthOffset , _depthOffsetValue;
 	};
 
-	template< unsigned int _Dim , class _Real , class Vertex > friend struct LevelSetExtractor;
+	// Don't need this first one
+	template< typename _Real , unsigned int _Dim , typename ... _Params > friend struct LevelSetExtractor;
+	template< bool _HasData , typename _Real , unsigned int _Dim , typename _Data > friend struct _LevelSetExtractor;
 	std::atomic< node_index_type > _nodeCount;
 	struct _NodeInitializer
 	{
@@ -2545,6 +2551,11 @@ public:
 	template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
 	void updateExtrapolatedDataField( SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > &dataField , const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
 
+	template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data , class SampleFunctor /* = std::function< const PointSample & (size_t) >*/ , class SampleDataFunctor /* = std::function< const Data & (size_t) > */ >
+	SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setExtrapolatedDataField( size_t sampleNum , SampleFunctor sampleFunctor , SampleDataFunctor sampleDataFunctor , const DensityEstimator< DensityDegree >* density , bool nearest=false );
+	template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data , class SampleFunctor /* = std::function< const PointSample & (size_t) >*/ , class SampleDataFunctor /* = std::function< const Data & (size_t) > */ >
+	void updateExtrapolatedDataField( SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > &dataField , size_t sampleNum , SampleFunctor sampleFunctor , SampleDataFunctor sampleDataFunctor , const DensityEstimator< DensityDegree >* density , bool nearest=false );
+
 	template< unsigned int MaxDegree , unsigned int SystemDegree , typename AddNodeFunctor , typename HasDataFunctor , typename IsDirichletLeafFunctor , typename ... InterpolationInfos , typename ... DenseOrSparseNodeData > std::vector< node_index_type > finalizeForMultigridWithDirichlet( LocalDepth baseDepth , const AddNodeFunctor addNodeFunctor , const HasDataFunctor hasDataFunctor , const IsDirichletLeafFunctor isDirichletLeafFunctor , std::tuple< InterpolationInfos *... > interpolationInfos , std::tuple< DenseOrSparseNodeData *... > data );
 	template< unsigned int MaxDegree , unsigned int SystemDegree , typename AddNodeFunctor , typename HasDataFunctor , typename IsDirichletLeafFunctor , typename ... InterpolationInfos                                      > std::vector< node_index_type > finalizeForMultigridWithDirichlet( LocalDepth baseDepth , const AddNodeFunctor addNodeFunctor , const HasDataFunctor hasDataFunctor , const IsDirichletLeafFunctor isDirichletLeafFunctor , std::tuple< InterpolationInfos *... > interpolationInfos ){ return finalizeForMultigridWithDirichlet< MaxDegree , SystemDegree , AddNodeFunctor , HasDataFunctor >( baseDepth , addNodeFunctor , hasDataFunctor , isDirichletLeafFunctor , interpolationInfos , std::make_tuple() ); }
 
@@ -2908,62 +2919,6 @@ protected:
 	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 > double _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot ) const{ return 0; }
 };
 
-template< unsigned int Dim , class Real , class Vertex >
-struct LevelSetExtractor
-{
-	struct Stats
-	{
-		std::string toString( void ) const { return std::string( "Level-set extraction not supported for dimension %d" , Dim ); }
-	};
-
-	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
-	static Stats Extract
-	(
-		UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > ,							// Dummy variables for grouping the parameter
-		const FEMTree< Dim , Real >& tree ,																	// The tree over which the system is discretized
-		const typename FEMTree< Dim , Real >::template DensityEstimator< WeightDegree >* densityWeights ,	// Density weights
-		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data ,	// Auxiliary spatial data
-		const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients ,								// The coefficients of the function
-		Real isoValue ,																						// The value at which to extract the level-set
-		unsigned int slabDepth ,																			// The depth at which the slabs are specified
-		unsigned int slabStart ,																			// The beginning slab
-		unsigned int slabEnd ,																				// The ending slab
-		StreamingMesh< Vertex , node_index_type >& mesh ,													// The mesh in which to store the output
-		const Data &zeroData ,																				// Zero value for data (in case of dynamic allocation)
-		const SetVertexFunction &SetVertex ,																// A function for setting the depth and data of a vertex
-		bool nonLinearFit ,																					// Should a linear interpolant be used
-		bool gradientNormals ,																				// Compute the gradient at the iso-vertex position
-		bool addBarycenter ,																				// Should we triangulate polygons by adding a mid-point
-		bool polygonMesh ,																					// Should we output triangles or polygons
-		bool flipOrientation																				// Should we flip the orientation
-	)
-	{
-		// The unspecialized implementation is not supported
-		WARN( "Level-set extraction not supported for dimension " , Dim );
-		return Stats();
-	}
-	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
-	static Stats Extract
-	(
-		UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > ,							// Dummy variables for grouping the parameter
-		const FEMTree< Dim , Real >& tree ,																	// The tree over which the system is discretized
-		const typename FEMTree< Dim , Real >::template DensityEstimator< WeightDegree >* densityWeights ,	// Density weights
-		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data ,	// Auxiliary spatial data
-		const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients ,								// The coefficients of the function
-		Real isoValue ,																						// The value at which to extract the level-set
-		StreamingMesh< Vertex , node_index_type >& mesh ,													// The mesh in which to store the output
-		const Data &zeroData ,																				// Zero value for data (in case of dynamic allocation)
-		const SetVertexFunction &SetVertex ,																// A function for setting the depth and data of a vertex
-		bool nonLinearFit ,																					// Should a linear interpolant be used
-		bool gradientNormals ,																				// Compute the gradient at the iso-vertex position
-		bool addBarycenter ,																				// Should we triangulate polygons by adding a mid-point
-		bool polygonMesh ,																					// Should we output triangles or polygons
-		bool flipOrientation																				// Should we flip the orientation
-	)
-	{
-		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , densityWeights , data , coefficients , isoValue , 0 , 0 , 1 , mesh , zeroData , SetVertex , nonLinearFit , gradientNormals , addBarycenter , polygonMesh , flipOrientation );
-	}
-};
 
 template< unsigned int Dim , class Real >
 struct FEMTreeInitializer
@@ -2998,7 +2953,7 @@ struct FEMTreeInitializer
 			PointAndDataType p;
 			p.template get<1>() = d;
 			for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::numeric_limits< Real >::infinity() , max[d] = -std::numeric_limits< Real >::infinity();
-			while( stream.next( p ) ) for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( min[d] , p.template get<0>()[d] ) , max[d] = std::max< Real >( max[d] , p.template get<0>()[d] );
+			while( stream.read( p ) ) for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( min[d] , p.template get<0>()[d] ) , max[d] = std::max< Real >( max[d] , p.template get<0>()[d] );
 			stream.reset();
 		}
 	};
@@ -3022,8 +2977,6 @@ struct FEMTreeInitializer
 		std::vector< node_index_type > _nodeToIndexMap;
 	};
 
-	template< typename Data >
-	static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , typename InputPointStream< Data >::StreamType &pointStream , Data zeroData , int maxDepth , std::vector< PointSample >& samplePoints ,                                                                                                  Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	template< typename Data >
 	static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , typename InputPointStream< Data >::StreamType &pointStream , Data zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< typename InputPointStream< Data >::DataType > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ) > ProcessData = []( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ){ return (Real)1.; } );
 	template< typename Data >

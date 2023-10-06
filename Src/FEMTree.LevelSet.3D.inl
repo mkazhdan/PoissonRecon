@@ -35,18 +35,27 @@ DAMAGE.
 #include "MAT.h"
 #include "FEMTree.LevelSet.inl"
 #include "FEMTree.LevelSet.2D.inl"
+#include "Reconstructors.h"
 
 
 // Specialized level-set surface extraction
-template< class Real , class Vertex >
-struct LevelSetExtractor< 3 , Real , Vertex >
+template< bool HasData , typename Real , typename Data >
+struct _LevelSetExtractor< HasData , Real , 3 , Data >
 {
+	static const unsigned int Dim = 3;
+	// Store the position, the (interpolated) gradient, the weight, and possibly data
+	typedef typename std::conditional
+		<
+			HasData ,
+			VectorTypeUnion< Real , Point< Real , Dim > , Point< Real , Dim > , Real , Data > ,
+			VectorTypeUnion< Real , Point< Real , Dim > , Point< Real , Dim > , Real >
+		>::type Vertex;
+
 protected:
 	static std::mutex _pointInsertionMutex;
 	static std::atomic< size_t > _BadRootCount;
 
 public:
-	static const unsigned int Dim = 3;
 	typedef typename FEMTree< Dim , Real >::LocalDepth LocalDepth;
 	typedef typename FEMTree< Dim , Real >::LocalOffset LocalOffset;
 	typedef typename FEMTree< Dim , Real >::ConstOneRingNeighborKey ConstOneRingNeighborKey;
@@ -485,7 +494,7 @@ public:
 
 	static std::vector< std::pair< node_index_type , node_index_type > > SetIncidence( const FEMTree< Dim , Real > &tree , const FEMTree< Dim-1 , Real > &sliceTree , LocalDepth fullDepth , unsigned int sliceAtMaxDepth , unsigned int maxDepth )
 	{
-		using SliceTreeNode    = typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeNode;
+		using SliceTreeNode    = typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeNode;
 		using SliceLocalDepth  = typename FEMTree< Dim-1 , Real >::LocalDepth;
 		using SliceLocalOffset = typename FEMTree< Dim-1 , Real >::LocalOffset;
 
@@ -542,11 +551,11 @@ public:
 		return incidence;
 	}
 
-	template< unsigned int WeightDegree , typename Data , unsigned int DataSig , typename SliceFunctor /* = std::function< SliceValues & ( unsigned int ) > */ , typename ScratchFunctor /* = std::function< typename SliceValues::Scratch & ( unsigned int ) */ >
+	template< unsigned int WeightDegree , unsigned int DataSig , typename SliceFunctor /* = std::function< SliceValues & ( unsigned int ) > */ , typename ScratchFunctor /* = std::function< typename SliceValues::Scratch & ( unsigned int ) */ >
 	static void CopyIsoStructure
 	(
 		const LevelSetExtraction::KeyGenerator< Dim > &keyGenerator ,
-		const typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions &boundaryInfo ,
+		const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions &boundaryInfo ,
 		const FEMTree< Dim , Real > &tree ,
 		LocalDepth fullDepth ,
 		unsigned int sliceAtMaxDepth ,
@@ -554,18 +563,17 @@ public:
 		SliceFunctor sliceFunctor ,
 		ScratchFunctor scratchFunctor ,
 		const std::vector< std::pair< node_index_type , node_index_type > > &incidence ,
-		StreamingVertices< Vertex , node_index_type >& vertexStream ,
+		OutputDataStream< Vertex > &vertexStream ,
 		bool gradientNormals ,
-		typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator ,
+		typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > > *pointEvaluator ,
 		const DensityEstimator< WeightDegree >* densityWeights ,
 		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data ,
 		node_index_type& vOffset ,
-		const Data &zeroData ,
-		std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex
+		const Data &zeroData
 	)
 	{
-		using SliceTreeNode    = typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeNode;
-		using SliceSliceValues = typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::SliceValues;
+		using SliceTreeNode    = typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeNode;
+		using SliceSliceValues = typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::SliceValues;
 		using SliceKey         = LevelSetExtraction::Key< Dim-1 >;
 		using SliceIsoEdge     = LevelSetExtraction::IsoEdge< Dim-1 >;
 
@@ -647,7 +655,7 @@ public:
 					Real weight;
 					tree._getSampleDepthAndWeight( *densityWeights , node , p , weightKey , depth , weight );
 				}
-				if( data )
+				if constexpr( HasData ) if( data )
 				{
 					dataKey.set( node->depth() );
 					dataKey.getNeighbors( node );
@@ -668,8 +676,11 @@ public:
 						dataValue = pValue.weight ? pValue.value() : zeroData;
 					}
 				}
-				SetVertex( vertices[i] , p , Point< Real , Dim >() , depth , dataValue );
-				vertexStream.addVertex( vertices[i] );
+				vertices[i].template get<0>() = p;
+				vertices[i].template get<1>() = Point< Real , Dim >();
+				vertices[i].template get<2>() = depth;
+				if constexpr( HasData ) vertices[i].template get<3>() = dataValue;
+				vertexStream.write( vertices[i] );
 			}
 		}
 
@@ -746,10 +757,10 @@ public:
 		}
 	}
 
-	static void OverwriteCornerValues( const typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions &boundaryInfo , const std::vector< Real > &dValues , const FEMTree< Dim , Real > &tree , LocalDepth depth , unsigned int sliceAtMaxDepth , unsigned int maxDepth , bool isBack , std::vector< SlabValues > &slabValues , const std::vector< std::pair< node_index_type , node_index_type > > &incidence )
+	static void OverwriteCornerValues( const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions &boundaryInfo , const std::vector< Real > &dValues , const FEMTree< Dim , Real > &tree , LocalDepth depth , unsigned int sliceAtMaxDepth , unsigned int maxDepth , bool isBack , std::vector< SlabValues > &slabValues , const std::vector< std::pair< node_index_type , node_index_type > > &incidence )
 	{
-		using SliceTreeNode    = typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeNode;
-		using SliceSliceValues = typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::SliceValues;
+		using SliceTreeNode    = typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeNode;
+		using SliceSliceValues = typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::SliceValues;
 
 		unsigned int slice = sliceAtMaxDepth>>( maxDepth - depth );
 		if( !isBack && sliceAtMaxDepth!=( slice<<(maxDepth-depth ) ) ) slice++;
@@ -892,15 +903,15 @@ public:
 		);
 	}
 
-	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void SetSliceIsoVertices( const LevelSetExtraction::KeyGenerator< Dim > &keyGenerator , const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , LocalDepth fullDepth , int slice , node_index_type& vOffset , StreamingVertices< Vertex , node_index_type >& vertices , std::vector< SlabValues >& slabValues , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	template< unsigned int WeightDegree , unsigned int DataSig >
+	static void SetSliceIsoVertices( const LevelSetExtraction::KeyGenerator< Dim > &keyGenerator , const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , LocalDepth fullDepth , int slice , node_index_type& vOffset , OutputDataStream< Vertex >& vertices , std::vector< SlabValues >& slabValues , const Data &zeroData )
 	{
-		if( slice>0          ) SetSliceIsoVertices< WeightDegree , Data , DataSig >( keyGenerator , tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , depth , fullDepth , slice , HyperCube::FRONT , vOffset , vertices , slabValues , zeroData , SetVertex );
-		if( slice<(1<<depth) ) SetSliceIsoVertices< WeightDegree , Data , DataSig >( keyGenerator , tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , depth , fullDepth , slice , HyperCube::BACK  , vOffset , vertices , slabValues , zeroData , SetVertex );
+		if( slice>0          ) SetSliceIsoVertices< WeightDegree , DataSig >( keyGenerator , tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , depth , fullDepth , slice , HyperCube::FRONT , vOffset , vertices , slabValues , zeroData );
+		if( slice<(1<<depth) ) SetSliceIsoVertices< WeightDegree , DataSig >( keyGenerator , tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , depth , fullDepth , slice , HyperCube::BACK  , vOffset , vertices , slabValues , zeroData );
 	}
 
-	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void SetSliceIsoVertices( const LevelSetExtraction::KeyGenerator< Dim > &keyGenerator , const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , LocalDepth fullDepth , int slice , HyperCube::Direction zDir , node_index_type& vOffset , StreamingVertices< Vertex , node_index_type >& vertices , std::vector< SlabValues >& slabValues , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	template< unsigned int WeightDegree , unsigned int DataSig >
+	static void SetSliceIsoVertices( const LevelSetExtraction::KeyGenerator< Dim > &keyGenerator , const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , LocalDepth fullDepth , int slice , HyperCube::Direction zDir , node_index_type& vOffset , OutputDataStream< Vertex >& vertices , std::vector< SlabValues >& slabValues , const Data &zeroData )
 	{
 		auto _EdgeIndex = [&]( const TreeNode *node , typename HyperCube::Cube< Dim >::template Element< 1 > e )
 		{
@@ -933,7 +944,7 @@ public:
 					{
 						neighborKey.getNeighbors( leaf );
 						if( densityWeights ) weightKey.getNeighbors( leaf );
-						if( data ) dataKey.getNeighbors( leaf );
+						if constexpr( HasData ) if( data ) dataKey.getNeighbors( leaf );
 
 						for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
 							if( HyperCube::Cube< 1 >::HasMCRoots( HyperCube::Cube< Dim-1 >::ElementMCIndex( _e , sValues.mcIndices[idx] ) ) )
@@ -945,14 +956,14 @@ public:
 								{
 									Vertex vertex;
 									Key key = _EdgeIndex( leaf , e );
-									GetIsoVertex< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _e , zDir , sValues , vertex , zeroData , SetVertex );
+									GetIsoVertex< WeightDegree , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _e , zDir , sValues , vertex , zeroData );
 									bool stillOwner = false;
 									std::pair< node_index_type , Vertex > hashed_vertex;
 									{
 										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
 										if( !edgeSet )
 										{
-											vertices.addVertex( vertex );
+											vertices.write( vertex );
 											edgeSet = 1;
 											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset , vertex );
 											sValues.edgeKeys[ vIndex ] = key;
@@ -1027,8 +1038,8 @@ public:
 	////////////////////
 	// Iso-Extraction //
 	////////////////////
-	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void SetXSliceIsoVertices( const LevelSetExtraction::KeyGenerator< Dim >  &keyGenerator , const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , LocalDepth fullDepth , int slab , Real bCoordinate , Real fCoordinate ,  node_index_type &vOffset , StreamingVertices< Vertex , node_index_type > &vertices , std::vector< SlabValues >& slabValues , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	template< unsigned int WeightDegree , unsigned int DataSig >
+	static void SetXSliceIsoVertices( const LevelSetExtraction::KeyGenerator< Dim >  &keyGenerator , const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , LocalDepth fullDepth , int slab , Real bCoordinate , Real fCoordinate ,  node_index_type &vOffset , OutputDataStream< Vertex > &vertices , std::vector< SlabValues >& slabValues , const Data &zeroData )
 	{
 		auto _EdgeIndex = [&]( const TreeNode *node , typename HyperCube::Cube< Dim >::template Element< 1 > e )
 		{
@@ -1066,7 +1077,7 @@ public:
 					{
 						neighborKey.getNeighbors( leaf );
 						if( densityWeights ) weightKey.getNeighbors( leaf );
-						if( data ) dataKey.getNeighbors( leaf );
+						if constexpr( HasData ) if( data ) dataKey.getNeighbors( leaf );
 						for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 						{
 							typename HyperCube::Cube< Dim >::template Element< 1 > e( HyperCube::CROSS , _c.index );
@@ -1079,14 +1090,14 @@ public:
 								{
 									Vertex vertex;
 									Key key = _EdgeIndex( leaf , e.index );
-									GetIsoVertex< WeightDegree , Data , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _c , bCoordinate , fCoordinate , bValues , fValues , vertex , zeroData , SetVertex );
+									GetIsoVertex< WeightDegree , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _c , bCoordinate , fCoordinate , bValues , fValues , vertex , zeroData );
 									bool stillOwner = false;
 									std::pair< node_index_type , Vertex > hashed_vertex;
 									{
 										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
 										if( !edgeSet )
 										{
-											vertices.addVertex( vertex );
+											vertices.write( vertex );
 											edgeSet = 1;
 											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset , vertex );
 											xValues.edgeKeys[ vIndex ] = key;
@@ -1447,7 +1458,7 @@ public:
 	}
 
 	template< typename FaceIndexFunctor /* = std::function< LevelSetExtraction::Key< Dim > ( const TreeNode * , typename HyperCube::Cube< Dim >::template Element< 2 > ) */ >
-	static void SetLevelSet( const LevelSetExtraction::KeyGenerator< Dim > &keyGenerator , FaceIndexFunctor faceIndexFunctor , const FEMTree< Dim , Real >& tree , LocalDepth depth , int offset , const SliceValues& bValues , const SliceValues& fValues , const XSliceValues& xValues , const typename SliceValues::Scratch &bScratch , const typename SliceValues::Scratch &fScratch , const typename XSliceValues::Scratch &xScratch , StreamingMesh< Vertex , node_index_type >& mesh , bool polygonMesh , bool addBarycenter , node_index_type& vOffset , bool flipOrientation )
+	static void SetLevelSet( const LevelSetExtraction::KeyGenerator< Dim > &keyGenerator , FaceIndexFunctor faceIndexFunctor , const FEMTree< Dim , Real >& tree , LocalDepth depth , int offset , const SliceValues& bValues , const SliceValues& fValues , const XSliceValues& xValues , const typename SliceValues::Scratch &bScratch , const typename SliceValues::Scratch &fScratch , const typename XSliceValues::Scratch &xScratch , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , bool polygonMesh , bool addBarycenter , node_index_type& vOffset , bool flipOrientation )
 	{
 		std::vector< std::pair< node_index_type , Vertex > > polygon;
 		std::vector< std::vector< IsoEdge > > edgess( ThreadPool::NumThreads() );
@@ -1539,7 +1550,7 @@ public:
 								else if( ( iter=xValues.edgeVertexMap.find( key ) )!=xValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
 								else ERROR_OUT( "Couldn't find vertex in edge map: " , off[0] , " , " , off[1] , " , " , off[2] , " @ " , depth , " : " , keyGenerator.to_string( key ) , " | " , key.to_string() );
 							}
-							AddIsoPolygons( thread , mesh , polygon , polygonMesh , addBarycenter , vOffset );
+							AddIsoPolygons( thread , vertexStream , polygonStream , polygon , polygonMesh , addBarycenter , vOffset );
 						}
 					}
 				}
@@ -1548,8 +1559,25 @@ public:
 		);
 	}
 
-	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static bool GetIsoVertex( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , ConstPointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > >& dataKey , const TreeNode* node , typename HyperCube::template Cube< Dim-1 >::template Element< 1 > _e , HyperCube::Direction zDir , const SliceValues& sValues , Vertex& vertex , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	template< unsigned int WeightDegree , unsigned int DataSig >
+	static bool GetIsoVertex
+	(
+		const FEMTree< Dim , Real >& tree ,
+		bool nonLinearFit ,
+		bool gradientNormals ,
+		typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > > *pointEvaluator ,
+		const DensityEstimator< WeightDegree > *densityWeights ,
+		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data ,
+		Real isoValue ,
+		ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey ,
+		ConstPointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > > &dataKey ,
+		const TreeNode *node ,
+		typename HyperCube::template Cube< Dim-1 >::template Element< 1 > _e ,
+		HyperCube::Direction zDir ,
+		const SliceValues& sValues ,
+		Vertex& vertex ,
+		const Data &zeroData
+	)
 	{
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		Point< Real , Dim > position , gradient;
@@ -1622,7 +1650,7 @@ public:
 			Real weight;
 			tree._getSampleDepthAndWeight( *densityWeights , node , position , weightKey , depth , weight );
 		}
-		if( data )
+		if constexpr( HasData ) if( data )
 		{
 			if( DataDegree==0 ) 
 			{
@@ -1638,12 +1666,34 @@ public:
 				dataValue = pValue.weight ? pValue.value() : zeroData;
 			}
 		}
-		SetVertex( vertex , position , gradient , depth , dataValue );
+		vertex.template get<0>() = position;
+		vertex.template get<1>() = gradient;
+		vertex.template get<2>() = depth;
+		if constexpr( HasData ) vertex.template get<3>() = dataValue;
 		return true;
 	}
 
-	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static bool GetIsoVertex( const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool gradientNormals , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , ConstPointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > >& dataKey , const TreeNode* node , typename HyperCube::template Cube< Dim-1 >::template Element< 0 > _c , Real bCoordinate , Real fCoordinate , const SliceValues& bValues , const SliceValues& fValues , Vertex& vertex , const Data &zeroData , std::function< void ( Vertex& , Point< Real , Dim > , Point< Real , Dim > , Real , Data ) > SetVertex )
+	template< unsigned int WeightDegree , unsigned int DataSig >
+	static bool GetIsoVertex
+	(
+		const FEMTree< Dim , Real > &tree ,
+		bool nonLinearFit ,
+		bool gradientNormals ,
+		typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > > *pointEvaluator ,
+		const DensityEstimator< WeightDegree > *densityWeights ,
+		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data ,
+		Real isoValue ,
+		ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > &weightKey ,
+		ConstPointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > > &dataKey ,
+		const TreeNode *node ,
+		typename HyperCube::template Cube< Dim-1 >::template Element< 0 > _c ,
+		Real bCoordinate ,
+		Real fCoordinate ,
+		const SliceValues &bValues ,
+		const SliceValues &fValues ,
+		Vertex &vertex ,
+		const Data &zeroData
+	)
 	{
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		Point< Real , Dim > position , gradient;
@@ -1711,7 +1761,7 @@ public:
 			Real weight;
 			tree._getSampleDepthAndWeight( *densityWeights , node , position , weightKey , depth , weight );
 		}
-		if( data )
+		if constexpr( HasData ) if( data )
 		{
 			if( DataDegree==0 ) 
 			{
@@ -1727,17 +1777,20 @@ public:
 				dataValue = pValue.weight ? pValue.value() : zeroData;
 			}
 		}
-		SetVertex( vertex , position , gradient , depth , dataValue );
+		vertex.template get<0>() = position;
+		vertex.template get<1>() = gradient;
+		vertex.template get<2>() = depth;
+		if constexpr( HasData ) vertex.template get<3>() = dataValue;
 		return true;
 	}
 
-	static unsigned int AddIsoPolygons( unsigned int thread , StreamingMesh< Vertex , node_index_type >& mesh , std::vector< std::pair< node_index_type , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , node_index_type &vOffset )
+	static unsigned int AddIsoPolygons( unsigned int thread , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , std::vector< std::pair< node_index_type , Vertex > >& polygon , bool polygonMesh , bool addBarycenter , node_index_type &vOffset )
 	{
 		if( polygonMesh )
 		{
 			std::vector< node_index_type > vertices( polygon.size() );
 			for( unsigned int i=0 ; i<polygon.size() ; i++ ) vertices[i] = polygon[polygon.size()-1-i].first;
-			mesh.addPolygon_s( thread , vertices );
+			polygonStream.write( thread , vertices );
 			return 1;
 		}
 		if( polygon.size()>3 )
@@ -1761,15 +1814,15 @@ public:
 				node_index_type cIdx;
 				{
 					std::lock_guard< std::mutex > lock( _pointInsertionMutex );
-					cIdx = mesh.addVertex( c );
-					vOffset++;
+					vertexStream.write( c );
+					cIdx = vOffset++;
 				}
 				for( unsigned i=0 ; i<polygon.size() ; i++ )
 				{
 					triangle[0] = polygon[ i                  ].first;
 					triangle[1] = cIdx;
 					triangle[2] = polygon[(i+1)%polygon.size()].first;
-					mesh.addPolygon_s( thread , triangle );
+					polygonStream.write( thread , triangle );
 				}
 				return (unsigned int)polygon.size();
 			}
@@ -1782,7 +1835,7 @@ public:
 				for( unsigned int i=0 ; i<triangles.size() ; i++ )
 				{
 					for( int j=0 ; j<3 ; j++ ) triangle[2-j] = polygon[ triangles[i].idx[j] ].first;
-					mesh.addPolygon_s( thread , triangle );
+					polygonStream.write( thread , triangle );
 				}
 			}
 		}
@@ -1790,7 +1843,7 @@ public:
 		{
 			std::vector< node_index_type > vertices( 3 );
 			for( int i=0 ; i<3 ; i++ ) vertices[2-i] = polygon[i].first;
-			mesh.addPolygon_s( thread , vertices );
+			polygonStream.write( thread , vertices );
 		}
 		return (unsigned int)polygon.size()-2;
 	}
@@ -1810,21 +1863,36 @@ public:
 		}
 	};
 
-	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
-	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , StreamingMesh< Vertex , node_index_type >& mesh , const Data &zeroData , const SetVertexFunction &SetVertex , bool nonLinearFit , bool gradientNormals , bool addBarycenter , bool polygonMesh , bool flipOrientation )
-	{
-		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , densityWeights , data , coefficients , isoValue , 0 , 0 , 1 , mesh , zeroData , SetVertex , nonLinearFit , gradientNormals , addBarycenter , polygonMesh , flipOrientation );
-	}
 
-	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
-	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , unsigned int slabDepth , unsigned int slabStart , unsigned int slabEnd , StreamingMesh< Vertex , node_index_type >& mesh , const Data &zeroData , const SetVertexFunction &SetVertex , bool nonLinearFit , bool gradientNormals , bool addBarycenter , bool polygonMesh , bool flipOrientation )
-	{
-		std::vector< std::vector< Real >  > dValues;
-		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , tree._maxDepth , densityWeights , data , coefficients , isoValue , slabDepth , slabStart , slabEnd , mesh , zeroData , SetVertex , nonLinearFit , gradientNormals , addBarycenter , polygonMesh , flipOrientation , NULL , NULL , dValues , dValues , false );
-	}
-
-	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
-	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , int maxKeyDepth , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , unsigned int slabDepth , unsigned int slabStart , unsigned int slabEnd , StreamingMesh< Vertex , node_index_type >& mesh , const Data &zeroData , const SetVertexFunction &SetVertex , bool nonLinearFit , bool gradientNormals , bool addBarycenter , bool polygonMesh , bool flipOrientation , const typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *backBoundary , const typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *frontBoundary , const std::vector< std::vector< Real > > &backDValues , const std::vector< std::vector< Real > > &frontDValues , bool copyTopology )
+	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
+	static Stats Extract
+	(
+		UIntPack< FEMSigs ... > ,
+		UIntPack< WeightDegree > ,
+		UIntPack< DataSig > ,
+		const FEMTree< Dim , Real > &tree ,
+		int maxKeyDepth ,
+		const DensityEstimator< WeightDegree > *densityWeights ,
+		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data ,
+		const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients ,
+		Real isoValue ,
+		unsigned int slabDepth ,
+		unsigned int slabStart ,
+		unsigned int slabEnd ,
+		OutputDataStream< Vertex > &vertexStream ,
+		OutputDataStream< std::vector< node_index_type > > &polygonStream ,
+		const Data &zeroData ,
+		bool nonLinearFit ,
+		bool gradientNormals ,
+		bool addBarycenter ,
+		bool polygonMesh ,
+		bool flipOrientation ,
+		const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions * backBoundary ,
+		const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *frontBoundary ,
+		const std::vector< std::vector< Real > > &backDValues ,
+		const std::vector< std::vector< Real > > &frontDValues ,
+		bool copyTopology
+	)
 	{
 		if( maxKeyDepth<tree._maxDepth ) ERROR_OUT( "Max key depth has to be at least tree depth: " , tree._maxDepth , " <= " , maxKeyDepth );
 		if( slabStart>=slabEnd ) ERROR_OUT( "Slab start cannot excceed slab end: " , slabStart , " < " , slabEnd );
@@ -1854,7 +1922,7 @@ public:
 		LevelSetExtraction::SetHyperCubeTables< Dim-1 >();
 
 		typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator = NULL;
-		if( data ) pointEvaluator = new typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >( tree._maxDepth );
+		if constexpr( HasData ) if( data ) pointEvaluator = new typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >( tree._maxDepth );
 		DenseNodeData< Real , UIntPack< FEMSigs ... > > coarseCoefficients( tree._sNodesEnd( tree._maxDepth-1 ) );
 		memset( coarseCoefficients() , 0 , sizeof(Real)*tree._sNodesEnd( tree._maxDepth-1 ) );
 		ThreadPool::Parallel_for( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( unsigned int, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
@@ -2002,7 +2070,7 @@ public:
 		{
 
 			LocalDepth d ; unsigned int o;
-			const typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *boundary = NULL;
+			const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *boundary = NULL;
 			const std::vector< std::pair< node_index_type , node_index_type > > *incidence = NULL;
 			const std::vector< std::vector< Real > > *dValues = NULL;
 			if     ( sliceAtMaxDepth==slabStartAtMaxDepth ) boundary =  backBoundary , incidence =  &backIncidence , dValues = & backDValues;
@@ -2049,7 +2117,7 @@ public:
 		{
 			LocalDepth d ; unsigned int o;
 
-			const typename LevelSetExtractor< Dim-1 , Real , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *boundary = NULL;
+			const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *boundary = NULL;
 			const std::vector< std::pair< node_index_type , node_index_type > > *incidence = NULL;
 			const std::vector< std::vector< Real > > *dValues = NULL;
 			if     ( sliceAtMaxDepth==slabStartAtMaxDepth ) boundary =  backBoundary , incidence =  &backIncidence , dValues = & backDValues;
@@ -2069,7 +2137,7 @@ public:
 					if( !SetCoarseSlice( sliceAtMaxDepth , depth , slice ) ) ERROR_OUT( "Could not set coarse slice" );
 					return slabValues[depth].sliceScratch( slice );
 				};
-				CopyIsoStructure< WeightDegree , Data , DataSig >( keyGenerator , *boundary , tree , fullDepth , sliceAtMaxDepth , maxDepth , sliceFunctor , scratchFunctor , *incidence , mesh , gradientNormals , pointEvaluator , densityWeights , data , vertexOffset , zeroData , SetVertex );
+				CopyIsoStructure< WeightDegree , DataSig >( keyGenerator , *boundary , tree , fullDepth , sliceAtMaxDepth , maxDepth , sliceFunctor , scratchFunctor , *incidence , vertexStream , gradientNormals , pointEvaluator , densityWeights , data , vertexOffset , zeroData );
 			}
 			else
 			{
@@ -2080,7 +2148,7 @@ public:
 				{
 					if( d<=tree._maxDepth )
 					{
-						SetSliceIsoVertices< WeightDegree , Data , DataSig >( keyGenerator , tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , fullDepth , o , vertexOffset , mesh , slabValues , zeroData , SetVertex );
+						SetSliceIsoVertices< WeightDegree , DataSig >( keyGenerator , tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , fullDepth , o , vertexOffset , vertexStream , slabValues , zeroData );
 					}
 					if( o&1 ) break;
 				}
@@ -2119,7 +2187,7 @@ public:
 						// Set the iso-vertices
 						Real bCoordinate , fCoordinate;
 						SetSlabBounds( d , o , bCoordinate , fCoordinate );
-						SetXSliceIsoVertices< WeightDegree , Data , DataSig >( keyGenerator , tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , std::max< unsigned int >( slabDepth , fullDepth ) , o , bCoordinate , fCoordinate , vertexOffset , mesh , slabValues , zeroData , SetVertex );
+						SetXSliceIsoVertices< WeightDegree , DataSig >( keyGenerator , tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , d , std::max< unsigned int >( slabDepth , fullDepth ) , o , bCoordinate , fCoordinate , vertexOffset , vertexStream , slabValues , zeroData );
 					}
 				}
 
@@ -2177,7 +2245,7 @@ public:
 						else if( dir==HyperCube::FRONT && ( (((unsigned int)offset[Dim-1]+1)<<(maxDepth-depth))>  slabEndAtMaxDepth ) ) key[Dim-1] = keyGenerator.cornerIndex( maxDepth , slabEndAtMaxDepth );
 						return key;
 					};
-					if( InteriorSlab( d , o ) ) SetLevelSet( keyGenerator , faceIndexFunctor , tree , d , o , slabValues[d].sliceValues(o) , slabValues[d].sliceValues(o+1) , slabValues[d].xSliceValues(o) , slabValues[d].sliceScratch(o) , slabValues[d].sliceScratch(o+1) , slabValues[d].xSliceScratch(o) , mesh , polygonMesh , addBarycenter , vertexOffset , flipOrientation );
+					if( InteriorSlab( d , o ) ) SetLevelSet( keyGenerator , faceIndexFunctor , tree , d , o , slabValues[d].sliceValues(o) , slabValues[d].sliceValues(o+1) , slabValues[d].xSliceValues(o) , slabValues[d].sliceScratch(o) , slabValues[d].sliceScratch(o+1) , slabValues[d].xSliceScratch(o) , vertexStream , polygonStream , polygonMesh , addBarycenter , vertexOffset , flipOrientation );
 				}
 				if( !(o&1) && !boundary ) break;
 			}
@@ -2219,5 +2287,70 @@ public:
 		return stats;
 	}
 };
-template< class Real , class Vertex > std::mutex LevelSetExtractor< 3 , Real , Vertex >::_pointInsertionMutex;
-template< class Real , class Vertex > std::atomic< size_t > LevelSetExtractor< 3 , Real , Vertex >::_BadRootCount;
+
+template< bool HasData , typename Real , typename Data > std::mutex            _LevelSetExtractor< HasData , Real , 3 , Data >::_pointInsertionMutex;
+template< bool HasData , typename Real , typename Data > std::atomic< size_t > _LevelSetExtractor< HasData , Real , 3 , Data >::_BadRootCount;
+
+template< typename Real >
+struct LevelSetExtractor< Real , 3 >
+{
+	static const unsigned int Dim = 3;
+	static const bool HasData = false;
+	typedef unsigned char Data;
+	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::Stats Stats;
+	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::Vertex Vertex;
+	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::TreeNode TreeNode;
+	template< unsigned int WeightDegree > using DensityEstimator = typename _LevelSetExtractor< HasData , Real , Dim , Data >::template DensityEstimator< WeightDegree >;
+
+	template< unsigned int WeightDegree , unsigned int ... FEMSigs >
+	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree > *densityWeights , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , bool nonLinearFit , bool outputGradients , bool addBarycenter , bool polygonMesh , bool flipOrientation )
+	{
+		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , tree , densityWeights , coefficients , isoValue , 0 , 0 , 1 , vertexStream , polygonStream , nonLinearFit , outputGradients , addBarycenter , polygonMesh , flipOrientation );
+	}
+
+	template< unsigned int WeightDegree , unsigned int ... FEMSigs >
+	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , unsigned int slabDepth , unsigned int slabStart , unsigned int slabEnd , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , bool nonLinearFit , bool outputGradients , bool addBarycenter , bool polygonMesh , bool flipOrientation )
+	{
+		std::vector< std::vector< Real > > dValues;
+		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , tree , tree._maxDepth , densityWeights , coefficients , isoValue , slabDepth , slabStart , slabEnd , vertexStream , polygonStream , nonLinearFit , outputGradients , addBarycenter , polygonMesh , flipOrientation , NULL , NULL , dValues , dValues , false );
+	}
+
+	template< unsigned int WeightDegree , unsigned int ... FEMSigs >
+	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , const FEMTree< Dim , Real >& tree , int maxKeyDepth , const DensityEstimator< WeightDegree >* densityWeights , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , unsigned int slabDepth , unsigned int slabStart , unsigned int slabEnd , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , bool nonLinearFit , bool outputGradients , bool addBarycenter , bool polygonMesh , bool flipOrientation , const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *backBoundary , const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *frontBoundary , const std::vector< std::vector< Real > > &backDValues , const std::vector< std::vector< Real > > &frontDValues , bool copyTopology )
+	{
+		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
+		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data = NULL;
+		Data zeroData = 0;
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template Extract< WeightDegree , DataSig , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , maxKeyDepth , densityWeights , data , coefficients , isoValue , slabDepth , slabStart , slabEnd , vertexStream , polygonStream , zeroData , nonLinearFit , outputGradients , addBarycenter , polygonMesh , flipOrientation , backBoundary , frontBoundary , backDValues , frontDValues , copyTopology );
+	}
+};
+
+template< typename Real , typename Data >
+struct LevelSetExtractor< Real , 3 , Data >
+{
+	static const unsigned int Dim = 3;
+	static const bool HasData = true;
+	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::Stats Stats;
+	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::Vertex Vertex;
+	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::TreeNode TreeNode;
+	template< unsigned int WeightDegree > using DensityEstimator = typename _LevelSetExtractor< HasData , Real , Dim , Data >::template DensityEstimator< WeightDegree >;
+
+	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
+	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree > *densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , bool addBarycenter , bool polygonMesh , bool flipOrientation )
+	{
+		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , densityWeights , data , coefficients , isoValue , 0 , 0 , 1 , vertexStream , polygonStream , zeroData , nonLinearFit , outputGradients , addBarycenter , polygonMesh , flipOrientation );
+	}
+
+	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
+	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , unsigned int slabDepth , unsigned int slabStart , unsigned int slabEnd , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , bool addBarycenter , bool polygonMesh , bool flipOrientation )
+	{
+		std::vector< std::vector< Real >  > dValues;
+		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , tree._maxDepth , densityWeights , data , coefficients , isoValue , slabDepth , slabStart , slabEnd , vertexStream , polygonStream , zeroData , nonLinearFit , outputGradients , addBarycenter , polygonMesh , flipOrientation , NULL , NULL , dValues , dValues , false );
+	}
+
+	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
+	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , int maxKeyDepth , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , unsigned int slabDepth , unsigned int slabStart , unsigned int slabEnd , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , bool addBarycenter , bool polygonMesh , bool flipOrientation , const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *backBoundary , const typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions *frontBoundary , const std::vector< std::vector< Real > > &backDValues , const std::vector< std::vector< Real > > &frontDValues , bool copyTopology )
+	{
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template Extract< WeightDegree , DataSig , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , maxKeyDepth , densityWeights , data , coefficients , isoValue , slabDepth , slabStart , slabEnd , vertexStream , polygonStream , zeroData , nonLinearFit , outputGradients , addBarycenter , polygonMesh , flipOrientation , backBoundary , frontBoundary , backDValues , frontDValues , copyTopology );
+	}
+};

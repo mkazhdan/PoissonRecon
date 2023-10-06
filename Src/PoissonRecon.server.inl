@@ -26,21 +26,23 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
+#include "DataStream.imp.h"
+
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
 struct Server
 {
-	typedef typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE > DensityEstimator;
-	typedef typename FEMTree< Dim , Real >::template ApproximatePointInterpolationInfo< Real , 0 , ConstraintDual< Dim , Real > , SystemDual< Dim , Real > > ApproximatePointInterpolationInfo;
+	typedef typename FEMTree< Dim , Real >::template DensityEstimator< Reconstructor::WeightDegree > DensityEstimator;
+	typedef typename FEMTree< Dim , Real >::template ApproximatePointInterpolationInfo< Real , 0 , Reconstructor::Poisson::ConstraintDual< Dim , Real > , Reconstructor::Poisson::SystemDual< Dim , Real > > ApproximatePointInterpolationInfo;
 	typedef IsotropicUIntPack< Dim , FEMDegreeAndBType< Degree , BType >::Signature > Sigs;
 	typedef IsotropicUIntPack< Dim , Degree > Degrees;
-	typedef IsotropicUIntPack< Dim , FEMDegreeAndBType< NORMAL_DEGREE , DerivativeBoundary< BType , 1 >::BType >::Signature > NormalSigs;
-	static const unsigned int DataSig = FEMDegreeAndBType< DATA_DEGREE , BOUNDARY_FREE >::Signature;
+	typedef IsotropicUIntPack< Dim , FEMDegreeAndBType< Reconstructor::Poisson::NormalDegree , DerivativeBoundary< BType , 1 >::BType >::Signature > NormalSigs;
+	static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;
 	typedef VertexFactory::DynamicFactory< Real > AuxDataFactory;
+	typedef typename AuxDataFactory::VertexType AuxData;
 	typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::Factory< Real , VertexFactory::NormalFactory< Real , Dim > , AuxDataFactory > > InputSampleFactory;
 	typedef VertexFactory::Factory< Real , VertexFactory::NormalFactory< Real , Dim > , AuxDataFactory > InputSampleDataFactory;
-	typedef InputOrientedPointStreamInfo< Real , Dim , typename AuxDataFactory::VertexType > InputPointStreamInfo;
-	typedef typename InputPointStreamInfo::PointAndDataType InputSampleType;
-	typedef typename InputPointStreamInfo::DataType InputSampleDataType;
+	typedef VectorTypeUnion< Real , Point< Real , Dim > , typename AuxDataFactory::VertexType > InputSampleDataType;
+	typedef VectorTypeUnion< Real , Point< Real , Dim > , InputSampleDataType > InputSampleType;
 	typedef InputDataStream< InputSampleType > InputPointStream;
 	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
 
@@ -54,10 +56,10 @@ protected:
 		FEMTree< Dim , Real > tree;
 		DenseNodeData< Real , Sigs > constraints , solution;
 		ApproximatePointInterpolationInfo *iInfo;
-		SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > *dataField;
+		SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > *auxDataField;
 
-		_State4( void ) : tree( MEMORY_ALLOCATOR_BLOCK_SIZE ) , iInfo(NULL) , dataField(NULL) {}
-		~_State4( void ){ delete iInfo ; delete dataField; }
+		_State4( void ) : tree( MEMORY_ALLOCATOR_BLOCK_SIZE ) , iInfo(NULL) , auxDataField(NULL) {}
+		~_State4( void ){ delete iInfo ; delete auxDataField; }
 	};
 	struct _State6
 	{
@@ -66,7 +68,7 @@ protected:
 		FEMTree< Dim-1 , Real > *sliceTree;
 		XForm< Real , Dim > xForm;
 		DenseNodeData< Real , SliceSigs > solution , dSolution;
-		std::vector< typename LevelSetExtractor< Dim-1 , Real , Vertex >::SliceValues > sliceValues , dSliceValues;
+		std::vector< typename LevelSetExtractor< Real , Dim-1 >::SliceValues > sliceValues , dSliceValues;
 		std::vector< Point< Real , Dim-1 > > vertices;
 
 		_State6( void ) : sliceTree(NULL) {}
@@ -84,7 +86,7 @@ protected:
 
 
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
-static std::vector< unsigned int > RunServer
+std::vector< unsigned int > RunServer
 (
 	PointPartition::PointSetInfo< Real , Dim > pointSetInfo ,
 	PointPartition::Partition pointPartition ,
@@ -265,9 +267,9 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase2( const ClientReconstruc
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
 PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstructionInfo< Real , Dim > &clientReconInfo , ProjectiveData< Real , Real > cumulativePointWeight , unsigned int baseVCycles , Real &isoValue , Profiler &profiler )
 {
-	constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
-	const int StartOffset = BSplineSupportSizes< MAX_DEGREE >::SupportStart;
-	const int   EndOffset = BSplineSupportSizes< MAX_DEGREE >::SupportEnd+1;
+	constexpr int MaxDegree = Reconstructor::Poisson::NormalDegree > Degrees::Max() ? Reconstructor::Poisson::NormalDegree : Degrees::Max();
+	const int StartOffset = BSplineSupportSizes< MaxDegree >::SupportStart;
+	const int   EndOffset = BSplineSupportSizes< MaxDegree >::SupportEnd+1;
 	PhaseInfo phaseInfo;
 
 	_State4 state4;
@@ -283,7 +285,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 
 		// Set the root of the tree so we can copy constraints into it
 		auto addNodeFunctor = [&]( int d , const int off[Dim] ){ return d<=(int)clientReconInfo.baseDepth; };
-		state4.tree.template finalizeForMultigrid< MAX_DEGREE , Degrees::Max() >( clientReconInfo.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple() , std::make_tuple() );
+		state4.tree.template finalizeForMultigrid< MaxDegree , Degrees::Max() >( clientReconInfo.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple() , std::make_tuple() );
 		phaseInfo.processTime += timer.wallTime();
 		profiler.update();
 	}
@@ -332,10 +334,10 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 
 	{
 		Timer timer;
-		constexpr int MAX_DEGREE = NORMAL_DEGREE > Degrees::Max() ? NORMAL_DEGREE : Degrees::Max();
+		constexpr int MaxDegree = Reconstructor::Poisson::NormalDegree > Degrees::Max() ? Reconstructor::Poisson::NormalDegree : Degrees::Max();
 		auto hasDataFunctor = []( const FEMTreeNode * ){ return true; };
 		auto addNodeFunctor = [&]( int d , const int off[Dim] ){ return d<=(int)clientReconInfo.baseDepth; };
-		std::vector< node_index_type > newToOld = state4.tree.template finalizeForMultigrid< MAX_DEGREE , Degrees::Max() >( clientReconInfo.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple() , std::make_tuple() );
+		std::vector< node_index_type > newToOld = state4.tree.template finalizeForMultigrid< MaxDegree , Degrees::Max() >( clientReconInfo.baseDepth , addNodeFunctor , hasDataFunctor , std::make_tuple() , std::make_tuple() );
 		node_index_type idx = newToOld[0];
 		for( unsigned int i=0 ; i<newToOld.size() ; i++ ) idx = std::max< node_index_type >( idx , newToOld[i] );
 		idx++;
@@ -354,7 +356,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 
 	{
 		Real targetValue = (Real)0.5;
-		state4.iInfo = new ApproximatePointInterpolationInfo( ConstraintDual< Dim , Real >( targetValue , clientReconInfo.pointWeight * cumulativePointWeight.value() ) , SystemDual< Dim , Real >( clientReconInfo.pointWeight * cumulativePointWeight.value() ) , true );
+		state4.iInfo = new ApproximatePointInterpolationInfo( Reconstructor::Poisson::ConstraintDual< Dim , Real >( targetValue , clientReconInfo.pointWeight * cumulativePointWeight.value() ) , Reconstructor::Poisson::SystemDual< Dim , Real >( clientReconInfo.pointWeight * cumulativePointWeight.value() ) , true );
 		state4.iInfo->iData.reserve( state4.tree.nodesSize() );
 	}
 
@@ -364,8 +366,8 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 
 	if( needAuxData )
 	{
-		state4.dataField = new SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > >();
-		state4.dataField->reserve( state4.tree.nodesSize() );
+		state4.auxDataField = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >();
+		state4.auxDataField->reserve( state4.tree.nodesSize() );
 	}
 	phaseInfo.processTime += timer.wallTime();
 	profiler.update();
@@ -403,21 +405,21 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 		if( needAuxData )
 		{
 			Timer timer;
-			SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > *_dataField;
+			SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > *_auxDataField;
 			if( !auxDataFactory.isStaticallyAllocated() )
 			{
-				ProjectiveSampleDataTypeSerializer< Real , Dim > serializer( clientReconInfo.auxProperties );
-				_dataField = new SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > >( clientStream , serializer );
+				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
+				_auxDataField = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( clientStream , serializer );
 			}
-			else _dataField = new SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > >( clientStream );
+			else _auxDataField = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( clientStream );
 			phaseInfo.readTime += timer.wallTime();
 
 			timer = Timer();
-			state4.dataField->mergeFromTarget( *_dataField , [&]( unsigned int idx ){ return clientToServer[idx]; } );
+			state4.auxDataField->mergeFromTarget( *_auxDataField , [&]( unsigned int idx ){ return clientToServer[idx]; } );
 			phaseInfo.processTime += timer.wallTime();
 
 			profiler.update();
-			delete _dataField;
+			delete _auxDataField;
 		}
 		else profiler.update();
 		phaseInfo.readBytes += clientStream.ioBytes;
@@ -428,7 +430,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 		Timer timer;
 		auto nodeFunctor = [&]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* n )
 		{
-			ProjectiveData< InputSampleDataType , Real >* clr = state4.dataField->operator()( n );
+			ProjectiveData< AuxData , Real >* clr = state4.auxDataField->operator()( n );
 			if( clr ) (*clr) *= (Real)pow( clientReconInfo.dataX , state4.tree.depth( n ) );
 		};
 		state4.tree.tree().processNodes( nodeFunctor );
@@ -527,23 +529,23 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 		if( needAuxData )
 		{
 			Timer timer;
-			SparseNodeData< ProjectiveData< InputSampleDataType , Real > , IsotropicUIntPack< Dim , DataSig > > _dataField;
-			_dataField.reserve( count );
+			SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > _auxDataField;
+			_auxDataField.reserve( count );
 			for( size_t i=0 ; i<subNodeCount ; i++ ) if( subNodes[i].nodeData.nodeIndex!=-1 )
 			{
 				const FEMTreeNode *node = state4.tree.node( newToOld[ subNodes[i].nodeData.nodeIndex ] );
-				ProjectiveData< InputSampleDataType , Real > *data = state4.dataField->operator()( node );
-				if( data ) _dataField[ subNodes+i ] = *data;
+				ProjectiveData< AuxData , Real > *data = state4.auxDataField->operator()( node );
+				if( data ) _auxDataField[ subNodes+i ] = *data;
 			}
 			phaseInfo.processTime += timer.wallTime();
 
 			timer = Timer();
 			if( !auxDataFactory.isStaticallyAllocated() )
 			{
-				ProjectiveSampleDataTypeSerializer< Real , Dim > serializer( clientReconInfo.auxProperties );
-				_dataField.write( clientStream , serializer );
+				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
+				_auxDataField.write( clientStream , serializer );
 			}
-			else _dataField.write( clientStream );
+			else _auxDataField.write( clientStream );
 			phaseInfo.writeTime += timer.wallTime();
 		}
 		profiler.update();
@@ -690,15 +692,21 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 			using Factory = VertexFactory::EmptyFactory< Real >;
 			using Data = typename Factory::VertexType;
 			Factory factory;
-			const typename FEMTree< Dim-1 , Real >::template DensityEstimator< WEIGHT_DEGREE > *density=NULL;
+			const typename FEMTree< Dim-1 , Real >::template DensityEstimator< Reconstructor::WeightDegree > *density=NULL;
 			const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim-1 , DataSig > > *data=NULL;
-			auto SetVertex = []( Vertex &v , Point< Real , Dim-1 > p , Point< Real , Dim-1 > g , Real w , Data d ){ v = p; };
 			{
-				VectorStreamingVertices< Point< Real , Dim-1 > , node_index_type > _vertices;
-				LevelSetExtractor< Dim-1 , Real , Vertex >::template SetSliceValues< Data >( SliceSigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , *state6.sliceTree , clientReconInfo.reconstructionDepth , density , data , state6.solution , isoValue , &_vertices , factory() , SetVertex , !clientReconInfo.linearFit , false , state6.sliceValues , LevelSetExtractor< Dim-1 , Real , Vertex >::SetIsoEdgesFlag() );
-				if( !clientReconInfo.linearFit ) LevelSetExtractor< Dim-1 , Real , Vertex >::template SetSliceValues< Data >( SliceSigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , *state6.sliceTree , clientReconInfo.reconstructionDepth , density , data , state6.dSolution , isoValue , &_vertices , factory() , SetVertex , false , false , state6.dSliceValues , LevelSetExtractor< Dim-1 , Real , Vertex >::SetCornerValuesFlag() );
-				state6.vertices.resize( _vertices.vertexNum() );
-				for( unsigned int j=0 ; j<_vertices.vertexNum() ; j++ ) state6.vertices[j] = _vertices.vertex(j);
+				VectorBackedOutputDataStream< Point< Real , Dim-1 > > _vertices( state6.vertices );
+				struct VertexStreamWrapper : public Reconstructor::OutputVertexStreamWrapper< Real , Dim-1 , Point< Real , Dim-1 > >
+				{
+					typedef Point< Real , Dim-1 > Vertex;
+					VertexStreamWrapper( OutputDataStream< Vertex > &stream , Vertex out ) : 
+						Reconstructor::OutputVertexStreamWrapper< Real , Dim-1 , Point< Real , Dim-1 > >( stream , out ) {}
+					void set( Vertex &out , const Reconstructor::BaseVertex< Real , Dim-1 > &in ){ out = in.template get<0>(); }
+				};
+				VertexStreamWrapper __vertexStream( _vertices , Point< Real , Dim-1 >() );
+
+				LevelSetExtractor< Real , Dim-1 >::SetSliceValues( SliceSigs() , UIntPack< Reconstructor::WeightDegree >() , *state6.sliceTree , clientReconInfo.reconstructionDepth , density , state6.solution , isoValue , __vertexStream , !clientReconInfo.linearFit , false , state6.sliceValues , LevelSetExtractor< Real , Dim-1 , Vertex >::SetIsoEdgesFlag() );
+				if( !clientReconInfo.linearFit ) LevelSetExtractor< Real , Dim-1 >::SetSliceValues( SliceSigs() , UIntPack< Reconstructor::WeightDegree >() , *state6.sliceTree , clientReconInfo.reconstructionDepth , density , state6.dSolution , isoValue , __vertexStream , false , false , state6.dSliceValues , LevelSetExtractor< Real , Dim-1 , Vertex >::SetCornerValuesFlag() );
 			}
 			sharedVertexCounts[i] = (unsigned int)state6.vertices.size();
 			phaseInfo.processTime += timer.wallTime();
@@ -715,7 +723,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 			clientStream1.write( isoValue );
 			if( clientReconInfo.mergeType!=ClientReconstructionInfo< Real , Dim >::MergeType::NONE )
 			{
-				LevelSetExtractor< Dim-1 , Real , Vertex >::TreeSliceValuesAndVertexPositions::Write( clientStream0 , state6.sliceTree , state6.xForm , state6.sliceValues , state6.vertices , true );
+				LevelSetExtractor< Real , Dim-1 >::TreeSliceValuesAndVertexPositions::Write( clientStream0 , state6.sliceTree , state6.xForm , state6.sliceValues , state6.vertices , true );
 				if( !clientReconInfo.linearFit )
 				{
 					for( unsigned int i=0 ; i<state6.dSliceValues.size() ; i++ )
@@ -724,7 +732,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 						clientStream0.write( state6.dSliceValues[i].cornerValues , state6.dSliceValues[i].cellIndices.counts[0] );
 					}
 				}
-				LevelSetExtractor< Dim-1 , Real , Vertex >::TreeSliceValuesAndVertexPositions::Write( clientStream1 , state6.sliceTree , state6.xForm , state6.sliceValues , state6.vertices , true );
+				LevelSetExtractor< Real , Dim-1 >::TreeSliceValuesAndVertexPositions::Write( clientStream1 , state6.sliceTree , state6.xForm , state6.sliceValues , state6.vertices , true );
 				if( !clientReconInfo.linearFit )
 				{
 					for( unsigned int i=0 ; i<state6.dSliceValues.size() ; i++ )

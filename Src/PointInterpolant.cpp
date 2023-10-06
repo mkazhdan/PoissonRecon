@@ -47,6 +47,7 @@ DAMAGE.
 #include "VertexFactory.h"
 #include "Image.h"
 #include "RegularGrid.h"
+#include "DataStream.imp.h"
 
 cmdLineParameter< char* >
 	InValues( "inValues" ) ,
@@ -63,7 +64,6 @@ cmdLineReadable
 	PrimalGrid( "primalGrid" ) ,
 	ExactInterpolation( "exact" ) ,
 	InCore( "inCore" ) ,
-	NoComments( "noComments" ) ,
 	PolygonMesh( "polygonMesh" ) ,
 	NonManifold( "nonManifold" ) ,
 	NonLinearFit( "nonLinearFit" ) ,
@@ -113,7 +113,7 @@ cmdLineReadable* params[] =
 	&InValues , &InGradients ,
 	&Out , &Depth , &Transform ,
 	&Width ,
-	&Scale , &Verbose , &CGSolverAccuracy , &NoComments ,
+	&Scale , &Verbose , &CGSolverAccuracy ,
 	&NonManifold , &PolygonMesh , &ASCII , &ShowResidual ,
 	&ValueWeight , &GradientWeight ,
 	&LapWeight , &BiLapWeight ,
@@ -173,8 +173,6 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <iso-value>=%f]\n" , IsoValue.name , IsoValue.value );
 	printf( "\t[--%s]\n" , Performance.name );
 	printf( "\t[--%s]\n" , PrimalGrid.name );
-	printf( "\t[--%s]\n" , NoComments.name );
-	printf( "\t[--%s]\n" , PolygonMesh.name );
 	printf( "\t[--%s]\n" , NonManifold.name );
 	printf( "\t[--%s]\n" , NonLinearFit.name );
 	printf( "\t[--%s]\n" , ASCII.name );
@@ -329,17 +327,15 @@ struct SystemDual< Dim , double , VectorTypeUnion< double , Point< double , Dim 
 	}
 };
 
-template< typename Real , typename SetVertexFunction , typename VertexFactory , unsigned int ... FEMSigs >
+template< typename Real , unsigned int ... FEMSigs >
 void ExtractMesh
 (
 	UIntPack< FEMSigs ... > ,
 	FEMTree< sizeof ... ( FEMSigs ) , Real >& tree ,
 	const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution ,
 	Real isoValue ,
-	const VertexFactory &vertexFactory ,
-	SetVertexFunction SetVertex ,
-	std::vector< std::string > &comments ,
-	XForm< Real , sizeof...(FEMSigs)+1 > unitCubeToModel
+	XForm< Real , sizeof...(FEMSigs)+1 > unitCubeToModel ,
+	std::vector< std::string > &comments
 )
 {
 	static const int Dim = sizeof ... ( FEMSigs );
@@ -359,33 +355,38 @@ void ExtractMesh
 		else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
 	}
 
-	typedef EmptyVectorType< Real > EmptyVectorType;
-	StreamingMesh< typename VertexFactory::VertexType , node_index_type > *mesh;
-	if( InCore.set ) mesh = new VectorStreamingMesh< typename VertexFactory::VertexType , node_index_type >();
-	else             mesh = new FileStreamingMesh< VertexFactory , node_index_type >( vertexFactory , tempHeader );
-	profiler.reset();
-	typename LevelSetExtractor< Dim , Real , typename VertexFactory::VertexType >::Stats stats;
-#if defined( __GNUC__ ) && __GNUC__ < 5
-#ifdef SHOW_WARNINGS
-#warning "you've got me gcc version<5"
-#endif // SHOW_WARNINGS
-	stats = LevelSetExtractor< Dim , Real , typename VertexFactory::VertexType >::template Extract< EmptyVectorType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , (typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE >*)NULL , (SparseNodeData< ProjectiveData< EmptyVectorType , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , EmptyVectorType() , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
-#else // !__GNUC__ || __GNUC__ >=5
-	stats = LevelSetExtractor< Dim , Real , typename VertexFactory::VertexType >::template Extract< EmptyVectorType >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , (typename FEMTree< Dim , Real >::template DensityEstimator< WEIGHT_DEGREE >*)NULL , NULL , solution , isoValue , *mesh , EmptyVectorType() , SetVertex , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
-#endif // __GNUC__ || __GNUC__ < 4
+	// A description of the output vertex information
+	using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , false , false >;
+
+	// A factory generating the output vertices
+	using Factory = typename VInfo::Factory;
+	Factory factory = VInfo::GetFactory();
+
+	// A backing stream for the vertices
+	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false , std::string( "v_" ) );
+	Reconstructor::OutputInputPolygonStream polygonStream( false , true , std::string( "p_" ) );
+	typename LevelSetExtractor< Real , Dim >::Stats stats;
+
+	{
+		// The wrapper converting native to output types
+		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
+		Reconstructor::TransformedOutputVertexStream< Real , Dim > __vertexStream( unitCubeToModel , _vertexStream );
+
+		// Extract the mesh
+		stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< 0 >() , tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , solution , isoValue , __vertexStream , polygonStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
+	}
+
 	if( Verbose.set )
 	{
-		std::cout << "Vertices / Polygons: " << mesh->vertexNum() << " / " << mesh->polygonNum() << std::endl;
+		std::cout << "Vertices / Polygons: " << vertexStream.size() << " / " << polygonStream.size() << std::endl;
 		std::cout << stats.toString() << std::endl;
 		if( PolygonMesh.set ) std::cout << "#         Got polygons: " << profiler << std::endl;
 		else                  std::cout << "#        Got triangles: " << profiler << std::endl;
 	}
 
+	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
-	typename VertexFactory::Transform unitCubeToModelTransform( unitCubeToModel );
-	auto xForm = [&]( typename VertexFactory::VertexType &v ){ unitCubeToModelTransform.inPlace(v); };
-	PLY::WritePolygons< VertexFactory , node_index_type , Real , Dim >( Out.value , vertexFactory , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , xForm );
-	delete mesh;
+	PLY::WritePolygons< Factory , node_index_type , Real , Dim >( Out.value , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 }
 
 template< typename Real , unsigned int Dim >
@@ -488,11 +489,49 @@ void Execute( UIntPack< FEMSigs ... > )
 	// The type of the input gradient
 	typedef typename InputSampleGradientFactory::VertexType InputSampleGradientType;
 
-	typedef            InputDataStream< InputSampleValueType >  InputPointValueStream;
-	typedef TransformedInputDataStream< InputSampleValueType > XInputPointValueStream;
-	typedef            InputDataStream< InputSampleGradientType >  InputPointGradientStream;
-	typedef TransformedInputDataStream< InputSampleGradientType > XInputPointGradientStream;
+	typedef InputDataStream< InputSampleValueType >  InputPointValueStream;
+	typedef InputDataStream< InputSampleGradientType >  InputPointGradientStream;
 
+	struct XInputPointValueStream : public InputDataStream< InputSampleValueType >
+	{
+		InputDataStream< InputSampleValueType > &stream;
+		XForm< Real , Dim+1 > pointTransform;
+		XInputPointValueStream( InputDataStream< InputSampleValueType > &stream , XForm< Real , Dim+1 > modelToUnitCube ) : stream(stream) , pointTransform( modelToUnitCube ){}
+		bool base_read( InputSampleValueType &s )
+		{
+			if( stream.read( s ) ){ s.template get<0>() = pointTransform * s.template get<0>() ; return true; }
+			else return false;
+		}
+		void reset( void ){ return stream.reset(); }
+	};
+	struct XInputPointGradientStream : public InputDataStream< InputSampleGradientType >
+	{
+		//    G(p) = F( A*p )
+		// F(p+d) = F(p) + < \nabla F(p) , d >
+		// G(p+d) = F( A*p ) + < \nabla F(A*p) , A*d >
+		//        = G(p) + < A^t * \nabla F(A*p) , d >
+		// => \nabla G(p) = A^t * \nabla F(A*p)
+
+		InputDataStream< InputSampleGradientType > &stream;
+		XForm< Real , Dim+1 > pointTransform;
+		XForm< Real , Dim > gradientTransform;
+		XInputPointGradientStream( InputDataStream< InputSampleGradientType > &stream , XForm< Real , Dim+1 > modelToUnitCube ) : stream(stream)
+		{
+			pointTransform = modelToUnitCube;
+			gradientTransform = XForm< Real , Dim >( pointTransform ).inverse().transpose();
+		}
+		bool base_read( InputSampleGradientType &s )
+		{
+			if( stream.read( s ) )
+			{
+				s.template get<0>() = pointTransform * s.template get<0>();
+				s.template get<1>() = gradientTransform * s.template get<1>().template get<0>();
+				return true;
+			}
+			else return false;
+		}
+		void reset( void ){ return stream.reset(); }
+	};
 	FunctionValueFactory functionValueFactory;
 	FunctionGradientFactory functionGradientFactory;
 
@@ -585,10 +624,10 @@ void Execute( UIntPack< FEMSigs ... > )
 				else if( !strcasecmp( ext , "ply"   ) ) _pointValueStream = new    PLYInputDataStream< InputSampleValueFactory>( InValues.value , inputSampleValueFactory );
 				else                                    _pointValueStream = new  ASCIIInputDataStream< InputSampleValueFactory>( InValues.value , inputSampleValueFactory );
 				InputSampleValueType s = inputSampleValueFactory();
-				while( _pointValueStream->next( s ) ) inCorePointsAndValues.push_back( s );
+				while( _pointValueStream->read( s ) ) inCorePointsAndValues.push_back( s );
 				delete _pointValueStream;
 
-				pointValueStream = new MemoryInputDataStream< InputSampleValueType >( inCorePointsAndValues.size() , &inCorePointsAndValues[0] );
+				pointValueStream = new VectorBackedInputDataStream< InputSampleValueType >( inCorePointsAndValues );
 			}
 			else
 			{
@@ -598,9 +637,7 @@ void Execute( UIntPack< FEMSigs ... > )
 			}
 			delete[] ext;
 
-			typename InputSampleValueFactory::Transform _modelToUnitCube( modelToUnitCube );
-			auto XFormFunctor = [&]( InputSampleValueType &p ){ _modelToUnitCube.inPlace( p ); };
-			XInputPointValueStream _pointStream( XFormFunctor , *pointValueStream );
+			XInputPointValueStream _pointStream( *pointValueStream , modelToUnitCube );
 			FunctionValueType s = functionValueFactory();
 			InputPointStreamInfo< Real , Dim , FunctionValueType >::BoundingBox( _pointStream , s , valueMin , valueMax );
 		}
@@ -615,10 +652,10 @@ void Execute( UIntPack< FEMSigs ... > )
 				else if( !strcasecmp( ext , "ply"   ) ) _pointGradientStream = new    PLYInputDataStream< InputSampleGradientFactory>( InGradients.value , inputSampleGradientFactory );
 				else                                    _pointGradientStream = new  ASCIIInputDataStream< InputSampleGradientFactory>( InGradients.value , inputSampleGradientFactory );
 				InputSampleGradientType s = inputSampleGradientFactory();
-				while( _pointGradientStream->next( s ) ) inCorePointsAndGradients.push_back( s );
+				while( _pointGradientStream->read( s ) ) inCorePointsAndGradients.push_back( s );
 				delete _pointGradientStream;
 
-				pointGradientStream = new MemoryInputDataStream< InputSampleGradientType >( inCorePointsAndGradients.size() , &inCorePointsAndGradients[0] );
+				pointGradientStream = new VectorBackedInputDataStream< InputSampleGradientType >( inCorePointsAndGradients );
 			}
 			else
 			{
@@ -628,9 +665,7 @@ void Execute( UIntPack< FEMSigs ... > )
 			}
 			delete[] ext;
 
-			typename InputSampleGradientFactory::Transform _modelToUnitCube( modelToUnitCube );
-			auto XFormFunctor = [&]( InputSampleGradientType &p ){ _modelToUnitCube.inPlace( p ); };
-			XInputPointGradientStream _pointStream( XFormFunctor , *pointGradientStream );
+			XInputPointGradientStream _pointStream( *pointGradientStream , modelToUnitCube );
 			FunctionGradientType s = functionGradientFactory();
 			InputPointStreamInfo< Real , Dim , FunctionGradientType >::BoundingBox( _pointStream , s , gradientMin , gradientMax );
 		}
@@ -667,9 +702,7 @@ void Execute( UIntPack< FEMSigs ... > )
 		if( ValueWeight.value>0 )
 		{
 			valueSamples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
-			typename InputSampleValueFactory::Transform _modelToUnitCube( modelToUnitCube );
-			auto XFormFunctor = [&]( InputSampleValueType &p ){ _modelToUnitCube.inPlace( p ); };
-			XInputPointValueStream _pointStream( XFormFunctor , *pointValueStream );
+			XInputPointValueStream _pointStream( *pointValueStream , modelToUnitCube );
 			auto ProcessData = []( const Point< Real , Dim > &p , FunctionValueType &d ){ return (Real)1.; };
 			FunctionValueType zeroGradient = functionValueFactory();
 			typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
@@ -681,9 +714,7 @@ void Execute( UIntPack< FEMSigs ... > )
 		if( GradientWeight.value>0 )
 		{
 			gradientSamples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
-			typename InputSampleGradientFactory::Transform _modelToUnitCube( modelToUnitCube );
-			auto XFormFunctor = [&]( InputSampleGradientType &p ){ _modelToUnitCube.inPlace( p ); };
-			XInputPointGradientStream _pointStream( XFormFunctor , *pointGradientStream );
+			XInputPointGradientStream _pointStream( *pointGradientStream , modelToUnitCube );
 			auto ProcessData = []( const Point< Real , Dim > &p , FunctionGradientType &d ){ return (Real)1.; };
 			FunctionGradientType zeroGradient = functionGradientFactory();
 			typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
@@ -854,9 +885,7 @@ void Execute( UIntPack< FEMSigs ... > )
 	{
 		if constexpr ( Dim==3 )
 		{
-			typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::EmptyFactory< Real > > VertexFactory;
-			std::function< void ( typename VertexFactory::VertexType & , Point< Real , Dim > , Point< Real , Dim > , Real , EmptyVectorType< Real > ) > SetVertex = []( typename VertexFactory::VertexType &v , Point< Real , Dim > p , Point< Real , Dim > , Real , EmptyVectorType< Real > ){ v.template get<0>() = p; };
-			ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , (Real)IsoValue.value , VertexFactory() , SetVertex , comments , unitCubeToModel );
+			ExtractMesh( UIntPack< FEMSigs ... >() , tree , solution , (Real)IsoValue.value , unitCubeToModel , comments );
 		}
 		else if constexpr ( Dim==2 )
 		{
@@ -887,7 +916,7 @@ void Execute( UIntPack< FEMSigs ... > )
 			DeletePointer( values );
 
 			std::vector< std::string > noComments;
-			PLY::WritePolygons( Out.value , VertexFactory() , vertices , polygons , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments );
+			PLY::WritePolygons( Out.value , VertexFactory() , vertices , polygons , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 		}
 	}
 

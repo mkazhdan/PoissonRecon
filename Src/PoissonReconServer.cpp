@@ -39,8 +39,20 @@ DAMAGE.
 #include <algorithm>
 #include "MyMiscellany.h"
 #include "CmdLineParser.h"
-#include "PoissonRecon.h"
+#include "Reconstructors.h"
 
+#define DEFAULT_DIMENSION 3
+
+enum MergeSlabType
+{
+	NONE ,
+	FUNCTION ,					// Identical functions across slice
+	TOPOLOGY_AND_FUNCTION ,		// Identical topologies across slice
+	SEAMLESS ,					// Merge across the shared slice
+	COUNT
+};
+
+const std::string MergeSlabNames[] = { "none" , "function" , "topology" , "seamless" };
 
 cmdLineParameter< std::string >
 	AddressPrefix( "prefix" ) ,
@@ -54,8 +66,8 @@ cmdLineParameter< int >
 	Verbose( "verbose" , 0 ) ,
 #ifdef FAST_COMPILE
 #else // !FAST_COMPILE
-	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
-	BType( "bType" , DEFAULT_FEM_BOUNDARY ) ,
+	Degree( "degree" , Reconstructor::Poisson::DefaultFEMDegree ) ,
+	BType( "bType" , Reconstructor::Poisson::DefaultFEMBoundary ) ,
 #endif // FAST_COMPILE
 	Iters( "iters" , 8 ) ,
 	BaseVCycles( "vCycles" , 1 ) ,
@@ -76,6 +88,7 @@ cmdLineParameter< int >
 #endif // _OPENMP
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	MergeSlabs( "merge" , MergeSlabType::SEAMLESS ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ;
 
 cmdLineReadable
@@ -85,7 +98,6 @@ cmdLineReadable
 	LinearFit( "linearFit" ) ,
 	OutputVoxelGrid( "grid" ) ,
 	OutputBoundarySlices( "boundary" ) ,
-	NoFuse( "noFuse" ) ,
 	ShowDiscontinuity( "showDiscontinuity" );
 
 cmdLineParameter< float >
@@ -114,7 +126,7 @@ cmdLineReadable* params[] =
 	&Iters , &BaseVCycles , &KernelDepth , &BaseDepth , &PadSize , &BufferSize , &Depth ,
 	&SolveDepth ,
 	&NoLoadBalance , &Density , &LinearFit ,
-	&NoFuse ,
+	&MergeSlabs ,
 	&Width , &Confidence , &ConfidenceBias , &SamplesPerNode , &DataX , &PointWeight , &CGSolverAccuracy ,
 	&MaxMemoryGB , &ParallelType , &ScheduleType , &ThreadChunkSize , &Threads ,
 	&PeakMemorySampleMS ,
@@ -152,7 +164,7 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <iterations>=%d]\n" , Iters.name , Iters.value );
 	printf( "\t[--%s <base MG solver v-cycles>=%d]\n" , BaseVCycles.name , BaseVCycles.value );
 	printf( "\t[--%s <cg solver accuracy>=%g]\n" , CGSolverAccuracy.name , CGSolverAccuracy.value );
-	printf( "\t[--%s <interpolation weight>=%.3e * <b-spline degree>]\n" , PointWeight.name , DefaultPointWeightMultiplier );
+	printf( "\t[--%s <interpolation weight>=%.3e * <b-spline degree>]\n" , PointWeight.name , Reconstructor::Poisson::WeightMultiplier );
 	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
 	printf( "\t[--%s <normal confidence bias exponent>=%f]\n" , ConfidenceBias.name , ConfidenceBias.value );
 	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
@@ -167,6 +179,8 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <peak memory sampling rate (ms)>=%d]\n" , PeakMemorySampleMS.name , PeakMemorySampleMS.value );
 	printf( "\t[--%s <maximum memory (in GB)>=%d]\n" , MaxMemoryGB.name , MaxMemoryGB.value );
 	printf( "\t[--%s <slab files per directory>=%u]\n" , FilesPerDir.name , (unsigned int)FilesPerDir.value );
+	printf( "\t[--%s <merge slab type>=%d]\n" , MergeSlabs.name , MergeSlabs.value );
+	for( unsigned int i=0 ; i<MergeSlabType::COUNT ; i++ )  printf( "\t\t%d] %s\n" , (int)i , MergeSlabNames[i].c_str() );
 	printf( "\t[--%s <verbosity>=%d]\n" , Verbose.name , Verbose.value );
 	printf( "\t[--%s]\n" , NoLoadBalance.name );
 	printf( "\t[--%s]\n" , Density.name );
@@ -174,7 +188,6 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s]\n" , OutputVoxelGrid.name );
 	printf( "\t[--%s]\n" , OutputBoundarySlices.name );
 	printf( "\t[--%s]\n" , ShowDiscontinuity.name );
-	printf( "\t[--%s]\n" , NoFuse.name );
 
 	printf( "\t[--%s]\n" , Performance.name );
 }
@@ -344,9 +357,9 @@ int main( int argc , char* argv[] )
 	}
 
 #ifdef FAST_COMPILE
-	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier * DEFAULT_FEM_DEGREE;
+	if( !PointWeight.set ) PointWeight.value = Reconstructor::Poisson::WeightMultiplier * Reconstructor::Poisson::DefaultFEMDegree;
 #else // !FAST_COMPILE
-	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier * Degree.value;
+	if( !PointWeight.set ) PointWeight.value = Reconstructor::Poisson::WeightMultiplier * Degree.value;
 #endif // FAST_COMPILE
 
 	if( Depth.set && Width.value>0 )
@@ -433,7 +446,12 @@ int main( int argc , char* argv[] )
 		clientReconInfo.dataX = DataX.value;
 		clientReconInfo.density = Density.set;
 		clientReconInfo.linearFit = LinearFit.set;
-		PoissonReconClientServer::ClientReconstructionInfo< Real , Dim >::MergeType::TOPOLOGY_AND_FUNCTION;
+		switch( MergeSlabs.value )
+		{
+			case MergeSlabType::NONE: clientReconInfo.mergeType = PoissonReconClientServer::ClientReconstructionInfo< Real , Dim >::MergeType::NONE ; break;
+			case MergeSlabType::FUNCTION: clientReconInfo.mergeType = PoissonReconClientServer::ClientReconstructionInfo< Real , Dim >::MergeType::FUNCTION ; break;
+			default: clientReconInfo.mergeType = PoissonReconClientServer::ClientReconstructionInfo< Real , Dim >::MergeType::TOPOLOGY_AND_FUNCTION;
+		}
 		clientReconInfo.ouputVoxelGrid = OutputVoxelGrid.set;
 		clientReconInfo.verbose = Verbose.value;
 		clientReconInfo.filesPerDir = FilesPerDir.value;
@@ -474,21 +492,27 @@ int main( int argc , char* argv[] )
 			clientReconInfo.solveDepth = clientReconInfo.baseDepth;
 		}
 #ifdef FAST_COMPILE
-		sharedVertexCounts = Reconstruct< Real , Dim , DEFAULT_FEM_BOUNDARY , DEFAULT_FEM_DEGREE >( pointSetInfoAndPartition.first , pointSetInfoAndPartition.second , clientSockets , clientReconInfo );
+		sharedVertexCounts = Reconstruct< Real , Dim , Reconstructor::Poisson::DefaultFEMBoundary , Reconstructor::Poisson::DefaultFEMDegree >( pointSetInfoAndPartition.first , pointSetInfoAndPartition.second , clientSockets , clientReconInfo );
 #else // !FAST_COMPILE
 		sharedVertexCounts = Reconstruct< Real , Dim >( (BoundaryType)BType.value , Degree.value , pointSetInfoAndPartition.first , pointSetInfoAndPartition.second , clientSockets , clientReconInfo );
 #endif // FAST_COMPILE
 	}
 
-	if( Verbose.value>1 && !NoFuse.set ) 
+	if( Verbose.value>1 && ( MergeSlabs.value==MergeSlabType::SEAMLESS || MergeSlabs.value==MergeSlabType::TOPOLOGY_AND_FUNCTION ) ) 
 		for( unsigned int i=0 ; i<sharedVertexCounts.size() ; i++ ) std::cout << "Vertices[" << (i+1) << "] " << sharedVertexCounts[i] << std::endl;
 
 	PointPartition::RemovePointSlabDirs( PointPartition::FileDir( TempDir.value , header ) );
 
 	{
-		if( NoFuse.set ) for( unsigned int i=0 ; i<sharedVertexCounts.size() ; i++ ) sharedVertexCounts[i] = 0;
+		if( MergeSlabs.value!=MergeSlabType::SEAMLESS ) for( unsigned int i=0 ; i<sharedVertexCounts.size() ; i++ ) sharedVertexCounts[i] = 0;
 		MergePlyClientServer::ClientMergePlyInfo clientMergePlyInfo;
-		clientMergePlyInfo.auxProperties = pointSetInfoAndPartition.first.auxiliaryProperties;
+		if( Density.set )
+		{
+			VertexFactory::ValueFactory< Real > vFactory;
+			for( unsigned int i=0 ; i<vFactory.plyWriteNum() ; i++ ) clientMergePlyInfo.auxProperties.push_back( vFactory.plyStaticWriteProperty(i) );
+			for( unsigned int i=0 ; i<pointSetInfoAndPartition.first.auxiliaryProperties.size() ; i++ ) clientMergePlyInfo.auxProperties.push_back( pointSetInfoAndPartition.first.auxiliaryProperties[i] );
+		}
+		else clientMergePlyInfo.auxProperties = pointSetInfoAndPartition.first.auxiliaryProperties;
 		clientMergePlyInfo.bufferSize = BufferSize.value;
 		clientMergePlyInfo.verbose = Verbose.value!=0;
 		Merge< Real , Dim >( sharedVertexCounts , header , clientSockets , clientMergePlyInfo );
