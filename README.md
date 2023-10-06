@@ -943,30 +943,30 @@ This method tries to read the next pair of positions/normals from the stream, re
 The base class has one pure virtual method that needs to be over-ridden:
 <UL>
 <LI><CODE>void base_write( Point&lt; Real , Dim &gt; p , Point&lt; Real , Dim &gt; g , Real w )</CODE>:<BR>
-This method writes the information for the next vertx into the stream. The data includes the positiono of the vertex, <CODE>p</CODE>, and will also include the gradient, <code>g</code>, and/or density weight, <code>w</code> if the extraction code is asked to compute those.
+This method writes the information for the next vertx into the stream. The data includes the position of the vertex, <CODE>p</CODE>, as well as the gradient, <code>g</code>, and density weight, <code>w</code> if the extraction code is asked to compute those.
 </UL>
 <LI><B>Output polygon stream</B>: This class derives from the <CODE>OutputPolygonStream</CODE> class.
 The base class has one pure virtual method that needs to be over-ridden:
 <UL>
 <LI><CODE>void base_write( const std::vector&lt; node_index_type &gt; &#38;polygon )</CODE>:<BR>
-This method writes the information for the next polygon into the stream, with the polygon represented as a <code>std::vector</code> of integral indices. (In the implementation <code>node_index_type</code> is an <code>unsigned int</code> if the <CODE>BIG_DATA</CODE> is not defined an <code>unsigned long long</code> if it is.)
+This method writes the information for the next polygon into the stream, with the polygon represented as a <code>std::vector</code> of integral indices. (The type <code>node_index_type</code> is an <code>unsigned int</code> if the <CODE>BIG_DATA</CODE> macro is not defined an <code>unsigned long long</code> if it is.)
 </UL>
 </UL>
-With the streams defined and an FEM degree and boundary type encapsulated in the integer parameter <CODE>FEMSig</CODE> , the reconstruction is performed by calling two functions:
+With the streams defined and an FEM degree and boundary type encapsulated in the integer parameter <CODE>FEMSig</CODE> (see line 342 for an example), the reconstruction is performed by calling two functions:
 <UL>
 <LI><CODE>Poisson::Solve&lt; Real , Dim , FEMSig &gt;( InputSampleStream&lt; Real , Dim &gt; &#38;sStream , SolutionParameters&lt; Real &gt; sParams )</CODE>:<BR>
 This function takes in an input sample stream (<code>sStream</code>) and a description of the reconstruction parameters (<code>sParams</code>) desribing the depth, number of samples per node, etc. and returns a pointer to an object of type <CODE>ReconstructionInfo&lt; Real , Dim , FEMSig &gt;</CODE> which stores the octree and coefficients describing the implicit function, as long as (possibly) the sampling density information.
 <LI><CODE>ExtractMesh&lt; Real , Dim , FEMSig &gt;( ReconstructionInfo&lt; Real , Dim , FEMSig &gt; &#38;rInfo , OutputVertexStream&lt; Real , Dim &gt; &#38;vStream , &#38;pStream , MeshExtractionParameters meParams )</CODE>:<BR>
-This function takes in a reference to the recontruction infromation (<code>rInfo</code>), references to the vertex and polygon streams (<code>vStream</code> and <code>pStream</code>) and parameters for mesh extraction (<code>meParams</code>)and computes the extracted triangle/polygon mesh and writes its vertices and faces into the two output streams.
+This function takes in a reference to the recontruction infromation (<code>rInfo</code>), references to the vertex and polygon streams (<code>vStream</code> and <code>pStream</code>) and parameters for mesh extraction (<code>meParams</code>) and computes the extracted triangle/polygon mesh, writing its vertices and faces into the corresponding output streams as they are generated.
 </UL>
 <B>Code walk-through</B>:<br>
 These steps can be found in the <cpp>Reconstruction.example.cpp</cpp> code.
 <UL>
-<LI>An input sample stream generating a specified number of random points on the surface of the sphere is described in lines 78-115 and constructed in line 299.
-<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is described in lines 182-192 and constructed in line 311.
-<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code> is described in lines 164-179 and constructed in line 310.
+<LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 78-115 and constructed in line 299.
+<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is defined in lines 182-192 and constructed in line 311.
+<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 164-179 and constructed in line 310.
 <LI>The reconstructor is called on line 303.
-<LI>The mesh extraction is called on line 314.
+<LI>The mesh extraction is performed on line 314.
 </UL>
 Note that a similar approach can be used to perform the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance</A> reconstruction (line 302). The approach also supports reconstruction of meshes with auxiliary information like color (lines 263-292), with the only constraint that the auxiliary data type supports the computation affine combinations (e.g. the <CODE>RGBColor</CODE> type defined in lines 60-75).
 </DL>
