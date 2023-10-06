@@ -962,9 +962,9 @@ This method writes the information for the next polygon into the stream, with th
 </UL>
 The reconstructed surface is then computed in two steps:
 <UL>
-<LI><CODE>Poisson::ImplicitRepresentation&lt; Real , Dim , FEMSig &gt;::ImplicitRepresentation( InputSampleStream&lt; Real , Dim &gt; &#38;sStream , SolutionParameters&lt; Real &gt; sParams )</CODE>:<BR>
-This constructor creates a Poisson reconstruction object from an input sample stream (<code>sStream</code>) and a description of the reconstruction parameters (<code>sParams</code>) desribing the depth, number of samples per node, etc. (<code>Reconstructors.h</code>, line 229). This object derives from <CODE>ImplicitRepresentation&lt; Real , Dim , FEMSig &gt;</CODE>.
-<LI><CODE>void ImplicitRepresentation&lt; Real , Dim , FEMSig &gt::extractLevelSet( OutputVertexStream&lt; Real , Dim &gt; &#38;vStream , &#38;pStream , LevelSetExtractionParameters meParams )</CODE>:<BR>
+<LI><CODE>Poisson::Implicit&lt; Real , Dim , FEMSig &gt;::Implicit( InputSampleStream&lt; Real , Dim &gt; &#38;sStream , SolutionParameters&lt; Real &gt; sParams )</CODE>:<BR>
+This constructor creates a Poisson reconstruction object from an input sample stream (<code>sStream</code>) and a description of the reconstruction parameters (<code>sParams</code>) desribing the depth, number of samples per node, etc. (<code>Reconstructors.h</code>, line 229). This object derives from <CODE>Implicit&lt; Real , Dim , FEMSig &gt;</CODE>.
+<LI><CODE>void Implicit&lt; Real , Dim , FEMSig &gt::extractLevelSet( OutputVertexStream&lt; Real , Dim &gt; &#38;vStream , &#38;pStream , LevelSetExtractionParameters meParams )</CODE>:<BR>
 This member function takes references to the output vertex and polygon streams (<code>vStream</code> and <code>pStream</code>) and parameters for level-set extraction (<code>meParams</code>) and computes the extracted triangle/polygon mesh, writing its vertices and faces into the corresponding output streams as they are generated (<code>Reconstructors.h</code>, line 98).
 </UL>
 <B>Code walk-through</B>:<br>
