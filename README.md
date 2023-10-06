@@ -921,7 +921,7 @@ individual components of the visualizer.
 </ul>
 
 <hr>
-<a name="LIBRARIES"><b>HEADER-ONLY LIBRARY</b></a><br>
+<a name="LIBRARY"><b>HEADER-ONLY LIBRARY</b></a><br>
 <UL>
 <DL>
 <DETAILS>
