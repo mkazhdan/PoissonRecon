@@ -245,8 +245,8 @@ template
 <
 	typename Real ,			// Arithmetic type (float or double)
 	unsigned int Dim ,		// Dimensionality of the reconstruction (=3)
-	typename ReconType ,	// Reconstructor type (Reconstructor::Poisson or Reconstructctor::Poisson)
-	bool UseColor			// Should could be reconstructed as well?
+	typename ReconType ,	// Reconstructor type (Reconstructor::Poisson or Reconstructor::SSD)
+	bool UseColor			// Should color be reconstructed as well?
 >
 void Execute( void )
 {
