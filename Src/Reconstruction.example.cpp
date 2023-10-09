@@ -42,7 +42,7 @@ cmdLineParameter< char* > Out( "out" );
 cmdLineReadable SSDReconstruction( "ssd" ) , UseColor( "color" ) , Verbose( "verbose" );
 cmdLineParameter< int >	Depth( "depth" , 8 ) , SampleNum( "samples" , 100000 );
 
-cmdLineReadable* params[] = { &Out , &SSDReconstruction , &UseColor , &Verbose , &Depth , &SampleNum , NULL };
+cmdLineReadable* params[] = { &Out , &SSDReconstruction , &UseColor , &Verbose , &Depth , &SampleNum , nullptr };
 
 void ShowUsage( char* ex )
 {
@@ -233,10 +233,10 @@ void WritePly( std::string fileName , size_t vNum , const Real *vCoordinates , c
 		if( rgbCoordinates ) file << " " << ColorChannel( rgbCoordinates[3*i+0] ) << " " << ColorChannel( rgbCoordinates[3*i+1] ) << " " << ColorChannel( rgbCoordinates[3*i+2] );
 		file << std::endl;
 	}
-	for( size_t i=0 ; i<polygons.size() ; i++ )
+	for( const auto &polygon : polygons )
 	{
-		file << polygons[i].size();
-		for( size_t j=0 ; j<polygons[i].size() ; j++ ) file << " " << polygons[i][j];
+		file << polygon.size();
+		for( auto vIdx : polygon ) file << " " << vIdx;
 		file << std::endl;
 	}
 }
@@ -290,7 +290,7 @@ void Execute( void )
 		// Extract the iso-surface
 		implicit.extractLevelSet( vStream , pStream , extractionParams );
 
-		if( Out.set ) WritePly( Out.value , vStream.size() , &vCoordinates[0] , &rgbCoordinates[0] , polygons );
+		if( Out.set ) WritePly( Out.value , vStream.size() , vCoordinates.data() , rgbCoordinates.data() , polygons );
 	}
 	else
 	{
@@ -314,7 +314,7 @@ void Execute( void )
 		// Extract the iso-surface
 		implicit.extractLevelSet( vStream , pStream , extractionParams );
 
-		if( Out.set ) WritePly( Out.value , vStream.size() , &vCoordinates[0] , (Real*)NULL , polygons );
+		if( Out.set ) WritePly( Out.value , vStream.size() , vCoordinates.data() , (Real*)nullptr , polygons );
 	}
 }
 

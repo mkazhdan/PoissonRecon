@@ -567,8 +567,10 @@ namespace Reconstructor
 
 			if( params.width>0 )
 			{
+				// Assuming the transformation is rigid so that the (max) scale can be pulled from the Frobenius norm
 				Real maxScale = 0;
-				for( unsigned int i=0 ; i<Dim ; i++ ) maxScale = std::max< Real >( maxScale , (Real)1./modelToUnitCube(i,i) );
+				for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) maxScale += modelToUnitCube(i,j) * modelToUnitCube(i,j);
+				maxScale = (Real)( 1. / sqrt( maxScale / Dim ) );
 				params.depth = (unsigned int)ceil( std::max< double >( 0. , log( maxScale/params.width )/log(2.) ) );
 			}
 			if( params.solveDepth>params.depth )
@@ -985,8 +987,10 @@ namespace Reconstructor
 
 			if( params.width>0 )
 			{
+				// Assuming the transformation is rigid so that the (max) scale can be pulled from the Frobenius norm
 				Real maxScale = 0;
-				for( unsigned int i=0 ; i<Dim ; i++ ) maxScale = std::max< Real >( maxScale , (Real)1./modelToUnitCube(i,i) );
+				for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) maxScale += modelToUnitCube(i,j) * modelToUnitCube(i,j);
+				maxScale = (Real)( 1. / sqrt( maxScale / Dim ) );
 				params.depth = (unsigned int)ceil( std::max< double >( 0. , log( maxScale/params.width )/log(2.) ) );
 			}
 			if( params.solveDepth>params.depth )
