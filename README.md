@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 15.02)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 15.03)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.02/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.03/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.02/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.03/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.02/">V15.02</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.01/">V15.01</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.00/">V15.00</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.02/">V14.02</a>,
@@ -972,11 +973,12 @@ This member function takes references to the output vertex and polygon streams (
 <UL>
 These steps can be found in the <code>Reconstruction.example.cpp</code> code.
 <UL>
+<LI>The finite-elements signature is created in line 254.
 <LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 78-115 and constructed in line 301.
 <LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 164-179 and constructed in line 311.
 <LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is desfined in lines 182-192 and constructed in line 312.
-<LI>The reconstructor is constructed in line 310.
-<LI>The level-set extraction is performed on line 321.
+<LI>The reconstructor is constructed in line 304.
+<LI>The level-set extraction is performed on line 315.
 </UL>
 Note that a similar approach can be used to perform the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance</A> reconstruction (line 302). The approach also supports reconstruction of meshes with auxiliary information like color (lines 263-295), with the only constraint that the auxiliary data type supports the computation affine combinations (e.g. the <CODE>RGBColor</CODE> type defined in lines 60-75).
 </UL>
@@ -1429,9 +1431,14 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Cleaned up interface into the reconstruction library.
 </OL>
 
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.01/">Version 15.01</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.02/">Version 15.02</a>:
 <OL>
 <LI> Changed <CODE>Poisson</CODE> and <CODE>SSD</CODE> to be classes for cleaner library interface in  <code>Reconstruction.example.cpp</code>.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.03/">Version 15.03</a>:
+<OL>
+<LI> Fixed <code>--width</code> bug in estimating scale factor.
 </OL>
 
 </DETAILS>
