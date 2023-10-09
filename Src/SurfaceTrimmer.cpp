@@ -441,7 +441,7 @@ int Execute( AuxDataFactories ... auxDataFactories )
 	{
 		std::cout << "*********************************************" << std::endl;
 		std::cout << "*********************************************" << std::endl;
-		std::cout << "** Running Surface Trimmer (Version " << VERSION << ") **" << std::endl;
+		std::cout << "** Running Surface Trimmer (Version " << ADAPTIVE_SOLVERS_VERSION << ") **" << std::endl;
 		std::cout << "*********************************************" << std::endl;
 		std::cout << "*********************************************" << std::endl;
 	}

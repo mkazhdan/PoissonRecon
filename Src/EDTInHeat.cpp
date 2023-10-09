@@ -196,7 +196,7 @@ void _Execute( int argc , char* argv[] )
 	{
 		std::cout << "*****************************************" << std::endl;
 		std::cout << "*****************************************" << std::endl;
-		std::cout << "** Running EDT in Heat (Version " << VERSION ") **" << std::endl;
+		std::cout << "** Running EDT in Heat (Version " << ADAPTIVE_SOLVERS_VERSION ") **" << std::endl;
 		std::cout << "*****************************************" << std::endl;
 		std::cout << "*****************************************" << std::endl;
 		if( !Threads.set ) std::cout << "Running with " << Threads.value << " threads" << std::endl;

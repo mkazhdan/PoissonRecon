@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 15.01)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 15.02)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,11 +29,12 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.01/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.02/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.01/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.02/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.00/">V14.02</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.01/">V15.01</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.00/">V15.00</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.02/">V14.02</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.01/">V14.01</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version14.00/">V14.00</a>,
@@ -947,17 +948,17 @@ This method resets the stream to the start (necessary because the reconstruction
 <LI><CODE>bool base_read( Point&lt; Real , Dim &gt; &#38;p , Point&lt; Real , Dim &gt; &#38;n )</CODE>:<BR>
 This method tries to read the next pair of positions/normals from the stream, returning <code>true</code> if the read was successful and <code>false</code> if the read failed (i.e. the end of the stream was reached). The class <code>Point&lt; Real , Dim &gt;</code> represents a point in <code>Dim</code>-dimensional space, can be accessed like an array (i.e. overloads the bracked operator) and supports algebraic manipulation like addition and scalar multiplication.
 </UL>
-<LI><B>Output vertex stream</B>: This class derives from the <CODE>OutputVertexStream&lt; Real , Dim &gt;</CODE> class.
-The base class has one pure virtual method that needs to be over-ridden:
-<UL>
-<LI><CODE>void base_write( Point&lt; Real , Dim &gt; p , Point&lt; Real , Dim &gt; g , Real w )</CODE>:<BR>
-This method writes the information for the next vertx into the stream. The data includes the position of the vertex, <CODE>p</CODE>, as well as the gradient, <code>g</code>, and density weight, <code>w</code> if the extraction code is asked to compute those.
-</UL>
 <LI><B>Output polygon stream</B>: This class derives from the <CODE>OutputPolygonStream</CODE> class.
 The base class has one pure virtual method that needs to be over-ridden:
 <UL>
 <LI><CODE>void base_write( const std::vector&lt; node_index_type &gt; &#38;polygon )</CODE>:<BR>
 This method writes the information for the next polygon into the stream, with the polygon represented as a <code>std::vector</code> of integral indices. (The type <code>node_index_type</code> is an <code>unsigned int</code> if the <CODE>BIG_DATA</CODE> macro is not defined an <code>unsigned long long</code> if it is.)
+</UL>
+<LI><B>Output vertex stream</B>: This class derives from the <CODE>OutputVertexStream&lt; Real , Dim &gt;</CODE> class.
+The base class has one pure virtual method that needs to be over-ridden:
+<UL>
+<LI><CODE>void base_write( Point&lt; Real , Dim &gt; p , Point&lt; Real , Dim &gt; g , Real w )</CODE>:<BR>
+This method writes the information for the next vertx into the stream. The data includes the position of the vertex, <CODE>p</CODE>, as well as the gradient, <code>g</code>, and density weight, <code>w</code> if the extraction code is asked to compute those.
 </UL>
 </UL>
 The reconstructed surface is then computed in two steps:
@@ -971,9 +972,9 @@ This member function takes references to the output vertex and polygon streams (
 <UL>
 These steps can be found in the <code>Reconstruction.example.cpp</code> code.
 <UL>
-<LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 78-115 and constructed in line 307.
-<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is desfined in lines 182-192 and constructed in line 318.
-<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 164-179 and constructed in line 317.
+<LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 78-115 and constructed in line 301.
+<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 164-179 and constructed in line 311.
+<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is desfined in lines 182-192 and constructed in line 312.
 <LI>The reconstructor is constructed in line 310.
 <LI>The level-set extraction is performed on line 321.
 </UL>
@@ -1426,6 +1427,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.01/">Version 15.01</a>:
 <OL>
 <LI> Cleaned up interface into the reconstruction library.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.01/">Version 15.01</a>:
+<OL>
+<LI> Changed <CODE>Poisson</CODE> and <CODE>SSD</CODE> to be classes for cleaner library interface in  <code>Reconstruction.example.cpp</code>.
 </OL>
 
 </DETAILS>

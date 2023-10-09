@@ -351,7 +351,7 @@ int main( int argc , char* argv[] )
 	{
 		std::cout << "***********************************************************" << std::endl;
 		std::cout << "***********************************************************" << std::endl;
-		std::cout << "** Running Poisson Reconstruction Server (Version " << VERSION << ") **" << std::endl;
+		std::cout << "** Running Poisson Reconstruction Server (Version " << ADAPTIVE_SOLVERS_VERSION << ") **" << std::endl;
 		std::cout << "***********************************************************" << std::endl;
 		std::cout << "***********************************************************" << std::endl;
 	}

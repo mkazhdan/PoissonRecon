@@ -473,7 +473,7 @@ int main( int argc , char* argv[] )
 	{
 		printf( "**************************************************\n" );
 		printf( "**************************************************\n" );
-		printf( "** Running Octree Visualization (Version %s) **\n" , VERSION );
+		printf( "** Running Octree Visualization (Version %s) **\n" , ADAPTIVE_SOLVERS_VERSION );
 		printf( "**************************************************\n" );
 		printf( "**************************************************\n" );
 		if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );

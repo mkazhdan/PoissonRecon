@@ -29,6 +29,7 @@ DAMAGE.
 #ifndef RECONSTRUCTORS_INCLUDED
 #define RECONSTRUCTORS_INCLUDED
 
+#include "PreProcessor.h"
 #include "MyMiscellany.h"
 #include "DataStream.imp.h"
 #include "FEMTree.h"
@@ -141,12 +142,12 @@ namespace Reconstructor
 		}
 	};
 
-	namespace Poisson
+	struct Poisson
 	{
 		static const unsigned int NormalDegree = 2;							// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
 		static const unsigned int DefaultFEMDegree = 1;						// The default finite-element degree (has to be at least 1)
 		static const BoundaryType DefaultFEMBoundary = BOUNDARY_NEUMANN;	// The default finite-element boundary type {BOUNDARY_FREE, BOUNDARY_DIRICHLET, BOUNDARY_NEUMANN}
-		static const float WeightMultiplier = 2.f;							// The default degree-to-point-weight scaling
+		inline static const float WeightMultiplier = 2.f;					// The default degree-to-point-weight scaling
 
 		template< unsigned int Dim , typename Real >
 		struct ConstraintDual
@@ -221,7 +222,7 @@ namespace Reconstructor
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
 		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-		void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh );
+		static void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh );
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
@@ -244,14 +245,14 @@ namespace Reconstructor
 				_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh );
 			}
 		};
-	}
+	};
 
-	namespace SSD
+	struct SSD
 	{
-		static const unsigned int NormalDegree = 2;								// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
-		static const unsigned int DefaultFEMDegree = 2;							// The default finite-element degree (has to be at least 2)
-		static const BoundaryType DefaultFEMBoundary = BOUNDARY_NEUMANN;		// The default finite-element boundary type {BOUNDARY_FREE, BOUNDARY_DIRICHLET, BOUNDARY_NEUMANN}
-		static const double WeightMultipliers[] = { 5e+1f , 5e-4f , 1e-5f };	// The default weights for balancing the value, gradient, and laplacian energy terms
+		static const unsigned int NormalDegree = 2;									// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
+		static const unsigned int DefaultFEMDegree = 2;								// The default finite-element degree (has to be at least 2)
+		static const BoundaryType DefaultFEMBoundary = BOUNDARY_NEUMANN;			// The default finite-element boundary type {BOUNDARY_FREE, BOUNDARY_DIRICHLET, BOUNDARY_NEUMANN}
+		inline static const double WeightMultipliers[] = { 5e+1f , 5e-4f , 1e-5f };	// The default weights for balancing the value, gradient, and laplacian energy terms
 
 		template< unsigned int Dim , typename ... > struct ConstraintDual;
 		template< unsigned int Dim , typename ... > struct SystemDual;
@@ -385,7 +386,7 @@ namespace Reconstructor
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
 		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-		void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params );
+		static void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params );
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig >
 		struct Implicit< Real , Dim , FEMSig > : public Reconstructor::Implicit< Real , Dim , FEMSig >
@@ -406,7 +407,7 @@ namespace Reconstructor
 				_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
 			}
 		};
-	}
+	};
 
 	template< class Real , unsigned int Dim >
 	XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor )

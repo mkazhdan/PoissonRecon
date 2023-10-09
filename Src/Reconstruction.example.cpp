@@ -241,34 +241,33 @@ void WritePly( std::string fileName , size_t vNum , const Real *vCoordinates , c
 	}
 }
 
-template< typename Real , unsigned int Dim , unsigned int FEMSig , bool SSD , bool UseColor >
+template
+<
+	typename Real ,			// Arithmetic type (float or double)
+	unsigned int Dim ,		// Dimensionality of the reconstruction (=3)
+	typename ReconType ,	// Reconstructor type (Reconstructor::Poisson or Reconstructctor::Poisson)
+	bool UseColor			// Should could be reconstructed as well?
+>
 void Execute( void )
 {
+	// Finite-elements signature
+	static const unsigned int FEMSig = FEMDegreeAndBType< ReconType::DefaultFEMDegree , ReconType::DefaultFEMBoundary >::Signature;
+
 	// Parameters for performing the reconstruction
-	typename std::conditional
-		<
-			SSD ,
-			typename Reconstructor::    SSD::SolutionParameters< Real > ,
-			typename Reconstructor::Poisson::SolutionParameters< Real >
-		>::type solverParams;
+	typename ReconType::template SolutionParameters< Real > solverParams;
 
 	solverParams.verbose = Verbose.set;
 	solverParams.depth = (unsigned int)Depth.value;
 
 	// Parameters for exracting the level-set surface
 	Reconstructor::LevelSetExtractionParameters extractionParams;
-	extractionParams.linearFit = SSD;		// Since the SSD solution approximates a TSDF, linear fitting works well
+	extractionParams.linearFit = SSDReconstruction.set;		// Since the SSD solution approximates a TSDF, linear fitting works well
 	extractionParams.verbose = Verbose.set;
 
 	if constexpr( UseColor )
 	{
 		// The type of the reconstructor
-		using Implicit = typename std::conditional
-			<
-				SSD ,
-				Reconstructor::    SSD::Implicit< Real , Dim , FEMSig , RGBColor< Real > > ,
-				Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , RGBColor< Real > >
-			>::type;
+		using Implicit = typename ReconType::template Implicit< Real , Dim , FEMSig , RGBColor< Real > >;
 
 		// A stream generating random points on the sphere with color
 		SphereSampleWithColorStream< Real , Dim > sampleStream( SampleNum.value );
@@ -296,12 +295,7 @@ void Execute( void )
 	else
 	{
 		// The type of the reconstructor
-		using Implicit = typename std::conditional
-			<
-				SSD ,
-				Reconstructor::    SSD::Implicit< Real , Dim , FEMSig > ,
-				Reconstructor::Poisson::Implicit< Real , Dim , FEMSig >
-			>::type;
+		using Implicit = typename ReconType::template Implicit< Real , Dim , FEMSig >;
 
 		// A stream generating random points on the sphere
 		SphereSampleStream< Real , Dim > sampleStream( SampleNum.value );
@@ -326,8 +320,6 @@ void Execute( void )
 
 int main( int argc , char* argv[] )
 {
-	using namespace Reconstructor;
-
 	Timer timer;
 	cmdLineParse( argc-1 , &argv[1] , params );
 #ifdef _OPENMP
@@ -341,14 +333,23 @@ int main( int argc , char* argv[] )
 		ShowUsage( argv[0] );
 		return 0;
 	}
+
+	if( Verbose.set )
+	{
+		std::cout << "************************************************" << std::endl;
+		std::cout << "************************************************" << std::endl;
+		std::cout << "** Running SSD Reconstruction (Version " << ADAPTIVE_SOLVERS_VERSION << ") **" << std::endl;
+		std::cout << "************************************************" << std::endl;
+		std::cout << "************************************************" << std::endl;
+	}
 	
 	// Solve using single float precision, in dimension 3, w/ finite-elements of degree 2 for SSD and degree 1 for Poisson, and using Neumann boundaries
 	if( SSDReconstruction.set )
-		if( UseColor.set ) Execute< float , 3 , FEMDegreeAndBType<     SSD::DefaultFEMDegree ,     SSD::DefaultFEMBoundary >::Signature , true  , true  >();
-		else               Execute< float , 3 , FEMDegreeAndBType<     SSD::DefaultFEMDegree ,     SSD::DefaultFEMBoundary >::Signature , true  , false >();
+		if( UseColor.set ) Execute< float , 3 , Reconstructor::   SSD  , true  >();
+		else               Execute< float , 3 , Reconstructor::   SSD  , false >();
 	else
-		if( UseColor.set ) Execute< float , 3 , FEMDegreeAndBType< Poisson::DefaultFEMDegree , Poisson::DefaultFEMBoundary >::Signature , false , true  >();
-		else               Execute< float , 3 , FEMDegreeAndBType< Poisson::DefaultFEMDegree , Poisson::DefaultFEMBoundary >::Signature , false , false >();
+		if( UseColor.set ) Execute< float , 3 , Reconstructor::Poisson , true  >();
+		else               Execute< float , 3 , Reconstructor::Poisson , false >();
 
 	if( Verbose.set )
 	{
