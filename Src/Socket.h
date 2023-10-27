@@ -91,7 +91,7 @@ int socket_receive( Socket& s , Array< C > destination , size_t len )
 	{
 		fprintf( stderr , "Size of socket_receive exceeds destination maximum: %zd > %zd\n" , len , destination.maximum()*sizeof( C ) );
 		ASSERT( 0 );
-		exit( 0 );
+		exit( 1 );
 	}
 	return socket_receive( s , (char*)&destination[0] , len );
 }
@@ -102,7 +102,7 @@ int socket_send( Socket s , ConstArray< C > source , size_t len )
 	{
 		fprintf( stderr , "Size of socket_send exceeds source maximum: %zd > %zd\n" , len , source.maximum()*sizeof( C ) );
 		ASSERT( 0 );
-		exit( 0 );
+		exit( 1 );
 	}
 	return socket_send( s , (char*)&source[0] , len );
 }

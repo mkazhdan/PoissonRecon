@@ -86,7 +86,7 @@ void ReceiveOnSocket( Socket& s , Pointer( C ) data , size_t dataSize , const ch
 				va_end( args );
 				fprintf( stderr , "\n" );
 			}
-			exit(0);
+			exit(1);
 		}
 		rec+=tmp;
 	}
@@ -101,7 +101,7 @@ void SendOnSocket( Socket& s , ConstPointer( C ) data , size_t dataSize , const 
 	if( socket_send( s , ( ConstPointer( char ) )data , dataSize )<0 )
 	{
 		fprintf( stderr , "socket_send to client failed: %s\n" , LastSocketError());
-		exit(0);
+		exit(1);
 	}
 }
 
@@ -114,7 +114,7 @@ void SendOnSocket( Socket& s , Pointer( C ) data , size_t dataSize , const char*
 	if( socket_send( s , ( ConstPointer( char ) )data , dataSize )<0 )
 	{
 		fprintf( stderr , "socket_send to client failed: %s\n" , LastSocketError());
-		exit(0);
+		exit(1);
 	}
 }
 
