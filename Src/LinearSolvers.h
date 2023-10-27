@@ -288,7 +288,7 @@ public:
 #else // !STORE_EIGEN_MATRIX
 			_solver.factorize( eigenM );
 #endif // STORE_EIGEN_MATRIX
-			if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::EigenSolverCholeskyLLt Failed to factorize matrix\n" ) , exit(0);
+			if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::EigenSolverCholeskyLLt Failed to factorize matrix\n" ) , exit(1);
 		}
 		_eigenB.resize( M.rows() );
 	}
@@ -309,10 +309,10 @@ public:
 		switch( _solver.info() )
 		{
 		case Eigen::Success: break;
-		case Eigen::NumericalIssue: fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::update Failed to factorize matrix (numerical issue)\n" ) , exit(0);
-		case Eigen::NoConvergence:  fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::update Failed to factorize matrix (no convergence)\n" ) , exit(0);
-		case Eigen::InvalidInput:   fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::update Failed to factorize matrix (invalid input)\n" ) , exit(0);
-		default: fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::update Failed to factorize matrix\n" ) , exit(0);
+		case Eigen::NumericalIssue: fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::update Failed to factorize matrix (numerical issue)\n" ) , exit(1);
+		case Eigen::NoConvergence:  fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::update Failed to factorize matrix (no convergence)\n" ) , exit(1);
+		case Eigen::InvalidInput:   fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::update Failed to factorize matrix (invalid input)\n" ) , exit(1);
+		default: fprintf( stderr , "[ERROR] EigenSolverCholeskyLLt::update Failed to factorize matrix\n" ) , exit(1);
 		}
 	}
 	void solve( ConstPointer( Real ) b , Pointer( Real ) x )
@@ -350,7 +350,7 @@ public:
 		if( !analyzeOnly )
 		{
 			_solver.factorize( eigenM );
-			if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCholeskyLDLt::EigenSolverCholeskyLDLt Failed to factorize matrix\n" ) , exit(0);
+			if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCholeskyLDLt::EigenSolverCholeskyLDLt Failed to factorize matrix\n" ) , exit(1);
 		}
 		_eigenB.resize( M.rows() );
 	}
@@ -362,7 +362,7 @@ public:
 		for( int i=0 ; i<M.rows() ; i++ ) for( MatrixRowIterator iter=M.begin(i) ; iter!=M.end(i) ; iter++ ) triplets.push_back( Eigen::Triplet< double >( i , iter->N , iter->Value ) );
 		eigenM.setFromTriplets( triplets.begin() , triplets.end() );
 		_solver.factorize( eigenM );
-		if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCholeskyLDLt::update Failed to factorize matrix\n" ) , exit(0);
+		if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCholeskyLDLt::update Failed to factorize matrix\n" ) , exit(1);
 	}
 	void solve( ConstPointer( Real ) b , Pointer( Real ) x )
 	{
@@ -396,7 +396,7 @@ public:
 		_eigenM.setFromTriplets( triplets.begin() , triplets.end() );
 		_solver.compute( _eigenM );
 		_solver.analyzePattern( _eigenM );
-		if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCG::EigenSolverCG Failed to factorize matrix\n" ) , exit(0);
+		if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCG::EigenSolverCG Failed to factorize matrix\n" ) , exit(1);
 		_eigenB.resize( M.rows() ) , _eigenX.resize( M.rows() );
 		_solver.setMaxIterations( iters );
 		_solver.setTolerance( tolerance );
@@ -407,7 +407,7 @@ public:
 		for( int i=0 ; i<M.rows() ; i++ ) for( MatrixRowIterator iter=M.begin(i) ; iter!=M.end(i) ; iter++ ) _eigenM.coeffRef( i , iter->N ) = iter->Value;
 		_solver.compute( _eigenM );
 		_solver.analyzePattern( _eigenM );
-		if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCG::update Failed to factorize matrix\n" ) , exit(0);
+		if( _solver.info()!=Eigen::Success ) fprintf( stderr , "[ERROR] EigenSolverCG::update Failed to factorize matrix\n" ) , exit(1);
 	}
 
 	void setIters( int iters ){ _solver.setMaxIterations( iters ); }

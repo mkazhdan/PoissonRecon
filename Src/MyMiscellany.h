@@ -195,7 +195,7 @@ namespace MKExceptions
 	void ErrorOut( const char *fileName , int line , const char *functionName , const char *format , Args ... args )
 	{
 		std::cerr << MakeMessageString( "[ERROR]" , fileName , line , functionName , format , args ... ) << std::endl;
-		exit( 0 );
+		exit( 1 );
 	}
 }
 #ifndef WARN
@@ -324,7 +324,7 @@ inline void SignalHandler( int signal )
 {
 	printf( "Signal: %d\n" , signal );
 	StackTracer::Trace();
-	exit( 0 );
+	exit( 1 );
 };
 
 
