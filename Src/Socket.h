@@ -88,22 +88,14 @@ template< class C >
 int socket_receive( Socket& s , Array< C > destination , size_t len )
 {
 	if( len>destination.maximum()*sizeof( C ) )
-	{
-		fprintf( stderr , "Size of socket_receive exceeds destination maximum: %zd > %zd\n" , len , destination.maximum()*sizeof( C ) );
-		ASSERT( 0 );
-		exit( 0 );
-	}
+		ERROR_OUT( "Size of socket_receive exceeds destination maximum: " , len , " > " , destination.maximum()*sizeof( C ) );
 	return socket_receive( s , (char*)&destination[0] , len );
 }
 template< class C >
 int socket_send( Socket s , ConstArray< C > source , size_t len )
 {
 	if( len>source.maximum()*sizeof( C ) )
-	{
-		fprintf( stderr , "Size of socket_send exceeds source maximum: %zd > %zd\n" , len , source.maximum()*sizeof( C ) );
-		ASSERT( 0 );
-		exit( 0 );
-	}
+		ERROR_OUT( "Size of socket_send exceeds source maximum: " , len , " > " , source.maximum()*sizeof( C ) );
 	return socket_send( s , (char*)&source[0] , len );
 }
 #endif // ARRAY_DEBUG

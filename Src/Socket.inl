@@ -86,7 +86,7 @@ void ReceiveOnSocket( Socket& s , Pointer( C ) data , size_t dataSize , const ch
 				va_end( args );
 				fprintf( stderr , "\n" );
 			}
-			exit(0);
+			exit( EXIT_FAILURE );
 		}
 		rec+=tmp;
 	}
@@ -99,10 +99,7 @@ void SendOnSocket( Socket& s , ConstPointer( C ) data , size_t dataSize , const 
 	if( dataSize>data.maximum()*sizeof( C ) ) ERROR_OUT( "Size of socket write exceeds source maximum: " , dataSize , " > " , data.maximum()*sizeof( C ) );
 #endif // ARRAY_DEBUG
 	if( socket_send( s , ( ConstPointer( char ) )data , dataSize )<0 )
-	{
-		fprintf( stderr , "socket_send to client failed: %s\n" , LastSocketError());
-		exit(0);
-	}
+		ERROR_OUT( "socket_send to client failed: " , LastSocketError() );
 }
 
 template<class C>
@@ -112,10 +109,7 @@ void SendOnSocket( Socket& s , Pointer( C ) data , size_t dataSize , const char*
 	if( dataSize>data.maximum()*sizeof( C ) ) ERROR_OUT( "Size of socket write exceeds source maximum: " , dataSize , " > " , data.maximum()*sizeof( C ) );
 #endif // ARRAY_DEBUG
 	if( socket_send( s , ( ConstPointer( char ) )data , dataSize )<0 )
-	{
-		fprintf( stderr , "socket_send to client failed: %s\n" , LastSocketError());
-		exit(0);
-	}
+		ERROR_OUT( "socket_send to client failed: " , LastSocketError() );
 }
 
 inline bool GetHostEndpointAddress( EndpointAddress* address , const char* prefix )

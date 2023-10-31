@@ -37,7 +37,7 @@ DAMAGE.
 #ifdef _WIN32
 #define ASSERT( x ) { if( !( x ) ) _asm{ int 0x03 } }
 #else // !_WIN32
-#define ASSERT( x ) { if( !( x ) ) exit(0); }
+#define ASSERT( x ) { if( !( x ) ) exit( EXIT_FAILURE ); }
 #endif // _WIN32
 #endif // _WIN64
 
