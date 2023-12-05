@@ -131,7 +131,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PoissonReconClient", "Poiss
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PoissonReconServer", "PoissonReconServer.vcxproj", "{649D8C83-6BE2-4419-B0A8-66F65CD4D4CB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Reconstruction.example", "..\..\..\Users\mkazh\OneDrive - Johns Hopkins\Research\PoissonRecon\PoissonRecon\Reconstruction.example.vcxproj", "{F40103C1-D18D-4C34-992C-F78D4DCD4A87}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Reconstruction.example", "Reconstruction.example.vcxproj", "{F40103C1-D18D-4C34-992C-F78D4DCD4A87}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
