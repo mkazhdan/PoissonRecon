@@ -284,7 +284,7 @@ void RunClient( std::vector< Socket > &serverSockets , unsigned int sampleMS )
 			if( serverSocketStreams.size()>1 )
 			{
 				Timer timer;
-				cacheFiles[i].ioBytes;
+				cacheFiles[i].ioBytes = 0;
 				cacheFiles[i].reset();
 				client->_write( clientReconInfo , cacheFiles[i] , 5 );
 				delete client;
@@ -1241,7 +1241,7 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 
 	// A backing stream for the vertices
 	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false , tempHeader + std::string( "v_" ) );
-	Reconstructor::OutputInputPolygonStream polygonStream( false , true , tempHeader + std::string( "p_" ) );
+	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true , tempHeader + std::string( "f_" ) );
 
 	typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
 
@@ -1268,7 +1268,7 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 				_range.first ,
 				_range.second ,
 				__vertexStream ,
-				polygonStream ,
+				faceStream ,
 				auxDataFactory() ,
 				!clientReconInfo.linearFit ,
 				HasGradients , false , true , false ,
@@ -1282,14 +1282,14 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 
 	if( clientReconInfo.verbose>1 )
 	{
-		std::cout << "Vertices / Polygons: " << vertexStream.size() << " / " << polygonStream.size() << std::endl;
+		std::cout << "Vertices / Faces: " << vertexStream.size() << " / " << faceStream.size() << std::endl;
 		std::cout << stats.toString() << std::endl;
-		std::cout << "#         Got polygons: " << timer << std::endl;
+		std::cout << "#            Got faces: " << timer << std::endl;
 	}
 
 	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
-	PLY::WritePolygons< Factory , node_index_type , Real , Dim >( outFileName.c_str() , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , PLY_BINARY_NATIVE , noComments );
+	PLY::Write< Factory , node_index_type , Real , Dim >( outFileName.c_str() , factory , vertexStream.size() , faceStream.size() , vertexStream , faceStream , PLY_BINARY_NATIVE , noComments );
 }
 
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >

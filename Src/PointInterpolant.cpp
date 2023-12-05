@@ -364,7 +364,7 @@ void ExtractLevelSet
 
 	// A backing stream for the vertices
 	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false , std::string( "v_" ) );
-	Reconstructor::OutputInputPolygonStream polygonStream( false , true , std::string( "p_" ) );
+	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true , std::string( "f_" ) );
 	typename LevelSetExtractor< Real , Dim >::Stats stats;
 
 	{
@@ -373,20 +373,19 @@ void ExtractLevelSet
 		Reconstructor::TransformedOutputVertexStream< Real , Dim > __vertexStream( unitCubeToModel , _vertexStream );
 
 		// Extract the mesh
-		stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< 0 >() , tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , solution , isoValue , __vertexStream , polygonStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
+		stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< 0 >() , tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , solution , isoValue , __vertexStream , faceStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
 	}
 
 	if( Verbose.set )
 	{
-		std::cout << "Vertices / Polygons: " << vertexStream.size() << " / " << polygonStream.size() << std::endl;
+		std::cout << "Vertices / Faces: " << vertexStream.size() << " / " << faceStream.size() << std::endl;
 		std::cout << stats.toString() << std::endl;
-		if( PolygonMesh.set ) std::cout << "#         Got polygons: " << profiler << std::endl;
-		else                  std::cout << "#        Got triangles: " << profiler << std::endl;
+		std::cout << "#            Got faces: " << profiler << std::endl;
 	}
 
 	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
-	PLY::WritePolygons< Factory , node_index_type , Real , Dim >( Out.value , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
+	PLY::Write< Factory , node_index_type , Real , Dim >( Out.value , factory , vertexStream.size() , faceStream.size() , vertexStream , faceStream , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 }
 
 template< typename Real , unsigned int Dim >

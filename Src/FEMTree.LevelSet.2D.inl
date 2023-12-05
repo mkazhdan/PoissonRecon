@@ -1071,7 +1071,7 @@ public:
 	{
 		std::vector< SliceValues > sliceValues;
 
-		Stats stats = SetSliceValues< Data >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , tree.maxDepth() , densityWeights , data , coefficients , isoValue , vertexStream , zeroData , nonLinearFit , outputGradients , sliceValues , SetIsoEdgesFlag() );
+		Stats stats = SetSliceValues( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , tree.maxDepth() , densityWeights , data , coefficients , isoValue , vertexStream , zeroData , nonLinearFit , outputGradients , sliceValues , SetIsoEdgesFlag() );
 		LevelSetExtraction::KeyGenerator< Dim > keyGenerator( tree.maxDepth() );
 		{
 			double t = Time();

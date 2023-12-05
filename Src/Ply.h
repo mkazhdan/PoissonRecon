@@ -66,6 +66,14 @@ namespace PLY
 	template< typename Integer > struct Traits{ static const std::string name; };
 
 	// A structure representing a face
+	template< typename Index >
+	struct Edge
+	{
+		Index v1 , v2;
+		static PlyProperty Properties[];
+	};
+
+	// A structure representing a face
 	template< typename Index , bool UseCharIndex=false >
 	struct Face
 	{
@@ -92,7 +100,10 @@ namespace PLY
 
 	// PLY write mesh functionality
 	template< typename VertexFactory , typename Index , class Real , int Dim , typename OutputIndex=int , bool UseCharIndex=false >
-	void WritePolygons( std::string fileName , const VertexFactory &vFactory , size_t vertexNum , size_t polygonNum , InputDataStream< typename VertexFactory::VertexType > &vertexStream , InputDataStream< std::vector< Index > > &polygonStream , int file_type , const std::vector< std::string >& comments );
+	void Write( std::string fileName , const VertexFactory &vFactory , size_t vertexNum , size_t polygonNum , InputDataStream< typename VertexFactory::VertexType > &vertexStream , InputDataStream< std::vector< Index > > &polygonStream , int file_type , const std::vector< std::string >& comments );
+
+	template< typename VertexFactory , typename Index , class Real , int Dim , typename OutputIndex=int >
+	void Write( std::string fileName , const VertexFactory &vFactory , size_t vertexNum , size_t edgeNum , InputDataStream< typename VertexFactory::VertexType > &vertexStream , InputDataStream< std::pair< Index , Index > > &edgeStream , int file_type , const std::vector< std::string >& comments );
 
 	template< typename VertexFactory , typename Index , bool UseCharIndex=false >
 	void WritePolygons( std::string fileName , const VertexFactory &vFactory , const std::vector< typename VertexFactory::VertexType > &vertices , const std::vector< std::vector< Index > > &polygons , int file_type , const std::vector< std::string > &comments );
@@ -100,6 +111,9 @@ namespace PLY
 	// PLY read mesh functionality
 	template< typename VertexFactory , typename Index >
 	void ReadPolygons( std::string fileName , const VertexFactory &vFactory , std::vector< typename VertexFactory::VertexType > &vertices , std::vector< std::vector< Index > >& polygons , int &file_type , std::vector< std::string > &comments , bool* readFlags=NULL );
+
+	template< typename VertexFactory , typename Index >
+	void ReadEdges( std::string fileName , const VertexFactory &vFactory , std::vector< typename VertexFactory::VertexType > &vertices , std::vector< std::pair< Index , Index > >& edges , int &file_type , std::vector< std::string > &comments , bool* readFlags=NULL );
 }
 #include "Ply.inl"
 #endif // PLY_INCLUDED

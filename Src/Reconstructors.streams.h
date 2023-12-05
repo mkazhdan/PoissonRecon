@@ -44,7 +44,10 @@ using BaseVertex = VectorTypeUnion< Real , Position< Real , Dim > , Normal< Real
 template< typename Real , unsigned int Dim , typename Data >
 using BaseVertexWithData = VectorTypeUnion< Real , Position< Real , Dim > , Gradient< Real , Dim > , Real , Data >;
 
+using Edge = std::pair< node_index_type , node_index_type >;
 using Polygon = std::vector< node_index_type >;
+
+template< unsigned int FaceDim > using Face = std::conditional_t< FaceDim==2 , Polygon , std::conditional_t< FaceDim==1 , Edge , void * > >;
 
 // Basic streams
 template< typename Real , unsigned int Dim                 > using BaseInputSampleStream         = InputDataStream< BaseSample        < Real , Dim >        >;
@@ -53,8 +56,8 @@ template< typename Real , unsigned int Dim , typename Data > using BaseInputSamp
 template< typename Real , unsigned int Dim                 > using BaseOutputVertexStream         = OutputDataStream< BaseVertex        < Real , Dim >        >;
 template< typename Real , unsigned int Dim , typename Data > using BaseOutputVertexWithDataStream = OutputDataStream< BaseVertexWithData< Real , Dim , Data > >;
 
-using  InputPolygonStream =  InputDataStream< Polygon >;
-using OutputPolygonStream = OutputDataStream< Polygon >;
+template< unsigned int FaceDim > using  InputFaceStream =  InputDataStream< Face< FaceDim > >;
+template< unsigned int FaceDim > using OutputFaceStream = OutputDataStream< Face< FaceDim > >;
 
 ///////////////////////////
 // Oriented Point Stream //
@@ -117,7 +120,7 @@ struct TransformedInputSampleStream : public InputSampleStream< Real , Dim >
 	TransformedInputSampleStream( XForm< Real , Dim+1 > xForm , InputSampleStream< Real , Dim > &stream ) : _stream(stream) , _positionXForm(xForm)
 #endif // DE_VIRTUALIZE_INPUT
 	{
-		_normalXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
+		_normalXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( fabs( xForm.determinant() ) , 1./Dim );
 	}
 
 	// Functionality to reset the stream to the start
@@ -327,24 +330,25 @@ protected:
 };
 
 
-/////////////////////////////////////////////////////////////////////////////////
-// Output and the input polygon stream, backed either by a file or by a vector //
-/////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
+// Output and the input face stream, backed either by a file or by a vector //
+//////////////////////////////////////////////////////////////////////////////
 // [WARNING] These assume that the stream starts as write-only and after the reset method is invoked, the stream becomes read-only.
 
-struct OutputInputPolygonStream : public OutputPolygonStream , public InputPolygonStream
+template< unsigned int FaceDim >
+struct OutputInputFaceStream : public OutputFaceStream< FaceDim > , public InputFaceStream< FaceDim >
 {
 	// The streams for communicating the information
-	InputPolygonStream  * inStream;
-	OutputPolygonStream *outStream;
+	InputFaceStream < FaceDim > * inStream;
+	OutputFaceStream< FaceDim > *outStream;
 
 	void reset( void ){ inStream->reset(); }
-	bool base_read( Polygon &p ){ return inStream->read(p); }
-	bool base_read( unsigned int t , Polygon &p ){ return inStream->read(t,p); }
-	void base_write( const Polygon &p ){ outStream->write(p); }
-	void base_write( unsigned int t , const Polygon &p ){ outStream->write(t,p); }
+	bool base_read( Face< FaceDim > &f ){ return inStream->read(f); }
+	bool base_read( unsigned int t , Face< FaceDim > &f ){ return inStream->read(t,f); }
+	void base_write( const Face< FaceDim > &f ){ outStream->write(f); }
+	void base_write( unsigned int t , const Face< FaceDim > &f ){ outStream->write(t,f); }
 
-	OutputInputPolygonStream( bool inCore , bool multi , std::string header="" )
+	OutputInputFaceStream( bool inCore , bool multi , std::string header="" )
 	{
 		size_t sz = std::thread::hardware_concurrency();
 
@@ -363,19 +367,18 @@ struct OutputInputPolygonStream : public OutputPolygonStream , public InputPolyg
 			{
 				for( unsigned int i=0 ; i<sz ; i++ )
 				{
-					_backingVectors[i] = new std::vector< Polygon >();
-					_inStreams[i] = new VectorBackedInputDataStream< Polygon >( *_backingVectors[i] );
-					_outStreams[i] = new VectorBackedOutputDataStream< Polygon >( *_backingVectors[i] );
+					_backingVectors[i] = new std::vector< Face< FaceDim > >();
+					_inStreams[i] = new VectorBackedInputDataStream< Face< FaceDim > >( *_backingVectors[i] );
+					_outStreams[i] = new VectorBackedOutputDataStream< Face< FaceDim > >( *_backingVectors[i] );
 				}
-				inStream = new MultiInputDataStream< Polygon >( _inStreams );
-				outStream = new MultiOutputDataStream< Polygon >( _outStreams );
+				inStream = new MultiInputDataStream< Face< FaceDim > >( _inStreams );
+				outStream = new MultiOutputDataStream< Face< FaceDim > >( _outStreams );
 			}
 			else
 			{
-				_backingVector = new std::vector< Polygon >();
-
-				inStream = new VectorBackedInputDataStream< Polygon >( *_backingVector );
-				outStream = new VectorBackedOutputDataStream< Polygon >( *_backingVector );
+				_backingVector = new std::vector< Face< FaceDim > >();
+				inStream = new VectorBackedInputDataStream< Face< FaceDim > >( *_backingVector );
+				outStream = new VectorBackedOutputDataStream< Face< FaceDim > >( *_backingVector );
 			}
 		}
 		else
@@ -385,22 +388,22 @@ struct OutputInputPolygonStream : public OutputPolygonStream , public InputPolyg
 				for( unsigned int i=0 ; i<sz ; i++ )
 				{
 					_backingFiles[i] = new FileBackedReadWriteStream::FileDescription( header.c_str() );
-					_inStreams[i] = new FileBackedInputDataStream< Polygon >( _backingFiles[i]->fp );
-					_outStreams[i] = new FileBackedOutputDataStream< Polygon >( _backingFiles[i]->fp );
+					_inStreams[i] = new FileBackedInputDataStream< Face< FaceDim > >( _backingFiles[i]->fp );
+					_outStreams[i] = new FileBackedOutputDataStream< Face< FaceDim > >( _backingFiles[i]->fp );
 				}
-				inStream = new MultiInputDataStream< std::vector< node_index_type > >( _inStreams );
-				outStream = new MultiOutputDataStream< std::vector< node_index_type > >( _outStreams );
+				inStream = new MultiInputDataStream< Face< FaceDim > >( _inStreams );
+				outStream = new MultiOutputDataStream< Face< FaceDim > >( _outStreams );
 			}
 			else
 			{
 				_backingFile = new FileBackedReadWriteStream::FileDescription( header.c_str() );
-
-				inStream = new FileBackedInputDataStream< Polygon >( _backingFile->fp );
-				outStream = new FileBackedOutputDataStream< Polygon >( _backingFile->fp );
+				inStream = new FileBackedInputDataStream< Face< FaceDim > >( _backingFile->fp );
+				outStream = new FileBackedOutputDataStream< Face< FaceDim > >( _backingFile->fp );
 			}
 		}
 	}
-	~OutputInputPolygonStream( void )
+
+	~OutputInputFaceStream( void )
 	{
 		size_t sz = std::thread::hardware_concurrency();
 
@@ -424,12 +427,12 @@ struct OutputInputPolygonStream : public OutputPolygonStream , public InputPolyg
 		delete outStream;
 	}
 protected:
-	std::vector< Polygon > *_backingVector;
+	std::vector< Face< FaceDim > > *_backingVector;
 	FileBackedReadWriteStream::FileDescription *_backingFile;
-	std::vector< std::vector< Polygon > * > _backingVectors;
+	std::vector< std::vector< Face< FaceDim > > * > _backingVectors;
 	std::vector< FileBackedReadWriteStream::FileDescription * > _backingFiles;
-	std::vector<  InputDataStream< Polygon > * >  _inStreams;
-	std::vector< OutputDataStream< Polygon > * > _outStreams;
+	std::vector<  InputDataStream< Face< FaceDim > > * >  _inStreams;
+	std::vector< OutputDataStream< Face< FaceDim > > * > _outStreams;
 };
 
 template< typename Factory >

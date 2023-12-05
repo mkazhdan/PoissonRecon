@@ -211,19 +211,19 @@ void WriteMesh
 
 	// A backing stream for the vertices
 	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , inCore , false , std::string( "v_" ) );
-	Reconstructor::OutputInputPolygonStream polygonStream( inCore , true , std::string( "p_" ) );
+	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( inCore , true , std::string( "f_" ) );
 
 	{
 		// The wrapper converting native to output types
 		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
 
 		// Extract the level set
-		implicit.extractLevelSet( _vertexStream , polygonStream , meParams );
+		implicit.extractLevelSet( _vertexStream , faceStream , meParams );
 	}
 
 	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
-	PLY::WritePolygons< Factory , node_index_type , Real , Dim >( fileName , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , ascii ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
+	PLY::Write< Factory , node_index_type , Real , Dim >( fileName , factory , vertexStream.size() , faceStream.size() , vertexStream , faceStream , ascii ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 }
 
 template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxDataFactory , bool HasGradients , bool HasDensity >
@@ -246,19 +246,19 @@ void WriteMeshWithData
 
 	// A backing stream for the vertices
 	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , inCore , false , std::string( "v_" ) );
-	Reconstructor::OutputInputPolygonStream polygonStream( inCore , true , std::string( "p_" ) );
+	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( inCore , true , std::string( "f_" ) );
 
 	{
 		// The wrapper converting native to output types
 		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
 
 		// Extract the level set
-		implicit.extractLevelSet( _vertexStream , polygonStream , meParams );
+		implicit.extractLevelSet( _vertexStream , faceStream , meParams );
 	}
 
 	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
-	PLY::WritePolygons< Factory , node_index_type , Real , Dim >( fileName , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , ascii ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
+	PLY::Write< Factory , node_index_type , Real , Dim >( fileName , factory , vertexStream.size() , faceStream.size() , vertexStream , faceStream , ascii ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 }
 
 template< class Real , unsigned int Dim , unsigned int FEMSig , typename AuxDataFactory >
@@ -493,8 +493,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	}
 
 
-	if( Out.set && Dim!=3 ) WARN( "Mesh extraction is only supported in dimension 3" );
-	else if( Out.set && Dim==3 )
+	if( Out.set && ( Dim==2 || Dim==3 ) )
 	{
 		// Create the output mesh
 		char tempHeader[2048];
@@ -538,6 +537,8 @@ void Execute( const AuxDataFactory &auxDataFactory )
 			}
 		}
 	}
+	else WARN( "Mesh extraction is only supported in dimensions 2 and 3" );
+
 	if( Verbose.set ) std::cout << "#          Total Solve: " << Time()-startTime << " (s), " << MemoryInfo::PeakMemoryUsageMB() << " (MB)" << std::endl;
 	delete implicit;
 }

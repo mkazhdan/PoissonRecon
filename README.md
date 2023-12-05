@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 15.03)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 15.10)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.03/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.10/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.03/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.10/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.03/">V15.03</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.02/">V15.02</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.01/">V15.01</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.00/">V15.00</a>,
@@ -1439,6 +1440,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.03/">Version 15.03</a>:
 <OL>
 <LI> Fixed <code>--width</code> bug in estimating scale factor.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version15.10/">Version 15.10</a>:
+<OL>
+<LI> Added iso-curve extraction support (for 2D reconstruction)
 </OL>
 
 </DETAILS>

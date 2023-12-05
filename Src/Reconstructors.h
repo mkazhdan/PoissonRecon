@@ -62,7 +62,7 @@ namespace Reconstructor
 
 	// "Private" function for extracting meshes
 	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
-	void _ExtractLevelSet( UIntPack< FEMSigs ... >  , const ImplicitType &implicit , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params );
+	void _ExtractLevelSet( UIntPack< FEMSigs ... >  , const ImplicitType &implicit , OutputVertexStream &vertexStream , OutputFaceStream< Dim-1 > &faceStream , typename Implicit< Real , Dim , FEMSig >::LevelSetExtractionParameters params );
 
 	// Specialized solution information without auxiliary data
 	template< typename Real , unsigned int Dim , unsigned int FEMSig >
@@ -96,10 +96,10 @@ namespace Reconstructor
 		DensityEstimator *density;
 
 		// A method that writes the extracted mesh to the streams
-		void extractLevelSet( OutputVertexStream< Real , Dim > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params ) const
+		void extractLevelSet( OutputVertexStream< Real , Dim > &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params ) const
 		{
 			typedef unsigned char AuxData;
-			_ExtractLevelSet< false , Real , Dim , FEMSig , AuxData , OutputVertexStream< Real , Dim > , Implicit< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , polygonStream , params );
+			_ExtractLevelSet< false , Real , Dim , FEMSig , AuxData , OutputVertexStream< Real , Dim > , Implicit< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , faceStream , params );
 		}
 	};
 
@@ -136,9 +136,9 @@ namespace Reconstructor
 		}
 
 		// A method for writing the extracted mesh to the streams
-		void extractLevelSet( OutputVertexWithDataStream< Real , Dim , AuxData > &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params ) const
+		void extractLevelSet( OutputVertexWithDataStream< Real , Dim , AuxData > &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params ) const
 		{
-			_ExtractLevelSet< true , Real , Dim , FEMSig , AuxData , OutputVertexWithDataStream< Real , Dim , AuxData > , Implicit< Real , Dim , FEMSig , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , polygonStream , params );
+			_ExtractLevelSet< true , Real , Dim , FEMSig , AuxData , OutputVertexWithDataStream< Real , Dim , AuxData > , Implicit< Real , Dim , FEMSig , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , faceStream , params );
 		}
 	};
 
@@ -462,19 +462,14 @@ namespace Reconstructor
 	}
 
 	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
-	void _ExtractLevelSet( UIntPack< FEMSigs ... > , const ImplicitType &implicit , OutputVertexStream &vertexStream , OutputDataStream< std::vector< node_index_type > > &polygonStream , LevelSetExtractionParameters params )
+	void _ExtractLevelSet( UIntPack< FEMSigs ... > , const ImplicitType &implicit , OutputVertexStream &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params )
 	{
 		typedef UIntPack< FEMSigs ... > Sigs;
 		static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs ... > >::value , "[ERROR] Signatures don't match" );
 		static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;
 		typedef typename ImplicitType::DensityEstimator DensityEstimator;
 
-		if constexpr( Dim!=3 )
-		{
-			WARN( "Extraction only supported for dimension 3" );
-			return;
-		}
-		else
+		if constexpr( Dim==3 )
 		{
 			Profiler profiler(20);
 
@@ -484,25 +479,51 @@ namespace Reconstructor
 			{
 				typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
 				TransformedOutputVertexWithDataStream< Real , Dim , AuxData > _vertexStream( implicit.unitCubeToModel , vertexStream );
-				stats = LevelSetExtractor< Real , Dim , AuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , implicit.tree , implicit.density , implicit.auxData , implicit.solution , implicit.isoValue , _vertexStream , polygonStream , implicit.zeroAuxData , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
+				stats = LevelSetExtractor< Real , Dim , AuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , implicit.tree , implicit.density , implicit.auxData , implicit.solution , implicit.isoValue , _vertexStream , faceStream , implicit.zeroAuxData , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
 				statsString = stats.toString();
 			}
 			else
 			{
 				typename LevelSetExtractor< Real , Dim >::Stats stats;
 				TransformedOutputVertexStream< Real , Dim > _vertexStream( implicit.unitCubeToModel , vertexStream );
-				stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , implicit.tree , implicit.density , implicit.solution , implicit.isoValue , _vertexStream , polygonStream , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
+				stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , implicit.tree , implicit.density , implicit.solution , implicit.isoValue , _vertexStream , faceStream , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
 				statsString = stats.toString();
 			}
 			if( params.verbose )
 			{
-				std::cout << "Vertices / Polygons: " << vertexStream.size() << " / " << polygonStream.size() << std::endl;
+				std::cout << "Vertices / Faces: " << vertexStream.size() << " / " << faceStream.size() << std::endl;
 				std::cout << statsString << std::endl;
-				if( params.polygonMesh ) std::cout << "#         Got polygons: " << profiler << std::endl;
-				else                     std::cout << "#        Got triangles: " << profiler << std::endl;
+				std::cout << "#            Got Faces: " << profiler << std::endl;
 			}
 		}
-	}
+		else if constexpr( Dim==2 )
+		{
+			Profiler profiler(20);
+
+			std::string statsString;
+
+			if constexpr( HasAuxData )
+			{
+				typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
+				TransformedOutputVertexWithDataStream< Real , Dim , AuxData > _vertexStream( implicit.unitCubeToModel , vertexStream );
+				stats = LevelSetExtractor< Real , Dim , AuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , implicit.tree , implicit.density , implicit.auxData , implicit.solution , implicit.isoValue , _vertexStream , faceStream , implicit.zeroAuxData , !params.linearFit , params.outputGradients , false );
+				statsString = stats.toString();
+			}
+			else
+			{
+				typename LevelSetExtractor< Real , Dim >::Stats stats;
+				TransformedOutputVertexStream< Real , Dim > _vertexStream( implicit.unitCubeToModel , vertexStream );
+				stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , implicit.tree , implicit.density , implicit.solution , implicit.isoValue , _vertexStream , faceStream , !params.linearFit , params.outputGradients , false );
+				statsString = stats.toString();
+			}
+			if( params.verbose )
+			{
+				std::cout << "Vertices / Faces: " << vertexStream.size() << " / " << faceStream.size() << std::endl;
+				std::cout << statsString << std::endl;
+				std::cout << "#            Got faces: " << profiler << std::endl;
+			}
+		}
+		else WARN( "Extraction only supported for dimensions 2 and 3" );	}
 
 	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
 	void Poisson::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh )

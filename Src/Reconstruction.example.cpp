@@ -162,7 +162,7 @@ protected:
 
 // A stream into which we can write polygons of the form std::vector< node_index_type >
 template< typename Index >
-struct PolygonStream : public Reconstructor::OutputPolygonStream
+struct PolygonStream : public Reconstructor::OutputFaceStream< 2 >
 {
 	// Construct a stream that adds polygons to the vector of polygons
 	PolygonStream( std::vector< std::vector< Index > > &polygonStream ) : _polygons( polygonStream ) {}

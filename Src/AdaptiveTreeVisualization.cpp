@@ -398,7 +398,7 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 	}
 
 	// Output the mesh
-	if constexpr( Dim==3 ) if( OutMesh.set )
+	if constexpr( Dim==2 || Dim==3 ) if( OutMesh.set )
 	{
 		double t = Time();
 
@@ -411,7 +411,7 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 
 		// A backing stream for the vertices
 		Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false , std::string( "v_" ) );
-		Reconstructor::OutputInputPolygonStream polygonStream( false , true , std::string( "p_" ) );
+		Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true , std::string( "f_" ) );
 
 		{
 			// The wrapper converting native to output types
@@ -419,15 +419,16 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 			Reconstructor::TransformedOutputVertexStream< Real , Dim > __vertexStream( modelToUnitCube.inverse() , _vertexStream );
 
 			// Extract the mesh
-			LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , __vertexStream , polygonStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+			if      constexpr( Dim==3 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , __vertexStream , faceStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+			else if constexpr( Dim==2 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value ,                                                              __vertexStream , faceStream , NonLinearFit.set , false , FlipOrientation.set );
 		}
 
 		if( Verbose.set ) printf( "Got level-set: %.2f(s)\n" , Time()-t );
-		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)vertexStream.size() , (unsigned long long)polygonStream.size() );
+		if( Verbose.set ) printf( "Vertices / Faces: %llu / %llu\n" , (unsigned long long)vertexStream.size() , (unsigned long long)faceStream.size() );
 
 		// Write the mesh to a .ply file
 		std::vector< std::string > noComments;
-		PLY::WritePolygons< Factory , node_index_type , Real , Dim >( OutMesh.value , factory , vertexStream.size() , polygonStream.size() , vertexStream , polygonStream , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
+		PLY::Write< Factory , node_index_type , Real , Dim >( OutMesh.value , factory , vertexStream.size() , faceStream.size() , vertexStream , faceStream , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 	}
 }
 
