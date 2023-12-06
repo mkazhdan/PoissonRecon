@@ -514,51 +514,52 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	}
 
 
-	if( Out.set && ( Dim==2 || Dim==3 ) )
-	{
-		// Create the output mesh
-		char tempHeader[2048];
+	if( Out.set )
+		if( Dim==2 || Dim==3 )
 		{
-			char tempPath[1024];
-			tempPath[0] = 0;
-			if( TempDir.set ) strcpy( tempPath , TempDir.value );
-			else SetTempDirectory( tempPath , sizeof(tempPath) );
-			if( strlen(tempPath)==0 ) sprintf( tempPath , ".%c" , FileSeparator );
-			if( tempPath[ strlen( tempPath )-1 ]==FileSeparator ) sprintf( tempHeader , "%sPR_" , tempPath );
-			else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
-		}
-
-		XForm< Real , Dim+1 > pXForm = implicit->unitCubeToModel;
-		XForm< Real , Dim > nXForm = XForm< Real , Dim >( pXForm ).inverse().transpose();
-
-		if( Gradients.set )
-		{
-			if( Density.set )
+			// Create the output mesh
+			char tempHeader[2048];
 			{
-				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , true >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
-				else                       WriteMesh        < Real , Dim , FEMSig ,                  true , true >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				char tempPath[1024];
+				tempPath[0] = 0;
+				if( TempDir.set ) strcpy( tempPath , TempDir.value );
+				else SetTempDirectory( tempPath , sizeof(tempPath) );
+				if( strlen(tempPath)==0 ) sprintf( tempPath , ".%c" , FileSeparator );
+				if( tempPath[ strlen( tempPath )-1 ]==FileSeparator ) sprintf( tempHeader , "%sPR_" , tempPath );
+				else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
+			}
+
+			XForm< Real , Dim+1 > pXForm = implicit->unitCubeToModel;
+			XForm< Real , Dim > nXForm = XForm< Real , Dim >( pXForm ).inverse().transpose();
+
+			if( Gradients.set )
+			{
+				if( Density.set )
+				{
+					if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , true >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
+					else                       WriteMesh        < Real , Dim , FEMSig ,                  true , true >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				}
+				else
+				{
+					if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , false >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
+					else                       WriteMesh        < Real , Dim , FEMSig ,                  true , false >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				}
 			}
 			else
 			{
-				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , true , false >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
-				else                       WriteMesh        < Real , Dim , FEMSig ,                  true , false >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				if( Density.set )
+				{
+					if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , true >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
+					else                       WriteMesh        < Real , Dim , FEMSig ,                  false , true >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				}
+				else
+				{
+					if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , false >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
+					else                       WriteMesh        < Real , Dim , FEMSig ,                  false , false >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
+				}
 			}
 		}
-		else
-		{
-			if( Density.set )
-			{
-				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , true >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
-				else                       WriteMesh        < Real , Dim , FEMSig ,                  false , true >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
-			}
-			else
-			{
-				if constexpr( HasAuxData ) WriteMeshWithData< Real , Dim , FEMSig , AuxDataFactory , false , false >( auxDataFactory , InCore.set , *implicit , meParams , Out.value , ASCII.set );
-				else                       WriteMesh        < Real , Dim , FEMSig ,                  false , false >(                  InCore.set , *implicit , meParams , Out.value , ASCII.set );
-			}
-		}
-	}
-	else WARN( "Mesh extraction is only supported in dimensions 2 and 3" );
+		else WARN( "Mesh extraction is only supported in dimensions 2 and 3" );
 
 	if( Verbose.set ) std::cout << "#          Total Solve: " << Time()-startTime << " (s), " << MemoryInfo::PeakMemoryUsageMB() << " (MB)" << std::endl;
 	delete implicit;
