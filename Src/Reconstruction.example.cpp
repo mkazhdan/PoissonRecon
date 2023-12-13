@@ -336,11 +336,11 @@ int main( int argc , char* argv[] )
 
 	if( Verbose.set )
 	{
-		std::cout << "************************************************" << std::endl;
-		std::cout << "************************************************" << std::endl;
-		std::cout << "** Running SSD Reconstruction (Version " << ADAPTIVE_SOLVERS_VERSION << ") **" << std::endl;
-		std::cout << "************************************************" << std::endl;
-		std::cout << "************************************************" << std::endl;
+		std::cout << "****************************************************" << std::endl;
+		std::cout << "****************************************************" << std::endl;
+		std::cout << "** Running Reconstruction Example (Version " << ADAPTIVE_SOLVERS_VERSION << ") **" << std::endl;
+		std::cout << "****************************************************" << std::endl;
+		std::cout << "****************************************************" << std::endl;
 	}
 	
 	// Solve using single float precision, in dimension 3, w/ finite-elements of degree 2 for SSD and degree 1 for Poisson, and using Neumann boundaries

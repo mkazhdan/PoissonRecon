@@ -178,6 +178,36 @@ namespace Reconstructor
 			CumulativeDerivativeValues< Real , Dim , 0 > operator()( const Point< Real , Dim >& p , const CumulativeDerivativeValues< Real , Dim , 0 >& dValues ) const { return dValues * weight; };
 		};
 
+		template< unsigned int Dim , typename Real >
+		struct ValueInterpolationConstraintDual
+		{
+			typedef VectorTypeUnion< Real , Real > PointSampleData;
+			Real vWeight;
+			ValueInterpolationConstraintDual( Real v ) : vWeight(v){ }
+			CumulativeDerivativeValues< Real , Dim , 0 > operator()( const Point< Real , Dim > &p , const VectorTypeUnion< Real , Real >& data ) const 
+			{
+				Real value = data.template get<0>();
+				CumulativeDerivativeValues< Real , Dim , 0 > cdv;
+				cdv[0] = value*vWeight;
+				return cdv;
+			}
+		};
+
+		template< unsigned int Dim , typename Real >
+		struct ValueInterpolationSystemDual
+		{
+			CumulativeDerivativeValues< Real , Dim , 0 > weight;
+			ValueInterpolationSystemDual( Real v ){ weight[0] = v; }
+			CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Real > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
+			{
+				return dValues * weight;
+			}
+			CumulativeDerivativeValues< double , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Real > &data , const CumulativeDerivativeValues< double , Dim , 0 > &dValues ) const
+			{
+				return dValues * weight;
+			};
+		};
+
 		template< typename Real >
 		struct SolutionParameters
 		{
@@ -192,6 +222,7 @@ namespace Reconstructor
 			Real lowDepthCutOff;
 			Real width;
 			Real pointWeight;
+			Real valueInterpolationWeight;
 			Real samplesPerNode;
 			Real cgSolverAccuracy;
 			unsigned int depth;
@@ -206,7 +237,7 @@ namespace Reconstructor
 			SolutionParameters( void ) :
 				verbose(false) , dirichletErode(false) , outputDensity(false) , exactInterpolation(false) , showResidual(false) ,
 				scale((Real)1.1) , confidence((Real)0.) , confidenceBias((Real)0.) , lowDepthCutOff((Real)0.) , width((Real)0.) ,
-				pointWeight((Real)0.) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) ,
+				pointWeight((Real)0.) , valueInterpolationWeight((Real)0.) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) ,
 				depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) ,
 				envelopeDepth((unsigned int)-1) , baseVCycles((unsigned int)1) , iters((unsigned int)8)
 			{}
@@ -222,27 +253,27 @@ namespace Reconstructor
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
 		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-		static void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh );
+		static void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh , ValueInterpolationStream< Real , Dim > *valueInterpolationStream );
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig >
 		struct Implicit< Real , Dim , FEMSig > : public Reconstructor::Implicit< Real , Dim , FEMSig >
 		{
-			Implicit( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
+			Implicit( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL , ValueInterpolationStream< Real , Dim > *valueInterpolationStream=NULL )
 			{
 				typedef unsigned char AuxData;
-				_Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh );
+				_Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh , valueInterpolationStream );
 			}
 		};
 
 		template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
 		struct Implicit< Real , Dim , FEMSig , AuxData > : public Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >
 		{
-			Implicit( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL )
+			Implicit( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL , ValueInterpolationStream< Real , Dim > *valueInterpolationStream=NULL )
 				: Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >( pointStream.zero() )
 			{
-				_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh );
+				_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh , valueInterpolationStream );
 			}
 		};
 	};
@@ -526,9 +557,15 @@ namespace Reconstructor
 		else WARN( "Extraction only supported for dimensions 2 and 3" );	}
 
 	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-	void Poisson::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh )
+	void Poisson::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh , ValueInterpolationStream< Real , Dim > *valueInterpolationStream )
 	{
 		static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs... > >::value , "[ERROR] Signatures don't match" );
+		if( params.valueInterpolationWeight<0 )
+		{
+			WARN( "Negative value interpolation weight clamped to zero" );
+			params.valueInterpolationWeight = 0;
+		}
+		if( valueInterpolationStream && !params.valueInterpolationWeight ) WARN( "Value interpolation stream provided but interpolation weight is zero" );
 
 		// The signature for the finite-elements representing the auxiliary data (if it's there)
 		static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;
@@ -570,6 +607,8 @@ namespace Reconstructor
 		size_t pointCount;
 
 		ProjectiveData< Point< Real , 2 > , Real > pointDepthAndWeight;
+		std::vector< typename FEMTree< Dim , Real >::PointSample > *valueInterpolationSamples = NULL;
+		std::vector< Real > *valueInterpolationSampleData = NULL;
 		DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > geometryNodeDesignators;
 		SparseNodeData< Point< Real , Dim > , NormalSigs > *normalInfo = NULL;
 		std::vector< typename FEMTree< Dim , Real >::PointSample > *samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
@@ -675,7 +714,24 @@ namespace Reconstructor
 				std::cout << "# Read input into tree: " << profiler << std::endl;
 			}
 		}
+
+		if( valueInterpolationStream && params.valueInterpolationWeight )
 		{
+			valueInterpolationSamples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
+			valueInterpolationSampleData = new std::vector< Real >();
+			// Wrap the point stream in a transforming stream
+			TransformedValueInterpolationStream< Real , Dim > _valueInterpolationStream( modelToUnitCube , *valueInterpolationStream );
+
+			// Assign each sample a weight of 1.
+			auto ProcessData = []( const Point< Real , Dim > &p , Real &d ){ return (Real)1.; };
+			Real zeroValue = (Real)0.;
+			typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
+			size_t count = FEMTreeInitializer< Dim , Real >::template Initialize< Real >( sid , implicit.tree.spaceRoot() , _valueInterpolationStream , zeroValue , params.depth , *valueInterpolationSamples , *valueInterpolationSampleData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
+			if( params.verbose ) std::cout << "Input Interpolation Points / Samples: " << count << " / " << valueInterpolationSamples->size() << std::endl;
+		}
+
+		{
+			InterpolationInfo *valueInterpolationInfo = NULL;
 			DenseNodeData< Real , Sigs > constraints;
 			InterpolationInfo *iInfo = NULL;
 			int solveDepth = params.depth;
@@ -909,6 +965,18 @@ namespace Reconstructor
 				if( params.verbose ) std::cout << "#Set point constraints: " << profiler << std::endl;
 			}
 
+			if( valueInterpolationSamples && params.valueInterpolationWeight )
+			{
+				profiler.reset();
+				if( params.exactInterpolation ) valueInterpolationInfo = FEMTree< Dim , Real >::template       InitializeExactPointAndDataInterpolationInfo< Real , Real , 0 > ( implicit.tree , *valueInterpolationSamples , GetPointer( *valueInterpolationSampleData ) , Poisson::ValueInterpolationConstraintDual< Dim , Real >( params.valueInterpolationWeight ) , Poisson::ValueInterpolationSystemDual< Dim , Real >( params.valueInterpolationWeight ) , true , false );
+				else                            valueInterpolationInfo = FEMTree< Dim , Real >::template InitializeApproximatePointAndDataInterpolationInfo< Real , Real , 0 > ( implicit.tree , *valueInterpolationSamples , GetPointer( *valueInterpolationSampleData ) , Poisson::ValueInterpolationConstraintDual< Dim , Real >( params.valueInterpolationWeight ) , Poisson::ValueInterpolationSystemDual< Dim , Real >( params.valueInterpolationWeight ) , true , params.depth , 1 );
+				delete valueInterpolationSamples , valueInterpolationSamples = NULL;
+				delete valueInterpolationSampleData , valueInterpolationSampleData = NULL;
+
+				implicit.tree.addInterpolationConstraints( constraints , solveDepth , std::make_tuple( valueInterpolationInfo ) );
+				if( params.verbose ) std::cout << "#Set value interpolation constraints: " << profiler << std::endl;
+			}
+
 			if( params.verbose ) std::cout << "All Nodes / Active Nodes / Ghost Nodes / Dirichlet Supported Nodes: " << implicit.tree.allNodes() << " / " << implicit.tree.activeNodes() << " / " << implicit.tree.ghostNodes() << " / " << implicit.tree.dirichletElements() << std::endl;
 			if( params.verbose ) std::cout << "Memory Usage: " << float( MemoryInfo::Usage())/(1<<20) << " MB" << std::endl;
 
@@ -919,9 +987,11 @@ namespace Reconstructor
 				_sInfo.cgDepth = 0 , _sInfo.cascadic = true , _sInfo.vCycles = 1 , _sInfo.iters = params.iters , _sInfo.cgAccuracy = params.cgSolverAccuracy , _sInfo.verbose = params.verbose , _sInfo.showResidual = params.showResidual , _sInfo.showGlobalResidual = SHOW_GLOBAL_RESIDUAL_NONE , _sInfo.sliceBlockSize = 1;
 				_sInfo.baseVCycles = params.baseVCycles;
 				typename FEMIntegrator::template System< Sigs , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
-				implicit.solution = implicit.tree.solveSystem( Sigs() , F , constraints , params.baseDepth , params.solveDepth , _sInfo , std::make_tuple( iInfo ) );
+				if( valueInterpolationInfo ) implicit.solution = implicit.tree.solveSystem( Sigs() , F , constraints , params.baseDepth , params.solveDepth , _sInfo , std::make_tuple( iInfo , valueInterpolationInfo ) );
+				else                         implicit.solution = implicit.tree.solveSystem( Sigs() , F , constraints , params.baseDepth , params.solveDepth , _sInfo , std::make_tuple( iInfo ) );
 				if( params.verbose ) std::cout << "# Linear system solved: " << profiler << std::endl;
 				if( iInfo ) delete iInfo , iInfo = NULL;
+				if( valueInterpolationInfo ) delete valueInterpolationInfo , valueInterpolationInfo = NULL;
 			}
 		}
 

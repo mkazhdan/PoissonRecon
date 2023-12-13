@@ -703,9 +703,9 @@ void Execute( UIntPack< FEMSigs ... > )
 			valueSamples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
 			XInputPointValueStream _pointStream( *pointValueStream , modelToUnitCube );
 			auto ProcessData = []( const Point< Real , Dim > &p , FunctionValueType &d ){ return (Real)1.; };
-			FunctionValueType zeroGradient = functionValueFactory();
+			FunctionValueType zeroValue = functionValueFactory();
 			typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-			pointValueCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionValueType >( sid , tree.spaceRoot() , _pointStream , zeroGradient , Depth.value , *valueSamples , *valueSampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
+			pointValueCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionValueType >( sid , tree.spaceRoot() , _pointStream , zeroValue , Depth.value , *valueSamples , *valueSampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
 			delete pointValueStream;
 		}
 		else pointValueCount = 0;

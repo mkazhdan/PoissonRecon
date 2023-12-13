@@ -59,6 +59,52 @@ template< typename Real , unsigned int Dim , typename Data > using BaseOutputVer
 template< unsigned int FaceDim > using  InputFaceStream =  InputDataStream< Face< FaceDim > >;
 template< unsigned int FaceDim > using OutputFaceStream = OutputDataStream< Face< FaceDim > >;
 
+/////////////////////////////////////
+// Value Interpolation Data Stream //
+/////////////////////////////////////
+template< typename Real , unsigned int Dim >
+struct ValueInterpolationStream : public InputDataStream< VectorTypeUnion< Real , Point< Real , Dim > , Real > >
+{
+	// Functionality to reset the stream to the start
+	virtual void reset( void ) = 0;
+
+	// Functionality to extract the next position/normal pair.
+	// The method returns true if there was another point in the stream to read, and false otherwise
+	virtual bool base_read( Position< Real , Dim > &p , Real &v ) = 0;
+	// Implementation of InputDataStream::read
+	bool base_read( VectorTypeUnion< Real , Point< Real , Dim > , Real > &s ){ return base_read( s.template get<0>() , s.template get<1>() ); }
+};
+
+/////////////////////////////////////////////////
+// Transformed Value Interpolation Data Stream //
+/////////////////////////////////////////////////
+template< typename Real , unsigned int Dim >
+struct TransformedValueInterpolationStream : public ValueInterpolationStream< Real , Dim >
+{
+	// A constructor initialized with the transformation to be applied to the samples, and a sample stream
+	TransformedValueInterpolationStream( XForm< Real , Dim+1 > xForm , ValueInterpolationStream< Real , Dim > &stream ) : _stream(stream) , _xForm(xForm) {}
+
+	// Functionality to reset the stream to the start
+	void reset( void ){ _stream.reset(); }
+
+	// Functionality to extract the next position/normal pair.
+	// The method returns true if there was another point in the stream to read, and false otherwise
+	bool base_read( Position< Real , Dim > &p , Real &v )
+	{
+		VectorTypeUnion< Real , Point< Real , Dim > , Real > s;
+		bool ret = _stream.read( s );
+		if( ret ) p = _xForm * s.template get<0>() , v = s.template get<1>();
+		return ret;
+	}
+
+protected:
+	// A reference to the underlying stream
+	ValueInterpolationStream< Real , Dim > &_stream;
+
+	// The affine transformation to be applied to the positions
+	XForm< Real , Dim+1 > _xForm;
+};
+
 ///////////////////////////
 // Oriented Point Stream //
 ///////////////////////////
