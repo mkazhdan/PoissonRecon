@@ -1751,7 +1751,7 @@ public:
 		void _remapIndices( ConstPointer( node_index_type )oldNodeIndices , size_t newNodeCount )
 		{
 			std::vector< std::pair< node_index_type , node_index_type > > _newSampleSpan( newNodeCount );
-			for( int i=0 ; i<newNodeCount ; i++ ) if( oldNodeIndices[i]!=-1 && oldNodeIndices[i]<_sampleSpan.size() ) _newSampleSpan[i] = _sampleSpan[ oldNodeIndices[i] ];
+			for( size_t i=0 ; i<newNodeCount ; i++ ) if( oldNodeIndices[i]!=-1 && oldNodeIndices[i]<(node_index_type)_sampleSpan.size() ) _newSampleSpan[i] = _sampleSpan[ oldNodeIndices[i] ];
 			_sampleSpan = _newSampleSpan;
 		}
 

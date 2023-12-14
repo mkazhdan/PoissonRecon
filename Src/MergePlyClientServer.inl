@@ -40,7 +40,7 @@ inline void _Copy( FILE *target , FILE *source , size_t sz , size_t bufferSize=1
 	if( sz==-1 )
 	{
 		size_t ioBytes;
-		while( ioBytes=fread( buffer , sizeof(unsigned char) , bufferSize , source ) ) fwrite( buffer , sizeof(unsigned char) , ioBytes , target );
+		while( ( ioBytes=fread( buffer , sizeof(unsigned char) , bufferSize , source ) ) ) fwrite( buffer , sizeof(unsigned char) , ioBytes , target );
 	}
 	else
 	{

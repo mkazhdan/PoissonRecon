@@ -205,7 +205,20 @@ namespace Reconstructor
 			CumulativeDerivativeValues< double , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Real > &data , const CumulativeDerivativeValues< double , Dim , 0 > &dValues ) const
 			{
 				return dValues * weight;
-			};
+			}
+		};
+
+		template< unsigned int Dim >
+		struct ValueInterpolationSystemDual< Dim , double >
+		{
+			typedef double Real;
+			Real weight;
+			ValueInterpolationSystemDual( void ) : weight(0) {}
+			ValueInterpolationSystemDual( Real v ) : weight(v) {}
+			CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Real > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
+			{
+				return dValues * weight;
+			}
 		};
 
 		template< typename Real >

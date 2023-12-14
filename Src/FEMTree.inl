@@ -1683,7 +1683,7 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , Const
 	};
 	tree._spaceRoot->processNodes( nodeFunctor );
 
-	for( node_index_type i=0 ; i<samples.size() ; i++ )
+	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
 	{
 		const FEMTreeNode* leaf = samples[i].node;
 		while( leaf && !tree._isValidSpaceNode( leaf ) ) leaf = leaf->parent;
