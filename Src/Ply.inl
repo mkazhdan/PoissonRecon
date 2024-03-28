@@ -30,14 +30,15 @@ namespace PLY
 {
 	inline int DefaultFileType( void ){ return PLY_ASCII; }
 
-	template<> inline int Type< int           >( void ){ return PLY_INT   ; }
+	template<> inline int Type<          int  >( void ){ return PLY_INT   ; }
+	template<> inline int Type< unsigned int  >( void ){ return PLY_UINT  ; }
 	template<> inline int Type<          char >( void ){ return PLY_CHAR  ; }
 	template<> inline int Type< unsigned char >( void ){ return PLY_UCHAR ; }
 	template<> inline int Type<        float  >( void ){ return PLY_FLOAT ; }
 	template<> inline int Type<        double >( void ){ return PLY_DOUBLE; }
 	template< class Scalar > inline int Type( void )
 	{
-		ERROR_OUT( "Unrecognized scalar type" );
+		ERROR_OUT( "Unrecognized scalar type: " , typeid(Scalar).name() );
 		return -1;
 	}
 

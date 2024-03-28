@@ -55,20 +55,22 @@ namespace VertexFactory
 	{
 		switch( plyType )
 		{
-			case PLY_INT:    return TypeOnDisk::INT;
-			case PLY_UINT:   return TypeOnDisk::UINT;
-			case PLY_CHAR:   return TypeOnDisk::CHAR;
-			case PLY_UCHAR:  return TypeOnDisk::UCHAR;
-			case PLY_FLOAT:  return TypeOnDisk::FLOAT;
-			case PLY_DOUBLE: return TypeOnDisk::DOUBLE;
-			case PLY_INT_8:   return TypeOnDisk::INT_8;
-			case PLY_UINT_8:  return TypeOnDisk::UINT_8;
-			case PLY_INT_16:  return TypeOnDisk::INT_16;
-			case PLY_UINT_16: return TypeOnDisk::UINT_16;
-			case PLY_INT_32:  return TypeOnDisk::INT_32;
-			case PLY_UINT_32: return TypeOnDisk::UINT_32;
-			case PLY_INT_64:  return TypeOnDisk::INT_64;
-			case PLY_UINT_64: return TypeOnDisk::UINT_64;
+			case PLY_INT:       return TypeOnDisk::INT;
+			case PLY_UINT:      return TypeOnDisk::UINT;
+			case PLY_CHAR:      return TypeOnDisk::CHAR;
+			case PLY_UCHAR:     return TypeOnDisk::UCHAR;
+			case PLY_FLOAT:     return TypeOnDisk::FLOAT;
+			case PLY_DOUBLE:    return TypeOnDisk::DOUBLE;
+			case PLY_INT_8:     return TypeOnDisk::INT_8;
+			case PLY_UINT_8:    return TypeOnDisk::UINT_8;
+			case PLY_INT_16:    return TypeOnDisk::INT_16;
+			case PLY_UINT_16:   return TypeOnDisk::UINT_16;
+			case PLY_INT_32:    return TypeOnDisk::INT_32;
+			case PLY_UINT_32:   return TypeOnDisk::UINT_32;
+			case PLY_INT_64:    return TypeOnDisk::INT_64;
+			case PLY_UINT_64:   return TypeOnDisk::UINT_64;
+			case PLY_FLOAT_32:  return TypeOnDisk::FLOAT;
+			case PLY_FLOAT_64:  return TypeOnDisk::DOUBLE;
 			default: ERROR_OUT( "Unrecognized type: " , plyType );
 		}
 		return TypeOnDisk::UNKNOWN;
@@ -428,8 +430,9 @@ namespace VertexFactory
 	template< typename Real >
 	DynamicFactory< Real >::DynamicFactory( const std::vector< PlyProperty > &plyProperties )
 	{
-		_namesAndTypesOnDisk.resize( plyProperties.size() );
-		for( int i=0 ; i<plyProperties.size() ; i++ ) _namesAndTypesOnDisk[i] = std::pair< std::string , TypeOnDisk >( plyProperties[i].name , FromPlyType( plyProperties[i].external_type ) );
+		for( int i=0 ; i<plyProperties.size() ; i++ )
+			if( !plyProperties[i].is_list ) _namesAndTypesOnDisk.push_back( std::pair< std::string , TypeOnDisk >( plyProperties[i].name , FromPlyType( plyProperties[i].external_type ) ) );
+			else WARN( "List property not supported: " , plyProperties[i].name );
 		_realTypeOnDisk = true;
 		for( unsigned int i=0 ; i<_namesAndTypesOnDisk.size() ; i++ ) _realTypeOnDisk &= GetTypeOnDisk< Real>()!=_namesAndTypesOnDisk[i].second;
 	}
