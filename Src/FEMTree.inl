@@ -1584,7 +1584,7 @@ template< unsigned int Dim , class Real >
 template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
 {
-	_sampleSpan.resize( tree.nodesSize() );
+	_sampleSpan.resize( tree._nodeCount );
 	ThreadPool::Parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
 	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
 	{
@@ -1648,7 +1648,7 @@ template< unsigned int Dim , class Real >
 template< unsigned int PointD , typename ConstraintDual , typename SystemDual >
 void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
 {
-	_sampleSpan.resize( tree.nodesSize() );
+	_sampleSpan.resize( tree._nodeCount );
 	ThreadPool::Parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
 	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
 	{
