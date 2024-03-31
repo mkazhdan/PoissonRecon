@@ -74,7 +74,7 @@ cmdLineParameter< int >
 #endif // !FAST_COMPILE
 	Depth( "depth" , 8 ) ,
 	KernelDepth( "kernelDepth" ) ,
-	SolveDepth( "solveDepth" ) ,
+	SolveDepth( "solveDepth" , -1 ) ,
 	Iters( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 5 ) ,
 	BaseDepth( "baseDepth" ) ,
@@ -594,12 +594,6 @@ int main( int argc , char* argv[] )
 	{
 		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
-	}
-	if( !SolveDepth.set ) SolveDepth.value = Depth.value;
-	if( SolveDepth.value>Depth.value )
-	{
-		WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
-		SolveDepth.value = Depth.value;
 	}
 
 	ValueWeight.value    *= (float)Reconstructor::SSD::WeightMultipliers[0];

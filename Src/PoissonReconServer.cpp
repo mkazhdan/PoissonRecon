@@ -73,7 +73,7 @@ cmdLineParameter< int >
 	BaseVCycles( "vCycles" , 1 ) ,
 	KernelDepth( "kernelDepth" ) ,
 	BaseDepth( "baseDepth" , 5 ) ,
-	SolveDepth( "solveDepth" ) ,
+	SolveDepth( "solveDepth" , -1 ) ,
 	PadSize( "pad" , 4 ) ,
 	BufferSize( "buffer" , BUFFER_IO ) ,
 	Depth( "depth" , 8 ) ,
@@ -441,7 +441,6 @@ int main( int argc , char* argv[] )
 		clientReconInfo.confidence = Confidence.value;
 		clientReconInfo.confidenceBias = ConfidenceBias.value;
 		clientReconInfo.kernelDepth = KernelDepth.value;
-		clientReconInfo.solveDepth = SolveDepth.value;
 		clientReconInfo.samplesPerNode = SamplesPerNode.value;
 		clientReconInfo.dataX = DataX.value;
 		clientReconInfo.density = Density.set;
@@ -480,7 +479,7 @@ int main( int argc , char* argv[] )
 			clientReconInfo.kernelDepth = clientReconInfo.reconstructionDepth;
 		}
 
-		clientReconInfo.solveDepth = SolveDepth.set ? SolveDepth.value : clientReconInfo.reconstructionDepth;
+		clientReconInfo.solveDepth = ( SolveDepth.set && SolveDepth.value!=-1 ) ? SolveDepth.value : clientReconInfo.reconstructionDepth;
 		if( clientReconInfo.solveDepth>clientReconInfo.reconstructionDepth )
 		{
 			WARN( "Solve depth cannot exceed reconstruction depth: " , clientReconInfo.solveDepth , " <= " , clientReconInfo.reconstructionDepth );

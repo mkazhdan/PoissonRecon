@@ -75,7 +75,7 @@ cmdLineParameter< int >
 	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
 #endif // !FAST_COMPILE
 	Depth( "depth" , 8 ) ,
-	SolveDepth( "solveDepth" ) ,
+	SolveDepth( "solveDepth" , -1 ) ,
 	Iters( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 5 ) ,
 	BaseDepth( "baseDepth" ) ,
@@ -678,7 +678,7 @@ void Execute( UIntPack< FEMSigs ... > )
 			if( Width.value>0 )
 			{
 				modelToUnitCube = GetBoundingBoxXForm( min , max , (Real)Width.value , (Real)( Scale.value>0 ? Scale.value : 1. ) , Depth.value ) * modelToUnitCube;
-				if( !SolveDepth.set ) SolveDepth.value = Depth.value;
+				if( !SolveDepth.set || SolveDepth.value==-1 ) SolveDepth.value = Depth.value;
 				if( SolveDepth.value>Depth.value )
 				{
 					WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
@@ -985,7 +985,7 @@ int main( int argc , char* argv[] )
 		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
-	if( !SolveDepth.set ) SolveDepth.value = Depth.value;
+	if( !SolveDepth.set || SolveDepth.value==-1 ) SolveDepth.value = Depth.value;
 	if( SolveDepth.value>Depth.value )
 	{
 		WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
