@@ -55,11 +55,18 @@ inline void _Copy( FILE *target , FILE *source , size_t sz , size_t bufferSize=1
 	DeletePointer( buffer );
 }
 
+template< typename Factory >
+size_t SizeOnDisk( const Factory &factory )
+{
+	size_t sizeOnDisk = 0;
+	if( factory.isStaticallyAllocated() ) for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyStaticWriteProperty(i).external_type ];
+	else                                  for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyWriteProperty(i).external_type ];
+	return sizeOnDisk;
+}
+
 template< typename Index , typename Factory >
 void _OffsetPolygons( const Factory &factory , std::string in , std::string out , size_t offset , Profiler &profiler )
 {
-#if 1
-//	PlyProperty faceProperty( "vertex_indices" , PLY::DefaultFileType< Index >() , PLY::DefaultFileType< Index >() , sizeof(int) , 1 , PLY::DefaultFileType< int >() , PLY::DefaultFileType< int >() , 0 );
 
 	int ft;
 	std::vector< std::string > comments;
@@ -67,11 +74,7 @@ void _OffsetPolygons( const Factory &factory , std::string in , std::string out 
 	std::vector< std::tuple< std::string , size_t , std::vector< PlyProperty > > > _elems;
 	PlyFile *inPly = PLY::ReadHeader( in , ft , _elems );
 
-	size_t sizeOnDisk = 0;
-	if( factory.isStaticallyAllocated() )
-		for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyStaticWriteProperty(i).external_type ];
-	else
-		for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyWriteProperty(i).external_type ];
+	size_t sizeOnDisk = SizeOnDisk( factory );
 
 	// Skip the vertices
 	{
@@ -130,49 +133,6 @@ void _OffsetPolygons( const Factory &factory , std::string in , std::string out 
 	}
 	delete inPly;
 	delete outPly;
-#else
-	typedef typename Factory::VertexType Vertex;
-	std::vector< Vertex > vertices;
-	std::vector< std::vector< Index > > polygons;
-
-	int ft;
-	std::vector< std::string > comments;
-
-	PLY::ReadPolygons< Factory , Index >( in , factory , vertices , polygons , ft , comments );
-	std::vector< std::tuple< std::string , size_t , std::vector< PlyProperty > > > elems(1);
-	std::get<0>( elems[0] ) = std::string( "face" );
-	std::get<1>( elems[0] ) = polygons.size();
-	std::get<2>( elems[0] ).resize(1);
-	std::get<2>( elems[0] )[0] = PLY::Face< Index >::Properties[0];
-
-	PlyFile *ply = PLY::WriteHeader( out , ft , elems , comments );
-
-	{
-		PLY::Face< Index > face;
-		unsigned int maxFaceVerts=3;
-		face.nr_vertices = 3;
-		face.vertices = new Index[ face.nr_vertices ];
-
-		ply->put_element_setup( std::string( "face" ) );
-		for( size_t i=0 ; i<polygons.size() ; i++ )
-		{
-			if( polygons[i].size()>maxFaceVerts )
-			{
-				delete[] face.vertices;
-				maxFaceVerts = (unsigned int)polygons[i].size();
-				face.vertices=new Index[ maxFaceVerts ];
-			}
-			face.nr_vertices = (unsigned int)polygons[i].size();
-			for( size_t j=0 ; j<face.nr_vertices ; j++ ) face.vertices[j] = (Index)(polygons[i][j] + offset);
-			ply->put_element( (void *)&face );
-		}
-
-		profiler.update();
-
-		delete[] face.vertices;
-	}
-	delete ply;
-#endif
 }
 
 
@@ -228,7 +188,7 @@ void _RunServer
 			profiler.update();
 		}
 		offsets[0] = 0;
-		for( unsigned int i=1 ; i<=sharedVertexCounts.size() ; i++ ) offsets[i] = offsets[i-1] + vNum[i-1] - sharedVertexCounts[i-1];
+		for( unsigned int i=1 ; i<=sharedVertexCounts.size() ; i++ ) offsets[i] = clientMergePlyInfo.keepSeparate ? 0 : offsets[i-1] + vNum[i-1] - sharedVertexCounts[i-1];
 	}
 
 	// Strip out the polygons (though perhaps we should just have the reconstruction code do this).
@@ -237,12 +197,22 @@ void _RunServer
 #endif // SHOW_WARNINGS
 
 	_IndexType idxType;
-	if( offsets.back()+vNum.back()>std::numeric_limits< int >::max() )
 	{
-		if( offsets.back()+vNum.back()>std::numeric_limits< unsigned int >::max () ) idxType = LONG_LONG;
-		else idxType = U_INT;
+		size_t maxV;
+		if( clientMergePlyInfo.keepSeparate )
+		{
+			maxV = 0;
+			for( unsigned int i=0 ; i<vNum.size() ; i++ ) maxV = std::max< size_t >( maxV , vNum[i] );
+		}
+		else maxV = offsets.back()+vNum.back();
+
+		if( maxV>std::numeric_limits< int >::max() )
+		{
+			if( maxV>std::numeric_limits< unsigned int >::max () ) idxType = LONG_LONG;
+			else idxType = U_INT;
+		}
+		else idxType = INT;
 	}
-	else idxType = INT;
 
 	if( clientMergePlyInfo.verbose ) std::cout << "Got mesh info: " << profiler(true) << std::endl;
 
@@ -285,19 +255,30 @@ void _RunServer
 			default: ERROR_OUT( "Unrecognized output type" );
 		}
 	}
-	PlyFile *outPly = PLY::WriteHeader( out , PLY_BINARY_NATIVE , elems );
+
+	std::vector< PlyFile * > outPly( clientMergePlyInfo.keepSeparate ? sharedVertexCounts.size()+1 : 1 , NULL );
+	if( clientMergePlyInfo.keepSeparate )
+		for( unsigned int i=0 ; i<=sharedVertexCounts.size() ; i++ )
+		{
+			std::string fileName = out + std::string( "." ) + std::to_string(i) + std::string( ".ply" );
+			std::get<1>( elems[0] ) = vNum[i];
+			std::get<1>( elems[1] ) = fNum[i];
+			std::pair< unsigned , unsigned int > shared;
+			shared.first  = i>0                         ? sharedVertexCounts[i-1] : 0;
+			shared.second = i<sharedVertexCounts.size() ? sharedVertexCounts[i  ] : 0;
+			std::vector< std::string > comments(1);
+			comments[0] = std::string( "Shared: " ) + std::to_string( shared.first ) + std::string( "|" ) + std::to_string( shared.second );
+			outPly[i] = PLY::WriteHeader( fileName , PLY_BINARY_NATIVE , elems , comments );
+		}
+	else outPly[0] = PLY::WriteHeader( out , PLY_BINARY_NATIVE , elems );
 
 	// Write out the (merged) vertices
 	{
 		Pointer( char ) vBuffer = NewPointer< char >( factory.bufferSize() );
 
-		outPly->put_element_setup( std::string( "vertex" ) );
+		for( unsigned int i=0 ; i<outPly.size() ; i++ ) outPly[i]->put_element_setup( std::string( "vertex" ) );
 
-		size_t sizeOnDisk = 0;
-		if( factory.isStaticallyAllocated() )
-			for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyStaticWriteProperty(i).external_type ];
-		else
-			for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyWriteProperty(i).external_type ];
+		size_t sizeOnDisk = SizeOnDisk( factory );
 
 		std::vector< Vertex > sharedVertices;
 		for( unsigned int i=0 ; i<=sharedVertexCounts.size() ; i++ )
@@ -308,7 +289,7 @@ void _RunServer
 
 			for( unsigned int j=0 ; j<std::get<2>( elems[0] ).size() ; j++ ) inPly->get_property( std::get<0>( elems[0] ) , &std::get<2>( elems[0] )[j] );
 
-			// Merge the start vertices
+			// Merge the start vertices with the end vertices from the previous client
 			Vertex v = factory();
 			for( unsigned int j=0 ; j<sharedVertices.size() ; j++ )
 			{
@@ -316,7 +297,14 @@ void _RunServer
 				{
 					inPly->get_element( &v );
 					sharedVertices[j] = ( sharedVertices[j] + v ) / (Real)2.;
-					outPly->put_element( (void*)&sharedVertices[j] );
+					if( clientMergePlyInfo.keepSeparate )
+					{
+						// Write the merged vertices into the end of the previous
+						if( i ) outPly[i-1]->put_element( (void*)&sharedVertices[j] );
+						// Write the merged vertices into the beginning of the current
+						outPly[i]->put_element( (void*)&sharedVertices[j] );
+					}
+					else outPly[0]->put_element( (void*)&sharedVertices[j] );
 				}
 				else
 				{
@@ -324,7 +312,14 @@ void _RunServer
 					factory.fromBuffer( vBuffer , v );
 					sharedVertices[j] = ( sharedVertices[j] + v ) / (Real)2.;
 					factory.toBuffer( sharedVertices[j] , vBuffer );
-					outPly->put_element( PointerAddress( vBuffer ) );
+					if( clientMergePlyInfo.keepSeparate )
+					{
+						// Write the merged vertices into the end of the previous
+						if( i ) outPly[i-1]->put_element( PointerAddress( vBuffer ) );
+						// Write the merged vertices into the beginning of the current
+						outPly[i]->put_element( PointerAddress( vBuffer ) );
+					}
+					else outPly[0]->put_element( PointerAddress( vBuffer ) );
 				}
 			}
 
@@ -332,7 +327,7 @@ void _RunServer
 			{
 				size_t vNum = std::get<1>( _elems[0] ) - sharedVertices.size();
 				if( i<sharedVertexCounts.size() ) vNum -= sharedVertexCounts[i];
-				_Copy( outPly->fp , inPly->fp , vNum*sizeOnDisk , clientMergePlyInfo.bufferSize );
+				_Copy( outPly[ clientMergePlyInfo.keepSeparate ? i : 0 ]->fp , inPly->fp , vNum*sizeOnDisk , clientMergePlyInfo.bufferSize );
 			}
 
 			// Buffer the end vertices
@@ -350,6 +345,7 @@ void _RunServer
 					}
 				}
 			}
+			else sharedVertices.resize(0);
 			profiler.update();
 
 			delete inPly;
@@ -361,20 +357,22 @@ void _RunServer
 	profiler.reset();
 	// Write out the polygons
 	{
-		outPly->put_element_setup( std::string( "face" ) );
+		for( unsigned int i=0 ; i<outPly.size() ; i++ )	outPly[i]->put_element_setup( std::string( "face" ) );
+
 		for( unsigned int i=0 ; i<=sharedVertexCounts.size() ; i++ )
 		{
 			std::vector< std::tuple< std::string , size_t , std::vector< PlyProperty > > > _elems;
 			int ft;
 			PlyFile *inPly = PLY::ReadHeader( TempPolygonFile(i) , ft , _elems );
 
-			_Copy( outPly->fp , inPly->fp , -1 , clientMergePlyInfo.bufferSize );
+			_Copy( outPly[ clientMergePlyInfo.keepSeparate ? i : 0 ]->fp , inPly->fp , -1 , clientMergePlyInfo.bufferSize );
 			profiler.update();
 			delete inPly;
 		}
 		if( clientMergePlyInfo.verbose ) std::cout << "Merged polygons: " << profiler(true) << std::endl;
 	}
-	delete outPly;
+	for( unsigned int i=0 ; i<outPly.size() ; i++ ) delete outPly[i];
+
 
 	for( unsigned int i=0 ; i<=sharedVertexCounts.size() ; i++ )
 	{
@@ -509,6 +507,7 @@ ClientMergePlyInfo::ClientMergePlyInfo( BinaryStream &stream )
 		auxProperties.resize(sz);
 		for( size_t i=0 ; i<sz ; i++ ) auxProperties[i].read( stream );
 	}
+	if( !ReadBool( keepSeparate ) ) ERROR_OUT( "Failed to read keep-separate flag" );
 	if( !ReadBool( verbose ) ) ERROR_OUT( "Failed to read verbose flag" );
 }
 
@@ -526,5 +525,6 @@ void ClientMergePlyInfo::write( BinaryStream &stream ) const
 		stream.write( sz );
 		for( size_t j=0 ; j<sz ; j++ ) auxProperties[j].write( stream );
 	}
+	WriteBool( keepSeparate );
 	WriteBool( verbose );
 }

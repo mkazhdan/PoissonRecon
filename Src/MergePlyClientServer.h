@@ -41,7 +41,7 @@ namespace MergePlyClientServer
 	{
 		std::vector< PlyProperty > auxProperties;
 		size_t bufferSize;
-		bool verbose;
+		bool keepSeparate , verbose;
 
 		ClientMergePlyInfo( void );
 		ClientMergePlyInfo( BinaryStream &stream );

@@ -99,6 +99,7 @@ cmdLineReadable
 	LinearFit( "linearFit" ) ,
 	OutputVoxelGrid( "grid" ) ,
 	OutputBoundarySlices( "boundary" ) ,
+	KeepSeparate( "keepSeparate" ) ,
 	OutputSolution( "solution" ) ,
 	ShowDiscontinuity( "showDiscontinuity" );
 
@@ -122,6 +123,7 @@ cmdLineReadable* params[] =
 	&FilesPerDir ,
 	&TempDir ,
 	&Out ,
+	&KeepSeparate ,
 #ifdef FAST_COMPILE
 #else // !FAST_COMPILE
 	&Degree , &BType ,
@@ -147,7 +149,7 @@ void ShowUsage( char* ex )
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input points>\n" , In.name );
 	printf( "\t --%s <networked temporary directory>\n" , TempDir.name );
-	printf( "\t --%s <output polygon mesh>\n" , Out.name );
+	printf( "\t --%s <output polygon mesh (header)>\n" , Out.name );
 	printf( "\t --%s <client count>\n" , ClientCount.name );
 
 	printf( "\t[--%s <preferred address prefix>]\n" , AddressPrefix.name );
@@ -197,6 +199,7 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s]\n" , OutputBoundarySlices.name );
 	printf( "\t[--%s]\n" , OutputSolution.name );
 	printf( "\t[--%s]\n" , ShowDiscontinuity.name );
+	printf( "\t[--%s]\n" , KeepSeparate.name );
 
 	printf( "\t[--%s]\n" , Performance.name );
 }
@@ -526,6 +529,7 @@ int main( int argc , char* argv[] )
 		}
 		else clientMergePlyInfo.auxProperties = pointSetInfoAndPartition.first.auxiliaryProperties;
 		clientMergePlyInfo.bufferSize = BufferSize.value;
+		clientMergePlyInfo.keepSeparate = KeepSeparate.set;
 		clientMergePlyInfo.verbose = Verbose.value!=0;
 		Merge< Real , Dim >( sharedVertexCounts , header , clientSockets , clientMergePlyInfo );
 

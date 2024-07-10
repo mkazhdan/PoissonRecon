@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 16.05)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 16.06)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -33,6 +33,7 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <b>Source Code:</b>
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version16.05/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version16.05/">V16.05</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version16.04/">V16.04</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version16.03/">V16.03</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version16.02/">V16.02</a>,
@@ -276,8 +277,8 @@ vertices with the x-, y-, and z-coordinates of the positions encoded by the prop
 The specified (networked) path is assumed to accessible to the server and all clients.
 </dd>
 
-<dt><b>--out</b> &lt;<i>output polygon mesh</i>&gt;</dt>
-<dd> This string is the name of the file to which the polygon mesh will be written.<BR>
+<dt><b>--out</b> &lt;<i>output polygon mesh (header)</i>&gt;</dt>
+<dd> This string is the name of the file to which the polygon mesh will be written (or the header, in the case <b>--keepSeparate</b> is specified).<BR>
 The file is written in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
 </dd>
 
@@ -385,6 +386,10 @@ The default value for this parameter is 0.
 
 </dd><dt>[<b>--noFuse</b>]
 </dt><dd> Enabling this flag keeps the server from fusing shared vertices across slabs. (The reconstructions from the different clients will still be merged into a single .ply file.)
+</dd>
+
+</dd><dt>[<b>--keepSeparate</b>]
+</dt><dd> Enabling this flag keeps the reconstructions computed by the clients separate. In this case, the value of  <b>--out</b> is treated as a header and the the geometries are output to files <code>&lt;output header&gt;.&lt;client index&gt;.ply</code>.
 </dd>
 
 </DETAILS>
@@ -1475,6 +1480,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version16.05/">Version 16.05</a>:
 <OL>
 <LI> Fixed <code>ChunkPly</code> bug.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version16.05/">Version 16.06</a>:
+<OL>
+<LI> Added <code>--keepSeparate</code> flag to <code>PoissonReconServer</code> to output non-fused geometry..
 </OL>
 
 </DETAILS>
