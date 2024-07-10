@@ -192,7 +192,7 @@ int main( int argc , char* argv[] )
 		Reconstruct< Real , Dim >( serverSockets );
 #endif // FAST_COMPILE
 
-		Merge< Real , Dim >( serverSockets );
+		if constexpr( Dim==3 ) Merge< Real , Dim >( serverSockets );
 
 		for( unsigned int i=0 ; i<serverSockets.size() ; i++ ) CloseSocket( serverSockets[i] );
 	}

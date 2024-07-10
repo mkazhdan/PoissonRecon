@@ -88,6 +88,7 @@ cmdLineParameter< int >
 #else // !_OPENMP
 	ParallelType( "parallel" , (int)ThreadPool::THREAD_POOL ) ,
 #endif // _OPENMP
+	AlignmentDir( "alignDir" , DEFAULT_DIMENSION-1 ) ,
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
@@ -138,6 +139,7 @@ cmdLineReadable* params[] =
 	&ScheduleType ,
 	&ThreadChunkSize ,
 	&LowDepthCutOff ,
+	&AlignmentDir ,
 	NULL
 };
 
@@ -178,6 +180,7 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
 	printf( "\t[--%s <normal confidence bias exponent>=%f]\n" , ConfidenceBias.name , ConfidenceBias.value );
 	printf( "\t[--%s <low depth cut-off>=%f]\n" , LowDepthCutOff.name , LowDepthCutOff.value );
+	printf( "\t[--%s <slice direction>=%d]\n" , AlignmentDir.name , AlignmentDir.value );
 	printf( "\t[--%s]\n" , NonManifold.name );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
 	printf( "\t[--%s <cg solver accuracy>=%g]\n" , CGSolverAccuracy.name , CGSolverAccuracy.value );
@@ -328,6 +331,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	sParams.kernelDepth = (unsigned int)KernelDepth.value;
 	sParams.baseVCycles = (unsigned int)BaseVCycles.value;
 	sParams.iters = (unsigned int)Iters.value;
+	sParams.alignDir = (unsigned int)AlignmentDir.value;
 
 	meParams.linearFit = !NonLinearFit.set;
 	meParams.outputGradients = Gradients.set;

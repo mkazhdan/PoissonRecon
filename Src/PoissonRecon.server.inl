@@ -68,7 +68,7 @@ protected:
 		FEMTree< Dim-1 , Real > *sliceTree;
 		XForm< Real , Dim > xForm;
 		DenseNodeData< Real , SliceSigs > solution , dSolution;
-		std::vector< typename LevelSetExtractor< Real , Dim-1 >::SliceValues > sliceValues , dSliceValues;
+		std::vector< std::conditional_t< Dim==3 , typename LevelSetExtractor< Real , 2 >::SliceValues , char > > sliceValues , dSliceValues;
 		std::vector< Point< Real , Dim-1 > > vertices;
 
 		_State6( void ) : sliceTree(NULL) {}
@@ -355,7 +355,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 	state4.constraints = state4.tree.initDenseNodeData( Sigs() );
 
 	{
-		Real targetValue = (Real)0.5;
+		Real targetValue = clientReconInfo.targetValue;
 		state4.iInfo = new ApproximatePointInterpolationInfo( Reconstructor::Poisson::ConstraintDual< Dim , Real >( targetValue , clientReconInfo.pointWeight * cumulativePointWeight.value() ) , Reconstructor::Poisson::SystemDual< Dim , Real >( clientReconInfo.pointWeight * cumulativePointWeight.value() ) , true );
 		state4.iInfo->iData.reserve( state4.tree.nodesSize() );
 	}
@@ -566,6 +566,22 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 		isoValue = (Real)( isoInfo.first / isoInfo.second );
 	}
 
+	if( clientReconInfo.outputSolution )
+	{
+		std::string outFileName = std::string( "solution.tree" );
+		if( clientReconInfo.outDir.length() ) outFileName = PointPartition::FileDir( clientReconInfo.outDir , outFileName );
+
+		FILE* fp = fopen( outFileName.c_str() , "wb" );
+		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , outFileName );
+		FileStream fs(fp);
+		FEMTree< Dim , Real >::WriteParameter( fs );
+		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
+		XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
+		state4.tree.write( fs , voxelToUnitCube , false );
+		state4.solution.write( fs );
+		fclose( fp );
+	}
+
 	return phaseInfo;
 }
 
@@ -578,7 +594,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 
 	sharedVertexCounts.resize( _clientSockets.size()-1 );
 
-	for( unsigned int i=0 ; i<_clientSockets.size()-1 ; i++ )
+	if constexpr( Dim==3 ) for( unsigned int i=0 ; i<_clientSockets.size()-1 ; i++ )
 	{
 		_State6 state6;
 

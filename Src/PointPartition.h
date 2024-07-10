@@ -36,10 +36,10 @@ DAMAGE.
 #include "MyMiscellany.h"
 #include "Ply.h"
 #include "DataStream.h"
+#include "PointExtent.h"
 
 #define ADAPTIVE_PADDING			// Only pushes padding points deep enough so that they are "close" to the slab in terms of units at that depth
 #define BUFFER_IO (1<<14)			// Buffer the points before reading/writing
-//#define AXIS_ONLY_ALIGNMENT			// Only align to the three coordinate axes (should be disabled)
 
 
 namespace PointPartition
@@ -60,22 +60,6 @@ namespace PointPartition
 		void write( BinaryStream &stream ) const;
 	};
 
-	template< typename Real >
-	struct Extent
-	{
-#ifdef AXIS_ONLY_ALIGNMENT
-		static const unsigned int DirectionN = 3;
-#else // !AXIS_ONLY_ALIGNMENT
-		static const unsigned int DirectionN = 9;
-#endif // AXIS_ONLY_ALIGNMENT
-		static const Point< Real , 3 > Directions[ DirectionN ];
-		static const unsigned int Frames[DirectionN][3];
-		std::pair< Real , Real > extents[DirectionN];
-
-		Extent( void );
-		void add( Point< Real , 3 > p );
-		Extent operator + ( const Extent &e ) const;
-	};
 
 	struct Partition
 	{

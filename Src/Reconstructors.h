@@ -33,6 +33,7 @@ DAMAGE.
 #include "MyMiscellany.h"
 #include "DataStream.imp.h"
 #include "FEMTree.h"
+#include "PointExtent.h"
 
 namespace Reconstructor
 {
@@ -238,6 +239,7 @@ namespace Reconstructor
 			Real valueInterpolationWeight;
 			Real samplesPerNode;
 			Real cgSolverAccuracy;
+			Real targetValue;
 			unsigned int depth;
 			unsigned int solveDepth;
 			unsigned int baseDepth;
@@ -246,13 +248,14 @@ namespace Reconstructor
 			unsigned int envelopeDepth;
 			unsigned int baseVCycles;
 			unsigned int iters;
+			unsigned int alignDir;
 
 			SolutionParameters( void ) :
 				verbose(false) , dirichletErode(false) , outputDensity(false) , exactInterpolation(false) , showResidual(false) ,
 				scale((Real)1.1) , confidence((Real)0.) , confidenceBias((Real)0.) , lowDepthCutOff((Real)0.) , width((Real)0.) ,
-				pointWeight((Real)0.) , valueInterpolationWeight((Real)0.) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) ,
+				pointWeight((Real)0.) , valueInterpolationWeight((Real)0.) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) , targetValue((Real)0.) ,
 				depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) ,
-				envelopeDepth((unsigned int)-1) , baseVCycles((unsigned int)1) , iters((unsigned int)8)
+				envelopeDepth((unsigned int)-1) , baseVCycles((unsigned int)1) , iters((unsigned int)8) , alignDir(0)
 			{}
 		};
 
@@ -416,12 +419,13 @@ namespace Reconstructor
 			unsigned int kernelDepth;
 			unsigned int baseVCycles;
 			unsigned int iters;
+			unsigned int alignDir;
 
 			SolutionParameters( void ) :
 				verbose(false) , outputDensity(false) , exactInterpolation(false) , showResidual(false) ,
 				scale((Real)1.1) , confidence((Real)0.) , confidenceBias((Real)0.) , lowDepthCutOff((Real)0.) , width((Real)0.) ,
 				pointWeight((Real)WeightMultipliers[0]) , gradientWeight((Real)WeightMultipliers[1]) , biLapWeight((Real)WeightMultipliers[2]) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) ,
-				depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) ,
+				depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) , alignDir(0) ,
 				baseVCycles((unsigned int)1) , iters((unsigned int)8)
 			{}
 
@@ -453,56 +457,38 @@ namespace Reconstructor
 		};
 	};
 
-	template< class Real , unsigned int Dim >
-	XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor )
-	{
-		Point< Real , Dim > center = ( max + min ) / 2;
-		Real scale = max[0] - min[0];
-		for( int d=1 ; d<Dim ; d++ ) scale = std::max< Real >( scale , max[d]-min[d] );
-		scale *= scaleFactor;
-		for( int i=0 ; i<Dim ; i++ ) center[i] -= scale/2;
-		XForm< Real , Dim+1 > tXForm = XForm< Real , Dim+1 >::Identity() , sXForm = XForm< Real , Dim+1 >::Identity();
-		for( int i=0 ; i<Dim ; i++ ) sXForm(i,i) = (Real)(1./scale ) , tXForm(Dim,i) = -center[i];
-		unsigned int maxDim = 0;
-		for( int i=1 ; i<Dim ; i++ ) if( (max[i]-min[i])>(max[maxDim]-min[maxDim]) ) maxDim = i;
-		XForm< Real , Dim+1 > rXForm;
-		for( int i=0 ; i<Dim ; i++ ) rXForm((maxDim+i)%Dim,(Dim-1+i)%Dim) = 1;
-		rXForm(Dim,Dim) = 1;
-		return rXForm * sXForm * tXForm;
-	}
-
-	template< class Real , unsigned int Dim >
-	void SetBoundingBox( InputDataStream< Point< Real , Dim > > &stream , Point< Real , Dim >& min , Point< Real , Dim >& max )
+	template< class Real , unsigned int Dim , bool ExtendedAxes >
+	PointExtent::Extent< Real , Dim , ExtendedAxes > GetExtent( InputDataStream< Point< Real , Dim > > &stream )
 	{
 		Point< Real , Dim > p;
-		for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::numeric_limits< Real >::infinity() , max[d] = -std::numeric_limits< Real >::infinity();
-		while( stream.read( p ) ) for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( min[d] , p[d] ) , max[d] = std::max< Real >( max[d] , p[d] );
+		PointExtent::Extent< Real , Dim , ExtendedAxes > e;
+		while( stream.read( p ) ) e.add( p );
 		stream.reset();
+		return e;
 	}
 
-	template< class Real , unsigned int Dim , typename AuxData >
-	void SetBoundingBox( InputDataStream< VectorTypeUnion< Real , Point< Real , Dim > , AuxData > > &stream , AuxData d , Point< Real , Dim >& min , Point< Real , Dim >& max )
+	template< class Real , unsigned int Dim , bool ExtendedAxes , typename AuxData >
+	PointExtent::Extent< Real , Dim , ExtendedAxes > GetExtent( InputDataStream< VectorTypeUnion< Real , Point< Real , Dim > , AuxData > > &stream , AuxData d )
 	{
 		VectorTypeUnion< Real , Point< Real , Dim > , AuxData > p( Point< Real , Dim >() , d );
-		for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::numeric_limits< Real >::infinity() , max[d] = -std::numeric_limits< Real >::infinity();
-		while( stream.read( p ) ) for( unsigned int d=0 ; d<Dim ; d++ ) min[d] = std::min< Real >( min[d] , p.template get<0>()[d] ) , max[d] = std::max< Real >( max[d] , p.template get<0>()[d] );
+		PointExtent::Extent< Real , Dim , ExtendedAxes > e;
+		while( stream.read( p ) ) e.add( p.template get<0>() );
 		stream.reset();
+		return e;
 	}
 
-	template< class Real , unsigned int Dim >
-	XForm< Real , Dim+1 > GetPointXForm( InputDataStream< Point< Real , Dim > > &stream , Real scaleFactor )
+	template< class Real , unsigned int Dim , bool ExtendedAxes >
+	XForm< Real , Dim+1 > GetPointXForm( InputDataStream< Point< Real , Dim > > &stream , Real scaleFactor , unsigned int dir )
 	{
-		Point< Real , Dim > min , max;
-		SetBoundingBox( stream , min , max );
-		return GetBoundingBoxXForm( min , max , scaleFactor );
+		PointExtent::Extent< Real , Dim , ExtendedAxes > e = GetExtent< Real , Dim , ExtendedAxes >( stream );
+		return PointExtent::GetBoundingBoxXForm( e , scaleFactor , dir );
 	}
 
-	template< class Real , unsigned int Dim , typename AuxData >
-	XForm< Real , Dim+1 > GetPointXForm( InputDataStream< VectorTypeUnion< Real , Point< Real , Dim > , AuxData > > &stream , AuxData d , Real scaleFactor )
+	template< class Real , unsigned int Dim , bool ExtendedAxes , typename AuxData >
+	XForm< Real , Dim+1 > GetPointXForm( InputDataStream< VectorTypeUnion< Real , Point< Real , Dim > , AuxData > > &stream , AuxData d , Real scaleFactor , unsigned int dir )
 	{
-		Point< Real , Dim > min , max;
-		SetBoundingBox( stream , d , min , max );
-		return GetBoundingBoxXForm( min , max , scaleFactor );
+		PointExtent::Extent< Real , Dim , ExtendedAxes > e = GetExtent< Real , Dim , ExtendedAxes , AuxData >( stream , d );
+		return PointExtent::GetBoundingBoxXForm( e , scaleFactor , dir );
 	}
 
 	template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
@@ -627,7 +613,7 @@ namespace Reconstructor
 		std::vector< typename FEMTree< Dim , Real >::PointSample > *samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
 		std::vector< NormalAndAuxData > *sampleNormalAndAuxData = NULL;
 
-		Real targetValue = (Real)0.5;
+		Real targetValue = params.targetValue;
 
 		// Read in the samples (and auxiliary data)
 		{
@@ -636,7 +622,7 @@ namespace Reconstructor
 			pointStream.reset();
 			sampleNormalAndAuxData = new std::vector< NormalAndAuxData >();
 
-			modelToUnitCube = params.scale>0 ? GetPointXForm< Real , Dim >( pointStream , zeroNormalAndAuxData , params.scale ) * modelToUnitCube : modelToUnitCube;
+			modelToUnitCube = params.scale>0 ? GetPointXForm< Real , Dim , true >( pointStream , zeroNormalAndAuxData , params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
 
 			if( params.width>0 )
 			{
@@ -1087,7 +1073,7 @@ namespace Reconstructor
 			pointStream.reset();
 			sampleNormalAndAuxData = new std::vector< NormalAndAuxData >();
 
-			modelToUnitCube = params.scale>0 ? GetPointXForm< Real , Dim >( pointStream , zeroNormalAndAuxData , params.scale ) * modelToUnitCube : modelToUnitCube;
+			modelToUnitCube = params.scale>0 ? GetPointXForm< Real , Dim , true >( pointStream , zeroNormalAndAuxData , params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
 
 			if( params.width>0 )
 			{

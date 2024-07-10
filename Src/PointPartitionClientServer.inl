@@ -161,11 +161,11 @@ std::vector< size_t > _PartitionIntoSlabs( std::string in , std::string dir , st
 	return slabSizes;
 }
 
-template< typename Real , unsigned int Dim , typename Factory >
-PointPartition::Extent< Real > _GetExtent( std::string in , std::pair< size_t , size_t > range , const Factory &factory )
+template< typename Real , unsigned int Dim , typename Factory , bool ExtendedAxes=true >
+PointExtent::Extent< Real , Dim , ExtendedAxes > _GetExtent( std::string in , std::pair< size_t , size_t > range , const Factory &factory )
 {
 	using Vertex = typename Factory::VertexType;
-	PointPartition::Extent< Real > extent;
+	PointExtent::Extent< Real , Dim , ExtendedAxes > extent;
 	_ProcessPLY( in , range , factory , [&]( const Vertex &vertex ){ extent.add( vertex.template get<0>() ); } );
 	return extent;
 }
@@ -238,29 +238,14 @@ std::pair< PointPartition::PointSetInfo< Real , Dim > , PointPartition::Partitio
 	// Phase 2 //
 	/////////////
 	// Merge the clients' extents and get the direction of maximal extent
-	PointPartition::Extent< Real > e;
-	unsigned int idx;
+	PointExtent::Extent< Real , Dim > e;
+	for( unsigned int c=0 ; c<clientSockets.size() ; c++ )
 	{
-		for( unsigned int c=0 ; c<clientSockets.size() ; c++ )
-		{
-			PointPartition::Extent< Real > _e;
-			SocketStream( clientSockets[c] ).read( _e );
-			e = e + _e;
-		}
-		idx = 0;
-		for( unsigned int d=1 ; d<PointPartition::Extent< Real >::DirectionN ; d++ ) if( e.extents[d].second - e.extents[d].first > e.extents[idx].second - e.extents[idx].first ) idx = d;
+		PointExtent::Extent< Real , Dim > _e;
+		SocketStream( clientSockets[c] ).read( _e );
+		e = e + _e;
 	}
-
-	// Compute the transformation taking the points to the unit cube
-	{
-		XForm< Real , Dim+1 > R = XForm< Real , Dim+1 >::Identity();
-		for( unsigned int c=0 ; c<Dim ; c++ ) for( unsigned int r=0 ; r<Dim ; r++ ) R(r,c) = PointPartition::Extent< Real >::Directions[ PointPartition::Extent< Real >::Frames[idx][c] ][r];
-
-		Point< Real , Dim >  bBox[2];
-		for( unsigned int d=0 ; d<3 ; d++ ) bBox[0][d] = e.extents[ PointPartition::Extent< Real >::Frames[idx][d] ].first , bBox[1][d] = e.extents[ PointPartition::Extent< Real >::Frames[idx][d] ].second;
-
-		pointSetInfo.modelToUnitCube = Reconstructor::GetBoundingBoxXForm( bBox[0] , bBox[1] , clientPartitionInfo.scale ) * R;
-	}
+	pointSetInfo.modelToUnitCube = PointExtent::GetBoundingBoxXForm( e , clientPartitionInfo.scale , clientPartitionInfo.sliceDir );
 
 	// Send the transformation to the clients
 	for( unsigned int c=0 ; c<clientSockets.size() ; c++ ) SocketStream( clientSockets[c] ).write( pointSetInfo.modelToUnitCube );
@@ -348,7 +333,7 @@ void _RunClients
 		SocketStream( serverSockets[i] ).read( ranges[i] );
 		if( clientPartitionInfo.verbose ) std::cout << "Got range: " << MemoryInfo::PeakMemoryUsageMB() << " (MB)" << std::endl;
 		// Get the extent and send to the client
-		PointPartition::Extent< Real > e = _GetExtent< Real , Dim >( clientPartitionInfo.in , ranges[i] , factory );
+		PointExtent::Extent< Real , Dim > e = _GetExtent< Real , Dim >( clientPartitionInfo.in , ranges[i] , factory );
 		SocketStream( serverSockets[i] ).write( e );
 		if( clientPartitionInfo.verbose ) std::cout << "Sent extent: " << MemoryInfo::PeakMemoryUsageMB() << " (MB)" << std::endl;
 	}
@@ -426,7 +411,7 @@ void RunClients( std::vector< Socket > &serverSockets )
 // ClientPartitionInfo //
 /////////////////////////
 template< typename Real >
-ClientPartitionInfo< Real >::ClientPartitionInfo( void ) : scale((Real)1.1) , verbose(false) , slabs(0) , filesPerDir(-1) , bufferSize(BUFFER_IO) , clientCount(0) {}
+ClientPartitionInfo< Real >::ClientPartitionInfo( void ) : scale((Real)1.1) , sliceDir(-1) , verbose(false) , slabs(0) , filesPerDir(-1) , bufferSize(BUFFER_IO) , clientCount(0) {}
 
 template< typename Real >
 ClientPartitionInfo< Real >::ClientPartitionInfo( BinaryStream &stream )
@@ -447,6 +432,7 @@ ClientPartitionInfo< Real >::ClientPartitionInfo( BinaryStream &stream )
 	if( !stream.read( bufferSize ) ) ERROR_OUT( "Failed to read buffer size" );
 	if( !stream.read( scale ) ) ERROR_OUT( "Failed to read scale" );
 	if( !stream.read( clientCount ) ) ERROR_OUT( "Failed to read client count" );
+	if( !stream.read( sliceDir ) ) ERROR_OUT( "Failed to read slice direction" );
 	if( !ReadBool( verbose ) ) ERROR_OUT( "Failed to read verbose flag" );
 }
 
@@ -467,5 +453,6 @@ void ClientPartitionInfo< Real >::write( BinaryStream &stream ) const
 	stream.write( bufferSize );
 	stream.write( scale );
 	stream.write( clientCount );
+	stream.write( sliceDir );
 	WriteBool( verbose );
 }

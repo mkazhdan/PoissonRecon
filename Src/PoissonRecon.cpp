@@ -91,6 +91,7 @@ cmdLineParameter< int >
 #else // !_OPENMP
 	ParallelType( "parallel" , (int)ThreadPool::THREAD_POOL ) ,
 #endif // _OPENMP
+	AlignmentDir( "alignDir" , DEFAULT_DIMENSION-1 ) ,
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
@@ -104,6 +105,7 @@ cmdLineParameter< float >
 	ConfidenceBias( "confidenceBias" , 0.f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
 	LowDepthCutOff( "lowDepthCutOff" , 0.f ) ,
+	TargetValue( "targetValue" , 0.5f ) ,
 	PointWeight( "pointWeight" );
 
 cmdLineReadable* params[] =
@@ -141,6 +143,8 @@ cmdLineReadable* params[] =
 	&ScheduleType ,
 	&ThreadChunkSize ,
 	&LowDepthCutOff ,
+	&AlignmentDir ,
+	&TargetValue ,
 	NULL
 };
 
@@ -167,6 +171,7 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <scale factor>=%f]\n" , Scale.name , Scale.value );
 	printf( "\t[--%s <minimum number of samples per node>=%f]\n" , SamplesPerNode.name, SamplesPerNode.value );
 	printf( "\t[--%s <interpolation weight>=%.3e * <b-spline degree>]\n" , PointWeight.name , Reconstructor::Poisson::WeightMultiplier * Reconstructor::Poisson::DefaultFEMDegree );
+	printf( "\t[--%s <target value>=%f]\n" , TargetValue.name , TargetValue.value );
 	printf( "\t[--%s <iterations>=%d]\n" , Iters.name , Iters.value );
 	printf( "\t[--%s]\n" , ExactInterpolation.name );
 	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
@@ -181,6 +186,7 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <low depth cut-off>=%f]\n" , LowDepthCutOff.name , LowDepthCutOff.value );
 	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
 	printf( "\t[--%s <normal confidence bias exponent>=%f]\n" , ConfidenceBias.name , ConfidenceBias.value );
+	printf( "\t[--%s <alignment direction>=%d]\n" , AlignmentDir.name , AlignmentDir.value );
 	printf( "\t[--%s]\n" , NonManifold.name );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
 	printf( "\t[--%s <cg solver accuracy>=%g]\n" , CGSolverAccuracy.name , CGSolverAccuracy.value );
@@ -324,6 +330,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	sParams.pointWeight = (Real)PointWeight.value;
 	sParams.samplesPerNode = (Real)SamplesPerNode.value;
 	sParams.cgSolverAccuracy = (Real)CGSolverAccuracy.value;
+	sParams.targetValue = (Real)TargetValue.value;
 	sParams.depth = (unsigned int)Depth.value;
 	sParams.baseDepth = (unsigned int)BaseDepth.value;
 	sParams.solveDepth = (unsigned int)SolveDepth.value;
@@ -332,6 +339,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	sParams.envelopeDepth = (unsigned int)EnvelopeDepth.value;
 	sParams.baseVCycles = (unsigned int)BaseVCycles.value;
 	sParams.iters = (unsigned int)Iters.value;
+	sParams.alignDir = (unsigned int)AlignmentDir.value;
 
 	meParams.linearFit = LinearFit.set;
 	meParams.outputGradients = Gradients.set;

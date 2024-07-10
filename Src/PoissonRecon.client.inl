@@ -43,7 +43,7 @@ struct Client
 	typedef VectorTypeUnion< Real , Point< Real , Dim > , InputSampleDataType > InputSampleType;
 	typedef InputDataStream< InputSampleType > InputPointStream;
 	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
-	using BoundaryData = typename LevelSetExtractor< Real , Dim-1 , Point< Real , Dim-1 > >::TreeSliceValuesAndVertexPositions;
+	using BoundaryData = std::conditional_t< Dim==3 , typename LevelSetExtractor< Real , 2 , Point< Real , 2 > >::TreeSliceValuesAndVertexPositions , char >;
 
 	~Client( void );
 
@@ -756,7 +756,7 @@ void Client< Real , Dim , BType , Degree >::_process3( const ClientReconstructio
 
 	bool needAuxData = clientReconInfo.dataX>0 && auxDataFactory.bufferSize();
 
-	Real targetValue = (Real)0.5;
+	Real targetValue = clientReconInfo.targetValue;
 
 	unsigned int beginIndex = _range.first , endIndex = _range.second;
 	unsigned int beginPaddedIndex = paddedRange.first , endPaddedIndex = paddedRange.second;
@@ -1135,6 +1135,7 @@ std::pair< double , double > Client< Real , Dim , BType , Degree >::_process5( c
 	}
 
 	// Set the boundary information
+	if constexpr( Dim==3 )
 	{
 		Timer timer;
 		using SliceSigs = typename Sigs::Reverse::Rest::Reverse;
@@ -1156,6 +1157,23 @@ std::pair< double , double > Client< Real , Dim , BType , Degree >::_process5( c
 		profiler.update();
 		if( clientReconInfo.verbose>1 ) std::cout << "#    Set boundary info: " << timer << std::endl;
 	}
+
+	if( clientReconInfo.outputSolution )
+	{
+		std::string outFileName = std::string( "solution." ) + std::to_string(_index) + std::string( ".tree" );
+		if( clientReconInfo.outDir.length() ) outFileName = PointPartition::FileDir( clientReconInfo.outDir , outFileName );
+
+		FILE* fp = fopen( outFileName.c_str() , "wb" );
+		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , outFileName );
+		FileStream fs(fp);
+		FEMTree< Dim , Real >::WriteParameter( fs );
+		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
+		XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
+		_tree.write( fs , voxelToUnitCube , false );
+		_solution.write( fs );
+		fclose( fp );
+	}
+
 	return isoInfo;
 }
 
@@ -1165,7 +1183,7 @@ PhaseInfo Client< Real , Dim , BType , Degree >::_phase7( const ClientReconstruc
 	PhaseInfo phaseInfo;
 
 	typename Client< Real , Dim , BType , Degree >::_State7 state7;
-	if( clientReconInfo.mergeType!=ClientReconstructionInfo< Real , Dim >::MergeType::NONE )
+	if constexpr( Dim==3 ) if( clientReconInfo.mergeType!=ClientReconstructionInfo< Real , Dim >::MergeType::NONE )
 	{
 		Timer timer;
 		phaseInfo.readBytes += _receive7( clientReconInfo , state7 , profiler );
@@ -1299,9 +1317,10 @@ void Client< Real , Dim , BType , Degree >::_process7( const ClientReconstructio
 	AuxDataFactory auxDataFactory( clientReconInfo.auxProperties );
 
 	// Extract the mesh
+	if constexpr( Dim==3 )
 	{
-		if( clientReconInfo.density ) _writeMeshWithData< false , true >( clientReconInfo , state7 , _modelToUnitCube.inverse() );
-		else _writeMeshWithData< false , false >( clientReconInfo , state7 , _modelToUnitCube.inverse() );
+		if( clientReconInfo.density ) _writeMeshWithData< false , true  >( clientReconInfo , state7 , _modelToUnitCube.inverse() );
+		else                          _writeMeshWithData< false , false >( clientReconInfo , state7 , _modelToUnitCube.inverse() );
 	}
 
 	if( clientReconInfo.ouputVoxelGrid )

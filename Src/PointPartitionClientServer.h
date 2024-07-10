@@ -36,6 +36,7 @@ DAMAGE.
 #include "CmdLineParser.h"
 #include "VertexFactory.h"
 #include "Reconstructors.h"
+#include "PointExtent.h"
 
 
 namespace PointPartitionClientServer
@@ -44,7 +45,7 @@ namespace PointPartitionClientServer
 	struct ClientPartitionInfo
 	{
 		std::string in , tempDir , outDir , outHeader;
-		unsigned int slabs , filesPerDir , bufferSize , clientCount;
+		unsigned int slabs , filesPerDir , bufferSize , clientCount , sliceDir;
 		Real scale;
 		bool verbose;
 

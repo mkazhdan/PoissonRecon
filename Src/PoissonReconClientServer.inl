@@ -331,6 +331,8 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( void )
 	mergeType = MergeType::TOPOLOGY_AND_FUNCTION;
 	bufferSize = BUFFER_IO;
 	filesPerDir = -1;
+	outputSolution = false;
+	targetValue = (Real)0.5;
 }
 
 template< typename Real , unsigned int Dim >
@@ -357,6 +359,7 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( BinaryStream &
 	if( !stream.read( solveDepth ) ) ERROR_OUT( "Failed to read solveDepth depth" );
 	if( !stream.read( iters ) ) ERROR_OUT( "Failed to read iters" );
 	if( !stream.read( cgSolverAccuracy ) ) ERROR_OUT( "Failed to read CG-solver-accuracy" );
+	if( !stream.read( targetValue ) ) ERROR_OUT( "Failed to read target-value" );
 	if( !stream.read( pointWeight ) ) ERROR_OUT( "Failed to read point-weight" );
 	if( !stream.read( confidence ) ) ERROR_OUT( "Failed to read confidence" );
 	if( !stream.read( confidenceBias ) ) ERROR_OUT( "Failed to read confidence-bias" );
@@ -367,6 +370,7 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( BinaryStream &
 	if( !stream.read( mergeType ) ) ERROR_OUT( "Failed to read merge-type" );
 	if( !ReadBool( density ) ) ERROR_OUT( "Failed to read density flag" );
 	if( !ReadBool( linearFit ) ) ERROR_OUT( "Failed to read linear-fit flag" );
+	if( !ReadBool( outputSolution ) ) ERROR_OUT( "Failed to read output-solution flag" );
 	if( !ReadBool( ouputVoxelGrid ) ) ERROR_OUT( "Failed to read output-voxel-grid flag" );
 	{
 		size_t sz;
@@ -398,6 +402,7 @@ void ClientReconstructionInfo< Real , Dim >::write( BinaryStream &stream ) const
 	stream.write( solveDepth );
 	stream.write( iters );
 	stream.write( cgSolverAccuracy );
+	stream.write( targetValue );
 	stream.write( pointWeight );
 	stream.write( confidence );
 	stream.write( confidenceBias );
@@ -408,6 +413,7 @@ void ClientReconstructionInfo< Real , Dim >::write( BinaryStream &stream ) const
 	stream.write( mergeType );
 	WriteBool( density );
 	WriteBool( linearFit );
+	WriteBool( outputSolution );
 	WriteBool( ouputVoxelGrid );
 	{
 		size_t sz = auxProperties.size();

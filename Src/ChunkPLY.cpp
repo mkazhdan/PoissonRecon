@@ -368,6 +368,7 @@ void Execute( VertexDataFactory vertexDataFactory )
 	{
 		float radius = PadRadius.value * width;
 		size_t vCount=0 , pCount=0;
+		for( unsigned int d=0 ; d<3 ; d++ ) min[d] -= radius , max[d] += radius;
 		for( unsigned int d=0 ; d<3 ; d++ ) min[d] -= width/10000.f , max[d] += width/10000.f;
 		int begin[] = { (int)floor( min[0]/width ) , (int)floor( min[1]/width ) , (int)floor( min[2]/width ) };
 		int end  [] = { (int)ceil ( max[0]/width ) , (int)ceil ( max[1]/width ) , (int)ceil ( max[2]/width ) };
