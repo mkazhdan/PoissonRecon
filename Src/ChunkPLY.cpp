@@ -74,6 +74,8 @@ void PrintBoundingBox( Point< float , 3 > min , Point< float , 3 > max )
 	for( unsigned int d=0 ; d<3 ; d++ ) printf( " %f" , min[d] );
 	printf( " ] [" );
 	for( unsigned int d=0 ; d<3 ; d++ ) printf( " %f" , max[d] );
+	printf( " ] ->" );
+	for( unsigned int d=0 ; d<3 ; d++ ) printf( " %.2e" , max[d]-min[d] );
 	printf( " ]" );
 }
 

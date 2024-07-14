@@ -439,8 +439,16 @@ int main( int argc , char* argv[] )
 	{
 		if( Width.value>0 )
 		{
+			XForm< Real , Dim > unitCubeToModel = pointSetInfoAndPartition.first.modelToUnitCube.inverse();
+
 			Real maxScale = 0;
-			for( unsigned int i=0 ; i<Dim ; i++ ) maxScale = std::max< Real >( maxScale , (Real)1./pointSetInfoAndPartition.first.modelToUnitCube(i,i) );
+			for( unsigned int i=0 ; i<Dim ; i++ )
+			{
+				Real l2 = 0;
+				for( unsigned int j=0 ; j<Dim ; j++ ) l2 += unitCubeToModel(i,j) * unitCubeToModel(i,j);
+				if( l2>maxScale ) maxScale = l2;
+			}
+			maxScale = sqrt( maxScale );
 			Depth.value = (unsigned int)ceil( std::max< double >( 0. , log( maxScale/Width.value )/log(2.) ) );
 		}
 		PoissonReconClientServer::ClientReconstructionInfo< Real , Dim > clientReconInfo;
