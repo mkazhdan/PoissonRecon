@@ -626,10 +626,16 @@ namespace Reconstructor
 
 			if( params.width>0 )
 			{
-				// Assuming the transformation is rigid so that the (max) scale can be pulled from the Frobenius norm
+				XForm< Real , Dim > unitCubeToModel = modelToUnitCube.inverse();
+
 				Real maxScale = 0;
-				for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) maxScale += modelToUnitCube(i,j) * modelToUnitCube(i,j);
-				maxScale = (Real)( 1. / sqrt( maxScale / Dim ) );
+				for( unsigned int i=0 ; i<Dim ; i++ )
+				{
+					Real l2 = 0;
+					for( unsigned int j=0 ; j<Dim ; j++ ) l2 += unitCubeToModel(i,j) * unitCubeToModel(i,j);
+					if( l2>maxScale ) maxScale = l2;
+				}
+				maxScale = sqrt( maxScale );
 				params.depth = (unsigned int)ceil( std::max< double >( 0. , log( maxScale/params.width )/log(2.) ) );
 			}
 			if( params.solveDepth>params.depth )
