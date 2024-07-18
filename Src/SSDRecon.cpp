@@ -73,11 +73,11 @@ cmdLineParameter< int >
 	Degree( "degree" , Reconstructor::SSD::DefaultFEMDegree ) ,
 #endif // !FAST_COMPILE
 	Depth( "depth" , 8 ) ,
-	KernelDepth( "kernelDepth" ) ,
+	KernelDepth( "kernelDepth" , -1 ) ,
 	SolveDepth( "solveDepth" , -1 ) ,
-	Iters( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 5 ) ,
-	BaseDepth( "baseDepth" ) ,
+	BaseDepth( "baseDepth" , -1 ) ,
+	Iters( "iters" , 8 ) ,
 	BaseVCycles( "baseVCycles" , 4 ) ,
 #ifndef FAST_COMPILE
 	BType( "bType" , Reconstructor::SSD::DefaultFEMBoundary+1 ) ,
@@ -593,12 +593,6 @@ int main( int argc , char* argv[] )
 	}
 	if( GradientWeight.value<=0 ) ERROR_OUT( "Gradient weight must be positive: " , GradientWeight.value , "> 0" );
 	if( BiLapWeight.value<=0 ) ERROR_OUT( "Bi-Laplacian weight must be positive: " , BiLapWeight.value , " > 0" );
-	if( !BaseDepth.set ) BaseDepth.value = FullDepth.value;
-	if( BaseDepth.value>FullDepth.value )
-	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
-		BaseDepth.value = FullDepth.value;
-	}
 
 	ValueWeight.value    *= (float)Reconstructor::SSD::WeightMultipliers[0];
 	GradientWeight.value *= (float)Reconstructor::SSD::WeightMultipliers[1];

@@ -659,6 +659,17 @@ namespace Reconstructor
 				if( params.kernelDepth!=-1 ) WARN( "Kernel depth cannot exceed system depth: " , params.kernelDepth , " <= " , params.depth );
 				params.kernelDepth = params.depth;
 			}
+			if( params.envelopeDepth==-1 ) params.envelopeDepth = params.baseDepth;
+			if( params.envelopeDepth>params.depth )
+			{
+				if( params.envelopeDepth!=-1 ) WARN( "Envelope dpeth cannot exceed system depth:  " , params.envelopeDepth , " <= " , params.depth );
+				params.envelopeDepth = params.depth;
+			}
+			if( params.envelopeDepth<params.baseDepth )
+			{
+				WARN( "Envelope dpeth cannot be less than base depth: " , params.envelopeDepth , " >= " , params.baseDepth );
+				params.envelopeDepth = params.baseDepth;
+			}
 
 			if constexpr( HasAuxData )
 			{

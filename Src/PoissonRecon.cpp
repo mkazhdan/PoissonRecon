@@ -75,12 +75,12 @@ cmdLineParameter< int >
 	Degree( "degree" , Reconstructor::Poisson::DefaultFEMDegree ) ,
 #endif // !FAST_COMPILE
 	Depth( "depth" , 8 ) ,
-	KernelDepth( "kernelDepth" ) ,
+	KernelDepth( "kernelDepth" , -1 ) ,
 	SolveDepth( "solveDepth" , -1 ) ,
-	EnvelopeDepth( "envelopeDepth" ) ,
-	Iters( "iters" , 8 ) ,
+	EnvelopeDepth( "envelopeDepth" , -1 ) ,
 	FullDepth( "fullDepth" , 5 ) ,
-	BaseDepth( "baseDepth" ) ,
+	BaseDepth( "baseDepth" , -1 ) ,
+	Iters( "iters" , 8 ) ,
 	BaseVCycles( "baseVCycles" , 1 ) ,
 #ifndef FAST_COMPILE
 	BType( "bType" , Reconstructor::Poisson::DefaultFEMBoundary+1 ) ,
@@ -616,32 +616,6 @@ int main( int argc , char* argv[] )
 	{
 		ShowUsage( argv[0] );
 		return 0;
-	}
-
-	if( !BaseDepth.set ) BaseDepth.value = FullDepth.value;
-
-	if( BaseDepth.value>FullDepth.value )
-	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
-		BaseDepth.value = FullDepth.value;
-	}
-	if( !KernelDepth.set ) KernelDepth.value = Depth.value-2;
-	if( KernelDepth.value>Depth.value )
-	{
-		WARN( "Kernel depth should not exceed depth: " , KernelDepth.name , " <= " , KernelDepth.value );
-		KernelDepth.value = Depth.value;
-	}
-
-	if( !EnvelopeDepth.set ) EnvelopeDepth.value = BaseDepth.value;
-	if( EnvelopeDepth.value>Depth.value )
-	{
-		WARN( EnvelopeDepth.name , " can't be greater than " , Depth.name , ": " , EnvelopeDepth.value , " <= " , Depth.value );
-		EnvelopeDepth.value = Depth.value;
-	}
-	if( EnvelopeDepth.value<BaseDepth.value )
-	{
-		WARN( EnvelopeDepth.name , " can't be less than " , BaseDepth.name , ": " , EnvelopeDepth.value , " >= " , BaseDepth.value );
-		EnvelopeDepth.value = BaseDepth.value;
 	}
 
 #ifdef USE_DOUBLE
