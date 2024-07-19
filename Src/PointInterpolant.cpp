@@ -363,8 +363,8 @@ void ExtractLevelSet
 	Factory factory = VInfo::GetFactory();
 
 	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false , std::string( "v_" ) );
-	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true , std::string( "f_" ) );
+	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false );
+	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
 	typename LevelSetExtractor< Real , Dim >::Stats stats;
 
 	{

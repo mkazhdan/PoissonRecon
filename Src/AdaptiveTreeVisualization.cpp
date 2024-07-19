@@ -410,8 +410,8 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 		Factory factory = VInfo::GetFactory();
 
 		// A backing stream for the vertices
-		Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false , std::string( "v_" ) );
-		Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true , std::string( "f_" ) );
+		Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false );
+		Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
 
 		{
 			// The wrapper converting native to output types

@@ -1258,8 +1258,8 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 	Factory factory = VInfo::GetFactory( auxDataFactory );
 
 	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false , tempHeader + std::string( "v_" ) );
-	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true , tempHeader + std::string( "f_" ) );
+	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false );
+	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
 
 	typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
 

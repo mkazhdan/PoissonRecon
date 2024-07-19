@@ -30,6 +30,8 @@ DAMAGE.
 
 #include <iostream>
 #include <sstream>
+#include <filesystem>
+#include <thread>
 
 //////////////////
 // OpenMP Stuff //
@@ -341,34 +343,26 @@ public:
 	struct FileDescription
 	{
 		FILE *fp;
-		char fileName[2048];
 
-		FileDescription( void ) : fp(NULL) { fileName[0] = 0; }
-		FileDescription( const FileDescription &fd ) : fp(fd.fp) { strcpy( fileName , fd.fileName ); }
-		FileDescription( FILE *fp ) : fp(fp) { fileName[0] = 0; }
-		FileDescription( const char *fileHeader ) : fp(NULL)
+		FileDescription( FILE *fp ) : fp(fp) , _closeFile(false)
 		{
-			if( fileHeader && strlen(fileHeader) ) sprintf( fileName , "%sXXXXXX" , fileHeader );
-			else strcpy( fileName , "XXXXXX" );
-#ifdef _WIN32
-			_mktemp( fileName );
-			fp = fopen( fileName , "w+b" );
-#else // !_WIN32
-			fp = fdopen( mkstemp( fileName ) , "w+b" );
-#endif // _WIN32
-			if( !fp ) ERROR_OUT( "Failed to open file: " , fileName );
+			if( !this->fp )
+			{
+				this->fp = std::tmpfile();
+				_closeFile = true;
+				if( !this->fp ) ERROR_OUT( "Failed to open temporary file" );
+			}
 		}
-		void remove( void ){ if( fp ){ fclose( fp ) ; fp = NULL ; std::remove( fileName ); } }
+		~FileDescription( void ){ if( _closeFile ) fclose(fp); }
+	protected:
+		bool _closeFile;
 	};
 
-	FileBackedReadWriteStream( const char* fileHeader="" ) : _fd( fileHeader ) , _fileHandleOwner(true) {}
-	FileBackedReadWriteStream( FILE *fp ) : _fd(fp) , _fileHandleOwner(false) {}
-	~FileBackedReadWriteStream( void ){ if( _fileHandleOwner ) _fd.remove(); }
+	FileBackedReadWriteStream( FILE *fp ) : _fd(fp) {}
 	bool write( ConstPointer(char) data , size_t size ){ return fwrite( data , sizeof(char) , size , _fd.fp )==size; }
 	bool read( Pointer(char) data , size_t size ){ return fread( data , sizeof(char) , size , _fd.fp )==size; }
 	void reset( void ){ fseek( _fd.fp , 0 , SEEK_SET ); }
 protected:
-	bool _fileHandleOwner;
 	FileDescription _fd;
 };
 

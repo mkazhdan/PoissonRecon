@@ -394,7 +394,7 @@ struct OutputInputFaceStream : public OutputFaceStream< FaceDim > , public Input
 	void base_write( const Face< FaceDim > &f ){ outStream->write(f); }
 	void base_write( unsigned int t , const Face< FaceDim > &f ){ outStream->write(t,f); }
 
-	OutputInputFaceStream( bool inCore , bool multi , std::string header="" )
+	OutputInputFaceStream( bool inCore , bool multi )
 	{
 		size_t sz = std::thread::hardware_concurrency();
 
@@ -433,7 +433,7 @@ struct OutputInputFaceStream : public OutputFaceStream< FaceDim > , public Input
 			{
 				for( unsigned int i=0 ; i<sz ; i++ )
 				{
-					_backingFiles[i] = new FileBackedReadWriteStream::FileDescription( header.c_str() );
+					_backingFiles[i] = new FileBackedReadWriteStream::FileDescription( NULL );
 					_inStreams[i] = new FileBackedInputDataStream< Face< FaceDim > >( _backingFiles[i]->fp );
 					_outStreams[i] = new FileBackedOutputDataStream< Face< FaceDim > >( _backingFiles[i]->fp );
 				}
@@ -442,7 +442,7 @@ struct OutputInputFaceStream : public OutputFaceStream< FaceDim > , public Input
 			}
 			else
 			{
-				_backingFile = new FileBackedReadWriteStream::FileDescription( header.c_str() );
+				_backingFile = new FileBackedReadWriteStream::FileDescription( NULL );
 				inStream = new FileBackedInputDataStream< Face< FaceDim > >( _backingFile->fp );
 				outStream = new FileBackedOutputDataStream< Face< FaceDim > >( _backingFile->fp );
 			}
@@ -454,17 +454,12 @@ struct OutputInputFaceStream : public OutputFaceStream< FaceDim > , public Input
 		size_t sz = std::thread::hardware_concurrency();
 
 		delete _backingVector;
-
-		if( _backingFile ) _backingFile->remove();
 		delete _backingFile;
 
 		for( unsigned int i=0 ; i<sz ; i++ )
 		{
 			delete _backingVectors[i];
-
-			if( _backingFiles[i] ) _backingFiles[i]->remove();
 			delete _backingFiles[i];
-
 			delete  _inStreams[i];
 			delete _outStreams[i];
 		}
@@ -493,7 +488,7 @@ struct OutputInputFactoryTypeStream : public OutputDataStream< typename Factory:
 	void base_write( const Vertex &v ){ outStream->write( v ); }
 	bool base_read( Vertex &v ){ return inStream->read( v ); }
 
-	OutputInputFactoryTypeStream( Factory &factory , bool inCore , bool multi , std::string header="" )
+	OutputInputFactoryTypeStream( Factory &factory , bool inCore , bool multi )
 	{
 		size_t sz = std::thread::hardware_concurrency();
 
@@ -533,7 +528,7 @@ struct OutputInputFactoryTypeStream : public OutputDataStream< typename Factory:
 			{
 				for( unsigned int i=0 ; i<sz ; i++ )
 				{
-					_backingFiles[i] = new FileBackedReadWriteStream::FileDescription( header.c_str() );
+					_backingFiles[i] = new FileBackedReadWriteStream::FileDescription( NULL );
 					_inStreams[i] = new FileBackedInputFactoryTypeStream< Factory >( _backingFiles[i]->fp , factory );
 					_outStreams[i] = new FileBackedOutputFactoryTypeStream< Factory >( _backingFiles[i]->fp , factory  );
 				}
@@ -542,8 +537,7 @@ struct OutputInputFactoryTypeStream : public OutputDataStream< typename Factory:
 			}
 			else
 			{
-				_backingFile = new FileBackedReadWriteStream::FileDescription( header.c_str() );
-
+				_backingFile = new FileBackedReadWriteStream::FileDescription( NULL );
 				inStream = new FileBackedInputFactoryTypeStream< Factory >( _backingFile->fp , factory );
 				outStream = new FileBackedOutputFactoryTypeStream< Factory >( _backingFile->fp , factory );
 			}
@@ -555,16 +549,12 @@ struct OutputInputFactoryTypeStream : public OutputDataStream< typename Factory:
 		size_t sz = std::thread::hardware_concurrency();
 
 		delete _backingVector;
-		if( _backingFile ) _backingFile->remove();
 		delete _backingFile;
 
 		for( unsigned int i=0 ; i<sz ; i++ )
 		{
 			delete _backingVectors[i];
-
-			if( _backingFiles[i] ) _backingFiles[i]->remove();
 			delete _backingFiles[i];
-
 			delete  _inStreams[i];
 			delete _outStreams[i];
 		}

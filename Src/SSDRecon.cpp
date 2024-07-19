@@ -213,8 +213,8 @@ void WriteMesh
 	Factory factory = VInfo::GetFactory();
 
 	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , inCore , false , std::string( "v_" ) );
-	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( inCore , true , std::string( "f_" ) );
+	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , inCore , false );
+	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( inCore , true );
 
 	{
 		// The wrapper converting native to output types
@@ -248,8 +248,8 @@ void WriteMeshWithData
 	Factory factory = VInfo::GetFactory( auxDataFactory );
 
 	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , inCore , false , std::string( "v_" ) );
-	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( inCore , true , std::string( "f_" ) );
+	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , inCore , false );
+	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( inCore , true );
 
 	{
 		// The wrapper converting native to output types
