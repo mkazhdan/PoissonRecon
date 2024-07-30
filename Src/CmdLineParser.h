@@ -34,6 +34,7 @@ DAMAGE.
 #include <cstdlib>
 #include <string>
 #include <vector>
+#include "Geometry.h"
 
 #ifdef WIN32
 int strcasecmp( const char* c1 , const char* c2 );
@@ -50,12 +51,28 @@ public:
 	virtual void writeValue( char* str ) const;
 };
 
-template< class Type > void cmdLineWriteValue( Type t , char* str );
-template< class Type > void cmdLineCleanUp( Type* t );
-template< class Type > Type cmdLineInitialize( void );
-template< class Type > Type cmdLineCopy( Type t );
-template< class Type > Type cmdLineStringToType( const char* str );
+template< typename Type > struct CmdLineType;
 
+template< typename Type >
+struct CmdLineType
+{
+	static void WriteValue( Type t , char* str );
+	static void CleanUp( Type* t ){}
+	static Type Initialize( void ){ return Type(); }
+	static Type Copy( Type t ){ return t; }
+	static Type StringToType( const char *str );
+};
+
+template< typename Real , unsigned int Dim >
+struct CmdLineType< Point< Real , Dim > >
+{
+	using Type = Point< Real , Dim >;
+	static void WriteValue( Type t , char* str );
+	static void CleanUp( Type* t ){}
+	static Type Initialize( void ){ return Type(); }
+	static Type Copy( Type t ){ return t; }
+	static Type StringToType( const char *str );
+};
 template< class Type >
 class cmdLineParameter : public cmdLineReadable
 {

@@ -440,6 +440,8 @@ double Partition::maxEnergy( unsigned int padSize ) const
 
 unsigned int Partition::slabs( void ) const { return (unsigned int)_slabSizes.size(); }
 
+unsigned int Partition::partitions( void ) const{ return (unsigned int)_starts.size()+1; }
+
 ///////////////////////////////
 // Read/Write Ply Properties //
 ///////////////////////////////

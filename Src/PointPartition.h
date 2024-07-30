@@ -82,6 +82,7 @@ namespace PointPartition
 		double maxEnergy( unsigned int padSize ) const;
 #endif // ADAPTIVE_PADDING
 		size_t size( void ) const;
+		unsigned int partitions( void ) const;
 		unsigned int slabs( void ) const;
 
 	protected:

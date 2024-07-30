@@ -33,39 +33,81 @@ DAMAGE.
 inline int strcasecmp( const char* c1 , const char* c2 ){ return _stricmp( c1 , c2 ); }
 #endif // WIN32 || _WIN64
 
-template< > void cmdLineCleanUp< int         >( int*         t ){ }
-template< > void cmdLineCleanUp< float       >( float*       t ){ }
-template< > void cmdLineCleanUp< double      >( double*      t ){ }
-template< > void cmdLineCleanUp< char*       >( char**       t ){ if( *t ) free( *t ) ; *t = NULL; }
-template< > void cmdLineCleanUp< std::string >( std::string* t ){ }
-template< > int         cmdLineInitialize< int         >( void ){ return 0; }
-template< > float       cmdLineInitialize< float       >( void ){ return 0.f; }
-template< > double      cmdLineInitialize< double      >( void ){ return 0.; }
-template< > char*       cmdLineInitialize< char*       >( void ){ return NULL; }
-template< > std::string cmdLineInitialize< std::string >( void ){ return std::string(); }
-template< > void cmdLineWriteValue< int         >( int         t , char* str ){ sprintf( str , "%d" , t ); }
-template< > void cmdLineWriteValue< float       >( float       t , char* str ){ sprintf( str , "%f" , t ); }
-template< > void cmdLineWriteValue< double      >( double      t , char* str ){ sprintf( str , "%f" , t ); }
-template< > void cmdLineWriteValue< char*       >( char*       t , char* str ){ if( t ) sprintf( str , "%s" , t ) ; else str[0]=0; }
-template< > void cmdLineWriteValue< std::string >( std::string t , char* str ){ sprintf( str , "%s" , t.c_str() ); }
-template< > int         cmdLineCopy( int    t      ){ return t;  }
-template< > float       cmdLineCopy( float  t      ){ return t;  }
-template< > double      cmdLineCopy( double t      ){ return t;  }
+template< > void   CmdLineType< char*       >::CleanUp( char** t ){ if( *t ) free( *t ) ; *t = NULL; }
+
+template< > int    CmdLineType< int         >::Initialize( void ){ return 0; }
+template< > float  CmdLineType< float       >::Initialize( void ){ return 0.f; }
+template< > double CmdLineType< double      >::Initialize( void ){ return 0.; }
+template< > char*  CmdLineType< char*       >::Initialize( void ){ return NULL; }
+
+template< > void   CmdLineType< int         >::WriteValue( int    t , char* str ){ sprintf( str , "%d" , t ); }
+template< > void   CmdLineType< float       >::WriteValue( float  t , char* str ){ sprintf( str , "%f" , t ); }
+template< > void   CmdLineType< double      >::WriteValue( double t , char* str ){ sprintf( str , "%f" , t ); }
+template< > void   CmdLineType< char*       >::WriteValue( char*  t , char* str ){ if( t ) sprintf( str , "%s" , t ) ; else str[0]=0; }
+template< > void   CmdLineType< std::string >::WriteValue( std::string t , char* str ){ sprintf( str , "%s" , t.c_str() ); }
+template< typename Real , unsigned int Dim >
+void CmdLineType< Point< Real , Dim > >::WriteValue( Point< Real , Dim > t , char *str )
+{
+	size_t start = 0;
+	sprintf( str , "{" );
+	start = strlen( str );
+	for( unsigned int d=0 ; d<Dim ; d++ )
+	{
+		if( d ) sprintf( str+start , ",%f" , t[d] );
+		else    sprintf( str+start ,  "%f" , t[d] );
+		start = strlen( str );
+	}
+	sprintf( str+start , "}" );
+}
+
 #if defined( WIN32 ) || defined( _WIN64 )
-template< > char*       cmdLineCopy( char* t       ){ return _strdup( t ); }
+template< > char*  CmdLineType< char*       >::Copy( char* t ){ return _strdup( t ); }
 #else // !WIN32 && !_WIN64
-template< > char*       cmdLineCopy( char* t       ){ return strdup( t ); }
+template< > char*  CmdLineType< char*       >::Copy( char* t ){ return strdup( t ); }
 #endif // WIN32 || _WIN64
-template< > std::string cmdLineCopy( std::string t ){ return t; }
-template< > int         cmdLineStringToType( const char* str ){ return atoi( str ); }
-template< > float       cmdLineStringToType( const char* str ){ return float( atof( str ) ); }
-template< > double      cmdLineStringToType( const char* str ){ return double( atof( str ) ); }
+
+template< > int    CmdLineType< int         >::StringToType( const char* str ){ return atoi( str ); }
+template< > float  CmdLineType< float       >::StringToType( const char* str ){ return float( atof( str ) ); }
+template< > double CmdLineType< double      >::StringToType( const char* str ){ return double( atof( str ) ); }
 #if defined( WIN32 ) || defined( _WIN64 )
-template< > char*       cmdLineStringToType( const char* str ){ return _strdup( str ); }
+template< > char*  CmdLineType< char*       >::StringToType( const char* str ){ return _strdup( str ); }
 #else // !WIN32 && !_WIN64
-template< > char*       cmdLineStringToType( const char* str ){ return  strdup( str ); }
+template< > char*  CmdLineType< char*       >::StringToType( const char* str ){ return  strdup( str ); }
 #endif // WIN32 || _WIN64
-template< > std::string cmdLineStringToType( const char* str ){ return std::string( str ); }
+template< > std::string CmdLineType< std::string >::StringToType( const char* str ){ return std::string( str ); }
+
+template< typename Real , unsigned int Dim >
+Point< Real , Dim > CmdLineType< Point< Real , Dim > >::StringToType( const char *str )
+{
+	Point< Real , Dim > t;
+
+	char *_str = new char[ strlen(str)+1 ];
+	assert( _str );
+	strcpy( _str , str );
+	char *temp = strtok( _str , "," );
+
+	unsigned int d = 0;
+	while( temp!=NULL )
+	{
+		if( d==0 )
+		{
+			if( temp[0]!='{' ) ERROR_OUT( "Expected opening brace: " , std::string( str ) );
+			t[d++] = CmdLineType< Real >::StringToType( temp+1 );
+		}
+		else if( d==Dim-1 )
+		{
+			if( temp[ strlen(temp)-1 ]!='}' )  ERROR_OUT( "Expected closing brace: " , std::string( str ) );
+			temp[ strlen(temp)-1 ] = 0;
+			t[d++] = CmdLineType< Real >::StringToType( temp );
+			break;
+		}
+		else t[d++] = CmdLineType< Real >::StringToType( temp );
+		temp = strtok( NULL ,"," );
+	}
+	if( d<Dim ) ERROR_OUT( "Could not parse all coordinates: " , std::string( str ) , " (" , Dim , ")" );
+	delete[] _str;
+	return t;
+}
 
 
 /////////////////////
@@ -84,22 +126,23 @@ inline void cmdLineReadable::writeValue( char* str ) const { str[0] = 0; }
 //////////////////////
 // cmdLineParameter //
 //////////////////////
-template< class Type > cmdLineParameter< Type >::~cmdLineParameter( void ) { cmdLineCleanUp( &value ); }
-template< class Type > cmdLineParameter< Type >::cmdLineParameter( const char *name ) : cmdLineReadable( name ){ value = cmdLineInitialize< Type >(); }
-template< class Type > cmdLineParameter< Type >::cmdLineParameter( const char *name , Type v ) : cmdLineReadable( name ){ value = cmdLineCopy< Type >( v ); }
+template< class Type > cmdLineParameter< Type >::~cmdLineParameter( void ) { CmdLineType< Type >::CleanUp( &value ); }
+template< class Type > cmdLineParameter< Type >::cmdLineParameter( const char *name ) : cmdLineReadable( name ){ value = CmdLineType< Type >::Initialize(); }
+template< class Type > cmdLineParameter< Type >::cmdLineParameter( const char *name , Type v ) : cmdLineReadable( name ){ value = CmdLineType< Type >::Copy( v ); }
 template< class Type >
 int cmdLineParameter< Type >::read( char** argv , int argc )
 {
 	if( argc>0 )
 	{
-		cmdLineCleanUp< Type >( &value ) , value = cmdLineStringToType< Type >( argv[0] );
+		CmdLineType< Type >::CleanUp( &value );
+		value = CmdLineType< Type >::StringToType( argv[0] );
 		set = true;
 		return 1;
 	}
 	else return 0;
 }
 template< class Type >
-void cmdLineParameter< Type >::writeValue( char* str ) const { cmdLineWriteValue< Type >( value , str ); }
+void cmdLineParameter< Type >::writeValue( char* str ) const { CmdLineType< Type >::WriteValue( value , str ); }
 
 
 ///////////////////////////
@@ -108,17 +151,19 @@ void cmdLineParameter< Type >::writeValue( char* str ) const { cmdLineWriteValue
 template< class Type , int Dim >
 cmdLineParameterArray< Type , Dim >::cmdLineParameterArray( const char *name , const Type* v ) : cmdLineReadable( name )
 {
-	if( v ) for( int i=0 ; i<Dim ; i++ ) values[i] = cmdLineCopy< Type >( v[i] );
-	else    for( int i=0 ; i<Dim ; i++ ) values[i] = cmdLineInitialize< Type >();
+	if( v ) for( int i=0 ; i<Dim ; i++ ) values[i] = CmdLineType< Type >::Copy( v[i] );
+	else    for( int i=0 ; i<Dim ; i++ ) values[i] = CmdLineType< Type >::Initialize();
 }
+
 template< class Type , int Dim >
-cmdLineParameterArray< Type , Dim >::~cmdLineParameterArray( void ){ for( int i=0 ; i<Dim ; i++ ) cmdLineCleanUp< Type >( values+i ); }
+cmdLineParameterArray< Type , Dim >::~cmdLineParameterArray( void ){ for( int i=0 ; i<Dim ; i++ ) CmdLineType< Type >::CleanUp( values+i ); }
+
 template< class Type , int Dim >
 int cmdLineParameterArray< Type , Dim >::read( char** argv , int argc )
 {
 	if( argc>=Dim )
 	{
-		for( int i=0 ; i<Dim ; i++ ) cmdLineCleanUp< Type >( values+i ) , values[i] = cmdLineStringToType< Type >( argv[i] );
+		for( int i=0 ; i<Dim ; i++ ) CmdLineType< Type >::CleanUp( values+i ) , values[i] = CmdLineType< Type >::StringToType( argv[i] );
 		set = true;
 		return Dim;
 	}
@@ -130,7 +175,7 @@ void cmdLineParameterArray< Type , Dim >::writeValue( char* str ) const
 	char* temp=str;
 	for( int i=0 ; i<Dim ; i++ )
 	{
-		cmdLineWriteValue< Type >( values[i] , temp );
+		CmdLineType< Type >::WriteValue( values[i] , temp );
 		temp = str+strlen( str );
 	}
 }
@@ -139,6 +184,7 @@ void cmdLineParameterArray< Type , Dim >::writeValue( char* str ) const
 ///////////////////////
 template< class Type >
 cmdLineParameters< Type >::cmdLineParameters( const char* name ) : cmdLineReadable( name ) , values(NULL) , count(0) { }
+
 template< class Type >
 cmdLineParameters< Type >::~cmdLineParameters( void )
 {
@@ -146,6 +192,7 @@ cmdLineParameters< Type >::~cmdLineParameters( void )
 	values = NULL;
 	count = 0;
 }
+
 template< class Type >
 int cmdLineParameters< Type >::read( char** argv , int argc )
 {
@@ -158,26 +205,26 @@ int cmdLineParameters< Type >::read( char** argv , int argc )
 		if( count <= 0 || argc <= count ) return 1;
 		values = new Type[count];
 		if( !values ) return 0;
-		for( int i=0 ; i<count ; i++ ) values[i] = cmdLineStringToType< Type >( argv[i+1] );
+		for( int i=0 ; i<count ; i++ ) values[i] = CmdLineType< Type >::StringToType( argv[i+1] );
 		set = true;
 		return count+1;
 	}
 	else return 0;
 }
+
 template< class Type >
 void cmdLineParameters< Type >::writeValue( char* str ) const
 {
 	char* temp=str;
-	cmdLineWriteValue< int >( count , temp );
+	CmdLineType< int >::WriteValue( count , temp );
 	temp = str + strlen( str );
 	for( int i=0 ; i<count ; i++ )
 	{
 		temp[0] = ' ' , temp++;
-		cmdLineWriteValue< Type >( values[i] , temp );
+		CmdLineType< Type >::WriteValue( values[i] , temp );
 		temp = str+strlen( str );
 	}
 }
-
 
 inline char* FileExtension( char* fileName )
 {

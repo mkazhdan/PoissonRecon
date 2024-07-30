@@ -30,6 +30,7 @@ DAMAGE.
 #define MERGE_PLY_CLIENT_SERVER_INCLUDED
 
 #include <string>
+#include <functional>
 #include "Socket.h"
 #include "MyMiscellany.h"
 #include "CmdLineParser.h"
@@ -59,7 +60,8 @@ namespace MergePlyClientServer
 		std::vector< Socket > &clientSockets ,
 		const std::vector< unsigned int > &sharedVertexCounts ,
 		ClientMergePlyInfo clientMergePlyInfo ,
-		unsigned int sampleMS
+		unsigned int sampleMS ,
+		std::function< std::vector< std::string > (unsigned int) > commentFunctor=[](unsigned int){ return std::vector< std::string >(); }
 	);
 
 	template< typename Real , unsigned int Dim >

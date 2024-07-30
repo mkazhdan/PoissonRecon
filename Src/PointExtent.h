@@ -60,7 +60,8 @@ namespace PointExtent
 	protected:
 		static const struct Frame< Real , Dim , ExtendedAxes > _Frame;
 
-		friend std::ostream &operator << ( std::ostream & , const Extent & );
+		template< typename _Real , unsigned int _Dim , bool _ExtendedAxes >
+		friend std::ostream &operator << ( std::ostream & , const Extent< _Real , _Dim , _ExtendedAxes > & );
 	};
 
 	template< typename Real , unsigned int Dim , bool ExtendedAxes >

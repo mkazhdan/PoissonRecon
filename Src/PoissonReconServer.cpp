@@ -313,12 +313,45 @@ void Merge
 	const std::vector< unsigned int > &sharedVertexCounts ,
 	std::string header ,
 	std::vector< Socket > &clientSockets ,
-	const MergePlyClientServer::ClientMergePlyInfo &clientMergePlyInfo
+	const MergePlyClientServer::ClientMergePlyInfo &clientMergePlyInfo ,
+	const std::pair< PointPartition::PointSetInfo< Real , Dim > , PointPartition::Partition > &pointSetInfoAndPartition
 )
 {
 	Timer timer;
 
-	MergePlyClientServer::RunServer< Real , Dim >( TempDir.value , TempDir.value , header , Out.value , clientSockets , sharedVertexCounts , clientMergePlyInfo , PeakMemorySampleMS.value );
+	std::function< std::vector< std::string > ( unsigned int ) > commentFunctor = [&]( unsigned int partition )
+		{
+			if( partition==-1 ) return std::vector< std::string >();
+			else
+			{
+				Real res = (Real)( 1<<PartitionDepth.value );
+				std::pair< unsigned int , unsigned int > range = pointSetInfoAndPartition.second.range( partition );
+				Point< Real , Dim > axis;
+				Real offset = pointSetInfoAndPartition.first.modelToUnitCube( Dim , Dim-1 );
+				for( unsigned int d=0 ; d<Dim ; d++ ) axis[d] = pointSetInfoAndPartition.first.modelToUnitCube( d , Dim-1 );
+
+				std::vector< std::string > comments( 1 );
+				std::stringstream sStream;
+
+				Point< Real , Dim+1 > front , back;
+				for( unsigned int d=0 ; d<Dim ; d++ )
+				{
+					front[d] = -axis[d];
+					back[d] = axis[d];
+				}
+				front[Dim] = (range.first/res)-offset;
+				back[Dim] = offset-(range.second/res);
+				char frontStr[ 1024 ] , backStr[ 1024 ];
+				CmdLineType< Point< Real , Dim+1 > >::WriteValue( front , frontStr );
+				CmdLineType< Point< Real , Dim+1 > >::WriteValue( back , backStr );
+				sStream << "Partition: " << std::string( frontStr ) << " " << std::string( backStr );
+
+				comments[0] = sStream.str();
+				return comments;
+			}
+		};
+
+	MergePlyClientServer::RunServer< Real , Dim >( TempDir.value , TempDir.value , header , Out.value , clientSockets , sharedVertexCounts , clientMergePlyInfo , PeakMemorySampleMS.value , commentFunctor );
 
 	unsigned int peakMem = 0;
 	for( unsigned int i=0 ; i<clientSockets.size() ; i++ )
@@ -539,7 +572,8 @@ int main( int argc , char* argv[] )
 		clientMergePlyInfo.bufferSize = BufferSize.value;
 		clientMergePlyInfo.keepSeparate = KeepSeparate.set;
 		clientMergePlyInfo.verbose = Verbose.value!=0;
-		Merge< Real , Dim >( sharedVertexCounts , header , clientSockets , clientMergePlyInfo );
+
+		Merge< Real , Dim >( sharedVertexCounts , header , clientSockets , clientMergePlyInfo , pointSetInfoAndPartition );
 
 		auto InFile = [&]( unsigned int idx )
 		{
@@ -556,6 +590,34 @@ int main( int argc , char* argv[] )
 	}
 
 	for( unsigned int i=0 ; i<clientSockets.size() ; i++ ) CloseSocket( clientSockets[i] );
+
+	if( KeepSeparate.set && Verbose.value>=1 )
+	{
+		Real res = (Real)( 1<<PartitionDepth.value );
+		Point< Real , Dim > axis;
+		Real offset = pointSetInfoAndPartition.first.modelToUnitCube( Dim , Dim-1 );
+		for( unsigned int d=0 ; d<Dim ; d++ ) axis[d] = pointSetInfoAndPartition.first.modelToUnitCube( d , Dim-1 );
+
+		Point< Real , Dim+1 > front , back;
+		for( unsigned int d=0 ; d<Dim ; d++ )
+		{
+			front[d] = -axis[d];
+			back[d] = axis[d];
+		}
+		std::cout << "Partition Axis: " << axis << std::endl;
+		std::cout << "Partitions:" << std::endl;
+		for( unsigned int i=0 ; i<pointSetInfoAndPartition.second.partitions() ; i++ )
+		{
+			std::pair< unsigned int , unsigned int > range = pointSetInfoAndPartition.second.range( i );
+			front[Dim] = (range.first/res)-offset;
+			back[Dim] = offset-(range.second/res);
+			char frontStr[ 1024 ] , backStr[ 1024 ];
+			CmdLineType< Point< Real , Dim+1 > >::WriteValue( front , frontStr );
+			CmdLineType< Point< Real , Dim+1 > >::WriteValue( back , backStr );
+			std::cout << "\t[ " << offset-(range.first/res) << " , " << offset-(range.second/res) << " ] ->";
+			std::cout << std::string( frontStr ) << " " << std::string( backStr ) << std::endl;
+		}
+	}
 
 	ThreadPool::Terminate();
 

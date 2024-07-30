@@ -598,7 +598,13 @@ int main( int argc , char* argv[] )
 	Factory factory;
 	bool *readFlags = new bool[ factory.plyReadNum() ];
 	std::vector< PlyProperty > unprocessedProperties;
-	PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties );
+	size_t vNum;
+	PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties , vNum );
+	if( vNum>std::numeric_limits< int >::max() )
+	{
+		if( !Long.set ) WARN( "Number of vertices not supported by 32-bit indexing. Switching to 64-bit indexing" );
+		Long.set = true;
+	}
 	if( !factory.plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
 	if( !factory.plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain values" );
 	delete[] readFlags;

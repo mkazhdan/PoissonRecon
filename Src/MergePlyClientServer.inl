@@ -151,7 +151,8 @@ void _RunServer
 	const std::vector< unsigned int > &sharedVertexCounts ,
 	ClientMergePlyInfo clientMergePlyInfo ,
 	const Factory &factory ,
-	unsigned int sampleMS
+	unsigned int sampleMS ,
+	std::function< std::vector< std::string > (unsigned int) > commentFunctor
 )
 {
 	Profiler profiler(sampleMS);
@@ -266,11 +267,17 @@ void _RunServer
 			std::pair< unsigned , unsigned int > shared;
 			shared.first  = i>0                         ? sharedVertexCounts[i-1] : 0;
 			shared.second = i<sharedVertexCounts.size() ? sharedVertexCounts[i  ] : 0;
-			std::vector< std::string > comments(1);
+			std::vector< std::string > _comments = commentFunctor( i );
+			std::vector< std::string > comments( 1+_comments.size() );
 			comments[0] = std::string( "Shared: " ) + std::to_string( shared.first ) + std::string( "|" ) + std::to_string( shared.second );
+			for( unsigned int j=0 ; j<_comments.size() ; j++ ) comments[j+1] = _comments[j];
 			outPly[i] = PLY::WriteHeader( fileName , PLY_BINARY_NATIVE , elems , comments );
 		}
-	else outPly[0] = PLY::WriteHeader( out , PLY_BINARY_NATIVE , elems );
+	else
+	{
+		std::vector< std::string > comments = commentFunctor(-1);
+		outPly[0] = PLY::WriteHeader( out , PLY_BINARY_NATIVE , elems , comments );
+	}
 
 	// Write out the (merged) vertices
 	{
@@ -391,7 +398,8 @@ void RunServer
 	std::vector< Socket > &clientSockets ,
 	const std::vector< unsigned int > &sharedVertexCounts ,
 	ClientMergePlyInfo clientMergePlyInfo ,
-	unsigned int sampleMS
+	unsigned int sampleMS ,
+	std::function< std::vector< std::string > (unsigned int) > commentFunctor
 )
 {
 	if( clientSockets.size()!=sharedVertexCounts.size()+1 ) ERROR_OUT( "Socket num and shared vertex count don't match: " , clientSockets.size() , " / " , sharedVertexCounts.size() );
@@ -408,13 +416,13 @@ void RunServer
 		VertexFactory::PositionFactory< Real , Dim > vFactory;
 		VertexFactory::DynamicFactory< Real > dFactory( clientMergePlyInfo.auxProperties );
 		Factory factory( vFactory , dFactory );
-		_RunServer< Real , Dim >( inDir , tempDir , header , out , clientSockets , sharedVertexCounts , clientMergePlyInfo , factory , sampleMS );
+		_RunServer< Real , Dim >( inDir , tempDir , header , out , clientSockets , sharedVertexCounts , clientMergePlyInfo , factory , sampleMS , commentFunctor );
 	}
 	else
 	{
 		typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > > Factory;
 		Factory factory;
-		_RunServer< Real , Dim >( inDir , tempDir , header , out , clientSockets , sharedVertexCounts , clientMergePlyInfo , factory , sampleMS );
+		_RunServer< Real , Dim >( inDir , tempDir , header , out , clientSockets , sharedVertexCounts , clientMergePlyInfo , factory , sampleMS , commentFunctor );
 	}
 
 }
