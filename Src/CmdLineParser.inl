@@ -35,16 +35,18 @@ inline int strcasecmp( const char* c1 , const char* c2 ){ return _stricmp( c1 , 
 
 template< > void   CmdLineType< char*       >::CleanUp( char** t ){ if( *t ) free( *t ) ; *t = NULL; }
 
-template< > int    CmdLineType< int         >::Initialize( void ){ return 0; }
-template< > float  CmdLineType< float       >::Initialize( void ){ return 0.f; }
-template< > double CmdLineType< double      >::Initialize( void ){ return 0.; }
-template< > char*  CmdLineType< char*       >::Initialize( void ){ return NULL; }
+template< > int          CmdLineType< int          >::Initialize( void ){ return 0; }
+template< > unsigned int CmdLineType< unsigned int >::Initialize( void ){ return 0u; }
+template< > float        CmdLineType< float        >::Initialize( void ){ return 0.f; }
+template< > double       CmdLineType< double       >::Initialize( void ){ return 0.; }
+template< > char *       CmdLineType< char *       >::Initialize( void ){ return NULL; }
 
-template< > void   CmdLineType< int         >::WriteValue( int    t , char* str ){ sprintf( str , "%d" , t ); }
-template< > void   CmdLineType< float       >::WriteValue( float  t , char* str ){ sprintf( str , "%f" , t ); }
-template< > void   CmdLineType< double      >::WriteValue( double t , char* str ){ sprintf( str , "%f" , t ); }
-template< > void   CmdLineType< char*       >::WriteValue( char*  t , char* str ){ if( t ) sprintf( str , "%s" , t ) ; else str[0]=0; }
-template< > void   CmdLineType< std::string >::WriteValue( std::string t , char* str ){ sprintf( str , "%s" , t.c_str() ); }
+template< > void   CmdLineType< int          >::WriteValue( int          t , char* str ){ sprintf( str , "%d" , t ); }
+template< > void   CmdLineType< unsigned int >::WriteValue( unsigned int t , char* str ){ sprintf( str , "%u" , t ); }
+template< > void   CmdLineType< float        >::WriteValue( float        t , char* str ){ sprintf( str , "%f" , t ); }
+template< > void   CmdLineType< double       >::WriteValue( double       t , char* str ){ sprintf( str , "%f" , t ); }
+template< > void   CmdLineType< char *       >::WriteValue( char        *t , char* str ){ if( t ) sprintf( str , "%s" , t ) ; else str[0]=0; }
+template< > void   CmdLineType< std::string  >::WriteValue( std::string  t , char* str ){ sprintf( str , "%s" , t.c_str() ); }
 template< typename Real , unsigned int Dim >
 void CmdLineType< Point< Real , Dim > >::WriteValue( Point< Real , Dim > t , char *str )
 {
@@ -66,15 +68,16 @@ template< > char*  CmdLineType< char*       >::Copy( char* t ){ return _strdup( 
 template< > char*  CmdLineType< char*       >::Copy( char* t ){ return strdup( t ); }
 #endif // WIN32 || _WIN64
 
-template< > int    CmdLineType< int         >::StringToType( const char* str ){ return atoi( str ); }
-template< > float  CmdLineType< float       >::StringToType( const char* str ){ return float( atof( str ) ); }
-template< > double CmdLineType< double      >::StringToType( const char* str ){ return double( atof( str ) ); }
+template< > int          CmdLineType< int          >::StringToType( const char* str ){ return atoi( str ); }
+template< > unsigned int CmdLineType< unsigned int >::StringToType( const char* str ){ return (unsigned int)atoll( str ); }
+template< > float        CmdLineType< float        >::StringToType( const char* str ){ return float( atof( str ) ); }
+template< > double       CmdLineType< double       >::StringToType( const char* str ){ return double( atof( str ) ); }
 #if defined( WIN32 ) || defined( _WIN64 )
-template< > char*  CmdLineType< char*       >::StringToType( const char* str ){ return _strdup( str ); }
+template< > char *       CmdLineType< char*        >::StringToType( const char* str ){ return _strdup( str ); }
 #else // !WIN32 && !_WIN64
-template< > char*  CmdLineType< char*       >::StringToType( const char* str ){ return  strdup( str ); }
+template< > char *       CmdLineType< char*        >::StringToType( const char* str ){ return  strdup( str ); }
 #endif // WIN32 || _WIN64
-template< > std::string CmdLineType< std::string >::StringToType( const char* str ){ return std::string( str ); }
+template< > std::string  CmdLineType< std::string  >::StringToType( const char* str ){ return std::string( str ); }
 
 template< typename Real , unsigned int Dim >
 Point< Real , Dim > CmdLineType< Point< Real , Dim > >::StringToType( const char *str )

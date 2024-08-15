@@ -29,7 +29,7 @@ DAMAGE.
 #include <stdio.h>
 #include "MyMiscellany.h"
 
-template< class Real > Real Random( void ){ return Real( rand() )/RAND_MAX; }
+template< class Real > Real Random( void ){ return Real( rand() )/Real( RAND_MAX ); }
 
 template< class Real , int Dim >
 Point< Real , Dim > RandomBallPoint( void )

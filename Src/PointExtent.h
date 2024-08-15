@@ -58,7 +58,7 @@ namespace PointExtent
 		void add( Point< Real , Dim > p );
 		Extent operator + ( const Extent &e ) const;
 	protected:
-		static const struct Frame< Real , Dim , ExtendedAxes > _Frame;
+		static const PointExtent::Frame< Real , Dim , ExtendedAxes > _Frame;
 
 		template< typename _Real , unsigned int _Dim , bool _ExtendedAxes >
 		friend std::ostream &operator << ( std::ostream & , const Extent< _Real , _Dim , _ExtendedAxes > & );

@@ -9,6 +9,7 @@ IS_TARGET=ImageStitching
 AV_TARGET=AdaptiveTreeVisualization
 CP_TARGET=ChunkPLY
 RE_TARGET=ReconExample
+PTD_TARGET=PointsToDisks
 
 PR_SOURCE=PoissonRecon.cpp
 PRC_SOURCE=PoissonReconClient.cpp
@@ -21,6 +22,7 @@ IS_SOURCE=ImageStitching.cpp
 AV_SOURCE=AdaptiveTreeVisualization.cpp
 CP_SOURCE=ChunkPLY.cpp
 RE_SOURCE=Reconstruction.example.cpp
+PTD_SOURCE=PointsToDisks.cpp
 
 COMPILER ?= gcc
 #COMPILER ?= clang
@@ -77,6 +79,7 @@ IS_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(IS_SOURCE))))
 AV_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(AV_SOURCE))))
 CP_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(CP_SOURCE))))
 RE_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(RE_SOURCE))))
+PTD_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(PTD_SOURCE))))
 
 
 all: CFLAGS += $(CFLAGS_RELEASE)
@@ -93,6 +96,7 @@ all: $(BIN)$(IS_TARGET)
 all: $(BIN)$(AV_TARGET)
 all: $(BIN)$(CP_TARGET)
 all: $(BIN)$(RE_TARGET)
+all: $(BIN)$(PTD_TARGET)
 
 debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: LFLAGS += $(LFLAGS_DEBUG)
@@ -108,6 +112,7 @@ debug: $(BIN)$(IS_TARGET)
 debug: $(BIN)$(AV_TARGET)
 debug: $(BIN)$(CP_TARGET)
 debug: $(BIN)$(RE_TARGET)
+debug: $(BIN)$(PTD_TARGET)
 
 poissonrecon: CFLAGS += $(CFLAGS_RELEASE)
 poissonrecon: LFLAGS += $(LFLAGS_RELEASE)
@@ -158,10 +163,16 @@ chunkply: CFLAGS += $(CFLAGS_RELEASE)
 chunkply: LFLAGS += $(LFLAGS_RELEASE)
 chunkply: make_dir
 chunkply: $(BIN)$(CP_TARGET)
+
 reconexample: CFLAGS += $(CFLAGS_RELEASE)
 reconexample: LFLAGS += $(LFLAGS_RELEASE)
 reconexample: make_dir
 reconexample: $(BIN)$(RE_TARGET)
+
+pointstodisks: CFLAGS += $(CFLAGS_RELEASE)
+pointstodisks: LFLAGS += $(LFLAGS_RELEASE)
+pointstodisks: make_dir
+pointstodisks: $(BIN)$(PTD_TARGET)
 
 clean:
 	rm -rf $(BIN)$(PR_TARGET)
@@ -186,6 +197,7 @@ clean:
 	rm -rf $(AV_OBJECTS)
 	rm -rf $(CP_OBJECTS)
 	rm -rf $(RE_OBJECTS)
+	rm -rf $(PTD_OBJECTS)
 	cd PNG  && make clean
 
 
@@ -230,6 +242,9 @@ $(BIN)$(CP_TARGET): $(CP_OBJECTS)
 
 $(BIN)$(RE_TARGET): $(RE_OBJECTS)
 	$(CXX) -pthread -o $@ $(RE_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
+
+$(BIN)$(PTD_TARGET): $(PTD_OBJECTS)
+	$(CXX) -pthread -o $@ $(PTD_OBJECTS) -L$(BIN) $(LFLAGS)
 
 $(BIN)%.o: $(SRC)%.c
 	$(CC) -c -o $@ -I$(INCLUDE) $<
