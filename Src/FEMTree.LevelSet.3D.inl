@@ -1502,7 +1502,7 @@ public:
 										const std::vector< IsoEdge >& _edges = iter->second;
 										for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
 									}
-									else ERROR_OUT( "Invalid faces: " , i , "  " ,  fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
+									else THROW( "Invalid faces: " , i , "  " ,  fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
 								}
 							}
 						}
