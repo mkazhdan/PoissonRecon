@@ -26,10 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include <float.h>
-#include <complex>
-#include <unordered_map>
-
 ///////////////////////////////////////////////////////////////
 //  SparseMatrix (unconstrained max row size specialization) //
 ///////////////////////////////////////////////////////////////

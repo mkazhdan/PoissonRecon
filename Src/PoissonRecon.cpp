@@ -45,7 +45,9 @@ DAMAGE.
 
 #define DEFAULT_DIMENSION 3
 
-cmdLineParameter< char* >
+using namespace PoissonRecon;
+
+CmdLineParameter< char* >
 	In( "in" ) ,
 	Out( "out" ) ,
 	TempDir( "tempDir" ) ,
@@ -54,7 +56,7 @@ cmdLineParameter< char* >
 	Envelope( "envelope" ) ,
 	Transform( "xForm" );
 
-cmdLineReadable
+CmdLineReadable
 	Performance( "performance" ) ,
 	ShowResidual( "showResidual" ) ,
 	PolygonMesh( "polygonMesh" ) ,
@@ -70,7 +72,7 @@ cmdLineReadable
 	Gradients( "gradients" ) ,
 	Verbose( "verbose" );
 
-cmdLineParameter< int >
+CmdLineParameter< int >
 #ifndef FAST_COMPILE
 	Degree( "degree" , Reconstructor::Poisson::DefaultFEMDegree ) ,
 #endif // !FAST_COMPILE
@@ -96,7 +98,7 @@ cmdLineParameter< int >
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 
-cmdLineParameter< float >
+CmdLineParameter< float >
 	DataX( "data" , 32.f ) ,
 	SamplesPerNode( "samplesPerNode" , 1.5f ) ,
 	Scale( "scale" , 1.1f ) ,
@@ -108,7 +110,7 @@ cmdLineParameter< float >
 	TargetValue( "targetValue" , 0.5f ) ,
 	PointWeight( "pointWeight" );
 
-cmdLineReadable* params[] =
+CmdLineReadable* params[] =
 {
 #ifndef FAST_COMPILE
 	&Degree , &BType ,
@@ -606,7 +608,7 @@ int main( int argc , char* argv[] )
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;

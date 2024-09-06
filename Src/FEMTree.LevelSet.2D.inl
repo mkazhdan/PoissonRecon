@@ -26,17 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#ifndef FEM_TREE_LEVEL_SET_2D_INL_INCLUDED
-#define FEM_TREE_LEVEL_SET_2D_INL_INCLUDED
-
-#include <sstream>
-#include <sstream>
-#include <iomanip>
-#include <unordered_map>
-#include "MyMiscellany.h"
-#include "MarchingCubes.h"
-#include "MAT.h"
-
 // Specialized level-set curve extraction
 template< bool HasData , typename Real , typename Data >
 struct _LevelSetExtractor< HasData , Real , 2 , Data >
@@ -1149,4 +1138,3 @@ struct LevelSetExtractor< Real , 2 , Data >
 		return _LevelSetExtractor< HasData , Real , Dim , Data >::template SetSliceValues< WeightDegree , DataSig , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , maxKeyDepth , densityWeights , data , coefficients , isoValue , vertexStream , zeroData , nonLinearFit , outputGradients , sliceValues , setFlag );
 	}
 };
-#endif // FEM_TREE_LEVEL_SET_2D_INL_INCLUDED

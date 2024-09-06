@@ -38,11 +38,13 @@ DAMAGE.
 #include "MyMiscellany.h"
 #include "CmdLineParser.h"
 
-cmdLineParameter< char* > Out( "out" );
-cmdLineReadable SSDReconstruction( "ssd" ) , UseColor( "color" ) , Verbose( "verbose" );
-cmdLineParameter< int >	Depth( "depth" , 8 ) , SampleNum( "samples" , 100000 );
+using namespace PoissonRecon;
 
-cmdLineReadable* params[] = { &Out , &SSDReconstruction , &UseColor , &Verbose , &Depth , &SampleNum , nullptr };
+CmdLineParameter< char* > Out( "out" );
+CmdLineReadable SSDReconstruction( "ssd" ) , UseColor( "color" ) , Verbose( "verbose" );
+CmdLineParameter< int >	Depth( "depth" , 8 ) , SampleNum( "samples" , 100000 );
+
+CmdLineReadable* params[] = { &Out , &SSDReconstruction , &UseColor , &Verbose , &Depth , &SampleNum , nullptr };
 
 void ShowUsage( char* ex )
 {
@@ -321,7 +323,7 @@ void Execute( void )
 int main( int argc , char* argv[] )
 {
 	Timer timer;
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 #ifdef _OPENMP
 	ThreadPool::Init( ThreadPool::OPEN_MP , std::thread::hardware_concurrency() );
 #else // !_OPENMP

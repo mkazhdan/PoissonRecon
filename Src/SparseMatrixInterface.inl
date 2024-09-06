@@ -167,30 +167,27 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( ConstPointer( T )
 {
 	if( dReciprocal )
 	{
-#define ITERATE( j )                                                                                \
-	{                                                                                               \
-		T2 _b = b[j];                                                                               \
-		const_iterator e = end( j );                                                                \
-		for( const_iterator iter = begin( j ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;  \
-		x[j] += _b * diagonal[j];                                                                   \
-	}
-		if( forward ) for( long long j=0 ; j<(long long)rows() ; j++ ){ ITERATE( j ); }
-		else          for( long long j=(long long)rows()-1 ; j>=0 ; j-- ){ ITERATE( j ); }
-#undef ITERATE
+		auto Iterate = [&]( long long j )
+			{
+				T2 _b = b[j];
+				const_iterator e = end( j );
+				for( const_iterator iter = begin( j ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;
+				x[j] += _b * diagonal[j];
+			};
+		if( forward ) for( long long j=0 ; j<(long long)rows() ; j++ ){ Iterate( j ); }
+		else          for( long long j=(long long)rows()-1 ; j>=0 ; j-- ){ Iterate( j ); }
 	}
 	else
 	{
-#define ITERATE( j )                                                                                \
-	{                                                                                               \
-		T2 _b = b[j];                                                                               \
-		const_iterator e = end( j );                                                                \
-		for( const_iterator iter = begin( j ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;  \
-		x[j] += _b / diagonal[j];                                                                   \
-	}
-
-		if( forward ) for( long long j=0 ; j<(long long)rows() ; j++ ){ ITERATE( j ); }
-		else          for( long long j=(long long)rows()-1 ; j>=0 ; j-- ){ ITERATE( j ); }
-#undef ITERATE
+		auto Iterate = [&]( long long j )
+			{
+				T2 _b = b[j];
+				const_iterator e = end( j );
+				for( const_iterator iter = begin( j ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;
+				x[j] += _b / diagonal[j];
+			};
+		if( forward ) for( long long j=0 ; j<(long long)rows() ; j++ ){ Iterate( j ); }
+		else          for( long long j=(long long)rows()-1 ; j>=0 ; j-- ){ Iterate( j ); }
 	}
 }
 template< class T , class const_iterator >
@@ -225,39 +222,37 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 {
 	if( dReciprocal )
 	{
-#define ITERATE( indices )                                                                               \
-	{                                                                                                    \
-		ThreadPool::Parallel_for( 0 , indices.size() , [&]( unsigned int , size_t k )                             \
-		{                                                                                                \
-			size_t jj = indices[k];                                                                      \
-			T2 _b = b[jj];                                                                               \
-			const_iterator e = end( jj );                                                                \
-			for( const_iterator iter = begin( jj ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;  \
-			x[jj] += _b * diagonal[jj];                                                                  \
-		}                                                                                                \
-		);                                                                                               \
-	}
-		if( forward ) for( size_t j=0 ; j<multiColorIndices.size() ; j++ ){ ITERATE( multiColorIndices[j] ); }
-		else for( long long j=(long long)multiColorIndices.size()-1 ; j>=0 ; j-- ){ ITERATE( multiColorIndices[j] ); }
-#undef ITERATE
+		auto Iterate = [&]( const std::vector< size_t > &indices )
+			{
+				ThreadPool::Parallel_for( 0 , indices.size() , [&]( unsigned int , size_t k )
+					{
+						size_t jj = indices[k];
+						T2 _b = b[jj];
+						const_iterator e = end( jj );
+						for( const_iterator iter = begin( jj ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;
+						x[jj] += _b * diagonal[jj];
+					}
+				);
+			};
+		if( forward ) for( size_t j=0 ; j<multiColorIndices.size() ; j++ ){ Iterate( multiColorIndices[j] ); }
+		else for( long long j=(long long)multiColorIndices.size()-1 ; j>=0 ; j-- ){ Iterate( multiColorIndices[j] ); }
 	}
 	else
 	{
-#define ITERATE( indices )                                                                               \
-	{                                                                                                    \
-		ThreadPool::Parallel_for( 0 , indices.size() , [&]( unsigned int , size_t k )                             \
-		{                                                                                                \
-			size_t jj = indices[k];                                                                      \
-			T2 _b = b[jj];                                                                               \
-			const_iterator e = end( jj );                                                                \
-			for( const_iterator iter = begin( jj ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;  \
-			x[jj] += _b / diagonal[jj];                                                                  \
-		}                                                                                                \
-		);                                                                                               \
-	}
-		if( forward ) for( size_t j=0 ; j<multiColorIndices.size()  ; j++ ){ ITERATE( multiColorIndices[j] ); }
-		else for( long long j=(long long)multiColorIndices.size()-1 ; j>=0 ; j-- ){ ITERATE( multiColorIndices[j] ); }
-#undef ITERATE
+		auto Iterate = [&]( const std::vector< size_t > &indices )
+			{
+				ThreadPool::Parallel_for( 0 , indices.size() , [&]( unsigned int , size_t k )
+					{
+						size_t jj = indices[k];
+						T2 _b = b[jj];
+						const_iterator e = end( jj );
+						for( const_iterator iter = begin( jj ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;
+						x[jj] += _b / diagonal[jj];
+					}
+				);
+			};
+		if( forward ) for( size_t j=0 ; j<multiColorIndices.size()  ; j++ ){ Iterate( multiColorIndices[j] ); }
+		else for( long long j=(long long)multiColorIndices.size()-1 ; j>=0 ; j-- ){ Iterate( multiColorIndices[j] ); }
 	}
 }
 template< class SPDFunctor , class T , typename Real , class TDotTFunctor > size_t SolveCG( const SPDFunctor& M , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot )

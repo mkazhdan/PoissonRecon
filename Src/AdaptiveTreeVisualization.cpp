@@ -43,7 +43,9 @@ DAMAGE.
 #include "DataStream.imp.h"
 #include "Reconstructors.h"
 
-cmdLineParameter< char* >
+using namespace PoissonRecon;
+
+CmdLineParameter< char* >
 	In( "in" ) ,
 	Samples( "samples" ) ,
 	OutMesh( "mesh" ) ,
@@ -51,7 +53,7 @@ cmdLineParameter< char* >
 	OutSlice( "slice" ) ,
 	OutGrid( "grid" );
 
-cmdLineReadable
+CmdLineReadable
 	PolygonMesh( "polygonMesh" ) ,
 	NonManifold( "nonManifold" ) ,
 	FlipOrientation( "flip" ) ,
@@ -60,7 +62,7 @@ cmdLineReadable
 	PrimalGrid( "primalGrid" ) ,
 	Verbose( "verbose" );
 
-cmdLineParameter< int >
+CmdLineParameter< int >
 #ifdef _OPENMP
 	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
 #else // !_OPENMP
@@ -78,10 +80,10 @@ cmdLineParameter< int >
 	TreeDepth( "treeDepth" , -1 );
 
 
-cmdLineParameter< float >
+CmdLineParameter< float >
 	IsoValue( "iso" , 0.f );
 
-cmdLineReadable* params[] =
+CmdLineReadable* params[] =
 {
 	&In , 
 	&Samples ,
@@ -467,7 +469,7 @@ int main( int argc , char* argv[] )
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	if( Verbose.set )

@@ -26,18 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include <string.h>
-#include <stdio.h>
-#include <emmintrin.h>
-#include <vector>
-#ifdef _WIN32
-#include <windows.h>
-#endif // _WIN32
-#include <stddef.h>
-#include <type_traits>
-#include <cstddef>
-#include "MyMiscellany.h"
-
 template< class C > class ConstArray;
 
 template< class C >

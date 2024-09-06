@@ -43,10 +43,12 @@ DAMAGE.
 
 #define DEFAULT_DIMENSION 3
 
-cmdLineParameter< std::string >
+using namespace PoissonRecon;
+
+CmdLineParameter< std::string >
 	Address( "address" , "127.0.0.1" );
 
-cmdLineParameter< int >
+CmdLineParameter< int >
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef _OPENMP
 	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
@@ -60,11 +62,11 @@ cmdLineParameter< int >
 	Port( "port" , 0 ) ,
 	PeakMemorySampleMS( "sampleMS" , 10 );
 
-cmdLineReadable
+CmdLineReadable
 	Pause( "pause" );
 
 
-cmdLineReadable* params[] =
+CmdLineReadable* params[] =
 {
 	&Port , &MultiClient , &Address ,
 	&MaxMemoryGB , &ParallelType , &ScheduleType , &ThreadChunkSize , &Threads ,
@@ -167,7 +169,7 @@ int main( int argc , char* argv[] )
 	static const unsigned int Dim = DEFAULT_DIMENSION;
 
 	Timer timer;
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 
 	if( !Port.set )
 	{

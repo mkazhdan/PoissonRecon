@@ -26,11 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include <float.h>
-#include <math.h>
-#include <algorithm>
-#include "Factor.h"
-
 ////////////////
 // Polynomial //
 ////////////////

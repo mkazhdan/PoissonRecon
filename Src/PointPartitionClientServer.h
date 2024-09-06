@@ -38,36 +38,39 @@ DAMAGE.
 #include "Reconstructors.h"
 #include "PointExtent.h"
 
-
-namespace PointPartitionClientServer
+namespace PoissonRecon
 {
-	template< typename Real >
-	struct ClientPartitionInfo
+	namespace PointPartitionClientServer
 	{
-		std::string in , tempDir , outDir , outHeader;
-		unsigned int slabs , filesPerDir , bufferSize , clientCount , sliceDir;
-		Real scale;
-		bool verbose;
+		template< typename Real >
+		struct ClientPartitionInfo
+		{
+			std::string in , tempDir , outDir , outHeader;
+			unsigned int slabs , filesPerDir , bufferSize , clientCount , sliceDir;
+			Real scale;
+			bool verbose;
 
-		ClientPartitionInfo( void );
-		ClientPartitionInfo( BinaryStream &stream );
+			ClientPartitionInfo( void );
+			ClientPartitionInfo( BinaryStream &stream );
 
-		void write( BinaryStream &stream ) const;
-	};
+			void write( BinaryStream &stream ) const;
+		};
 
 
-	template< typename Real , unsigned int Dim >
-	std::pair< PointPartition::PointSetInfo< Real , Dim > , PointPartition::Partition > RunServer
-	(
-		std::vector< Socket > &clientSockets ,
-		ClientPartitionInfo< Real > clientPartitionInfo ,
-		bool loadBalance
-	);
+		template< typename Real , unsigned int Dim >
+		std::pair< PointPartition::PointSetInfo< Real , Dim > , PointPartition::Partition > RunServer
+		(
+			std::vector< Socket > &clientSockets ,
+			ClientPartitionInfo< Real > clientPartitionInfo ,
+			bool loadBalance
+		);
 
-	template< typename Real , unsigned int Dim >
-	void RunClients( std::vector< Socket > &serverSockets );
+		template< typename Real , unsigned int Dim >
+		void RunClients( std::vector< Socket > &serverSockets );
 
 #include "PointPartitionClientServer.inl"
+	}
 }
+
 
 #endif // POINT_PARTITION_CLIENT_SERVER_INCLUDED

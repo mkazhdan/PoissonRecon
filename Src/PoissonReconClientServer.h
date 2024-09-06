@@ -39,59 +39,63 @@ DAMAGE.
 #include "VertexFactory.h"
 #include "Socket.h"
 #include "Reconstructors.h"
+#include "DataStream.imp.h"
 
-namespace PoissonReconClientServer
+namespace PoissonRecon
 {
-	template< typename Real , unsigned int Dim >
-	struct ClientReconstructionInfo
+	namespace PoissonReconClientServer
 	{
-		enum ShareType
+		template< typename Real , unsigned int Dim >
+		struct ClientReconstructionInfo
 		{
-			BACK ,
-			CENTER ,
-			FRONT
+			enum ShareType
+			{
+				BACK ,
+				CENTER ,
+				FRONT
+			};
+			enum MergeType
+			{
+				TOPOLOGY_AND_FUNCTION ,		// Identical topology across slice
+				FUNCTION ,					// Identical function across slice
+				NONE
+			};
+
+			std::string header , inDir , tempDir , outDir;
+			unsigned int solveDepth , reconstructionDepth , sharedDepth , distributionDepth , baseDepth , kernelDepth , iters , bufferSize , filesPerDir , padSize , verbose;
+			Real pointWeight , confidence , confidenceBias , samplesPerNode , dataX , cgSolverAccuracy , targetValue;
+			MergeType mergeType;
+			bool density , linearFit , ouputVoxelGrid , outputSolution;
+			std::vector< PlyProperty > auxProperties;
+
+			ClientReconstructionInfo( void );
+			ClientReconstructionInfo( BinaryStream &stream );
+
+			void write( BinaryStream &stream ) const;
+
+			std::string sharedFile( unsigned int idx , ShareType shareType=CENTER ) const;
 		};
-		enum MergeType
-		{
-			TOPOLOGY_AND_FUNCTION ,		// Identical topology across slice
-			FUNCTION ,					// Identical function across slice
-			NONE
-		};
 
-		std::string header , inDir , tempDir , outDir;
-		unsigned int solveDepth , reconstructionDepth , sharedDepth , distributionDepth , baseDepth , kernelDepth , iters , bufferSize , filesPerDir , padSize , verbose;
-		Real pointWeight , confidence , confidenceBias , samplesPerNode , dataX , cgSolverAccuracy , targetValue;
-		MergeType mergeType;
-		bool density , linearFit , ouputVoxelGrid , outputSolution;
-		std::vector< PlyProperty > auxProperties;
+		template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
+		std::vector< unsigned int > RunServer
+		(
+			PointPartition::PointSetInfo< Real , Dim > pointSetInfo ,
+			PointPartition::Partition pointPartition ,
+			std::vector< Socket > clientSockets ,
+			ClientReconstructionInfo< Real , Dim > clientReconInfo , 
+			unsigned int baseVCycles , 
+			unsigned int sampleMS ,
+			bool showDiscontinuity=false ,
+			bool outputBoundarySlices=false
+		);
 
-		ClientReconstructionInfo( void );
-		ClientReconstructionInfo( BinaryStream &stream );
-
-		void write( BinaryStream &stream ) const;
-
-		std::string sharedFile( unsigned int idx , ShareType shareType=CENTER ) const;
-	};
-
-	template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
-	std::vector< unsigned int > RunServer
-	(
-		PointPartition::PointSetInfo< Real , Dim > pointSetInfo ,
-		PointPartition::Partition pointPartition ,
-		std::vector< Socket > clientSockets ,
-		ClientReconstructionInfo< Real , Dim > clientReconInfo , 
-		unsigned int baseVCycles , 
-		unsigned int sampleMS ,
-		bool showDiscontinuity=false ,
-		bool outputBoundarySlices=false
-	);
-
-	template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
-	void RunClient( std::vector< Socket > &serverSockets , unsigned int sampleMS );
+		template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
+		void RunClient( std::vector< Socket > &serverSockets , unsigned int sampleMS );
 
 #include "PoissonReconClientServer.inl"
 #include "PoissonRecon.server.inl"
 #include "PoissonRecon.client.inl"
+	}
 }
 
 #endif // POISSON_RECON_CLIENT_SERVER_INCLUDED

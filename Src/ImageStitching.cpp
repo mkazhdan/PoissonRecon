@@ -49,11 +49,13 @@ DAMAGE.
 #include "Geometry.h"
 #include "FEMTree.h"
 
-cmdLineParameterArray< char* , 2 >
+using namespace PoissonRecon;
+
+CmdLineParameterArray< char* , 2 >
 	In( "in" );
-cmdLineParameter< char* >
+CmdLineParameter< char* >
 	Out( "out" );
-cmdLineParameter< int >
+CmdLineParameter< int >
 #ifdef FAST_COMPILE
 #else // !FAST_COMPILE
 	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
@@ -71,15 +73,15 @@ cmdLineParameter< int >
 	FullDepth( "fullDepth" , 6 ) ,
 	BaseDepth( "baseDepth" ) ,
 	BaseVCycles( "baseVCycles" , 4 );
-cmdLineReadable
+CmdLineReadable
 	Verbose( "verbose" ) ,
 	ShowResidual( "showResidual" ) ,
 	Performance( "performance" );
-cmdLineParameter< float >
+CmdLineParameter< float >
 	WeightScale   ( "wScl", 0.125f ) ,
 	WeightExponent( "wExp" , 6.f );
 
-cmdLineReadable* params[] =
+CmdLineReadable* params[] =
 {
 	&In , &Out , &Threads , &Verbose , &ShowResidual , &GSIterations , &FullDepth ,
 	&BaseDepth , &BaseVCycles ,
@@ -510,7 +512,7 @@ int main( int argc , char* argv[] )
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;

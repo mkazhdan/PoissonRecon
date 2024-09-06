@@ -45,14 +45,16 @@ DAMAGE.
 #include "VertexFactory.h"
 #include "DataStream.imp.h"
 
-cmdLineParameters< char* > In( "in" );
-cmdLineParameter< char* > Out( "out" );
-cmdLineParameter< float > Width( "width" , -1.f ) , PadRadius( "radius" , 0.f );
-cmdLineParameterArray< float , 6 > BoundingBox( "bBox" );
-cmdLineParameters< Point< float , 4 > > HalfSpaces( "halfSpaces" );
-cmdLineReadable ASCII( "ascii" ) , Verbose( "verbose" ) , NoNormals( "noNormals" ) , Colors( "colors" ) , Values( "values" );
+using namespace PoissonRecon;
 
-cmdLineReadable* params[] = { &In , &Out , &Width , &PadRadius , &ASCII , &Verbose , &BoundingBox , &NoNormals , &Colors , &Values , &HalfSpaces , NULL };
+CmdLineParameters< char* > In( "in" );
+CmdLineParameter< char* > Out( "out" );
+CmdLineParameter< float > Width( "width" , -1.f ) , PadRadius( "radius" , 0.f );
+CmdLineParameterArray< float , 6 > BoundingBox( "bBox" );
+CmdLineParameters< Point< float , 4 > > HalfSpaces( "halfSpaces" );
+CmdLineReadable ASCII( "ascii" ) , Verbose( "verbose" ) , NoNormals( "noNormals" ) , Colors( "colors" ) , Values( "values" );
+
+CmdLineReadable* params[] = { &In , &Out , &Width , &PadRadius , &ASCII , &Verbose , &BoundingBox , &NoNormals , &Colors , &Values , &HalfSpaces , NULL };
 
 void ShowUsage( char* ex )
 {
@@ -297,7 +299,7 @@ void Execute( VertexDataFactory vertexDataFactory )
 				if( inside && HalfSpaces.set )
 				{
 					Point< float , 4 > _p( p[0] , p[1] , p[2] , 1.f );
-					for( unsigned int i=0 ; i<HalfSpaces.count ; i++ ) inside &= Point< float , 4 >::Dot( _p , HalfSpaces.values[i] )<=0;
+					for( unsigned int i=0 ; i<(unsigned int)HalfSpaces.count ; i++ ) inside &= Point< float , 4 >::Dot( _p , HalfSpaces.values[i] )<=0;
 				}
 				return inside;
 			};
@@ -565,7 +567,7 @@ int main( int argc , char* argv[] )
 	typedef float Real;
 	static constexpr unsigned int Dim = 3;
 
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG

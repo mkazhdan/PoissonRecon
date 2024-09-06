@@ -26,10 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include <stdio.h>
-#include <stdlib.h>
-
-
 inline METHODDEF( void )
 my_error_exit (j_common_ptr cinfo)
 {

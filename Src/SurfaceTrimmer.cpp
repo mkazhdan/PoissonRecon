@@ -44,15 +44,17 @@ DAMAGE.
 #include "Ply.h"
 #include "VertexFactory.h"
 
-cmdLineParameter< char* >
+using namespace PoissonRecon;
+
+CmdLineParameter< char* >
 	In( "in" ) ,
 	Out( "out" );
-cmdLineParameter< int >
+CmdLineParameter< int >
 	Smooth( "smooth" , 5 );
-cmdLineParameter< float >
+CmdLineParameter< float >
 	Trim( "trim" ) ,
 	IslandAreaRatio( "aRatio" , 0.001f );
-cmdLineReadable
+CmdLineReadable
 	PolygonMesh( "polygonMesh" ) ,
 	Long( "long" ) ,
 	ASCII( "ascii" ) ,
@@ -61,7 +63,7 @@ cmdLineReadable
 	Verbose( "verbose" );
 
 
-cmdLineReadable* params[] =
+CmdLineReadable* params[] =
 {
 	&In , &Out , &Trim , &PolygonMesh , &Smooth , &IslandAreaRatio , &Verbose , &Long , &ASCII , &RemoveIslands , &Debug ,
 	NULL
@@ -585,7 +587,7 @@ int Execute( AuxDataFactories ... auxDataFactories )
 }
 int main( int argc , char* argv[] )
 {
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 
 	if( !In.set || !Trim.set )
 	{

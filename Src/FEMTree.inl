@@ -26,11 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include <functional>
-#include <cmath>
-#include <climits>
-#include "MyMiscellany.h"
-
 /////////////////////
 // FEMTreeNodeData //
 /////////////////////
@@ -189,6 +184,77 @@ void FEMTree< Dim , Real >::merge( const FEMTree< Dim , Real > &tree , const Den
 	accumulateCoefficients( &tree._tree , &_tree );
 }
 
+template< unsigned int Dim , class Real , unsigned int Pad , unsigned int FEMSig >
+struct SliceEvaluator
+{
+	struct _SliceEvaluator
+	{
+		const int StartOffset = BSplineSupportSizes< FEMSignature< FEMSig >::Degree >::SupportStart-(int)Pad;
+		const int   EndOffset = BSplineSupportSizes< FEMSignature< FEMSig >::Degree >::SupportEnd+1+(int)Pad;
+		int start;
+		Real values[ BSplineSupportSizes< FEMSignature< FEMSig >::Degree >::SupportSize+2*Pad ];
+		void init( unsigned int depth , double x , unsigned int d )
+		{
+			// off @ depthsupports the slice if 
+			//		x>(off+StartOffset)/(1<<depth) && x<(off+EndOffset)/(1<<depth)
+			// <=>	x*(1<<depth)-StartOffset>off && x*(1<<depth)-EndOfset<off
+			// <=>	off \in ( x*(1<<depth)-EndOffset , x*(1<<depth)-StartOffset )
+			// <=	off \in [ ceil( x*(1<<depth) )-EndOffset , ceil( x*(1<<depth) ) - StartOffset )
+			start = (int)ceil( x*(1<<depth)-EndOffset );
+
+			// The derivative is lower than the degree, the derivative will be continuous so we can evaluate it directly
+			if( d<FEMSignature< FEMSig >::Degree ) for( int i=0 ; i<EndOffset-StartOffset ; i++ ) values[i] = (Real)BSplineEvaluationData< FEMSig >::Value( depth , start+i , x , d );
+			else if( d==FEMSignature< FEMSig >::Degree )
+			{
+				double eps = 1e-4/(1<<depth);
+#ifdef SHOW_WARNINGS
+				WARN_ONCE( "Using discrete derivative: " , eps );
+#endif // SHOW_WARNINGS
+				// If we are dealing with a degree-zero polynomial, we offset
+				if( d==0 )
+				{
+					for( int i=0 ; i<EndOffset-StartOffset ; i++ )
+					{
+						double value = 0;
+						value += BSplineEvaluationData< FEMSig >::Value( depth , start+i , x-eps , d );
+						value += BSplineEvaluationData< FEMSig >::Value( depth , start+i , x+eps , d );
+						values[i] = (Real)(value/2);
+					}
+				}
+				else // Otherwise we compute the discrete derivative
+				{
+					for( int i=0 ; i<EndOffset-StartOffset ; i++ )
+					{
+						double value = 0;
+						value += BSplineEvaluationData< FEMSig >::Value( depth , start+i , x , d-1 ) - BSplineEvaluationData< FEMSig >::Value( depth , start+i , x-eps , d-1 );
+						value += BSplineEvaluationData< FEMSig >::Value( depth , start+i , x+eps , d-1 ) - BSplineEvaluationData< FEMSig >::Value( depth , start+i , x , d-1 );
+						values[i] = (Real)(value/(2*eps) );
+					}
+				}
+
+			}
+			else ERROR_OUT( "Derivative exceeds degree: " , d , " > " , FEMSignature< FEMSig >::Degree );
+		}
+		Real operator()( int off ) const
+		{
+			if( off<start || off>=start+(EndOffset-StartOffset ) ) return 0;
+			else return values[off-start];
+		}
+	};
+
+	std::vector< _SliceEvaluator > evaluators;
+	void init( unsigned int maxDepth , double x , unsigned int d )
+	{
+		evaluators.resize( maxDepth+1 );
+		for( unsigned int depth=0 ; depth<=maxDepth ; depth++ ) evaluators[depth].init( depth , x , d );
+	}
+	Real operator()( int d , int off ) const
+	{
+		if( d<0 || d>=(int)evaluators.size() ) return 0;
+		else return evaluators[d]( off );
+	}
+};
+
 template< unsigned int Dim , class Real >
 template< unsigned int Pad , unsigned int FEMSig , unsigned int ... FEMSigs , typename Data >
 void FEMTree< Dim , Real >::slice( const FEMTree< Dim+1 , Real > &tree , unsigned int d , const DenseNodeData< Data , UIntPack< FEMSigs ... , FEMSig > > &coefficients , DenseNodeData< Data , UIntPack< FEMSigs ... > > &sliceCoefficients , unsigned int sliceDepth , unsigned int sliceIndex ) const
@@ -220,95 +286,7 @@ void FEMTree< Dim , Real >::slice( const FEMTree< Dim+1 , Real > &tree , unsigne
 	const int   EndOffset = BSplineSupportSizes< CrossDegree >::SupportEnd+1+(int)Pad;
 #endif // __GNUC__
 
-	struct SliceEvaluator
-	{
-		struct _SliceEvaluator
-		{
-#ifdef __GNUC__
-			const int StartOffset = BSplineSupportSizes< FEMSignature< FEMSig >::Degree >::SupportStart-(int)Pad;
-			const int   EndOffset = BSplineSupportSizes< FEMSignature< FEMSig >::Degree >::SupportEnd+1+(int)Pad;
-#else // !__GNUC__
-			const int StartOffset = BSplineSupportSizes< CrossDegree >::SupportStart-(int)_Pad;
-			const int   EndOffset = BSplineSupportSizes< CrossDegree >::SupportEnd+1+(int)_Pad;
-#endif // __GNUC__
-			int start;
-#ifdef __GNUC__
-			Real values[ BSplineSupportSizes< FEMSignature< FEMSig >::Degree >::SupportSize+2*Pad ];
-#else // !__GNUC__
-			Real values[ BSplineSupportSizes< CrossDegree >::SupportSize+2*Pad ];
-#endif // __GNUC__
-			void init( unsigned int depth , double x , unsigned int d )
-			{
-				// off @ depthsupports the slice if 
-				//		x>(off+StartOffset)/(1<<depth) && x<(off+EndOffset)/(1<<depth)
-				// <=>	x*(1<<depth)-StartOffset>off && x*(1<<depth)-EndOfset<off
-				// <=>	off \in ( x*(1<<depth)-EndOffset , x*(1<<depth)-StartOffset )
-				// <=	off \in [ ceil( x*(1<<depth) )-EndOffset , ceil( x*(1<<depth) ) - StartOffset )
-				start = (int)ceil( x*(1<<depth)-EndOffset );
-
-				// The derivative is lower than the degree, the derivative will be continuous so we can evaluate it directly
-#ifdef __GNUC__
-				if( d<FEMSignature< FEMSig >::Degree ) for( int i=0 ; i<EndOffset-StartOffset ; i++ ) values[i] = (Real)BSplineEvaluationData< FEMSig >::Value( depth , start+i , x , d );
-				else if( d==FEMSignature< FEMSig >::Degree )
-#else // !__GNUC__
-				if( d<CrossDegree ) for( int i=0 ; i<EndOffset-StartOffset ; i++ ) values[i] = (Real)BSplineEvaluationData< FEMSig >::Value( depth , start+i , x , d );
-				else if( d==CrossDegree )
-#endif // __GNUC__
-				{
-					double eps = 1e-4/(1<<depth);
-#ifdef SHOW_WARNINGS
-					WARN_ONCE( "Using discrete derivative: " , eps );
-#endif // SHOW_WARNINGS
-					// If we are dealing with a degree-zero polynomial, we offset
-					if( d==0 )
-					{
-						for( int i=0 ; i<EndOffset-StartOffset ; i++ )
-						{
-							double value = 0;
-							value += BSplineEvaluationData< FEMSig >::Value( depth , start+i , x-eps , d );
-							value += BSplineEvaluationData< FEMSig >::Value( depth , start+i , x+eps , d );
-							values[i] = (Real)(value/2);
-						}
-					}
-					else // Otherwise we compute the discrete derivative
-					{
-						for( int i=0 ; i<EndOffset-StartOffset ; i++ )
-						{
-							double value = 0;
-							value += BSplineEvaluationData< FEMSig >::Value( depth , start+i , x , d-1 ) - BSplineEvaluationData< FEMSig >::Value( depth , start+i , x-eps , d-1 );
-							value += BSplineEvaluationData< FEMSig >::Value( depth , start+i , x+eps , d-1 ) - BSplineEvaluationData< FEMSig >::Value( depth , start+i , x , d-1 );
-							values[i] = (Real)(value/(2*eps) );
-						}
-					}
-
-				}
-#ifdef __GNUC__
-				else ERROR_OUT( "Derivative exceeds degree: " , d , " > " , FEMSignature< FEMSig >::Degree );
-#else // !__GNUC__
-				else ERROR_OUT( "Derivative exceeds degree: " , d , " > " , CrossDegree );
-#endif // __GNUC__
-			}
-			Real operator()( int off ) const
-			{
-				if( off<start || off>=start+(EndOffset-StartOffset ) ) return 0;
-				else return values[off-start];
-			}
-		};
-
-		std::vector< _SliceEvaluator > evaluators;
-		void init( unsigned int maxDepth , double x , unsigned int d )
-		{
-			evaluators.resize( maxDepth+1 );
-			for( unsigned int depth=0 ; depth<=maxDepth ; depth++ ) evaluators[depth].init( depth , x , d );
-		}
-		Real operator()( int d , int off ) const
-		{
-			if( d<0 || d>=(int)evaluators.size() ) return 0;
-			else return evaluators[d]( off );
-		}
-	};
-
-	SliceEvaluator sliceEvaluator;
+	SliceEvaluator< Dim , Real , Pad , FEMSig > sliceEvaluator;
 	sliceEvaluator.init( maxDepth , s , d );
 
 	// A function return true if the function indexed by the node has support overlapping the slice

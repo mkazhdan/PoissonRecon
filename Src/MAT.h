@@ -30,33 +30,37 @@ DAMAGE.
 #include "Geometry.h"
 #include "Array.h"
 
-template< typename Index , class Real , unsigned int Dim >
-std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
-
-template< typename Index , class Real , unsigned int Dim >
-class _MinimalAreaTriangulation
+namespace PoissonRecon
 {
-	Pointer( Real ) _bestTriangulation;
-	Pointer( Index ) _midpoint;
-	size_t _vCount;
-	ConstPointer( Point< Real , Dim > ) _vertices;
 
-	void _set( void );
-	Real _subPolygonArea( Index i , Index j );
-	void _addTriangles( Index i , Index j , std::vector< TriangleIndex< Index > >& triangles ) const;
-	Index _subPolygonIndex( Index i , Index j ) const;
+	template< typename Index , class Real , unsigned int Dim >
+	std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
 
-	_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
-	~_MinimalAreaTriangulation( void );
-	std::vector< TriangleIndex< Index > > getTriangulation( void );
-	friend std::vector< TriangleIndex< Index > > MinimalAreaTriangulation< Index , Real , Dim >( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
-};
-template< typename Index , class Real , unsigned int Dim >
-std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount )
-{
-	_MinimalAreaTriangulation< Index , Real , Dim > MAT( vertices , vCount );
-	return MAT.getTriangulation();
-}
+	template< typename Index , class Real , unsigned int Dim >
+	class _MinimalAreaTriangulation
+	{
+		Pointer( Real ) _bestTriangulation;
+		Pointer( Index ) _midpoint;
+		size_t _vCount;
+		ConstPointer( Point< Real , Dim > ) _vertices;
+
+		void _set( void );
+		Real _subPolygonArea( Index i , Index j );
+		void _addTriangles( Index i , Index j , std::vector< TriangleIndex< Index > >& triangles ) const;
+		Index _subPolygonIndex( Index i , Index j ) const;
+
+		_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
+		~_MinimalAreaTriangulation( void );
+		std::vector< TriangleIndex< Index > > getTriangulation( void );
+		friend std::vector< TriangleIndex< Index > > MinimalAreaTriangulation< Index , Real , Dim >( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
+	};
+	template< typename Index , class Real , unsigned int Dim >
+	std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount )
+	{
+		_MinimalAreaTriangulation< Index , Real , Dim > MAT( vertices , vCount );
+		return MAT.getTriangulation();
+	}
 #include "MAT.inl"
+}
 
 #endif // MAT_INCLUDED

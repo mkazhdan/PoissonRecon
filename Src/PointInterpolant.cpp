@@ -48,8 +48,11 @@ DAMAGE.
 #include "Image.h"
 #include "RegularGrid.h"
 #include "DataStream.imp.h"
+#include "Reconstructors.h"
 
-cmdLineParameter< char* >
+using namespace PoissonRecon;
+
+CmdLineParameter< char* >
 	InValues( "inValues" ) ,
 	InGradients( "inGradients" ) ,
 	Out( "out" ) ,
@@ -58,7 +61,7 @@ cmdLineParameter< char* >
 	Tree( "tree" ) ,
 	Transform( "xForm" );
 
-cmdLineReadable
+CmdLineReadable
 	Performance( "performance" ) ,
 	ShowResidual( "showResidual" ) ,
 	PrimalGrid( "primalGrid" ) ,
@@ -70,7 +73,7 @@ cmdLineReadable
 	ASCII( "ascii" ) ,
 	Verbose( "verbose" );
 
-cmdLineParameter< int >
+CmdLineParameter< int >
 #ifndef FAST_COMPILE
 	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
 #endif // !FAST_COMPILE
@@ -94,7 +97,7 @@ cmdLineParameter< int >
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 
-cmdLineParameter< float >
+CmdLineParameter< float >
 	Scale( "scale" , 1.1f ) ,
 	Width( "width" , 0.f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
@@ -104,7 +107,7 @@ cmdLineParameter< float >
 	LapWeight     (      "lapWeight" , 0.f ) ,
 	BiLapWeight   (    "biLapWeight" , 1.f );
 
-cmdLineReadable* params[] =
+CmdLineReadable* params[] =
 {
 #ifndef FAST_COMPILE
 	&Degree , &BType , &Dimension ,
@@ -956,7 +959,7 @@ int main( int argc , char* argv[] )
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;

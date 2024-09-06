@@ -26,8 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include "DataStream.imp.h"
-
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >
 struct Server
 {

@@ -180,9 +180,9 @@ Point< double , CDim > FEMIntegrator::Constraint< UIntPack< TSignatures ... > , 
 	return integral;
 }
 
-#ifndef MOD
-#define MOD( a , b ) ( (a)>0 ? (a) % (b) : ( (b) - ( -(a) % (b) ) ) % (b) )
-#endif // MOD
+#ifndef PR_MODULO
+#define PR_MODULO( a , b ) ( (a)>0 ? (a) % (b) : ( (b) - ( -(a) % (b) ) ) % (b) )
+#endif // PR_MODULO
 
 /////////////
 // FEMTree //
@@ -213,7 +213,7 @@ void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , nod
 	{
 		LocalDepth d ; LocalOffset off ; _localDepthAndOffset( node , d , off );
 		int index = 0;
-		for( int dd=0 ; dd<Dim ; dd++ ) index = index * Moduli::Values[Dim-dd-1] + MOD( off[Dim-dd-1] , Moduli::Values[Dim-dd-1] );
+		for( int dd=0 ; dd<Dim ; dd++ ) index = index * Moduli::Values[Dim-dd-1] + PR_MODULO( off[Dim-dd-1] , Moduli::Values[Dim-dd-1] );
 		return index;
 	};
 	ThreadPool::Parallel_for( start , end , [&]( unsigned int thread , size_t i )
@@ -435,7 +435,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 		BlockWindow solveWindow( FullWindow.begin(forward) - residualOffset*dir , FullWindow.begin(forward) - residualOffset*dir - ( ColorModulus*iters - ( ColorModulus-1 ) ) * dir );
 		// If we are solving forward we start in a block S with S mod ColorModulus = ColorModulus-1
 		// and end in a block E with E mod ColorModulus = 0
-		while( MOD( solveWindow.begin(!forward) , ColorModulus )!=( forward ? ColorModulus-1 : 0 ) ) solveWindow -= dir , residualWindow -= dir;
+		while( PR_MODULO( solveWindow.begin(!forward) , ColorModulus )!=( forward ? ColorModulus-1 : 0 ) ) solveWindow -= dir , residualWindow -= dir;
 		size_t maxBlockSize = 0;
 		BlockWindow _residualWindow = residualWindow;
 		for( ; _residualWindow.end(!forward)*dir<FullWindow.end(forward)*dir ; _residualWindow += dir )
@@ -456,7 +456,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 				//          to ensure that adjacent read-only blocks have not been updated yet.
 				if( FullWindow.inBlock( residualBlock ) )
 				{
-					int b = residualBlock , _b = MOD( b , matrixBlocks );
+					int b = residualBlock , _b = PR_MODULO( b , matrixBlocks );
 
 					t = Time();
 					_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , _M[_b] , _D[_b] , bsData , depth , _sNodesBegin( depth , BlockFirst( b ) ) , _sNodesEnd( depth , BlockLast( b ) ) , prolongedSolution , _constraints[_b] , ccStencil , pcStencils , interpolationInfos );
@@ -490,7 +490,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 				// Get the leading multi-color indices
 				if( iters && FullWindow.inBlock( frontSolveBlock ) )
 				{
-					int b = frontSolveBlock , _b = MOD( b , matrixBlocks ) , __b = MOD( b , solveBlocks );
+					int b = frontSolveBlock , _b = PR_MODULO( b , matrixBlocks ) , __b = PR_MODULO( b , solveBlocks );
 					for( int i=0 ; i<int( mcIndices[__b].size() ) ; i++ ) mcIndices[__b][i].clear();
 					_setMultiColorIndices( UIntPack< FEMSigs ... >() , _sNodesBegin( depth , BlockFirst( b ) ) , _sNodesEnd( depth , BlockLast( b ) ) , mcIndices[__b] );
 				}
@@ -499,7 +499,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 			// Relax the system
 			for( int block=solveWindow.begin(!forward) ; solveWindow.inBlock(block) ; block-=dir*ColorModulus ) if( FullWindow.inBlock( block ) )
 			{
-				int b = block , _b = MOD( b , matrixBlocks ) , __b = MOD( b , solveBlocks );
+				int b = block , _b = PR_MODULO( b , matrixBlocks ) , __b = PR_MODULO( b , solveBlocks );
 				ConstPointer( T ) B = _constraints[_b];
 				Pointer( T ) X = XBlocks( depth , b , solution );
 				_M[_b].gsIteration( mcIndices[__b] , ( ConstPointer( Real ) )_D[_b] , B , X , coarseToFine , true );
@@ -511,7 +511,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 				int residualBlock = residualWindow.begin(forward);
 				if( computeNorms && FullWindow.inBlock( residualBlock ) )
 				{
-					int b = residualBlock , _b = MOD( b , matrixBlocks );
+					int b = residualBlock , _b = PR_MODULO( b , matrixBlocks );
 					ConstPointer( T ) B = _constraints[_b];
 					ConstPointer( T ) X = XBlocks( depth , b , solution );
 					std::vector< double > outRNorms( ThreadPool::NumThreads() , 0 );
@@ -539,7 +539,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 	}
 	return iters;
 }
-#undef MOD
+#undef PR_MODULO
 
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >

@@ -35,39 +35,42 @@ DAMAGE.
 #include "MyMiscellany.h"
 #include "CmdLineParser.h"
 
-
-namespace MergePlyClientServer
+namespace PoissonRecon
 {
-	struct ClientMergePlyInfo
+
+	namespace MergePlyClientServer
 	{
-		std::vector< PlyProperty > auxProperties;
-		size_t bufferSize;
-		bool keepSeparate , verbose;
+		struct ClientMergePlyInfo
+		{
+			std::vector< PlyProperty > auxProperties;
+			size_t bufferSize;
+			bool keepSeparate , verbose;
 
-		ClientMergePlyInfo( void );
-		ClientMergePlyInfo( BinaryStream &stream );
+			ClientMergePlyInfo( void );
+			ClientMergePlyInfo( BinaryStream &stream );
 
-		void write( BinaryStream &stream ) const;
-	};
+			void write( BinaryStream &stream ) const;
+		};
 
-	template< typename Real , unsigned int Dim >
-	void RunServer
-	(
-		std::string inDir , 
-		std::string tempDir ,
-		std::string header ,
-		std::string out ,
-		std::vector< Socket > &clientSockets ,
-		const std::vector< unsigned int > &sharedVertexCounts ,
-		ClientMergePlyInfo clientMergePlyInfo ,
-		unsigned int sampleMS ,
-		std::function< std::vector< std::string > (unsigned int) > commentFunctor=[](unsigned int){ return std::vector< std::string >(); }
-	);
+		template< typename Real , unsigned int Dim >
+		void RunServer
+		(
+			std::string inDir , 
+			std::string tempDir ,
+			std::string header ,
+			std::string out ,
+			std::vector< Socket > &clientSockets ,
+			const std::vector< unsigned int > &sharedVertexCounts ,
+			ClientMergePlyInfo clientMergePlyInfo ,
+			unsigned int sampleMS ,
+			std::function< std::vector< std::string > (unsigned int) > commentFunctor=[](unsigned int){ return std::vector< std::string >(); }
+		);
 
-	template< typename Real , unsigned int Dim >
-	void RunClients( std::vector< Socket > &serverSockets , unsigned int sampleMS );
+		template< typename Real , unsigned int Dim >
+		void RunClients( std::vector< Socket > &serverSockets , unsigned int sampleMS );
 
 #include "MergePlyClientServer.inl"
+	}
 }
 
 #endif // MERGE_PLY_CLIENT_SERVER_INCLUDED

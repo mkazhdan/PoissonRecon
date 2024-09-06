@@ -26,9 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include <cassert>
-#include <string.h>
-
 #if defined( WIN32 ) || defined( _WIN64 )
 inline int strcasecmp( const char* c1 , const char* c2 ){ return _stricmp( c1 , c2 ); }
 #endif // WIN32 || _WIN64
@@ -114,26 +111,26 @@ Point< Real , Dim > CmdLineType< Point< Real , Dim > >::StringToType( const char
 
 
 /////////////////////
-// cmdLineReadable //
+// CmdLineReadable //
 /////////////////////
 #if defined( WIN32 ) || defined( _WIN64 )
-inline cmdLineReadable::cmdLineReadable( const char *name ) : set(false) { this->name = _strdup( name ); }
+inline CmdLineReadable::CmdLineReadable( const char *name ) : set(false) { this->name = _strdup( name ); }
 #else // !WIN32 && !_WIN64
-inline cmdLineReadable::cmdLineReadable( const char *name ) : set(false) { this->name =  strdup( name ); }
+inline CmdLineReadable::CmdLineReadable( const char *name ) : set(false) { this->name =  strdup( name ); }
 #endif // WIN32 || _WIN64
 
-inline cmdLineReadable::~cmdLineReadable( void ){ if( name ) free( name ) ; name = NULL; }
-inline int cmdLineReadable::read( char** , int ){ set = true ; return 0; }
-inline void cmdLineReadable::writeValue( char* str ) const { str[0] = 0; }
+inline CmdLineReadable::~CmdLineReadable( void ){ if( name ) free( name ) ; name = NULL; }
+inline int CmdLineReadable::read( char** , int ){ set = true ; return 0; }
+inline void CmdLineReadable::writeValue( char* str ) const { str[0] = 0; }
 
 //////////////////////
-// cmdLineParameter //
+// CmdLineParameter //
 //////////////////////
-template< class Type > cmdLineParameter< Type >::~cmdLineParameter( void ) { CmdLineType< Type >::CleanUp( &value ); }
-template< class Type > cmdLineParameter< Type >::cmdLineParameter( const char *name ) : cmdLineReadable( name ){ value = CmdLineType< Type >::Initialize(); }
-template< class Type > cmdLineParameter< Type >::cmdLineParameter( const char *name , Type v ) : cmdLineReadable( name ){ value = CmdLineType< Type >::Copy( v ); }
+template< class Type > CmdLineParameter< Type >::~CmdLineParameter( void ) { CmdLineType< Type >::CleanUp( &value ); }
+template< class Type > CmdLineParameter< Type >::CmdLineParameter( const char *name ) : CmdLineReadable( name ){ value = CmdLineType< Type >::Initialize(); }
+template< class Type > CmdLineParameter< Type >::CmdLineParameter( const char *name , Type v ) : CmdLineReadable( name ){ value = CmdLineType< Type >::Copy( v ); }
 template< class Type >
-int cmdLineParameter< Type >::read( char** argv , int argc )
+int CmdLineParameter< Type >::read( char** argv , int argc )
 {
 	if( argc>0 )
 	{
@@ -145,24 +142,24 @@ int cmdLineParameter< Type >::read( char** argv , int argc )
 	else return 0;
 }
 template< class Type >
-void cmdLineParameter< Type >::writeValue( char* str ) const { CmdLineType< Type >::WriteValue( value , str ); }
+void CmdLineParameter< Type >::writeValue( char* str ) const { CmdLineType< Type >::WriteValue( value , str ); }
 
 
 ///////////////////////////
-// cmdLineParameterArray //
+// CmdLineParameterArray //
 ///////////////////////////
 template< class Type , int Dim >
-cmdLineParameterArray< Type , Dim >::cmdLineParameterArray( const char *name , const Type* v ) : cmdLineReadable( name )
+CmdLineParameterArray< Type , Dim >::CmdLineParameterArray( const char *name , const Type* v ) : CmdLineReadable( name )
 {
 	if( v ) for( int i=0 ; i<Dim ; i++ ) values[i] = CmdLineType< Type >::Copy( v[i] );
 	else    for( int i=0 ; i<Dim ; i++ ) values[i] = CmdLineType< Type >::Initialize();
 }
 
 template< class Type , int Dim >
-cmdLineParameterArray< Type , Dim >::~cmdLineParameterArray( void ){ for( int i=0 ; i<Dim ; i++ ) CmdLineType< Type >::CleanUp( values+i ); }
+CmdLineParameterArray< Type , Dim >::~CmdLineParameterArray( void ){ for( int i=0 ; i<Dim ; i++ ) CmdLineType< Type >::CleanUp( values+i ); }
 
 template< class Type , int Dim >
-int cmdLineParameterArray< Type , Dim >::read( char** argv , int argc )
+int CmdLineParameterArray< Type , Dim >::read( char** argv , int argc )
 {
 	if( argc>=Dim )
 	{
@@ -173,7 +170,7 @@ int cmdLineParameterArray< Type , Dim >::read( char** argv , int argc )
 	else return 0;
 }
 template< class Type , int Dim >
-void cmdLineParameterArray< Type , Dim >::writeValue( char* str ) const
+void CmdLineParameterArray< Type , Dim >::writeValue( char* str ) const
 {
 	char* temp=str;
 	for( int i=0 ; i<Dim ; i++ )
@@ -183,13 +180,13 @@ void cmdLineParameterArray< Type , Dim >::writeValue( char* str ) const
 	}
 }
 ///////////////////////
-// cmdLineParameters //
+// CmdLineParameters //
 ///////////////////////
 template< class Type >
-cmdLineParameters< Type >::cmdLineParameters( const char* name ) : cmdLineReadable( name ) , values(NULL) , count(0) { }
+CmdLineParameters< Type >::CmdLineParameters( const char* name ) : CmdLineReadable( name ) , values(NULL) , count(0) { }
 
 template< class Type >
-cmdLineParameters< Type >::~cmdLineParameters( void )
+CmdLineParameters< Type >::~CmdLineParameters( void )
 {
 	if( values ) delete[] values;
 	values = NULL;
@@ -197,7 +194,7 @@ cmdLineParameters< Type >::~cmdLineParameters( void )
 }
 
 template< class Type >
-int cmdLineParameters< Type >::read( char** argv , int argc )
+int CmdLineParameters< Type >::read( char** argv , int argc )
 {
 	if( values ) delete[] values;
 	values = NULL;
@@ -216,7 +213,7 @@ int cmdLineParameters< Type >::read( char** argv , int argc )
 }
 
 template< class Type >
-void cmdLineParameters< Type >::writeValue( char* str ) const
+void CmdLineParameters< Type >::writeValue( char* str ) const
 {
 	char* temp=str;
 	CmdLineType< int >::WriteValue( count , temp );
@@ -295,13 +292,13 @@ inline char* DirectoryName( char* fileName )
 	return fileName;
 }
 
-inline void cmdLineParse( int argc , char **argv , cmdLineReadable** params )
+inline void CmdLineParse( int argc , char **argv , CmdLineReadable** params )
 {
 	while( argc>0 )
 	{
 		if( argv[0][0]=='-' && argv[0][1]=='-' )
 		{
-			cmdLineReadable* readable=NULL;
+			CmdLineReadable* readable=NULL;
 			for( int i=0 ; params[i]!=NULL && readable==NULL ; i++ ) if( !strcasecmp( params[i]->name , argv[0]+2 ) ) readable = params[i];
 			if( readable )
 			{

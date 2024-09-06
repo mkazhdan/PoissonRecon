@@ -33,91 +33,96 @@ DAMAGE.
 #include <cstring>
 #include <cstdlib>
 #include <string>
+#include <cassert>
+#include <string.h>
 #include <vector>
 #include "Geometry.h"
 
+namespace PoissonRecon
+{
 #ifdef WIN32
-int strcasecmp( const char* c1 , const char* c2 );
+	int strcasecmp( const char* c1 , const char* c2 );
 #endif // WIN32
 
-class cmdLineReadable
-{
-public:
-	bool set;
-	char *name;
-	cmdLineReadable( const char *name );
-	virtual ~cmdLineReadable( void );
-	virtual int read( char** argv , int argc );
-	virtual void writeValue( char* str ) const;
-};
+	class CmdLineReadable
+	{
+	public:
+		bool set;
+		char *name;
+		CmdLineReadable( const char *name );
+		virtual ~CmdLineReadable( void );
+		virtual int read( char** argv , int argc );
+		virtual void writeValue( char* str ) const;
+	};
 
-template< typename Type > struct CmdLineType;
+	template< typename Type > struct CmdLineType;
 
-template< typename Type >
-struct CmdLineType
-{
-	static void WriteValue( Type t , char* str );
-	static void CleanUp( Type* t ){}
-	static Type Initialize( void ){ return Type(); }
-	static Type Copy( Type t ){ return t; }
-	static Type StringToType( const char *str );
-};
+	template< typename Type >
+	struct CmdLineType
+	{
+		static void WriteValue( Type t , char* str );
+		static void CleanUp( Type* t ){}
+		static Type Initialize( void ){ return Type(); }
+		static Type Copy( Type t ){ return t; }
+		static Type StringToType( const char *str );
+	};
 
-template< typename Real , unsigned int Dim >
-struct CmdLineType< Point< Real , Dim > >
-{
-	using Type = Point< Real , Dim >;
-	static void WriteValue( Type t , char* str );
-	static void CleanUp( Type* t ){}
-	static Type Initialize( void ){ return Type(); }
-	static Type Copy( Type t ){ return t; }
-	static Type StringToType( const char *str );
-};
-template< class Type >
-class cmdLineParameter : public cmdLineReadable
-{
-public:
-	Type value;
-	cmdLineParameter( const char *name );
-	cmdLineParameter( const char *name , Type v );
-	~cmdLineParameter( void );
-	int read( char** argv , int argc );
-	void writeValue( char* str ) const;
-	bool expectsArg( void ) const { return true; }
-};
+	template< typename Real , unsigned int Dim >
+	struct CmdLineType< Point< Real , Dim > >
+	{
+		using Type = Point< Real , Dim >;
+		static void WriteValue( Type t , char* str );
+		static void CleanUp( Type* t ){}
+		static Type Initialize( void ){ return Type(); }
+		static Type Copy( Type t ){ return t; }
+		static Type StringToType( const char *str );
+	};
+	template< class Type >
+	class CmdLineParameter : public CmdLineReadable
+	{
+	public:
+		Type value;
+		CmdLineParameter( const char *name );
+		CmdLineParameter( const char *name , Type v );
+		~CmdLineParameter( void );
+		int read( char** argv , int argc );
+		void writeValue( char* str ) const;
+		bool expectsArg( void ) const { return true; }
+	};
 
-template< class Type , int Dim >
-class cmdLineParameterArray : public cmdLineReadable
-{
-public:
-	Type values[Dim];
-	cmdLineParameterArray( const char *name, const Type* v=NULL );
-	~cmdLineParameterArray( void );
-	int read( char** argv , int argc );
-	void writeValue( char* str ) const;
-	bool expectsArg( void ) const { return true; }
-};
+	template< class Type , int Dim >
+	class CmdLineParameterArray : public CmdLineReadable
+	{
+	public:
+		Type values[Dim];
+		CmdLineParameterArray( const char *name, const Type* v=NULL );
+		~CmdLineParameterArray( void );
+		int read( char** argv , int argc );
+		void writeValue( char* str ) const;
+		bool expectsArg( void ) const { return true; }
+	};
 
-template< class Type >
-class cmdLineParameters : public cmdLineReadable
-{
-public:
-	int count;
-	Type *values;
-	cmdLineParameters( const char* name );
-	~cmdLineParameters( void );
-	int read( char** argv , int argc );
-	void writeValue( char* str ) const;
-	bool expectsArg( void ) const { return true; }
-};
+	template< class Type >
+	class CmdLineParameters : public CmdLineReadable
+	{
+	public:
+		int count;
+		Type *values;
+		CmdLineParameters( const char* name );
+		~CmdLineParameters( void );
+		int read( char** argv , int argc );
+		void writeValue( char* str ) const;
+		bool expectsArg( void ) const { return true; }
+	};
 
-void cmdLineParse( int argc , char **argv, cmdLineReadable** params );
-char* FileExtension( char* fileName );
-char* LocalFileName( char* fileName );
-char* DirectoryName( char* fileName );
-char* GetFileExtension( const char* fileName );
-char* GetLocalFileName( const char* fileName );
-char** ReadWords( const char* fileName , int& cnt );
+	void CmdLineParse( int argc , char **argv, CmdLineReadable** params );
+	char* FileExtension( char* fileName );
+	char* LocalFileName( char* fileName );
+	char* DirectoryName( char* fileName );
+	char* GetFileExtension( const char* fileName );
+	char* GetLocalFileName( const char* fileName );
+	char** ReadWords( const char* fileName , int& cnt );
 
 #include "CmdLineParser.inl"
+}
 #endif // CMD_LINE_PARSER_INCLUDED

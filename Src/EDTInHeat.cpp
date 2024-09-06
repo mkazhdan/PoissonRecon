@@ -44,19 +44,21 @@ DAMAGE.
 #include "Ply.h"
 #include "VertexFactory.h"
 
-cmdLineParameter< char* >
+using namespace PoissonRecon;
+
+CmdLineParameter< char* >
 	In( "in" ) ,
 	Out( "out" ) ,
 	InXForm( "inXForm" ) ,
 	OutXForm( "outXForm" );
 
-cmdLineReadable
+CmdLineReadable
 	Performance( "performance" ) ,
 	ShowResidual( "showResidual" ) ,
 	ExactInterpolation( "exact" ) ,
 	Verbose( "verbose" );
 
-cmdLineParameter< int >
+CmdLineParameter< int >
 #ifndef FAST_COMPILE
 	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
 #endif // !FAST_COMPILE
@@ -75,7 +77,7 @@ cmdLineParameter< int >
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 
-cmdLineParameter< float >
+CmdLineParameter< float >
 	Scale( "scale" , 2.f ) ,
 	CGSolverAccuracy( "cgAccuracy" , float(1e-3) ) ,
 	DiffusionTime( "diffusion" , 0.0005f ) ,
@@ -83,7 +85,7 @@ cmdLineParameter< float >
 	WeightExponent( "wExp" , 6.f ) ,
 	ValueWeight( "valueWeight" , 1e-2f );
 
-cmdLineReadable* params[] =
+CmdLineReadable* params[] =
 {
 #ifndef FAST_COMPILE
 	&Degree ,
@@ -563,7 +565,7 @@ int main( int argc , char* argv[] )
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );

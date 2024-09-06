@@ -33,117 +33,120 @@ DAMAGE.
 #include <vector>
 #include <atomic>
 
-// Pre-declare so we can make friends
-template< typename Data > struct MultiInputDataStream;
-template< typename Data > struct MultiOutputDataStream;
-
-////////////////////////////////////////
-// Abstract input/output data streams //
-////////////////////////////////////////
-
-// An input stream containing "Data" types
-// Supporting:
-// -- Resetting the stream to the start
-// -- Trying to read the next element from the stream
-template< typename Data >
-struct InputDataStream
+namespace PoissonRecon
 {
-	friend struct MultiInputDataStream< Data >;
 
-	virtual ~InputDataStream( void ){}
+	// Pre-declare so we can make friends
+	template< typename Data > struct MultiInputDataStream;
+	template< typename Data > struct MultiOutputDataStream;
 
-	// Reset to the start of the stream
-	virtual void reset( void ) = 0;
+	////////////////////////////////////////
+	// Abstract input/output data streams //
+	////////////////////////////////////////
 
-	bool read( Data &d ){ return base_read(d); }
-	bool read( unsigned int thread , Data &d ){ return base_read(thread,d); }
-
-protected:
-	std::mutex _insertionMutex;
-
-	// Read in data in a single-threaded context
-	virtual bool base_read( Data &d ) = 0;
-
-	// Read in data in a multi-threaded context
-	virtual bool base_read( unsigned int thread , Data &d )
+	// An input stream containing "Data" types
+	// Supporting:
+	// -- Resetting the stream to the start
+	// -- Trying to read the next element from the stream
+	template< typename Data >
+	struct InputDataStream
 	{
-		std::lock_guard< std::mutex > lock( _insertionMutex );
-		return base_read(d);
-	}
-};
+		friend struct MultiInputDataStream< Data >;
 
-// An output stream containing "Data" types
-// Supporting:
-// -- Writing the next element to the stream
-// -- Writing the next element to the stream by a particular thread
-template< typename Data >
-struct OutputDataStream
-{
-	friend struct MultiOutputDataStream< Data >;
+		virtual ~InputDataStream( void ){}
 
-	OutputDataStream( void ) : _size(0) {}
-	virtual ~OutputDataStream( void ){}
+		// Reset to the start of the stream
+		virtual void reset( void ) = 0;
 
-	// Returns the number of items written to the stream
-	size_t size( void ) const { return _size; }
+		bool read( Data &d ){ return base_read(d); }
+		bool read( unsigned int thread , Data &d ){ return base_read(thread,d); }
 
-	void write( const Data &d ){ base_write(d) ; _size++; }
-	void write( unsigned int thread , const Data &d ){ base_write( thread , d ) ; _size++; }
+	protected:
+		std::mutex _insertionMutex;
 
-protected:
-	std::mutex _insertionMutex;
-	std::atomic< size_t > _size;
+		// Read in data in a single-threaded context
+		virtual bool base_read( Data &d ) = 0;
 
-	// Write out data in a single-threaded context
-	virtual void base_write( const Data &d ) = 0;
-	// Write out data in a multi-threaded context
-	virtual void base_write( unsigned int thread , const Data &d )
-	{
-		std::lock_guard< std::mutex > lock( _insertionMutex );
-		return base_write(d);
-	}
-
-};
-
-//////////////////////////////////////////
-// Multi-streams for multi-threaded I/O //
-//////////////////////////////////////////
-template< typename Data >
-struct MultiInputDataStream : public InputDataStream< Data >
-{
-	MultiInputDataStream( InputDataStream< Data > **streams , size_t N ) : _current(0) , _streams( streams , streams+N ) {}
-	MultiInputDataStream( const std::vector< InputDataStream< Data > * > &streams ) : _current(0) , _streams( streams ) {}
-	void reset( void ){ for( unsigned int i=0 ; i<_streams.size() ; i++ ) _streams[i]->reset(); }
-
-protected:
-	std::vector< InputDataStream< Data > * > _streams;
-	unsigned int _current;
-
-	bool base_read( unsigned int t , Data &d ){ return _streams[t]->base_read(d); }
-	bool base_read( Data &d )
-	{
-		while( _current<_streams.size() )
+		// Read in data in a multi-threaded context
+		virtual bool base_read( unsigned int thread , Data &d )
 		{
-			if( _streams[_current]->read( d ) ) return true;
-			else _current++;
+			std::lock_guard< std::mutex > lock( _insertionMutex );
+			return base_read(d);
 		}
-		return false;
-	}
-};
+	};
 
-template< typename Data >
-struct MultiOutputDataStream : public OutputDataStream< Data >
-{
-	MultiOutputDataStream( OutputDataStream< Data > **streams , size_t N ) : _current(0) , _streams( streams , streams+N ) {}
-	MultiOutputDataStream( const std::vector< OutputDataStream< Data > * > &streams ) : _current(0) , _streams( streams ) {}
+	// An output stream containing "Data" types
+	// Supporting:
+	// -- Writing the next element to the stream
+	// -- Writing the next element to the stream by a particular thread
+	template< typename Data >
+	struct OutputDataStream
+	{
+		friend struct MultiOutputDataStream< Data >;
 
-protected:
-	std::vector< OutputDataStream< Data > * > _streams;
-	unsigned int _current;
+		OutputDataStream( void ) : _size(0) {}
+		virtual ~OutputDataStream( void ){}
 
-	void base_write( const Data &d ){ _streams[0]->base_write(d); }
-	void base_write( unsigned int t , const Data &d ){ _streams[t]->base_write(d); }
-};
+		// Returns the number of items written to the stream
+		size_t size( void ) const { return _size; }
 
+		void write( const Data &d ){ base_write(d) ; _size++; }
+		void write( unsigned int thread , const Data &d ){ base_write( thread , d ) ; _size++; }
+
+	protected:
+		std::mutex _insertionMutex;
+		std::atomic< size_t > _size;
+
+		// Write out data in a single-threaded context
+		virtual void base_write( const Data &d ) = 0;
+		// Write out data in a multi-threaded context
+		virtual void base_write( unsigned int thread , const Data &d )
+		{
+			std::lock_guard< std::mutex > lock( _insertionMutex );
+			return base_write(d);
+		}
+
+	};
+
+	//////////////////////////////////////////
+	// Multi-streams for multi-threaded I/O //
+	//////////////////////////////////////////
+	template< typename Data >
+	struct MultiInputDataStream : public InputDataStream< Data >
+	{
+		MultiInputDataStream( InputDataStream< Data > **streams , size_t N ) : _current(0) , _streams( streams , streams+N ) {}
+		MultiInputDataStream( const std::vector< InputDataStream< Data > * > &streams ) : _current(0) , _streams( streams ) {}
+		void reset( void ){ for( unsigned int i=0 ; i<_streams.size() ; i++ ) _streams[i]->reset(); }
+
+	protected:
+		std::vector< InputDataStream< Data > * > _streams;
+		unsigned int _current;
+
+		bool base_read( unsigned int t , Data &d ){ return _streams[t]->base_read(d); }
+		bool base_read( Data &d )
+		{
+			while( _current<_streams.size() )
+			{
+				if( _streams[_current]->read( d ) ) return true;
+				else _current++;
+			}
+			return false;
+		}
+	};
+
+	template< typename Data >
+	struct MultiOutputDataStream : public OutputDataStream< Data >
+	{
+		MultiOutputDataStream( OutputDataStream< Data > **streams , size_t N ) : _current(0) , _streams( streams , streams+N ) {}
+		MultiOutputDataStream( const std::vector< OutputDataStream< Data > * > &streams ) : _current(0) , _streams( streams ) {}
+
+	protected:
+		std::vector< OutputDataStream< Data > * > _streams;
+		unsigned int _current;
+
+		void base_write( const Data &d ){ _streams[0]->base_write(d); }
+		void base_write( unsigned int t , const Data &d ){ _streams[t]->base_write(d); }
+	};
+}
 
 #endif // DATA_STREAM_INCLUDED

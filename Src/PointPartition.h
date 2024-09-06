@@ -38,109 +38,111 @@ DAMAGE.
 #include "DataStream.h"
 #include "PointExtent.h"
 
-#define ADAPTIVE_PADDING			// Only pushes padding points deep enough so that they are "close" to the slab in terms of units at that depth
-#define BUFFER_IO (1<<14)			// Buffer the points before reading/writing
-
-
-namespace PointPartition
+namespace PoissonRecon
 {
-	template< typename Real , unsigned int Dim >
-	struct PointSetInfo
+	static const unsigned int BUFFER_IO = 1<<14;			// Buffer the points before reading/writing
+
+
+	namespace PointPartition
 	{
-		std::string header;
-		unsigned filesPerDir;
-		XForm< Real , Dim+1 > modelToUnitCube;
-		std::vector< size_t > pointsPerSlab;
-		std::vector< PlyProperty > auxiliaryProperties;
+		template< typename Real , unsigned int Dim >
+		struct PointSetInfo
+		{
+			std::string header;
+			unsigned filesPerDir;
+			XForm< Real , Dim+1 > modelToUnitCube;
+			std::vector< size_t > pointsPerSlab;
+			std::vector< PlyProperty > auxiliaryProperties;
 
-		PointSetInfo( void );
-		PointSetInfo( unsigned int slabs );
-		PointSetInfo( BinaryStream &stream );
+			PointSetInfo( void );
+			PointSetInfo( unsigned int slabs );
+			PointSetInfo( BinaryStream &stream );
 
-		void write( BinaryStream &stream ) const;
-	};
+			void write( BinaryStream &stream ) const;
+		};
 
 
-	struct Partition
-	{
-		Partition( void );
-		Partition( unsigned int dCount , const std::vector< size_t > &slabSizes );
+		struct Partition
+		{
+			Partition( void );
+			Partition( unsigned int dCount , const std::vector< size_t > &slabSizes );
 
 #ifdef ADAPTIVE_PADDING
-		void optimize( bool useMax );
-		std::pair< unsigned int , unsigned int > range( unsigned int i ) const;
-		size_t size( unsigned int i ) const;
-		void printDistribution( void ) const;
-		double l2Energy( void ) const;
-		double maxEnergy( void ) const;
+			void optimize( bool useMax );
+			std::pair< unsigned int , unsigned int > range( unsigned int i ) const;
+			size_t size( unsigned int i ) const;
+			void printDistribution( void ) const;
+			double l2Energy( void ) const;
+			double maxEnergy( void ) const;
 #else // !ADAPTIVE_PADDING
-		void optimize( bool useMax , unsigned int padSize );
-		std::pair< unsigned int , unsigned int > range( unsigned int i , unsigned int padSize ) const;
-		size_t size( unsigned int i , unsigned int padSize ) const;
-		void printDistribution( unsigned int padSize ) const;
-		double l2Energy( unsigned int padSize ) const;
-		double maxEnergy( unsigned int padSize ) const;
+			void optimize( bool useMax , unsigned int padSize );
+			std::pair< unsigned int , unsigned int > range( unsigned int i , unsigned int padSize ) const;
+			size_t size( unsigned int i , unsigned int padSize ) const;
+			void printDistribution( unsigned int padSize ) const;
+			double l2Energy( unsigned int padSize ) const;
+			double maxEnergy( unsigned int padSize ) const;
 #endif // ADAPTIVE_PADDING
-		size_t size( void ) const;
-		unsigned int partitions( void ) const;
-		unsigned int slabs( void ) const;
+			size_t size( void ) const;
+			unsigned int partitions( void ) const;
+			unsigned int slabs( void ) const;
 
-	protected:
-		std::vector< unsigned int > _starts;
-		std::vector< size_t  > _slabSizes;
-	};
+		protected:
+			std::vector< unsigned int > _starts;
+			std::vector< size_t  > _slabSizes;
+		};
 
-	long ReadPLYProperties( FILE *fp , std::vector< PlyProperty > &properties );
-	long ReadPLYProperties( const char *fileName , std::vector< PlyProperty > &properties );
-	long WritePLYProperties( FILE *fp , const std::vector< PlyProperty > &properties );
-	long WritePLYProperties( const char *fileName , const std::vector< PlyProperty > &properties );
+		long ReadPLYProperties( FILE *fp , std::vector< PlyProperty > &properties );
+		long ReadPLYProperties( const char *fileName , std::vector< PlyProperty > &properties );
+		long WritePLYProperties( FILE *fp , const std::vector< PlyProperty > &properties );
+		long WritePLYProperties( const char *fileName , const std::vector< PlyProperty > &properties );
 
-	template< typename InputFactory >
-	struct BufferedBinaryInputDataStream : public InputDataStream< typename InputFactory::VertexType >
-	{
+		template< typename InputFactory >
+		struct BufferedBinaryInputDataStream : public InputDataStream< typename InputFactory::VertexType >
+		{
 
-		typedef typename InputFactory::VertexType Data;
-		BufferedBinaryInputDataStream( const char *fileName , const InputFactory &factory , size_t bufferSize );
-		~BufferedBinaryInputDataStream( void );
-		void reset( void );
-		bool base_read( Data &d );
-	protected:
-		size_t _bufferSize , _current , _inBuffer , _elementSize;
-		Pointer( char ) _buffer;
-		FILE *_fp;
-		const InputFactory &_factory;
-		long _inset;
-	};
+			typedef typename InputFactory::VertexType Data;
+			BufferedBinaryInputDataStream( const char *fileName , const InputFactory &factory , size_t bufferSize );
+			~BufferedBinaryInputDataStream( void );
+			void reset( void );
+			bool base_read( Data &d );
+		protected:
+			size_t _bufferSize , _current , _inBuffer , _elementSize;
+			Pointer( char ) _buffer;
+			FILE *_fp;
+			const InputFactory &_factory;
+			long _inset;
+		};
 
-	template< typename OutputFactory >
-	struct BufferedBinaryOutputDataStream : public OutputDataStream< typename OutputFactory::VertexType >
-	{
-		typedef typename OutputFactory::VertexType Data;
-		BufferedBinaryOutputDataStream( const char *fileName , const OutputFactory &factory , size_t bufferSize );
-		~BufferedBinaryOutputDataStream( void );
-		void reset( void );
-		void base_write( const Data &d );
-	protected:
-		size_t _bufferSize , _current , _elementSize;
-		Pointer( char ) _buffer;
-		FILE *_fp;
-		const OutputFactory &_factory;
-		long _inset;
-	};
+		template< typename OutputFactory >
+		struct BufferedBinaryOutputDataStream : public OutputDataStream< typename OutputFactory::VertexType >
+		{
+			typedef typename OutputFactory::VertexType Data;
+			BufferedBinaryOutputDataStream( const char *fileName , const OutputFactory &factory , size_t bufferSize );
+			~BufferedBinaryOutputDataStream( void );
+			void reset( void );
+			void base_write( const Data &d );
+		protected:
+			size_t _bufferSize , _current , _elementSize;
+			Pointer( char ) _buffer;
+			FILE *_fp;
+			const OutputFactory &_factory;
+			long _inset;
+		};
 
-	void RemovePointSlabDirs( std::string dir );
-	static void CreatePointSlabDirs( std::string dir , unsigned int count , unsigned int filesPerDir );
+		void RemovePointSlabDirs( std::string dir );
+		static void CreatePointSlabDirs( std::string dir , unsigned int count , unsigned int filesPerDir );
 
-	std::string FileDir( std::string dir , std::string header );
-	std::string FileDir( std::string dir , std::string header , unsigned int clientIndex );
+		std::string FileDir( std::string dir , std::string header );
+		std::string FileDir( std::string dir , std::string header , unsigned int clientIndex );
 
-	std::string FileName( std::string dir ,                                                 unsigned int slab , unsigned int slabs , unsigned int filesPerDir );
-	std::string FileName( std::string dir , std::string header ,                            unsigned int slab , unsigned int slabs , unsigned int filesPerDir );
-	std::string FileName( std::string dir , std::string header , unsigned int clientIndex , unsigned int slab , unsigned int slabs , unsigned int filesPerDir );
+		std::string FileName( std::string dir ,                                                 unsigned int slab , unsigned int slabs , unsigned int filesPerDir );
+		std::string FileName( std::string dir , std::string header ,                            unsigned int slab , unsigned int slabs , unsigned int filesPerDir );
+		std::string FileName( std::string dir , std::string header , unsigned int clientIndex , unsigned int slab , unsigned int slabs , unsigned int filesPerDir );
 
-	std::string PointSetInfoName( std::string dir , std::string header );
+		std::string PointSetInfoName( std::string dir , std::string header );
 
 #include "PointPartition.inl"
+	}
 }
 
 #endif // POINT_PARTITION_INCLUDED

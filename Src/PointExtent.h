@@ -32,49 +32,52 @@ DAMAGE.
 #include <ostream>
 #include "Geometry.h"
 
-namespace PointExtent
+namespace PoissonRecon
 {
-	template< typename Real , unsigned int Dim , bool ExtendedAxes >
-	struct Frame
+	namespace PointExtent
 	{
-		static const unsigned int DirectionN = ExtendedAxes ? ( Dim==2 ? 4 : 9 ) : Dim;
-		Point< Real , Dim > directions[ DirectionN ];
-		unsigned int frames[DirectionN][Dim];
-		Frame( void );
-	};
+		template< typename Real , unsigned int Dim , bool ExtendedAxes >
+		struct Frame
+		{
+			static const unsigned int DirectionN = ExtendedAxes ? ( Dim==2 ? 4 : 9 ) : Dim;
+			Point< Real , Dim > directions[ DirectionN ];
+			unsigned int frames[DirectionN][Dim];
+			Frame( void );
+		};
 
-	template< typename Real , unsigned int Dim , bool ExtendedAxes=true >
-	struct Extent
-	{
-		static const unsigned int DirectionN = Frame< Real , Dim , ExtendedAxes >::DirectionN;
-		static Point< Real , Dim > Direction( unsigned int d ){ return _Frame.directions[d]; }
-		static const unsigned int *Frame( unsigned int d ){ return _Frame.frames[d]; }
+		template< typename Real , unsigned int Dim , bool ExtendedAxes=true >
+		struct Extent
+		{
+			static const unsigned int DirectionN = Frame< Real , Dim , ExtendedAxes >::DirectionN;
+			static Point< Real , Dim > Direction( unsigned int d ){ return _Frame.directions[d]; }
+			static const unsigned int *Frame( unsigned int d ){ return _Frame.frames[d]; }
 
-		std::pair< Real , Real > extents[ DirectionN ];
-		std::pair< Real , Real > &operator[]( unsigned int d ){ return extents[d]; }
-		const std::pair< Real , Real > &operator[]( unsigned int d ) const { return extents[d]; }
+			std::pair< Real , Real > extents[ DirectionN ];
+			std::pair< Real , Real > &operator[]( unsigned int d ){ return extents[d]; }
+			const std::pair< Real , Real > &operator[]( unsigned int d ) const { return extents[d]; }
 
-		Extent( void );
-		void add( Point< Real , Dim > p );
-		Extent operator + ( const Extent &e ) const;
-	protected:
-		static const PointExtent::Frame< Real , Dim , ExtendedAxes > _Frame;
+			Extent( void );
+			void add( Point< Real , Dim > p );
+			Extent operator + ( const Extent &e ) const;
+		protected:
+			static const PointExtent::Frame< Real , Dim , ExtendedAxes > _Frame;
 
-		template< typename _Real , unsigned int _Dim , bool _ExtendedAxes >
-		friend std::ostream &operator << ( std::ostream & , const Extent< _Real , _Dim , _ExtendedAxes > & );
-	};
+			template< typename _Real , unsigned int _Dim , bool _ExtendedAxes >
+			friend std::ostream &operator << ( std::ostream & , const Extent< _Real , _Dim , _ExtendedAxes > & );
+		};
 
-	template< typename Real , unsigned int Dim , bool ExtendedAxes >
-	const Frame< Real , Dim , ExtendedAxes > Extent< Real , Dim , ExtendedAxes >::_Frame;
+		template< typename Real , unsigned int Dim , bool ExtendedAxes >
+		const Frame< Real , Dim , ExtendedAxes > Extent< Real , Dim , ExtendedAxes >::_Frame;
 
-	template< class Real , unsigned int Dim >
-	XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor , bool rotate=true );
+		template< class Real , unsigned int Dim >
+		XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor , bool rotate=true );
 
-	template< class Real , unsigned int Dim , bool ExtendedAxes >
-	XForm< Real , Dim+1 > GetBoundingBoxXForm( const Extent< Real , Dim , ExtendedAxes > &extent , Real scaleFactor , unsigned int dir );
+		template< class Real , unsigned int Dim , bool ExtendedAxes >
+		XForm< Real , Dim+1 > GetBoundingBoxXForm( const Extent< Real , Dim , ExtendedAxes > &extent , Real scaleFactor , unsigned int dir );
 
 
 #include "PointExtent.inl"
+	}
 }
 
 #endif // POINT_EXTENT_INCLUDED

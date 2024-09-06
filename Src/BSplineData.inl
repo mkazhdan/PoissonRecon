@@ -441,7 +441,7 @@ double BSplineIntegrationData< FEMSig1 , FEMSig2 >::FunctionIntegrator::ChildInt
 /////////////////
 // BSplineData //
 /////////////////
-#define MODULO( A , B ) ( (A)<0 ? ( (B)-((-(A))%(B)) ) % (B) : (A) % (B) )
+#define PR_MODULO( A , B ) ( (A)<0 ? ( (B)-((-(A))%(B)) ) % (B) : (A) % (B) )
 
 template< unsigned int FEMSig , unsigned int D >
 BSplineData< FEMSig , D >::BSplineComponents::BSplineComponents( int depth , int offset )
@@ -476,12 +476,12 @@ int BSplineData< FEMSig , D >::RemapOffset( int depth , int offset , bool& refle
 	const int I = ( Degree&1 ) ? 0 : 1;
 	if( FEMSignature< FEMSig >::BType==BOUNDARY_FREE ){ reflect = false ; return offset; }
 	int dim = BSplineEvaluationData< FEMDegreeAndBType< Degree , BOUNDARY_NEUMANN >::Signature >::End( depth ) - BSplineEvaluationData< FEMDegreeAndBType< Degree , BOUNDARY_NEUMANN >::Signature >::Begin( depth );
-	offset = MODULO( offset , 2*(dim-1+I) );
+	offset = PR_MODULO( offset , 2*(dim-1+I) );
 	reflect = offset>=dim;
 	if( reflect ) return 2*(dim-1+I) - (offset+I);
 	else          return offset;
 }
-#undef MODULO
+#undef PR_MODULO
 
 template< unsigned int FEMSig , unsigned int D >
 BSplineData< FEMSig , D >::BSplineData( void )

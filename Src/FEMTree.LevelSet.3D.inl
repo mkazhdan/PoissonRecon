@@ -26,18 +26,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#include <sstream>
-#include <sstream>
-#include <iomanip>
-#include <unordered_map>
-#include "MyMiscellany.h"
-#include "MarchingCubes.h"
-#include "MAT.h"
-#include "FEMTree.LevelSet.inl"
-#include "FEMTree.LevelSet.2D.inl"
-#include "Reconstructors.h"
-
-
 // Specialized level-set surface extraction
 template< bool HasData , typename Real , typename Data >
 struct _LevelSetExtractor< HasData , Real , 3 , Data >

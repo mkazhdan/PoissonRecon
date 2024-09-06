@@ -47,12 +47,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <string.h>
-#include "MyMiscellany.h"
-
 const char *type_names[] =
 {
 	"invalid",
@@ -114,13 +108,13 @@ typedef union
 static int native_binary_type = -1;
 static int types_checked = 0;
 
-#define NO_OTHER_PROPS  -1
+static const int no_other_props = -1;
 
-#define DONT_STORE_PROP  0
-#define STORE_PROP       1
+static const int dont_store_prop = 0;
+static const int      store_prop = 1;
 
-#define OTHER_PROP       0
-#define NAMED_PROP       1
+static const int other_prop = 0;
+static const int named_prop = 1;
 
 
 /* write to a file the word describing a PLY file data type */
@@ -256,7 +250,7 @@ void PlyFile::describe_element( const std::string &elem_name , size_t nelems , i
 
 	/* copy the list of properties */
 	elem->props.resize( nprops );
-	for( int i=0 ; i<nprops ; i++ ) elem->props[i] = PlyStoredProperty( prop_list[i] , NAMED_PROP );
+	for( int i=0 ; i<nprops ; i++ ) elem->props[i] = PlyStoredProperty( prop_list[i] , named_prop );
 }
 
 
@@ -278,7 +272,7 @@ void PlyFile::describe_property( const std::string &elem_name , const PlyPropert
 		return;
 	}
 
-	elem->props.push_back( PlyStoredProperty( *prop , NAMED_PROP ) );
+	elem->props.push_back( PlyStoredProperty( *prop , named_prop ) );
 }
 
 
@@ -298,7 +292,7 @@ void PlyFile::describe_other_properties( const PlyOtherProp &other , int offset 
 	}
 
 	elem->props.reserve( elem->props.size() + other.props.size() );
-	for( int i=0 ; i<other.props.size() ; i++ ) elem->props.push_back( PlyStoredProperty( other.props[i] , OTHER_PROP ) );
+	for( int i=0 ; i<other.props.size() ; i++ ) elem->props.push_back( PlyStoredProperty( other.props[i] , other_prop ) );
 
 	/* save other info about other properties */
 	elem->other_size = other.size;
@@ -422,7 +416,7 @@ void PlyFile::put_element( void *elem_ptr )
 		/* write out each property of the element */
 		for( int j=0 ; j<elem->props.size() ; j++ )
 		{
-			if( elem->props[j].store==OTHER_PROP ) elem_data = *other_ptr;
+			if( elem->props[j].store==other_prop ) elem_data = *other_ptr;
 			else                                   elem_data = (char *)elem_ptr;
 			if( elem->props[j].prop.is_list )
 			{
@@ -454,7 +448,7 @@ void PlyFile::put_element( void *elem_ptr )
 		/* write out each property of the element */
 		for( int j=0 ; j<elem->props.size() ; j++ )
 		{
-			if (elem->props[j].store==OTHER_PROP ) elem_data = *other_ptr;
+			if (elem->props[j].store==other_prop ) elem_data = *other_ptr;
 			else                                   elem_data = (char *)elem_ptr;
 			if( elem->props[j].prop.is_list )
 			{
@@ -565,8 +559,8 @@ PlyFile *PlyFile::_Read( FILE *fp , std::vector< std::string > &elem_names )
 	/* later to say whether or not to store each property for the user */
 	for( int i=0 ; i<plyfile->elems.size() ; i++ )
 	{
-		for( int j=0 ; j<plyfile->elems[i].props.size() ; j++ ) plyfile->elems[i].props[j].store = DONT_STORE_PROP;
-		plyfile->elems[i].other_offset = NO_OTHER_PROPS; /* no "other" props by default */
+		for( int j=0 ; j<plyfile->elems[i].props.size() ; j++ ) plyfile->elems[i].props[j].store = dont_store_prop;
+		plyfile->elems[i].other_offset = no_other_props; /* no "other" props by default */
 	}
 
 	/* set return values about the elements */
@@ -678,7 +672,7 @@ void PlyFile::get_element_setup( const std::string &elem_name , int nprops , Ply
 		prop->count_offset = prop_list[i].count_offset;
 
 		/* specify that the user wants this property */
-		elem->props[index].store = STORE_PROP;
+		elem->props[index].store = store_prop;
 	}
 }
 
@@ -710,7 +704,7 @@ int PlyFile::get_property( const std::string &elem_name , const PlyProperty *pro
 	prop_ptr->count_offset   = prop->count_offset;
 
 	/* specify that the user wants this property */
-	elem->props[index].store = STORE_PROP;
+	elem->props[index].store = store_prop;
 
 	return 1;
 }
@@ -853,7 +847,7 @@ bool PlyFile::set_other_properties( const std::string &elem_name , int offset , 
 	for( int i=0 ; i<elem->props.size() ; i++ ) if( !elem->props[i].store ) other.props.push_back( elem->props[i].prop );
 
 	/* set other_offset pointer appropriately if there are NO other properties */
-	if( !other.props.size() ) elem->other_offset = NO_OTHER_PROPS;
+	if( !other.props.size() ) elem->other_offset = no_other_props;
 	return true;
 }
 
@@ -1043,7 +1037,7 @@ void PlyFile::_ascii_get_element( void *elem_ptr )
 	elem = which_elem;
 
 	/* do we need to setup for other_props? */
-	if( elem->other_offset!=NO_OTHER_PROPS )
+	if( elem->other_offset!=no_other_props )
 	{
 		char **ptr;
 		other_flag = 1;
@@ -1150,7 +1144,7 @@ void PlyFile::_binary_get_element( void *elem_ptr )
 	elem = which_elem;
 
 	/* do we need to setup for other_props? */
-	if( elem->other_offset!=NO_OTHER_PROPS )
+	if( elem->other_offset!=no_other_props )
 	{
 		char **ptr;
 		other_flag = 1;
@@ -1323,9 +1317,9 @@ returns a list of words from the line, or NULL if end-of-file
 
 std::vector< std::string > get_words( FILE *fp , char **orig_line )
 {
-#define BIG_STRING 4096
-	static char str[BIG_STRING];
-	static char str_copy[BIG_STRING];
+	static const unsigned int BigString = 4096;
+	static char str[BigString];
+	static char str_copy[BigString];
 	std::vector< std::string > words;
 	int max_words = 10;
 	int num_words = 0;
@@ -1333,7 +1327,7 @@ std::vector< std::string > get_words( FILE *fp , char **orig_line )
 	char *result;
 
 	/* read in a line */
-	result = fgets( str , BIG_STRING , fp );
+	result = fgets( str , BigString , fp );
 	if( result==NULL )
 	{
 		*orig_line = NULL;
@@ -1343,8 +1337,8 @@ std::vector< std::string > get_words( FILE *fp , char **orig_line )
 	/* (this guarentees that there will be a space before the */
 	/*  null character at the end of the string) */
 
-	str[BIG_STRING-2] = ' ';
-	str[BIG_STRING-1] = '\0';
+	str[BigString-2] = ' ';
+	str[BigString-1] = '\0';
 
 	for( ptr=str , ptr2=str_copy ; *ptr!='\0' ; ptr++ , ptr2++ )
 	{
@@ -1950,7 +1944,7 @@ void PlyFile::add_property( const std::vector< std::string > &words )
 	}
 
 	/* add this property to the list of properties of the current element */
-	elems.back().props.push_back( PlyStoredProperty( prop , DONT_STORE_PROP ) );
+	elems.back().props.push_back( PlyStoredProperty( prop , dont_store_prop ) );
 }
 
 

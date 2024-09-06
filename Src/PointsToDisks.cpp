@@ -42,26 +42,27 @@ DAMAGE.
 #include "MyMiscellany.h"
 #include "DataStream.imp.h"
 
+using namespace PoissonRecon;
 
-cmdLineParameter< std::string >
+CmdLineParameter< std::string >
 	In( "in" ) ,
 	Out( "out" );
 
-cmdLineParameter< unsigned int >
+CmdLineParameter< unsigned int >
 	Res( "res" , 12 ) ,
 	PointsToKeep( "keep" );
 
-cmdLineParameter< float >
+CmdLineParameter< float >
 	Scale( "scale" , 0.005f ) ,
 	Fraction( "fraction" , 1.f );
 
-cmdLineReadable
+CmdLineReadable
 	Verbose( "verbose" );
 
-cmdLineParameter< float >
+CmdLineParameter< float >
 	LengthToRadiusExponent( "lExp" , 0.66f );
 
-cmdLineReadable* params[] =
+CmdLineReadable* params[] =
 {
 	&In ,
 	&Out ,
@@ -106,7 +107,7 @@ int main( int argc , char* argv[] )
 			return color;
 		};
 
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 	if( !In.set || !Out.set )
 	{
 		ShowUsage( argv [0] );
@@ -186,7 +187,7 @@ int main( int argc , char* argv[] )
 	if( PointsToKeep.set && PointsToKeep.value>vertices.size() )
 	{
 		WARN( "--" , PointsToKeep.name , " value exceeds number of points: " , PointsToKeep.value , " > " , vertices.size() );
-		PointsToKeep.value = vertices.size();
+		PointsToKeep.value = (unsigned int)vertices.size();
 	}
 
 	if( !hasNormals ) ERROR_OUT( "Input is not oriented" );

@@ -43,6 +43,8 @@ DAMAGE.
 
 #define DEFAULT_DIMENSION 3
 
+using namespace PoissonRecon;
+
 enum MergeSlabType
 {
 	NONE ,
@@ -54,13 +56,13 @@ enum MergeSlabType
 
 const std::string MergeSlabNames[] = { "none" , "function" , "topology" , "seamless" };
 
-cmdLineParameter< std::string >
+CmdLineParameter< std::string >
 	AddressPrefix( "prefix" ) ,
 	In( "in" ) ,
 	TempDir( "tempDir" ) ,
 	Out( "out" );
 
-cmdLineParameter< int >
+CmdLineParameter< int >
 	ClientCount( "count" ) ,
 	Port( "port" , 0 ) ,
 	Verbose( "verbose" , 0 ) ,
@@ -92,7 +94,7 @@ cmdLineParameter< int >
 	AlignmentDir( "alignDir" , -1 ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ;
 
-cmdLineReadable
+CmdLineReadable
 	Performance( "performance" ) ,
 	NoLoadBalance( "noLoadBalance" ) ,
 	Density( "density" ) ,
@@ -103,7 +105,7 @@ cmdLineReadable
 	OutputSolution( "solution" ) ,
 	ShowDiscontinuity( "showDiscontinuity" );
 
-cmdLineParameter< float >
+CmdLineParameter< float >
 	Scale( "scale" , 1.1f ) ,
 	Width( "width" , 0.f ) ,
 	Confidence( "confidence" , 0.f ) ,
@@ -114,7 +116,7 @@ cmdLineParameter< float >
 	TargetValue( "targetValue" , 0.5f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f );
 
-cmdLineReadable* params[] =
+CmdLineReadable* params[] =
 {
 	&Port , &ClientCount , &AddressPrefix , &Performance , &Verbose ,
 	&In ,
@@ -383,7 +385,7 @@ int main( int argc , char* argv[] )
 #endif // USE_DOUBLE
 	static const unsigned int Dim = DEFAULT_DIMENSION;
 
-	cmdLineParse( argc-1 , &argv[1] , params );
+	CmdLineParse( argc-1 , &argv[1] , params );
 
 	if( !In.set || !TempDir.set || !Out.set || !ClientCount.set )
 	{
