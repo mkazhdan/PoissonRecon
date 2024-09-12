@@ -46,6 +46,9 @@ DAMAGE.
 #define FEM_TREE_INCLUDED
 
 #include <atomic>
+#ifdef SANITIZED_PR
+#include <shared_mutex>
+#endif // SANITIZED_PR
 #include "MyMiscellany.h"
 #include "BSplineData.h"
 #include "Geometry.h"
@@ -113,17 +116,24 @@ namespace PoissonRecon
 			SCRATCH_FLAG             = 1 << 7 ,
 		};
 		node_index_type nodeIndex;
+#ifdef SANITIZED_PR
+		mutable std::atomic< unsigned char > flags;
+#else // !SANITIZED_PR
 		mutable char flags;
+#endif // SANITIZED_PR
 		void setGhostFlag( bool f ) const { if( f ) flags |= GHOST_FLAG ; else flags &= ~GHOST_FLAG; }
 		bool getGhostFlag( void ) const { return ( flags & GHOST_FLAG )!=0; }
 		void setDirichletNodeFlag( bool f ) const { if( f ) flags |= DIRICHLET_NODE_FLAG ; else flags &= ~DIRICHLET_NODE_FLAG; }
 		bool getDirichletNodeFlag( void ) const { return ( flags & DIRICHLET_NODE_FLAG )!=0; }
 		void setDirichletElementFlag( bool f ) const { if( f ) flags |= DIRICHLET_ELEMENT_FLAG ; else flags &= ~DIRICHLET_ELEMENT_FLAG; }
 		bool getDirichletElementFlag( void ) const { return ( flags & DIRICHLET_ELEMENT_FLAG )!=0; }
-		void setScratchFlag( bool f ) const { if( f ) flags |= SCRATCH_FLAG ; else flags &= ~SCRATCH_FLAG; }
+		void setScratchFlag( bool f ) const { if( f ) flags |= SCRATCH_FLAG ; else flags &= (unsigned char)~SCRATCH_FLAG; }
 		bool getScratchFlag( void ) const { return ( flags & SCRATCH_FLAG )!=0; }
 		FEMTreeNodeData( void );
 		~FEMTreeNodeData( void );
+#ifdef SANITIZED_PR
+		FEMTreeNodeData &operator = ( const FEMTreeNodeData &data );
+#endif // SANITIZED_PR
 	};
 
 	template< unsigned int Dim >
@@ -320,25 +330,53 @@ namespace PoissonRecon
 		const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 		Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node )
 		{
+#ifdef SANITIZED_PR
+			static std::shared_mutex _insertionMutex;
+#else // !SANITIZED_PR
 			static std::mutex _insertionMutex;
+#endif // SANITIZED_PR
 			// If the node hasn't been indexed yet
 			if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() )
 			{
+#ifdef SANITIZED_PR
+				std::unique_lock lock( _insertionMutex );
+#else // !SANITIZED_PR
 				std::lock_guard< std::mutex > lock( _insertionMutex );
+#endif // SANITIZED_PR
 				if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() ) _indices.resize( node->nodeData.nodeIndex+1 , -1 );
 			}
 			// If the node hasn't been allocated yet
-			volatile node_index_type &_index = _indices[ node->nodeData.nodeIndex ];
-			if( _index==-1 )
+#ifdef SANITIZED_PR
+			volatile node_index_type * indexPtr;
 			{
+				std::shared_lock lock( _insertionMutex );
+				indexPtr = &_indices[ node->nodeData.nodeIndex ];
+			}
+			node_index_type _index = ReadAtomic( indexPtr );
+#else // !SANITIZED_PR
+			volatile node_index_type &_index = _indices[ node->nodeData.nodeIndex ];
+#endif // SANITIZED_PR			if( _index==-1 )
+			{
+#ifdef SANITIZED_PR
+				std::unique_lock lock( _insertionMutex );
+				_index = ReadAtomic( indexPtr );
+#else // !SANITIZED_PR
 				std::lock_guard< std::mutex > lock( _insertionMutex );
+#endif // SANITIZED_PR
 				if( _index==-1 )
 				{
 					size_t sz = _data.size();
 					_data.resize( sz + 1 );
 					_index = (node_index_type)sz;
+#ifdef SANITIZED_PR
+					// [WARNING] Why is this necessary, given that we are within a critical section?
+					SetAtomic( indexPtr , _index , (node_index_type)-1 );
+#endif // SANITIZED_PR
 				}
 			}
+#ifdef SANITIZED_PR
+			std::shared_lock lock( _insertionMutex );
+#endif // SANITIZED_PR
 			return _data[ _index ];
 		}
 		node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) const
@@ -1398,6 +1436,16 @@ namespace PoissonRecon
 		for( int d=0 ; d<Dim ; d++ ) AddAtomic( a[d] , b[d] );
 	}
 
+#ifdef SANITIZED_PR
+	template< class Real , unsigned int Dim >
+	Point< Real , Dim > ReadAtomic( const volatile Point< Real , Dim > * a )
+	{
+		Point< Real , Dim > p;
+		for( int d=0 ; d<Dim ; d++ ) p[d] = ReadAtomic( (Real*)p + d );
+		return p;
+	}
+#endif // SANITIZED_PR
+
 	template< class Data >
 	bool IsZero( const Data& data ){ return false; }
 	template< class Real , unsigned int Dim >
@@ -1930,9 +1978,14 @@ namespace PoissonRecon
 		int _localInset( LocalDepth d ) const { return _depthOffset==0 ? 0 : 1<<( d + _depthOffset - 1 ); }
 		void _localDepthAndOffset( const FEMTreeNode* node , LocalDepth& d , LocalOffset& off ) const
 		{
-			node->depthAndOffset( d , off ) ; d -= _depthOffset;
-			int inset = _localInset( d );
-			for( int d=0 ; d<Dim ; d++ ) off[d] -= inset;
+			node->depthAndOffset( d , off );
+			d -= _depthOffset;
+			if( d<0 ) for( int d=0 ; d<Dim ; d++ ) off[d] = -1;
+			else
+			{
+				int inset = _localInset( d );
+				for( int d=0 ; d<Dim ; d++ ) off[d] -= inset;
+			}
 		}
 		template< unsigned int FEMSig > static int _BSplineBegin( LocalDepth depth ){ return BSplineEvaluationData< FEMSig >::Begin( depth ); }
 		template< unsigned int FEMSig > static int _BSplineEnd  ( LocalDepth depth ){ return BSplineEvaluationData< FEMSig >::End  ( depth ); }
@@ -2151,12 +2204,12 @@ namespace PoissonRecon
 			if( node )
 			{
 				int d , off[Dim] ; node->depthAndOffset( d , off );
-				BaseFEMIntegrator::template ParentOverlapBounds( UIntPack< FEMDegrees1 ... >() , UIntPack< FEMDegrees2 ... >() , d , off , start , end );
+				BaseFEMIntegrator::ParentOverlapBounds( UIntPack< FEMDegrees1 ... >() , UIntPack< FEMDegrees2 ... >() , d , off , start , end );
 			}
 		}
 		template< unsigned int ... FEMDegrees1 , unsigned int ... FEMDegrees2 > static void _SetParentOverlapBounds( UIntPack< FEMDegrees1 ... > , UIntPack< FEMDegrees2 ... > , int cIdx , int start[Dim] , int end[Dim] )
 		{
-			BaseFEMIntegrator::template ParentOverlapBounds( UIntPack< FEMDegrees1 ... >() , UIntPack< FEMDegrees2 ... >() , cIdx , start , end );
+			BaseFEMIntegrator::ParentOverlapBounds( UIntPack< FEMDegrees1 ... >() , UIntPack< FEMDegrees2 ... >() , cIdx , start , end );
 		}
 
 		template< unsigned int ... FEMSigs >

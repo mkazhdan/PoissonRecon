@@ -29,7 +29,17 @@ DAMAGE.
 /////////////////////
 // FEMTreeNodeData //
 /////////////////////
+#ifdef SANITIZED_PR
+FEMTreeNodeData::FEMTreeNodeData( void ) : flags(0){}
+FEMTreeNodeData &FEMTreeNodeData::operator = ( const FEMTreeNodeData &data )
+{
+	nodeIndex = data.nodeIndex;
+	flags = data.flags.load();
+	return *this;
+}
+#else // !SANITIZED_PR
 FEMTreeNodeData::FEMTreeNodeData( void ){ flags = 0; }
+#endif // SANITIZED_PR
 FEMTreeNodeData::~FEMTreeNodeData( void ) { }
 
 
@@ -475,8 +485,8 @@ void FEMTree< Dim , Real >::_refine( UIntPack< Degrees ... > , Allocator< FEMTre
 	for( int c=0 ; c<(1<<Dim) ; c++ )
 	{
 		for( int d=0 ; d<Dim ; d++ )
-			if( c&(1<<d) ) _off[d] = (off[d]<<1) | 1;
-			else           _off[d] = (off[d]<<1);
+			if( c&(1<<d) ) _off[d] = off[d]*2+1;
+			else           _off[d] = off[d]*2+0;
 		refine |= !FEMIntegrator::IsOutOfBounds( UIntPack< FEMDegreeAndBType< Degrees , BOUNDARY_FREE >::Signature ... >() , _d , _off ) && addNodeFunctor( _d , _off );
 	}
 	if( refine )
@@ -554,11 +564,12 @@ typename FEMTree< Dim , Real >::LocalDepth FEMTree< Dim , Real >::_getFullDepth(
 
 	auto IsSupported = [&]( LocalDepth d , LocalOffset off )
 	{
+		if( d>depth ) return false;
 		LocalOffset supportStart , supportEnd;
 		for( unsigned int dim=0 ; dim<Dim ; dim++ )
 		{
-			supportStart[dim] = ( off[dim] + StartOffsets[dim] )<<(depth-d);
-			supportEnd  [dim] = ( off[dim] +   EndOffsets[dim] )<<(depth-d);
+			supportStart[dim] = ( off[dim] + StartOffsets[dim] )*(1<<(depth-d));
+			supportEnd  [dim] = ( off[dim] +   EndOffsets[dim] )*(1<<(depth-d));
 		}
 		if( d>=0 ) for( unsigned int dim=0 ; dim<Dim ; dim++ ) if( supportStart[dim]>=end[dim] || supportEnd[dim]<=begin[dim] ) return false;
 		return true;
@@ -573,8 +584,13 @@ typename FEMTree< Dim , Real >::LocalDepth FEMTree< Dim , Real >::_getFullDepth(
 			for( unsigned int c=0 ; c<(1<<Dim) ; c++ )
 			{
 				for( int dim=0 ; dim<Dim ; dim++ )
+#ifdef SANITIZED_PR
+					if( c&(1<<dim) ) _off[dim] = off[dim]*2 + 1;
+					else             _off[dim] = off[dim]*2 + 0;
+#else // !SANITIZED_PR
 					if( c&(1<<dim) ) _off[dim] = (off[dim]<<1) | 1;
 					else             _off[dim] = (off[dim]<<1);
+#endif // SANITIZED_PR
 				childrenSupported |= IsSupported( _d , _off );
 			}
 			if( childrenSupported ) return d;
@@ -785,7 +801,12 @@ void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real
 	PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
 	densityKey.set( maxSplatDepth );
 
+#ifdef SANITIZED_PR
+	std::vector< std::atomic< node_index_type > > sampleMap( nodeCount() );
+	ThreadPool::Parallel_for( 0 , sampleMap.size() , [&]( unsigned int , size_t i ){ sampleMap[i] = (node_index_type)-1; } );
+#else // !SANITIZED_PR
 	std::vector< node_index_type > sampleMap( nodeCount() , -1 );
+#endif // SANITIZED_PR
 
 	// Initialize the map from node indices to samples
 	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );

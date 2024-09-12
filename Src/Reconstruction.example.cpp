@@ -324,11 +324,7 @@ int main( int argc , char* argv[] )
 {
 	Timer timer;
 	CmdLineParse( argc-1 , &argv[1] , params );
-#ifdef _OPENMP
-	ThreadPool::Init( ThreadPool::OPEN_MP , std::thread::hardware_concurrency() );
-#else // !_OPENMP
-	ThreadPool::Init( ThreadPool::THREAD_POOL , std::thread::hardware_concurrency() );
-#endif // _OPENMP
+	ThreadPool::Init( (ThreadPool::ParallelType)0 , std::thread::hardware_concurrency() );
 
 	if( !SampleNum.set )
 	{

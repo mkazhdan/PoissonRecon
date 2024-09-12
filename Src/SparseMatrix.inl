@@ -460,7 +460,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Transpose( 
 	A.resize( aRows );
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
 	for( size_t i=0 ; i<At.rows() ; i++ ) for( const_iterator iter=At.begin(i) ; iter!=At.end(i) ; iter++ ) A.rowSizes[ iter->N ]++;
-	for( size_t i=0 ; i<A.rows ; i++ )
+	for( size_t i=0 ; i<A.rows() ; i++ )
 	{
 		size_t t = A.rowSizes[i];
 		A.rowSizes[i] = 0;
@@ -493,7 +493,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Transpose( 
 	A.resize( aRows );
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
 	for( size_t i=0 ; i<At.rows() ; i++ ) for( const_iterator iter=At.begin(i) ; iter!=At.end(i) ; iter++ ) A.rowSizes[ iter->N ]++;
-	for( size_t i=0 ; i<A.rows ; i++ )
+	for( size_t i=0 ; i<A.rows() ; i++ )
 	{
 		size_t t = A.rowSizes[i];
 		A.rowSizes[i] = 0;

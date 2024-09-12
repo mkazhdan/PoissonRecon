@@ -827,7 +827,7 @@ namespace PoissonRecon
 
 						std::vector< Point< Real , Dim > > vertices( envelopeMesh->vertices.size() );
 						for( unsigned int i=0 ; i<vertices.size() ; i++ ) vertices[i] = modelToUnitCube * envelopeMesh->vertices[i];
-						geometryNodeDesignators = FEMTreeInitializer< Dim , Real >::template GetGeometryNodeDesignators( &implicit.tree.spaceRoot() , vertices , envelopeMesh->simplices , params.baseDepth , params.envelopeDepth , implicit.tree.nodeAllocators , implicit.tree.initializer() );
+						geometryNodeDesignators = FEMTreeInitializer< Dim , Real >::GetGeometryNodeDesignators( &implicit.tree.spaceRoot() , vertices , envelopeMesh->simplices , params.baseDepth , params.envelopeDepth , implicit.tree.nodeAllocators , implicit.tree.initializer() );
 
 						// Make nodes in the support of the vector field @{ExactDepth} interior
 						if( params.dirichletErode )

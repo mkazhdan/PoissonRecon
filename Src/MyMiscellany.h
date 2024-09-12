@@ -176,7 +176,10 @@ namespace PoissonRecon
 #ifdef _OPENMP
 			OPEN_MP ,
 #endif // _OPENMP
+#ifdef SANITIZED_PR
+#else // !SANITIZED_PR
 			THREAD_POOL ,
+#endif // SANITIZED_PR
 			ASYNC ,
 			NONE
 		};
@@ -255,6 +258,8 @@ namespace PoissonRecon
 				_ThreadFunction( 0 );
 				for( unsigned int t=1 ; t<threads ; t++ ) futures[t-1].get();
 			}
+#ifdef SANITIZED_PR
+#else // !SANITIZED_PR
 			else if( _ParallelType==THREAD_POOL )
 			{
 				unsigned int targetTasks = 0;
@@ -272,6 +277,7 @@ namespace PoissonRecon
 					}
 				}
 			}
+#endif // SANITIZED_PR
 		}
 
 		static unsigned int NumThreads( void ){ return (unsigned int)_Threads.size()+1; }
@@ -288,12 +294,15 @@ namespace PoissonRecon
 			_Close = true;
 			numThreads--;
 			_Threads.resize( numThreads );
+#ifdef SANITIZED_PR
+#else // !SANITIZED_PR
 			if( _ParallelType==THREAD_POOL )
 			{
 				_RemainingTasks = 0;
 				_Close = false;
 				for( unsigned int t=0 ; t<numThreads ; t++ ) _Threads[t] = std::thread( _ThreadInitFunction , t );
 			}
+#endif // SANITIZED_PR
 		}
 		static void Terminate( void )
 		{
@@ -336,8 +345,13 @@ namespace PoissonRecon
 			}
 		}
 
+#ifdef SANITIZED_PR
+		static std::atomic< bool > _Close;
+		static std::atomic< unsigned int > _RemainingTasks;
+#else // !SANITIZED_PR
 		static bool _Close;
 		static volatile unsigned int _RemainingTasks;
+#endif // SANITIZED_PR
 		static std::mutex _Mutex;
 		static std::condition_variable _WaitingForWorkOrClose , _DoneWithWork;
 		static std::vector< std::thread > _Threads;
@@ -347,8 +361,13 @@ namespace PoissonRecon
 
 	size_t ThreadPool::DefaultChunkSize = 128;
 	ThreadPool::ScheduleType ThreadPool::DefaultSchedule = ThreadPool::DYNAMIC;
+#ifdef SANITIZED_PR
+	std::atomic< bool > ThreadPool::_Close;
+	std::atomic< unsigned int > ThreadPool::_RemainingTasks;
+#else // !SANITIZED_PR
 	bool ThreadPool::_Close;
 	volatile unsigned int ThreadPool::_RemainingTasks;
+#endif // SANITIZED_PR
 	std::mutex ThreadPool::_Mutex;
 	std::condition_variable ThreadPool::_WaitingForWorkOrClose;
 	std::condition_variable ThreadPool::_DoneWithWork;
@@ -361,11 +380,37 @@ namespace PoissonRecon
 #ifdef _OPENMP
 		"open mp" ,
 #endif // _OPENMP
+#ifdef SANITIZED_PR
+#else // !SANITIZED_PR
 		"thread pool" ,
+#endif // SANITIZED_PR
 		"async" ,
 		"none"
 	};
 	const std::vector< std::string >ThreadPool::ScheduleNames = { "static" , "dynamic" };
+
+	template< typename Value >
+	Value ReadAtomic32( const volatile Value * value )
+	{
+#if defined( _WIN32 ) || defined( _WIN64 )
+		long _value = InterlockedExchangeAdd( (long*)value , 0 );
+		return *(Value*)(&_value);
+#else // !_WIN32 && !_WIN64
+		uint32_t _value =  __atomic_load_n( (uint32_t *)value , __ATOMIC_SEQ_CST );
+#endif // _WIN32 || _WIN64
+		return *(Value*)(&_value);
+	}
+
+	template< typename Value >
+	Value ReadAtomic64( const volatile Value * value )
+	{
+#if defined( _WIN32 ) || defined( _WIN64 )
+		__int64 _value = InterlockedExchangeAdd64( (__int64*)value , 0 );
+#else // !_WIN32 && !_WIN64
+		uint64_t _value = __atomic_load_n( (uint64_t *)value , __ATOMIC_SEQ_CST );
+#endif // _WIN32 || _WIN64
+		return *(Value*)(&_value);
+	}
 
 	template< typename Value >
 	bool SetAtomic32( volatile Value *value , Value newValue , Value oldValue )
@@ -395,18 +440,36 @@ namespace PoissonRecon
 	template< typename Number >
 	void AddAtomic32( volatile Number &a , Number b )
 	{
-#if defined( _WIN32 ) || defined( _WIN64 )
+#ifdef SANITIZED_PR
+		Number current = ReadAtomic32( &a );
+#else // !SANITIZED_PR
 		Number current = a;
+#endif // SANITIZED_PR
 		Number sum = current+b;
+#if defined( _WIN32 ) || defined( _WIN64 )
 		long *_current = (long *)&current;
 		long *_sum = (long *)&sum;
+#ifdef SANITIZED_PR
+		while( InterlockedCompareExchange( (long*)&a , *_sum , *_current )!=*_current )
+		{
+			current = ReadAtomic32( &a );
+			sum = current + b;
+	}
+#else // !SANITIZED_PR
 		while( InterlockedCompareExchange( (long*)&a , *_sum , *_current )!=*_current ) current = a , sum = a+b;
+#endif // SANITIZED_PR
 #else // !_WIN32 && !_WIN64
-		Number current = a;
-		Number sum = current+b;
 		uint32_t *_current = (uint32_t *)&current;
 		uint32_t *_sum = (uint32_t *)&sum;
+#ifdef SANITIZED_PR
+		while( __sync_val_compare_and_swap( (uint32_t *)&a , *_current , *_sum )!=*_current )
+		{
+			current = ReadAtomic32( &a );
+			sum = current+b;
+		}
+#else // !SANITIZED_PR
 		while( __sync_val_compare_and_swap( (uint32_t *)&a , *_current , *_sum )!=*_current ) current = a , sum = a+b;
+#endif // SANITIZED_PR
 #endif // _WIN32 || _WIN64
 	}
 
@@ -414,22 +477,50 @@ namespace PoissonRecon
 	void AddAtomic64( volatile Number &a , Number b )
 	{
 #if 1
+#ifdef SANITIZED_PR
+		Number current = ReadAtomic64( &a );
+		Number sum = current+b;
+		while( !SetAtomic64( &a , sum , current ) )
+		{
+			current = ReadAtomic64( &a );
+			sum = current+b;
+		}
+#else // !SANITIZED_PR
 		Number current = a;
 		Number sum = current+b;
 		while( !SetAtomic64( &a , sum , current ) ) current = a , sum = a+b;
+#endif // SANITIZED_PR
 #else
-#if defined( _WIN32 ) || defined( _WIN64 )
+#ifdef SANITIZED_PR
+		Number current = ReadAtomic64( &a );
+#else // !SANITIZED_PR
 		Number current = a;
+#endif // SANITIZED_PR
 		Number sum = current+b;
+#if defined( _WIN32 ) || defined( _WIN64 )
 		__int64 *_current = (__int64 *)&current;
 		__int64 *_sum = (__int64 *)&sum;
+#ifdef SANITIZED_PR
+		while( InterlockedCompareExchange64( (__int64*)&a , *_sum , *_current )!=*_current )
+		{
+			current = ReadAtomic64( &a );
+			sum = current+b;
+	}
+#else // !SANITIZED_PR
 		while( InterlockedCompareExchange64( (__int64*)&a , *_sum , *_current )!=*_current ) current = a , sum = a+b;
+#endif // SANITIZED_PR
 #else // !_WIN32 && !_WIN64
-		Number current = a;
-		Number sum = current+b;
 		uint64_t *_current = (uint64_t *)&current;
 		uint64_t *_sum = (uint64_t *)&sum;
+#ifdef SANITIZED_PR
+		while( __sync_val_compare_and_swap( (uint64_t *)&a , *_current , *_sum )!=*_current )
+		{
+			current = ReadAtomic64( &a);
+			sum = current+b;
+		}
+#else // !SANITIZED_PR
 		while( __sync_val_compare_and_swap( (uint64_t *)&a , *_current , *_sum )!=*_current ) current = a , sum = a+b;
+#endif // SANITIZED_PR
 #endif // _WIN32 || _WIN64
 #endif
 	}
@@ -465,6 +556,20 @@ namespace PoissonRecon
 		}
 	}
 
+	template< typename Value >
+	Value ReadAtomic( const volatile Value * value )
+	{
+		if constexpr( sizeof(Value)==4 ) return ReadAtomic32( value );
+		else if constexpr( sizeof(Value)==8 ) return ReadAtomic64( value );
+		else
+		{
+			WARN_ONCE( "should not use this function: " , sizeof(Value) );
+			static std::mutex readAtomicMutex;
+			std::lock_guard< std::mutex > lock( readAtomicMutex );
+			return *value;
+		}
+	}
+
 	//////////////////
 	// Memory Stuff //
 	//////////////////
@@ -477,6 +582,7 @@ namespace PoissonRecon
 		{
 			_t = Time();
 			_currentPeak = 0;
+			_terminate = false;
 			if( ms )
 			{
 				_thread = std::thread( &Profiler::_updatePeakMemoryFunction , std::ref( *this ) , ms );
@@ -489,10 +595,7 @@ namespace PoissonRecon
 		{
 			if( _spawnedSampler )
 			{
-				{
-					std::lock_guard< std::mutex > lock( _mutex );
-					_terminate = true;
-				}
+				_terminate = true;
 				_thread.join();
 			}
 		}
@@ -538,10 +641,10 @@ namespace PoissonRecon
 	protected:
 		std::thread _thread;
 		std::mutex _mutex;
-		bool _spawnedSampler;
 		double _t;
-		volatile size_t _currentPeak;
-		volatile bool _terminate;
+		std::atomic< bool > _spawnedSampler;
+		std::atomic< size_t > _currentPeak;
+		std::atomic< bool > _terminate;
 
 		void _updatePeakMemoryFunction( unsigned int ms )
 		{

@@ -83,11 +83,7 @@ CmdLineParameter< int >
 	FilesPerDir( "filesPerDir" , -1 ) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	PeakMemorySampleMS( "sampleMS" , 10 ) ,
-#ifdef _OPENMP
-	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
-#else // !_OPENMP
-	ParallelType( "parallel" , (int)ThreadPool::THREAD_POOL ) ,
-#endif // _OPENMP
+	ParallelType( "parallel" , 0 ) ,
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	MergeSlabs( "merge" , MergeSlabType::SEAMLESS ) ,

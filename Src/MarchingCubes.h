@@ -579,7 +579,7 @@ namespace PoissonRecon
 		{
 			unsigned int coIndex;
 			e.factor( dir , coIndex );
-			if( dir==CROSS ) Cube< D-1 >::template _FactorOrientation( typename Cube< D-1 >::template Element< D-2 >( coIndex ) , dim , dir );
+			if( dir==CROSS ) Cube< D-1 >::_FactorOrientation( typename Cube< D-1 >::template Element< D-2 >( coIndex ) , dim , dir );
 			else dim = D-1;
 		}
 		template< unsigned int D > template< unsigned int _D >
@@ -665,9 +665,9 @@ namespace PoissonRecon
 		{
 			Direction eDir , dDir ; unsigned int eCoIndex , dCoIndex;
 			e.factor( eDir , eCoIndex ) , d.factor( dDir , dCoIndex );
-			if     ( eDir==CROSS ){ return 1                          + Cube< D-1 >::template CellOffset( typename Cube< D-1 >::template Element< K-1 >( eCoIndex ) , d                                                                 ) * 3; }
-			else if( eDir==BACK  ){ return 0 + ( dDir==BACK ? 0 : 1 ) + Cube< D-1 >::template CellOffset( typename Cube< D-1 >::template Element< K   >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ) * 3; }
-			else if( eDir==FRONT ){ return 1 + ( dDir==BACK ? 0 : 1 ) + Cube< D-1 >::template CellOffset( typename Cube< D-1 >::template Element< K   >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ) * 3; }
+			if     ( eDir==CROSS ){ return 1                          + Cube< D-1 >::CellOffset( typename Cube< D-1 >::template Element< K-1 >( eCoIndex ) , d                                                                 ) * 3; }
+			else if( eDir==BACK  ){ return 0 + ( dDir==BACK ? 0 : 1 ) + Cube< D-1 >::CellOffset( typename Cube< D-1 >::template Element< K   >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ) * 3; }
+			else if( eDir==FRONT ){ return 1 + ( dDir==BACK ? 0 : 1 ) + Cube< D-1 >::CellOffset( typename Cube< D-1 >::template Element< K   >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ) * 3; }
 			return 0;
 		}
 		template< unsigned int D > template< unsigned int K , unsigned int _D >
@@ -698,9 +698,9 @@ namespace PoissonRecon
 		{
 			Direction eDir , dDir ; unsigned int eCoIndex , dCoIndex;
 			e.factor( eDir , eCoIndex ) , d.factor( dDir , dCoIndex );
-			if     ( eDir==CROSS ) return Element< K >(           eDir   , Cube< D-1 >::template IncidentElement( typename Cube< D-1 >::template Element< K-1 >( eCoIndex ) , d                                                                 ).index );
-			else if( eDir==dDir  ) return Element< K >( Opposite( eDir ) , Cube< D-1 >::template IncidentElement( typename Cube< D-1 >::template Element< K   >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ).index );
-			else                   return Element< K >(           eDir   , Cube< D-1 >::template IncidentElement( typename Cube< D-1 >::template Element< K   >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ).index );
+			if     ( eDir==CROSS ) return Element< K >(           eDir   , Cube< D-1 >::IncidentElement( typename Cube< D-1 >::template Element< K-1 >( eCoIndex ) , d                                                                 ).index );
+			else if( eDir==dDir  ) return Element< K >( Opposite( eDir ) , Cube< D-1 >::IncidentElement( typename Cube< D-1 >::template Element< K   >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ).index );
+			else                   return Element< K >(           eDir   , Cube< D-1 >::IncidentElement( typename Cube< D-1 >::template Element< K   >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ).index );
 		}
 		template< unsigned int D > template< unsigned int K , unsigned int _D >
 #ifdef _MSC_VER
@@ -711,8 +711,8 @@ namespace PoissonRecon
 		{
 			Direction eDir , dDir ; unsigned int eCoIndex , dCoIndex;
 			e.factor( eDir , eCoIndex ) , d.factor( dDir , dCoIndex );
-			if( eDir==dDir ) return Element< K >( Opposite( eDir ) , Cube< D-1 >::template IncidentElement( typename Cube< D-1 >::template Element< K >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ).index );
-			else             return Element< K >(           eDir   , Cube< D-1 >::template IncidentElement( typename Cube< D-1 >::template Element< K >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ).index );
+			if( eDir==dDir ) return Element< K >( Opposite( eDir ) , Cube< D-1 >::IncidentElement( typename Cube< D-1 >::template Element< K >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ).index );
+			else             return Element< K >(           eDir   , Cube< D-1 >::IncidentElement( typename Cube< D-1 >::template Element< K >( eCoIndex ) , typename Cube< D-1 >::template IncidentCubeIndex< K >( dCoIndex ) ).index );
 		}
 
 

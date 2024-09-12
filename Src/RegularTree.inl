@@ -663,8 +663,18 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 		{
 			if( pNeighbors[pi] )
 			{
+#ifdef SANITIZED_PR
+				RegularTreeNode * children = ReadAtomic( &(pNeighbors[pi]->children) );
+				if( !children )
+				{
+					pNeighbors[pi]->template initChildren< ThreadSafe >( nodeAllocator , initializer );
+					children = ReadAtomic( &(pNeighbors[pi]->children) );
+				}
+				cNeighbors[ci] = children + ( cornerIndex | ( ( _i&1)<<(Dim-1) ) );
+#else // !SANITIZED_PR
 				if( !pNeighbors[pi]->children ) pNeighbors[pi]->template initChildren< ThreadSafe >( nodeAllocator , initializer );
 				cNeighbors[ci] = pNeighbors[pi]->children + ( cornerIndex | ( ( _i&1)<<(Dim-1) ) );
+#endif // SANITIZED_PR
 				count++;
 			}
 			else cNeighbors[ci] = NULL;

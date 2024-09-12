@@ -56,7 +56,11 @@ namespace PoissonRecon
 
 		BlockedVector( const BlockedVector& v )
 		{
+#ifdef SANITIZED_PR
+			_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size.load() , _defaultValue = v._defaultValue;
+#else // !SANITIZED_PR
 			_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue;
+#endif // SANITIZED_PR
 			_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
 			for( size_t i=0 ; i<_allocatedBlocks ; i++ )
 			{
@@ -70,7 +74,11 @@ namespace PoissonRecon
 		{
 			for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
 			DeletePointer( _blocks );
+#ifdef SANITIZED_PR
+			_reservedBlocks = v._reservedBlocks , _blocks = v._blocks.load() , _allocatedBlocks = v._allocatedBlocks , _size = v._size.load() , _defaultValue = v._defaultValue;
+#else // !SANITIZED_PR
 			_reservedBlocks = v._reservedBlocks , _blocks = v._blocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue;
+#endif // SANITIZED_PR
 			_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
 			for( size_t i=0 ; i<_allocatedBlocks ; i++ )
 			{
@@ -83,7 +91,11 @@ namespace PoissonRecon
 
 		BlockedVector( BlockedVector&& v )
 		{
+#ifdef SANITIZED_PR
+			_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size.load() , _defaultValue = v._defaultValue , _blocks = v._blocks.load();
+#else // !SANITIZED_PR
 			_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue , _blocks = v._blocks;
+#endif // SANITIZED_PR
 			v._reservedBlocks = v._allocatedBlocks = v._size = 0 , v._blocks = NullPointer( Pointer( T ) );
 		}
 
@@ -91,7 +103,11 @@ namespace PoissonRecon
 		{
 			for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
 			DeletePointer( _blocks );
+#ifdef SANITIZED_PR
+			_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size.load() , _defaultValue = v._defaultValue , _blocks = v._blocks.load();
+#else // !SANITIZED_PR
 			_reservedBlocks = v._reservedBlocks , _allocatedBlocks = v._allocatedBlocks , _size = v._size , _defaultValue = v._defaultValue , _blocks = v._blocks;
+#endif // SANITIZED_PR
 			v._reservedBlocks = v._allocatedBlocks = v._size = 0 , v._blocks = NullPointer( Pointer( T ) );
 			return *this;
 		}
@@ -241,8 +257,13 @@ namespace PoissonRecon
 
 		T _defaultValue;
 		size_t _allocatedBlocks , _reservedBlocks;
+#ifdef SANITIZED_PR
+		std::atomic< size_t > _size;
+		std::atomic< Pointer( Pointer( T ) ) > _blocks;
+#else // !SANITIZED_PR
 		size_t _size;
 		Pointer( Pointer( T ) ) _blocks;
+#endif // SANITIZED_PR
 	};
 }
 #endif // BLOCKED_VECTOR_INCLUDED

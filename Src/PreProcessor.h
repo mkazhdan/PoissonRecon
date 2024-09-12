@@ -37,6 +37,7 @@ DAMAGE.
 												// (each of which is small enough to be represented using 32-bit indexing.)
 #endif // BIG_DATA
 						
+//#define SANITIZED_PR								// If enabled, produces CLANG-sanitized code [thread/undefined/address]
 //#define FAST_COMPILE								// If enabled, only a single version of the code is compiled
 #undef SHOW_WARNINGS							// Display compilation warnings
 #undef ARRAY_DEBUG								// If enabled, array access is tested for validity
@@ -45,7 +46,7 @@ DAMAGE.
 #define USE_DEEP_TREE_NODES						// Chances are that if you are using big data, you want to support a tree with depth>15.
 #endif // BIG_DATA
 
-#define ADAPTIVE_SOLVERS_VERSION "18.00"		// The version of the code
+#define ADAPTIVE_SOLVERS_VERSION "18.01"		// The version of the code
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12		// The chunk size for memory allocation
 
 #define ADAPTIVE_PADDING						// Only pushes padding points deep enough so that they are "close" to the slab in terms of units at that depth

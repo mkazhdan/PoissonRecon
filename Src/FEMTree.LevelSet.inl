@@ -233,7 +233,8 @@ namespace LevelSetExtraction
 		template< unsigned int CellDim >
 		void _zeroOut( size_t sz )
 		{
-			memset( maps[CellDim] , 0 , sizeof(node_index_type) * sz * HyperCube::Cube< Dim >::template ElementNum< CellDim >() );
+			if( sz && maps[CellDim] ) memset( maps[CellDim] , 0 , sizeof(node_index_type) * sz * HyperCube::Cube< Dim >::template ElementNum< CellDim >() );
+			else if( sz ) ERROR_OUT( "Traying to zero out null pointer" );
 
 			if constexpr( CellDim==MaxCellDim ) return;
 			else _zeroOut< CellDim+1 >( sz );
