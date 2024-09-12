@@ -234,8 +234,6 @@ int main( int argc , char* argv[] )
 				if( !l ) return;
 				n /= (float)l;
 
-				p += n;
-
 				float radiusScale = (float)pow( l , LengthToRadiusExponent.value );
 				v1 = Point< float , 3 >( -n[2] , 0 , n[0] );
 				if( Point< float , 3 >::SquareNorm( v1 )<0.0000001 ) v1 = Point< float , 3 >( 1 , 0 , 0 );
