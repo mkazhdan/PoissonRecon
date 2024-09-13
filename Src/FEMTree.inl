@@ -627,7 +627,8 @@ template< unsigned int Dim , class Real >
 template< unsigned int ... Degrees >
 typename FEMTree< Dim , Real >::LocalDepth FEMTree< Dim , Real >::getFullDepth( UIntPack< Degrees ... > , const LocalDepth depth , const LocalOffset begin , const LocalOffset end ) const
 {
-	LocalDepth maxDepth = this->maxDepth();
+	// [NOTE] Need "+1" because _getFullDepth will test children of leaves
+	LocalDepth maxDepth = this->maxDepth() + 1;
 	LocalDepth _depth ; LocalOffset _begin , _end;
 	for( unsigned int d=0 ; d<Dim ; d++ )
 	{
