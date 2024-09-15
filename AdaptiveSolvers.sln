@@ -59,6 +59,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Header Files", "Header File
 		Src\MarchingCubes.h = Src\MarchingCubes.h
 		Src\MAT.h = Src\MAT.h
 		Src\MergePlyClientServer.h = Src\MergePlyClientServer.h
+		Src\MyAtomic.h = Src\MyAtomic.h
 		Src\MyExceptions.h = Src\MyExceptions.h
 		Src\MyMiscellany.h = Src\MyMiscellany.h
 		Src\Ply.h = Src\Ply.h

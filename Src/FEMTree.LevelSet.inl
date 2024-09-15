@@ -67,6 +67,13 @@ namespace LevelSetExtraction
 
 		friend std::ostream &operator << ( std::ostream &os , const Key &key ){ return os << key.to_string(); }
 
+		friend Key SetAtomic( volatile Key & value , Key newValue )
+		{
+			Key oldValue;
+			for( unsigned int d=0 ; d<Dim ; d++ ) oldValue.idx[d] = PoissonRecon::SetAtomic( value.idx[d] , newValue.idx[d] );
+			return oldValue;
+		}
+
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Could we hash better?" )
 #endif // SHOW_WARNINGS
@@ -94,6 +101,14 @@ namespace LevelSetExtraction
 		IsoEdge( Key< Dim > v1 , Key< Dim > v2 ){ vertices[0] = v1 , vertices[1] = v2; }
 		Key< Dim > &operator[]( int idx ){ return vertices[idx]; }
 		const Key< Dim > &operator[]( int idx ) const { return vertices[idx]; }
+
+		friend IsoEdge SetAtomic( volatile IsoEdge & value , IsoEdge newValue )
+		{
+			IsoEdge oldValue;
+			oldValue.vertices[0] = SetAtomic( value.vertices[0] , newValue.vertices[0] );
+			oldValue.vertices[1] = SetAtomic( value.vertices[1] , newValue.vertices[1] );
+			return oldValue;
+		}
 	};
 
 	/////////////////////

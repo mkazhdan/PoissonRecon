@@ -352,14 +352,15 @@ namespace PoissonRecon
 				std::shared_lock lock( _insertionMutex );
 				indexPtr = &_indices[ node->nodeData.nodeIndex ];
 			}
-			node_index_type _index = ReadAtomic( indexPtr );
+			node_index_type _index = ReadAtomic( *indexPtr );
 #else // !SANITIZED_PR
 			volatile node_index_type &_index = _indices[ node->nodeData.nodeIndex ];
-#endif // SANITIZED_PR			if( _index==-1 )
+#endif // SANITIZED_PR
+			if( _index==-1 )
 			{
 #ifdef SANITIZED_PR
 				std::unique_lock lock( _insertionMutex );
-				_index = ReadAtomic( indexPtr );
+				_index = ReadAtomic( *indexPtr );
 #else // !SANITIZED_PR
 				std::lock_guard< std::mutex > lock( _insertionMutex );
 #endif // SANITIZED_PR
@@ -370,7 +371,7 @@ namespace PoissonRecon
 					_index = (node_index_type)sz;
 #ifdef SANITIZED_PR
 					// [WARNING] Why is this necessary, given that we are within a critical section?
-					SetAtomic( indexPtr , _index , (node_index_type)-1 );
+					SetAtomic( *indexPtr , _index , (node_index_type)-1 );
 #endif // SANITIZED_PR
 				}
 			}
@@ -1431,20 +1432,26 @@ namespace PoissonRecon
 	};
 
 	template< class Real , unsigned int Dim >
-	void AddAtomic( Point< Real , Dim >& a , const Point< Real , Dim >& b )
+	void AddAtomic( volatile Point< Real , Dim > & a , const Point< Real , Dim >& b )
 	{
-		for( int d=0 ; d<Dim ; d++ ) AddAtomic( a[d] , b[d] );
+		for( int d=0 ; d<Dim ; d++ ) AddAtomic( a.coords[d] , b[d] );
 	}
 
-#ifdef SANITIZED_PR
 	template< class Real , unsigned int Dim >
-	Point< Real , Dim > ReadAtomic( const volatile Point< Real , Dim > * a )
+	Point< Real , Dim > ReadAtomic( const volatile Point< Real , Dim > & a )
 	{
 		Point< Real , Dim > p;
-		for( int d=0 ; d<Dim ; d++ ) p[d] = ReadAtomic( (Real*)p + d );
+		for( int d=0 ; d<Dim ; d++ ) p[d] = ReadAtomic( a.coords[d] );
 		return p;
 	}
-#endif // SANITIZED_PR
+
+	template< class Real , unsigned int Dim >
+	Point< Real , Dim > SetAtomic( volatile Point< Real , Dim > & p , Point< Real , Dim > newP )
+	{
+		Point< Real , Dim > oldP;
+		for( int d=0 ; d<Dim ; d++ ) oldP[d] = SetAtomic( p.coords[d] , newP[d] );
+		return oldP;
+	}
 
 	template< class Data >
 	bool IsZero( const Data& data ){ return false; }

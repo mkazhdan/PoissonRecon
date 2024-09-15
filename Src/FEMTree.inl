@@ -802,12 +802,7 @@ void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real
 	PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
 	densityKey.set( maxSplatDepth );
 
-#ifdef SANITIZED_PR
-	std::vector< std::atomic< node_index_type > > sampleMap( nodeCount() );
-	ThreadPool::Parallel_for( 0 , sampleMap.size() , [&]( unsigned int , size_t i ){ sampleMap[i] = (node_index_type)-1; } );
-#else // !SANITIZED_PR
 	std::vector< node_index_type > sampleMap( nodeCount() , -1 );
-#endif // SANITIZED_PR
 
 	// Initialize the map from node indices to samples
 	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );

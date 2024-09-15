@@ -155,7 +155,7 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren_s( Al
 	}
 
 	// If we are the first to set the child, initialize
-	if( SetAtomic( &children , _children , (RegularTreeNode *)NULL ) ) return true;
+	if( SetAtomic( children , _children , (RegularTreeNode *)NULL ) ) return true;
 	// Otherwise clean up
 	else
 	{
@@ -664,11 +664,11 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 			if( pNeighbors[pi] )
 			{
 #ifdef SANITIZED_PR
-				RegularTreeNode * children = ReadAtomic( &(pNeighbors[pi]->children) );
+				RegularTreeNode * children = ReadAtomic( pNeighbors[pi]->children );
 				if( !children )
 				{
 					pNeighbors[pi]->template initChildren< ThreadSafe >( nodeAllocator , initializer );
-					children = ReadAtomic( &(pNeighbors[pi]->children) );
+					children = ReadAtomic( pNeighbors[pi]->children );
 				}
 				cNeighbors[ci] = children + ( cornerIndex | ( ( _i&1)<<(Dim-1) ) );
 #else // !SANITIZED_PR

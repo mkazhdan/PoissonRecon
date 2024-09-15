@@ -81,22 +81,37 @@ public:
 			EKeyValues eKeyValues;
 			VKeyValues vKeyValues;
 
+#ifdef SANITIZED_PR
+			Pointer( std::atomic< char > ) cSet;
+			Pointer( std::atomic< char > ) eSet;
+#else // !SANITIZED_PR
 			Pointer( char ) cSet;
 			Pointer( char ) eSet;
+#endif // SANITIZED_PR
 
 			Scratch( void )
 			{
 				vKeyValues.resize( ThreadPool::NumThreads() );
 				eKeyValues.resize( ThreadPool::NumThreads() );
 				fKeyValues.resize( ThreadPool::NumThreads() );
+#ifdef SANITIZED_PR
+				cSet = NullPointer( std::atomic< char > );
+				eSet = NullPointer( std::atomic< char > );
+#else // !SANITIZED_PR
 				cSet = NullPointer( char );
 				eSet = NullPointer( char );
+#endif // SANITIZED_PR
 			}
 
 			~Scratch( void )
 			{
+#ifdef SANITIZED_PR
+				DeletePointer( cSet );
+				DeletePointer( eSet );
+#else // !SANITIZED_PR
 				FreePointer( cSet );
 				FreePointer( eSet );
+#endif // SANITIZED_PR
 			}
 
 			void reset( const LevelSetExtraction::FullCellIndexData< Dim > &cellIndices )
@@ -104,6 +119,20 @@ public:
 				for( size_t i=0 ; i<vKeyValues.size() ; i++ ) vKeyValues[i].clear();
 				for( size_t i=0 ; i<eKeyValues.size() ; i++ ) eKeyValues[i].clear();
 				for( size_t i=0 ; i<fKeyValues.size() ; i++ ) fKeyValues[i].clear();
+#ifdef SANITIZED_PR
+				DeletePointer( cSet );
+				DeletePointer( eSet );
+				if( cellIndices.counts[0] )
+				{
+					cSet = NewPointer< std::atomic< char > >( cellIndices.counts[0] );
+					for( unsigned int i=0 ; i<cellIndices.counts[0] ; i++ ) cSet[i] = 0;
+				}
+				if( cellIndices.counts[1] )
+				{
+					eSet = NewPointer< std::atomic< char > >( cellIndices.counts[1] );
+					for( unsigned int i=0 ; i<cellIndices.counts[1] ; i++ ) eSet[i] = 0;
+				}
+#else // !SANITIZED_PR
 				FreePointer( cSet );
 				FreePointer( eSet );
 				if( cellIndices.counts[0] )
@@ -116,6 +145,7 @@ public:
 					eSet = AllocPointer< char >( cellIndices.counts[1] );
 					memset( eSet , 0 , sizeof( char ) * cellIndices.counts[1] );
 				}
+#endif // SANITIZED_PR
 			}
 		};
 
@@ -487,7 +517,11 @@ public:
 	{
 		static const unsigned int FEMDegrees[] = { FEMSignature< FEMSigs >::Degree ... };
 		SliceValues& sValues = sliceValues[depth];
+#ifdef SANITIZED_PR
+		Pointer( std::atomic< char > ) cornerSet = scratchValues[depth].cSet;
+#else // !SANITIZED_PR
 		Pointer( char ) cornerSet = scratchValues[depth].cSet;
+#endif // SANITIZED_PR
 		bool useBoundaryEvaluation = false;
 		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 || ( FEMDegrees[d]==1 && sValues.cornerGradients ) ) useBoundaryEvaluation = true;
 		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( ThreadPool::NumThreads() );
@@ -542,7 +576,11 @@ public:
 						{
 							node = node->parent , _depth--;
 							SliceValues& _sValues = sliceValues[_depth];
+#ifdef SANITIZED_PR
+							Pointer( std::atomic< char > ) _cornerSet = scratchValues[_depth].cSet;
+#else // !SANITIZED_PR
 							Pointer( char ) _cornerSet = scratchValues[_depth].cSet;
+#endif // SANITIZED_PR
 							const typename LevelSetExtraction::FullCellIndexData< Dim >::template CellIndices<0> &_cIndices = _sValues.cellIndices.template indices<0>( node );
 							node_index_type _vIndex = _cIndices[c.index];
 							_sValues.cornerValues[_vIndex] = sValues.cornerValues[vIndex];
@@ -606,7 +644,11 @@ public:
 							if( HyperCube::Cube< 1 >::HasMCRoots( HyperCube::Cube< Dim >::ElementMCIndex( e , sValues.mcIndices[idx] ) ) )
 							{
 								node_index_type vIndex = eIndices[e.index];
+#ifdef SANITIZED_PR
+								std::atomic< char > &edgeSet = scValues.eSet[vIndex];
+#else // !SANITIZED_PR
 								volatile char &edgeSet = scValues.eSet[vIndex];
+#endif // SANITIZED_PR
 								// If the edge hasn't been set already (e.g. either by another thread or from a finer resolution)
 								if( !edgeSet )
 								{
@@ -732,7 +774,11 @@ public:
 		};
 
 		SliceValues& sValues = sliceValues[depth];
+#ifdef SANITIZED_PR
+		Pointer( std::atomic< char > ) edgeSet = scratchValues[depth].eSet;
+#else // !SANITIZED_PR
 		Pointer( char ) edgeSet = scratchValues[depth].eSet;
+#endif // SANITIZED_PR
 		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
 		ThreadPool::Parallel_for( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )

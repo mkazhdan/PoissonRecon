@@ -65,6 +65,15 @@ public:
 		IsoEdge edges[2];
 		int count;
 		FaceEdges( void ) : count(-1){}
+
+		friend FaceEdges SetAtomic( volatile FaceEdges & value , FaceEdges newValue )
+		{
+			FaceEdges oldEdge;
+			oldEdge.edges[0] = SetAtomic( value.edges[0] , newValue.edges[0] );
+			oldEdge.edges[1] = SetAtomic( value.edges[1] , newValue.edges[1] );
+			oldEdge.count = SetAtomic( value.count , newValue.count );
+			return oldEdge;
+		}
 	};
 
 	///////////////
@@ -104,25 +113,43 @@ public:
 			EKeyValues eKeyValues;
 			VKeyValues vKeyValues;
 
+#ifdef SANITIZED_PR
+			Pointer( std::atomic< char > ) cSet;
+			Pointer( std::atomic< char > ) eSet;
+			Pointer( std::atomic< char > ) fSet;
+#else // !SANITIZED_PR
 			Pointer( char ) cSet;
 			Pointer( char ) eSet;
 			Pointer( char ) fSet;
+#endif // SANITIZED_PR
 
 			Scratch( void )
 			{
 				vKeyValues.resize( ThreadPool::NumThreads() );
 				eKeyValues.resize( ThreadPool::NumThreads() );
 				fKeyValues.resize( ThreadPool::NumThreads() );
+#ifdef SANITIZED_PR
+				cSet = NullPointer( std::atomic< char > );
+				eSet = NullPointer( std::atomic< char > );
+				fSet = NullPointer( std::atomic< char > );
+#else // !SANITIZED_PR
 				cSet = NullPointer( char );
 				eSet = NullPointer( char );
 				fSet = NullPointer( char );
+#endif // SANITIZED_PR
 			}
 
 			~Scratch( void )
 			{
+#ifdef SANITIZED_PR
+				DeletePointer( cSet );
+				DeletePointer( eSet );
+				DeletePointer( fSet );
+#else // !SANITIZED_PR
 				FreePointer( cSet );
 				FreePointer( eSet );
 				FreePointer( fSet );
+#endif // SANITIZED_PR
 			}
 
 			void reset( const LevelSetExtraction::SliceCellIndexData< Dim > &cellIndices )
@@ -130,6 +157,26 @@ public:
 				for( size_t i=0 ; i<vKeyValues.size() ; i++ ) vKeyValues[i].clear();
 				for( size_t i=0 ; i<eKeyValues.size() ; i++ ) eKeyValues[i].clear();
 				for( size_t i=0 ; i<fKeyValues.size() ; i++ ) fKeyValues[i].clear();
+#ifdef SANITIZED_PR
+				DeletePointer( cSet );
+				DeletePointer( eSet );
+				DeletePointer( fSet );
+				if( cellIndices.counts[0] )
+				{
+					cSet = NewPointer< std::atomic< char > >( cellIndices.counts[0] );
+					for( unsigned int i=0 ; i<cellIndices.counts[0] ; i++ ) cSet[i] = 0;
+				}
+				if( cellIndices.counts[1] )
+				{
+					eSet = NewPointer< std::atomic< char > >( cellIndices.counts[1] );
+					for( unsigned int i=0 ; i<cellIndices.counts[1] ; i++ ) eSet[i] = 0;
+				}
+				if( cellIndices.counts[2] )
+				{
+					fSet = NewPointer< std::atomic< char > >( cellIndices.counts[2] );
+					for( unsigned int i=0 ; i<cellIndices.counts[2] ; i++ ) fSet[i] = 0;
+				}
+#else // !SANITIZED_PR
 				FreePointer( cSet );
 				FreePointer( eSet );
 				FreePointer( fSet );
@@ -148,6 +195,7 @@ public:
 					fSet = AllocPointer< char >( cellIndices.counts[2] );
 					memset( fSet , 0 , sizeof( char ) * cellIndices.counts[2] );
 				}
+#endif // SANITIZED_PR
 			}
 		};
 
@@ -335,22 +383,37 @@ public:
 			EKeyValues eKeyValues;
 			VKeyValues vKeyValues;
 
+#ifdef SANITIZED_PR
+			Pointer( std::atomic< char > ) eSet;
+			Pointer( std::atomic< char > ) fSet;
+#else // !SANITIZED_PR
 			Pointer( char ) eSet;
 			Pointer( char ) fSet;
+#endif // SANITIZED_PR
 
 			Scratch( void )
 			{
 				vKeyValues.resize( ThreadPool::NumThreads() );
 				eKeyValues.resize( ThreadPool::NumThreads() );
 				fKeyValues.resize( ThreadPool::NumThreads() );
+#ifdef SANITIZED_PR
+				eSet = NullPointer( std::atomic< char > );
+				fSet = NullPointer( std::atomic< char > );
+#else // !SANITIZED_PR
 				eSet = NullPointer( char );
 				fSet = NullPointer( char );
+#endif // SANITIZED_PR
 			}
 
 			~Scratch( void )
 			{
+#ifdef SANITIZED_PR
+				DeletePointer( eSet );
+				DeletePointer( fSet );
+#else // !SANITIZED_PR
 				FreePointer( eSet );
 				FreePointer( fSet );
+#endif // SANITIZED_PR
 			}
 
 			void reset( const LevelSetExtraction::SlabCellIndexData< Dim > &cellIndices )
@@ -358,6 +421,20 @@ public:
 				for( size_t i=0 ; i<vKeyValues.size() ; i++ ) vKeyValues[i].clear();
 				for( size_t i=0 ; i<eKeyValues.size() ; i++ ) eKeyValues[i].clear();
 				for( size_t i=0 ; i<fKeyValues.size() ; i++ ) fKeyValues[i].clear();
+#ifdef SANITIZED_PR
+				DeletePointer( eSet );
+				DeletePointer( fSet );
+				if( cellIndices.counts[0] )
+				{
+					eSet = NewPointer< std::atomic< char > >( cellIndices.counts[0] );
+					for( unsigned int i=0 ; i<cellIndices.counts[0] ; i++ ) eSet[i] = 0;
+				}
+				if( cellIndices.counts[1] )
+				{
+					fSet = NewPointer< std::atomic< char > >( cellIndices.counts[1] );
+					for( unsigned int i=0 ; i<cellIndices.counts[1] ; i++ ) fSet[i] = 0;
+				}
+#else // !SANITIZED_PR
 				FreePointer( eSet );
 				FreePointer( fSet );
 				if( cellIndices.counts[0] )
@@ -370,6 +447,7 @@ public:
 					fSet = AllocPointer< char >( cellIndices.counts[1] );
 					memset( fSet , 0 , sizeof( char ) * cellIndices.counts[1] );
 				}
+#endif // SANITIZED_PR
 			}
 		};
 
@@ -820,7 +898,11 @@ public:
 					for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 					{
 						typename HyperCube::Cube< Dim >::template Element< 0 > c( zDir , _c.index );
+#ifdef SANITIZED_PR
+						node_index_type vIndex = ReadAtomic( cIndices[_c.index] );
+#else // !SANITIZED_PR
 						node_index_type vIndex = cIndices[_c.index];
+#endif // SANITIZED_PR
 						if( !sScratch.cSet[vIndex] )
 						{
 							if( sValues.cornerGradients )
@@ -828,16 +910,30 @@ public:
 								CumulativeDerivativeValues< Real , Dim , 1 > p;
 								if( useBoundaryEvaluation ) p = tree.template _getCornerValues< Real , 1 >( bNeighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior );
 								else                        p = tree.template _getCornerValues< Real , 1 >(  neighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior );
+#ifdef SANITIZED_PR
+								SetAtomic( sValues.cornerValues[vIndex] , p[0] );
+								SetAtomic( sValues.cornerGradients[vIndex] , Point< Real , Dim >( p[1] , p[2] , p[3] ) );
+#else // !SANITIZED_PR
 								sValues.cornerValues[vIndex] = p[0] , sValues.cornerGradients[vIndex] = Point< Real , Dim >( p[1] , p[2] , p[3] );
+#endif // SANITIZED_PR
 							}
 							else
 							{
+#ifdef SANITIZED_PR
+								if( useBoundaryEvaluation ) SetAtomic( sValues.cornerValues[vIndex] , tree.template _getCornerValues< Real , 0 >( bNeighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior )[0] );
+								else                        SetAtomic( sValues.cornerValues[vIndex] , tree.template _getCornerValues< Real , 0 >(  neighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior )[0] );
+#else // !SANITIZED_PR
 								if( useBoundaryEvaluation ) sValues.cornerValues[vIndex] = tree.template _getCornerValues< Real , 0 >( bNeighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior )[0];
 								else                        sValues.cornerValues[vIndex] = tree.template _getCornerValues< Real , 0 >(  neighborKey , leaf , c.index , coefficients , coarseCoefficients , evaluator , tree._maxDepth , isInterior )[0];
+#endif // SANITIZED_PR
 							}
 							sScratch.cSet[vIndex] = 1;
 						}
+#ifdef SANITIZED_PR
+						squareValues[_c.index] = ReadAtomic( sValues.cornerValues[ vIndex ] );
+#else // !SANITIZED_PR
 						squareValues[_c.index] = sValues.cornerValues[ vIndex ];
+#endif // SANITIZED_PR
 						TreeNode* node = leaf;
 						LocalDepth _depth = depth;
 						int _slice = slice;
@@ -848,8 +944,13 @@ public:
 							typename SliceValues::Scratch &_sScratch = slabValues[_depth].sliceScratch( _slice );
 							const typename LevelSetExtraction::SliceCellIndexData< Dim >::template CellIndices<0> &_cIndices = _sValues.cellIndices.template indices<0>( node );
 							node_index_type _vIndex = _cIndices[_c.index];
+#ifdef SANITIZED_PR
+							SetAtomic( _sValues.cornerValues[_vIndex] , ReadAtomic( sValues.cornerValues[vIndex] ) );
+							if( _sValues.cornerGradients ) SetAtomic( _sValues.cornerGradients[_vIndex] , ReadAtomic( sValues.cornerGradients[vIndex] ) );
+#else // !SANITIZED_PR
 							_sValues.cornerValues[_vIndex] = sValues.cornerValues[vIndex];
 							if( _sValues.cornerGradients ) _sValues.cornerGradients[_vIndex] = sValues.cornerGradients[vIndex];
+#endif // SANITIZED_PR
 							_sScratch.cSet[_vIndex] = 1;
 						}
 					}
@@ -939,7 +1040,11 @@ public:
 							{
 								typename HyperCube::Cube< Dim >::template Element< 1 > e( zDir , _e.index );
 								node_index_type vIndex = eIndices[_e.index];
+#ifdef SANITIZED_PR
+								std::atomic< char > &edgeSet = sScratch.eSet[vIndex];
+#else // !SANITIZED_PR
 								volatile char &edgeSet = sScratch.eSet[vIndex];
+#endif // SANITIZED_PR
 								if( !edgeSet )
 								{
 									Vertex vertex;
@@ -1073,7 +1178,11 @@ public:
 							if( HyperCube::Cube< 1 >::HasMCRoots( _mcIndex ) )
 							{
 								node_index_type vIndex = eIndices[_c.index];
+#ifdef SANITIZED_PR
+								std::atomic< char > &edgeSet = xScratch.eSet[vIndex];
+#else // !SANITIZED_PR
 								volatile char &edgeSet = xScratch.eSet[vIndex];
+#endif // SANITIZED_PR
 								if( !edgeSet )
 								{
 									Vertex vertex;
@@ -1185,7 +1294,11 @@ public:
 							Key key;
 							if( cSliceScratch.eSet[cIndex1] ) key = cSliceValues.edgeKeys[cIndex1];
 							else                              key = cSliceValues.edgeKeys[cIndex2];
+#ifdef SANITIZED_PR
+							SetAtomic( pSliceValues.edgeKeys[pIndex] , key );
+#else // !SANITIZED_PR
 							pSliceValues.edgeKeys[pIndex] = key;
+#endif // SANITIZED_PR
 							pSliceScratch.eSet[pIndex] = 1;
 						}
 						else if( cSliceScratch.eSet[cIndex1] && cSliceScratch.eSet[cIndex2] )
@@ -1257,7 +1370,11 @@ public:
 							Key key;
 							if( eSet0 ) key = cSliceValues0.edgeKeys[cIndex0]; //, vPair = cSliceValues0.edgeVertexMap.find( key )->second;
 							else        key = cSliceValues1.edgeKeys[cIndex1]; //, vPair = cSliceValues1.edgeVertexMap.find( key )->second;
+#ifdef SANITIZED_PR
+							SetAtomic( pSliceValues.edgeKeys[ pIndex ] , key );
+#else // !SANITIZED_PR
 							pSliceValues.edgeKeys[ pIndex ] = key;
+#endif // SANITIZED_PR
 							pSliceScratch.eSet[ pIndex ] = 1;
 						}
 						// If there's are two zero-crossings along the edge
@@ -1419,7 +1536,11 @@ public:
 									}
 								}
 								xScratch.fSet[ eIndices[_e.index] ] = 1;
+#ifdef SANITIZED_PR
+								SetAtomic( xValues.faceEdges[ eIndices[_e.index] ] , fe );
+#else // !SANITIZED_PR
 								xValues.faceEdges[ eIndices[_e.index] ] = fe;
+#endif // SANITIZED_PR
 
 								TreeNode* node = leaf;
 								LocalDepth _depth = depth;
