@@ -172,12 +172,17 @@ namespace PoissonRecon
 		static size_t DefaultChunkSize;
 		static ScheduleType DefaultSchedule;
 
-		template< typename ... Functions >
-		static void ParallelSections( const Functions & ... functions )
+		template< typename Function , typename ... Functions >
+		static void ParallelSections( const Function &function , const Functions & ... functions )
 		{
-			std::vector< std::future< void > > futures( sizeof...(Functions) );
-			_ParallelSections( &futures[0] , functions ... );
-			for( size_t t=0 ; t<futures.size() ; t++ ) futures[t].get();
+			std::vector< std::future< void > > futures;
+			if constexpr( sizeof ... (Functions) )
+			{
+				futures.reserve( sizeof...(Functions) );
+				_ParallelSections( futures , functions... );
+			}
+			function();
+			for( unsigned int i=0 ; i<futures.size() ; i++ ) futures[i].get();
 		}
 
 		static void Parallel_for( size_t begin , size_t end , const std::function< void ( unsigned int , size_t ) > &iterationFunction , ScheduleType schedule=DefaultSchedule , size_t chunkSize=DefaultChunkSize )
@@ -188,7 +193,6 @@ namespace PoissonRecon
 			unsigned int threads = (unsigned int)NumThreads();
 			std::atomic< size_t > index;
 			index.store( 0 );
-
 
 			if( range<chunkSize || _ParallelType==NONE || threads==1 )
 			{
@@ -314,14 +318,13 @@ namespace PoissonRecon
 		ThreadPool( const ThreadPool & ){}
 		ThreadPool &operator = ( const ThreadPool & ){ return *this; }
 
-		template< typename Function >
-		static void _ParallelSections( std::future< void > *futures , const Function &function ){ *futures = std::async( std::launch::async , function ); }
 		template< typename Function , typename ... Functions >
-		static void _ParallelSections( std::future< void > *futures , const Function &function , const Functions& ... functions )
+		static void _ParallelSections( std::vector< std::future< void > > &futures , const Function &function , const Functions & ... functions )
 		{
-			*futures = std::async( std::launch::async , function );
-			_ParallelSections( futures+1 , functions ... );
+			futures.push_back( std::async( std::launch::async , function ) );
+			if constexpr( sizeof...(Functions) ) _ParallelSections( futures , functions... );
 		}
+
 		static void _ThreadInitFunction( unsigned int thread )
 		{
 			// Wait for the first job to come in
