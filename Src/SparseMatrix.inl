@@ -192,7 +192,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Identity( s
 template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 >& SparseMatrix< T , IndexType , 0 >::operator *= ( T s )
 {
-	ThreadPool::Parallel_for( 0 , rowNum , [&]( unsigned int , size_t i ){ for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j].Value *= s; } );
+	ThreadPool::ParallelFor( 0 , rowNum , [&]( unsigned int , size_t i ){ for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j].Value *= s; } );
 	return *this;
 }
 template< class T , class IndexType >
@@ -238,7 +238,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator * 
 	if( bRows<aCols ) ERROR_OUT( "Matrix sizes do not support multiplication " , aRows , " x " , aCols , " * " , bRows , " x " , bCols );
 
 	out.resize( aRows );
-	ThreadPool::Parallel_for( 0 , aRows , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , aRows , [&]( unsigned int , size_t i )
 	{
 		std::unordered_map< IndexType , T > row;
 		for( size_t j=0 ; j<A.rowSizes[i] ; j++ )
@@ -269,7 +269,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator + 
 	SparseMatrix out;
 
 	out.resize( rowNum );
-	ThreadPool::Parallel_for( 0 , rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , rowNum , [&]( unsigned int , size_t i )
 	{
 		std::unordered_map< IndexType , T > row;
 		if( i<A.rowNum )
@@ -303,7 +303,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator - 
 	SparseMatrix out;
 
 	out.resize( rowNum );
-	ThreadPool::Parallel_for( 0 , rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , rowNum , [&]( unsigned int , size_t i )
 	{
 		std::unordered_map< IndexType , T > row;
 		if( i<A.rowNum )
@@ -341,7 +341,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 	A.resize( aRows );
 	const size_t One = 1;
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
-	ThreadPool::Parallel_for( 0 , At.rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , At.rowNum , [&]( unsigned int , size_t i )
 	{
 		for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
 		{
@@ -350,7 +350,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 	}
 	);
 
-	ThreadPool::Parallel_for( 0 , A.rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , A.rowNum , [&]( unsigned int , size_t i )
 	{
 		size_t t = A.rowSizes[i];
 		A.rowSizes[i] = 0;
@@ -382,13 +382,13 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 	A.resize( aRows );
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
 	const size_t One = 1;
-	ThreadPool::Parallel_for( 0 , At.rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , At.rowNum , [&]( unsigned int , size_t i )
 	{
 		for( size_t j=0 ; j<At.rowSizes[i] ; j++ ) AddAtomic( A.rowSizes[ At[i][j].N ] , One );
 	}
 	);
 
-	ThreadPool::Parallel_for( 0 , A.rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , A.rowNum , [&]( unsigned int , size_t i )
 	{
 		size_t t = A.rowSizes[i];
 		A.rowSizes[i] = 0;
@@ -424,7 +424,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Multiply( c
 
 	M.resize( aRows );
 
-	ThreadPool::Parallel_for( 0 , aRows , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , aRows , [&]( unsigned int , size_t i )
 	{
 		std::unordered_map< IndexType , T > row;
 		for( A_const_iterator iterA=A.begin(i) ; iterA!=A.end(i) ; iterA++ )
@@ -640,7 +640,7 @@ void SparseMatrix< T , IndexType , MaxRowSize >::resetRowSize( size_t row , size
 template< class T , class IndexType , size_t MaxRowSize >
 SparseMatrix< T , IndexType , MaxRowSize >& SparseMatrix< T , IndexType , MaxRowSize >::operator *= ( T s )
 {
-	ThreadPool::Parallel_for( 0 , _rowNum*MaxRowSize , [&]( unsigned int , size_t i ){ _entries[i].Value *= s; } );
+	ThreadPool::ParallelFor( 0 , _rowNum*MaxRowSize , [&]( unsigned int , size_t i ){ _entries[i].Value *= s; } );
 	return *this;
 }
 

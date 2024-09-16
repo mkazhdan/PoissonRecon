@@ -169,7 +169,7 @@ typename Rasterizer< Real , Dim >::template SimplexRasterizationGrid< IndexType 
 		if( threadSafety.lockDepth>depth ) ERROR_OUT( "Lock depth cannot excceed depth: " , threadSafety.lockDepth , " <= " , depth );
 		_RegularGridMutexes mutexes( threadSafety.lockDepth , depth );
 
-		ThreadPool::Parallel_for( 0 , simplicialComplex.size() , [&]( unsigned int t , size_t  i )
+		ThreadPool::ParallelFor( 0 , simplicialComplex.size() , [&]( unsigned int t , size_t  i )
 		{
 			std::vector< Simplex< Real , Dim , K > > subSimplices;
 			subSimplices.push_back( simplicialComplex[i] );
@@ -234,7 +234,7 @@ typename Rasterizer< Real , Dim >::template SimplexRasterizationGrid< IndexType 
 		}
 
 		// Map
-		ThreadPool::Parallel_for( 0 , simplicialComplex.size() , [&]( unsigned int t , size_t  i )
+		ThreadPool::ParallelFor( 0 , simplicialComplex.size() , [&]( unsigned int t , size_t  i )
 		{
 			std::vector< Simplex< Real , Dim , K > > subSimplices;
 			subSimplices.push_back( simplicialComplex[i] );
@@ -261,7 +261,7 @@ typename Rasterizer< Real , Dim >::template SimplexRasterizationGrid< IndexType 
 		} );
 
 		// Reduce
-		ThreadPool::Parallel_for( 0 , raster.resolution() , [&]( unsigned int , size_t i )
+		ThreadPool::ParallelFor( 0 , raster.resolution() , [&]( unsigned int , size_t i )
 		{
 			size_t count = 0;
 			for( int t=0 ; t<rasters.size() ; t++ ) count += rasters[t][i].size();

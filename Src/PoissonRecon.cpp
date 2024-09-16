@@ -90,9 +90,8 @@ CmdLineParameter< int >
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	ParallelType( "parallel" , 0 ) ,
 	AlignmentDir( "alignDir" , DEFAULT_DIMENSION-1 ) ,
-	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
-	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() );
+	ScheduleType( "schedule" , (int)ThreadPool::Schedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::ChunkSize );
 
 CmdLineParameter< float >
 	DataX( "data" , 32.f ) ,
@@ -122,7 +121,7 @@ CmdLineReadable* params[] =
 	&ConfidenceBias ,
 	&BaseDepth , &BaseVCycles ,
 	&PointWeight ,
-	&Grid , &Threads ,
+	&Grid ,
 	&Tree ,
 	&Density ,
 	&FullDepth ,
@@ -175,7 +174,6 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
 	printf( "\t[--%s]\n" , Colors.name );
 	printf( "\t[--%s]\n" , Gradients.name );
-	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
 	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
@@ -299,7 +297,6 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		std::cout << "** Running Screened Poisson Reconstruction (Version " << ADAPTIVE_SOLVERS_VERSION << ") **" << std::endl;
 		std::cout << "*************************************************************" << std::endl;
 		std::cout << "*************************************************************" << std::endl;
-		if( !Threads.set ) std::cout << "Running with " << Threads.value << " threads" << std::endl;
 
 		char str[1024];
 		for( int i=0 ; params[i] ; i++ ) if( params[i]->set )
@@ -606,9 +603,9 @@ int main( int argc , char* argv[] )
 #endif // ARRAY_DEBUG
 	CmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
-	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
-	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
-	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
+	ThreadPool::ChunkSize = ThreadChunkSize.value;
+	ThreadPool::Schedule = (ThreadPool::ScheduleType)ScheduleType.value;
+	ThreadPool::ParallelizationType= (ThreadPool::ParallelType)ParallelType.value;
 
 	if( !In.set )
 	{
@@ -680,6 +677,5 @@ int main( int argc , char* argv[] )
 		printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 	}
 
-	ThreadPool::Terminate();
 	return EXIT_SUCCESS;
 }

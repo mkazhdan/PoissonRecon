@@ -84,11 +84,10 @@ CmdLineParameter< int >
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	PeakMemorySampleMS( "sampleMS" , 10 ) ,
 	ParallelType( "parallel" , 0 ) ,
-	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
-	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	ScheduleType( "schedule" , (int)ThreadPool::Schedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::ChunkSize ) ,
 	MergeSlabs( "merge" , MergeSlabType::SEAMLESS ) ,
-	AlignmentDir( "alignDir" , -1 ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ;
+	AlignmentDir( "alignDir" , -1 );
 
 CmdLineReadable
 	Performance( "performance" ) ,
@@ -132,7 +131,7 @@ CmdLineReadable* params[] =
 	&MergeSlabs ,
 	&Width , &Confidence , &ConfidenceBias , &SamplesPerNode , &DataX , &PointWeight , &CGSolverAccuracy ,
 	&TargetValue ,
-	&MaxMemoryGB , &ParallelType , &ScheduleType , &ThreadChunkSize , &Threads ,
+	&MaxMemoryGB , &ParallelType , &ScheduleType , &ThreadChunkSize ,
 	&PeakMemorySampleMS ,
 	&OutputVoxelGrid ,
 	&OutputBoundarySlices ,
@@ -177,7 +176,6 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
 	printf( "\t[--%s <pad size>=%d]\n" , PadSize.name , PadSize.value );
 	printf( "\t[--%s <buffer size>=%d]\n" , BufferSize.name , BufferSize.value );
-	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
 	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
@@ -412,10 +410,9 @@ int main( int argc , char* argv[] )
 	}
 
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
-	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
-	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
-	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
-	if( !Threads.set && Verbose.value>1 ) std::cout << "Running with " << Threads.value << " threads" << std::endl;
+	ThreadPool::ChunkSize = ThreadChunkSize.value;
+	ThreadPool::Schedule = (ThreadPool::ScheduleType)ScheduleType.value;
+	ThreadPool::ParallelizationType= (ThreadPool::ParallelType)ParallelType.value;
 	std::string header;
 
 	// Create the connections to the clients
@@ -616,8 +613,6 @@ int main( int argc , char* argv[] )
 			std::cout << std::string( frontStr ) << " " << std::string( backStr ) << std::endl;
 		}
 	}
-
-	ThreadPool::Terminate();
 
 	return EXIT_SUCCESS;
 }

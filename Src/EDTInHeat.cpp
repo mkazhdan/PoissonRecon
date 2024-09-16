@@ -69,9 +69,8 @@ CmdLineParameter< int >
 	BaseVCycles( "baseVCycles" , 1 ) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	ParallelType( "parallel" , 0 ) ,
-	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
-	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() );
+	ScheduleType( "schedule" , (int)ThreadPool::Schedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::ChunkSize );
 
 CmdLineParameter< float >
 	Scale( "scale" , 2.f ) ,
@@ -90,7 +89,6 @@ CmdLineReadable* params[] =
 	&Scale , &Verbose , &CGSolverAccuracy ,
 	&ShowResidual ,
 	&ValueWeight , &DiffusionTime ,
-	&Threads ,
 	&FullDepth ,
 	&GSIterations ,
 	&WeightScale , &WeightExponent ,
@@ -122,9 +120,6 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <value interpolation weight>=%.3e]\n" , ValueWeight.name , ValueWeight.value );
 	printf( "\t[--%s <iterations>=%d]\n" , GSIterations.name , GSIterations.value );
 	printf( "\t[--%s]\n" , ExactInterpolation.name );
-#ifdef _OPENMP
-	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
-#endif // _OPENMP
 	printf( "\t[--%s <cg solver accuracy>=%g]\n" , CGSolverAccuracy.name , CGSolverAccuracy.value );
 	printf( "\t[--%s <successive under-relaxation weight>=%f]\n" , WeightScale.name , WeightScale.value );
 	printf( "\t[--%s <successive under-relaxation exponent>=%f]\n" , WeightExponent.name , WeightExponent.value );
@@ -185,7 +180,7 @@ struct SystemDual< Dim , double >
 template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( int argc , char* argv[] )
 {
-	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
+	ThreadPool::ParallelizationType= (ThreadPool::ParallelType)ParallelType.value;
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 0 > InterpolationInfo;
 	typedef typename FEMTree< Dim , Real >::FEMTreeNode FEMTreeNode;
@@ -197,7 +192,6 @@ void _Execute( int argc , char* argv[] )
 		std::cout << "** Running EDT in Heat (Version " << ADAPTIVE_SOLVERS_VERSION ") **" << std::endl;
 		std::cout << "*****************************************" << std::endl;
 		std::cout << "*****************************************" << std::endl;
-		if( !Threads.set ) std::cout << "Running with " << Threads.value << " threads" << std::endl;
 	}
 
 	XForm< Real , Dim+1 > modelToUnitCube , unitCubeToModel;
@@ -285,7 +279,7 @@ void _Execute( int argc , char* argv[] )
 
 		double area = 0;
 		std::vector< double > areas( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , triangles.size() , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( 0 , triangles.size() , [&]( unsigned int thread , size_t i )
 		{
 			Simplex< Real , Dim , Dim-1 > s;
 			for( int k=0 ; k<Dim ; k++ ) for( int j=0 ; j<Dim ; j++ ) s[k][j] = vertices[ triangles[i][k] ][j];
@@ -381,7 +375,7 @@ void _Execute( int argc , char* argv[] )
 		for( int i=0 ; i<oneRingNeighborKeys.size() ; i++ ) oneRingNeighborKeys[i].set( treeDepth );
 		DenseNodeData< Real , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafCenterValues = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMTrivialSignature >() );
 
-		ThreadPool::Parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree.isValidSpaceNode( tree.node((node_index_type)i) ) )
 			{
@@ -437,7 +431,7 @@ void _Execute( int argc , char* argv[] )
 			leafValues[leaf] *= 0;
 		}
 
-		ThreadPool::Parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i  )
+		ThreadPool::ParallelFor( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i  )
 		{
 			if( tree.isValidSpaceNode( tree.node((node_index_type)i) ) && !tree.isValidSpaceNode( tree.node((node_index_type)i)->children ) )
 			{
@@ -507,7 +501,7 @@ void _Execute( int argc , char* argv[] )
 				double errorSum = 0 , valueSum = 0 , weightSum = 0;
 				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tree , coefficients );
 				std::vector< double > errorSums( ThreadPool::NumThreads() , 0 ) , valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
-				ThreadPool::Parallel_for( 0 , geometrySamples.size() , [&]( unsigned int thread , size_t j )
+				ThreadPool::ParallelFor( 0 , geometrySamples.size() , [&]( unsigned int thread , size_t j )
 				{
 					ProjectiveData< Point< Real , Dim > , Real >& sample = geometrySamples[j].sample;
 					Real w = sample.weight;
@@ -523,7 +517,7 @@ void _Execute( int argc , char* argv[] )
 			double average , error;
 			GetAverageValueAndError( &tree , edtSolution , average , error );
 			if( Verbose.set ) printf( "Interpolation average / error: %g / %g\n" , average , error );
-			ThreadPool::Parallel_for( tree.nodesBegin(0) , tree.nodesEnd(0) , [&]( unsigned int , size_t i ){ edtSolution[i] -= (Real)average; } );
+			ThreadPool::ParallelFor( tree.nodesBegin(0) , tree.nodesEnd(0) , [&]( unsigned int , size_t i ){ edtSolution[i] -= (Real)average; } );
 		}
 
 		if( Out.set )
@@ -562,8 +556,8 @@ int main( int argc , char* argv[] )
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	CmdLineParse( argc-1 , &argv[1] , params );
-	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
-	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
+	ThreadPool::ChunkSize = ThreadChunkSize.value;
+	ThreadPool::Schedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 
 #ifdef USE_DOUBLE

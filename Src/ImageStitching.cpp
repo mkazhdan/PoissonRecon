@@ -61,9 +61,8 @@ CmdLineParameter< int >
 	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
 #endif // FAST_COMPILE
 	ParallelType( "parallel" , 0 ) ,
-	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
-	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ,
+	ScheduleType( "schedule" , (int)ThreadPool::Schedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::ChunkSize ) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	GSIterations( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 6 ) ,
@@ -79,7 +78,7 @@ CmdLineParameter< float >
 
 CmdLineReadable* params[] =
 {
-	&In , &Out , &Threads , &Verbose , &ShowResidual , &GSIterations , &FullDepth ,
+	&In , &Out , &Verbose , &ShowResidual , &GSIterations , &FullDepth ,
 	&BaseDepth , &BaseVCycles ,
 	&WeightScale , &WeightExponent ,
 	&Performance ,
@@ -103,7 +102,6 @@ void ShowUsage( char* ex )
 #endif // !FAST_COMPILE
 	printf( "\t[--%s <GS iterations>=%d]\n" , GSIterations.name , GSIterations.value );
 	printf( "\t[--%s <full depth>=%d]\n" , FullDepth.name , FullDepth.value );
-	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
 	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
@@ -224,7 +222,7 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DEFAULT_DIMENS
 				_labels->nextRow( __labelRow );
 				for( int i=0 ; i<(int)_resolution[0] ; i++ ) labelRow[i][0] = labelRow[i][1] = labelRow[i][2] = __labelRow[i];
 			}
-			ThreadPool::Parallel_for( 0 , _resolution[0] , [&]( unsigned int , size_t i ){ maskRow[i] = labelRow[i].mask(); } );
+			ThreadPool::ParallelFor( 0 , _resolution[0] , [&]( unsigned int , size_t i ){ maskRow[i] = labelRow[i].mask(); } );
 		}
 	}
 
@@ -276,7 +274,7 @@ protected:
 template< typename Real , unsigned int Degree >
 void _Execute( void )
 {
-	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
+	ThreadPool::ParallelizationType= (ThreadPool::ParallelType)ParallelType.value;
 	int w , h;
 	{
 		unsigned int _w , _h , _c;
@@ -429,7 +427,7 @@ void _Execute( void )
 				{
 					in->nextRow( inRow );
 					RGBPixel *_inRow = inRows[block&1] + rr*w;
-					ThreadPool::Parallel_for( 0 , w , [&]( unsigned int , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
+					ThreadPool::ParallelFor( 0 , w , [&]( unsigned int , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
 				}
 			}
 		};
@@ -458,7 +456,7 @@ void _Execute( void )
 					begin[0] = 0 , begin[1] = rStart , end[0] = w , end[1] = rEnd;
 					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( solution , begin , end );
 					int size = (rEnd-rStart)*w;
-					ThreadPool::Parallel_for( 0 , size , [&]( unsigned int , size_t ii )
+					ThreadPool::ParallelFor( 0 , size , [&]( unsigned int , size_t ii )
 					{
 						Point< Real , Colors > c = Point< Real , Colors >( _inRows[ii][0] , _inRows[ii][1] , _inRows[ii][2] ) / 255;
 						c += outBlock[ii] - average;
@@ -510,8 +508,8 @@ int main( int argc , char* argv[] )
 #endif // ARRAY_DEBUG
 	CmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
-	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
-	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
+	ThreadPool::ChunkSize = ThreadChunkSize.value;
+	ThreadPool::Schedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	if( Verbose.set )
 	{
 		printf( "*********************************************\n" );
@@ -519,7 +517,6 @@ int main( int argc , char* argv[] )
 		printf( "** Running Image Stitching (Version %s) **\n" , ADAPTIVE_SOLVERS_VERSION );
 		printf( "*********************************************\n" );
 		printf( "*********************************************\n" );
-		if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );
 	}
 
 	if( !In.set )

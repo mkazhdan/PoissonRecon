@@ -407,7 +407,7 @@ namespace LevelSetExtraction
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 
 			// Try and get at the nodes outside of the slab through the neighbor key
-			ThreadPool::Parallel_for( sNodes.begin(depth) , sNodes.end(depth) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( sNodes.begin(depth) , sNodes.end(depth) , [&]( unsigned int thread , size_t i )
 				{
 					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 					const TreeNode *node = sNodes.treeNodes[i];
@@ -417,7 +417,7 @@ namespace LevelSetExtraction
 			);
 
 			_setCounts<0>( _scratch.maps );
-			ThreadPool::Parallel_for( 0 , size() , [&]( unsigned int , size_t i ){ _setTables<0>( (unsigned int)i , _scratch.maps ); } );
+			ThreadPool::ParallelFor( 0 , size() , [&]( unsigned int , size_t i ){ _setTables<0>( (unsigned int)i , _scratch.maps ); } );
 		}
 
 		// Maps from tree nodes (and their associated indices) to the associated indices for the cell indices
@@ -537,7 +537,7 @@ namespace LevelSetExtraction
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 
 			// Try and get at the nodes outside of the slab through the neighbor key
-			ThreadPool::Parallel_for( sNodes.begin( depth , slice-1 ) , sNodes.end( depth , slice ) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( sNodes.begin( depth , slice-1 ) , sNodes.end( depth , slice ) , [&]( unsigned int thread , size_t i )
 				{
 					ConstOneRingNeighborKey &neighborKey = neighborKeys[ thread ];
 					const TreeNode *node = sNodes.treeNodes[i];
@@ -547,7 +547,7 @@ namespace LevelSetExtraction
 			);
 
 			_setCounts<0>( _scratch.maps );
-			ThreadPool::Parallel_for( 0 , size() , [&]( unsigned int , size_t i ){ _setTables<0>( (unsigned int)i , _scratch.maps ); } );
+			ThreadPool::ParallelFor( 0 , size() , [&]( unsigned int , size_t i ){ _setTables<0>( (unsigned int)i , _scratch.maps ); } );
 		}
 
 		// Maps from tree nodes (and their associated indices) to the associated indices for the cell indices
@@ -671,7 +671,7 @@ namespace LevelSetExtraction
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( depth );
 
 			// Try and get at the nodes outside of the slab through the neighbor key
-			ThreadPool::Parallel_for( sNodes.begin( depth , slab ) , sNodes.end( depth , slab ) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( sNodes.begin( depth , slab ) , sNodes.end( depth , slab ) , [&]( unsigned int thread , size_t i )
 				{
 					ConstOneRingNeighborKey &neighborKey = neighborKeys[ thread ];
 					const TreeNode *node = sNodes.treeNodes[i];
@@ -681,7 +681,7 @@ namespace LevelSetExtraction
 			);
 
 			_setCounts<0>( _scratch.maps );
-			ThreadPool::Parallel_for( 0 , size() , [&]( unsigned int , size_t i ){ _setTables<0>( (unsigned int)i , _scratch.maps ); } );
+			ThreadPool::ParallelFor( 0 , size() , [&]( unsigned int , size_t i ){ _setTables<0>( (unsigned int)i , _scratch.maps ); } );
 		}
 
 		// Maps from tree nodes (and their associated indices) to the associated indices for the cell indices

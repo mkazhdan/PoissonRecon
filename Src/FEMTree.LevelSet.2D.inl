@@ -528,7 +528,7 @@ public:
 		std::vector< ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > bNeighborKeys( ThreadPool::NumThreads() );
 		if( useBoundaryEvaluation ) for( size_t i=0 ; i<neighborKeys.size() ; i++ ) bNeighborKeys[i].set( tree._localToGlobal( depth ) );
 		else                        for( size_t i=0 ; i<neighborKeys.size() ; i++ )  neighborKeys[i].set( tree._localToGlobal( depth ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -617,7 +617,7 @@ public:
 		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) ) , weightKeys[i].set( tree._localToGlobal( depth ) ) , dataKeys[i].set( tree._localToGlobal( depth ) );
 
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -707,7 +707,7 @@ public:
 		typename SliceValues::Scratch &cScratchSliceValues = scratchValues[depth+1];
 		LevelSetExtraction::FullCellIndexData< Dim > &pCellIndices = pSliceValues.cellIndices;
 		LevelSetExtraction::FullCellIndexData< Dim > &cCellIndices = cSliceValues.cellIndices;
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) ) if( IsActiveNode< Dim >( tree._sNodes.treeNodes[i]->children ) )
 			{
@@ -781,7 +781,7 @@ public:
 #endif // SANITIZED_PR
 		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -851,7 +851,7 @@ public:
 			else                  edgeStream.write( thread , std::make_pair( idx1 , idx2 ) );
 		};
 
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth) , tree._sNodesEnd(depth) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -1027,7 +1027,7 @@ public:
 		if constexpr( HasData ) if( data ) pointEvaluator = new typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >( tree._maxDepth );
 		DenseNodeData< Real , UIntPack< FEMSigs ... > > coarseCoefficients( tree._sNodesEnd( tree._maxDepth-1 ) );
 		memset( coarseCoefficients() , 0 , sizeof(Real)*tree._sNodesEnd( tree._maxDepth-1 ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( unsigned int, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
+		ThreadPool::ParallelFor( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( unsigned int, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
 		typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
 		for( LocalDepth d=1 ; d<tree._maxDepth ; d++ ) tree._upSample( UIntPack< FEMSigs ... >() , rp , d , ( ConstPointer(Real) )coarseCoefficients()+tree._sNodesBegin(d-1) , coarseCoefficients()+tree._sNodesBegin(d) );
 

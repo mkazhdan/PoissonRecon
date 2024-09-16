@@ -89,9 +89,8 @@ CmdLineParameter< int >
 #endif // !FAST_COMPILE
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	ParallelType( "parallel" , 0 ) ,
-	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
-	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() );
+	ScheduleType( "schedule" , (int)ThreadPool::Schedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::ChunkSize );
 
 CmdLineParameter< float >
 	Scale( "scale" , 1.1f ) ,
@@ -116,7 +115,7 @@ CmdLineReadable* params[] =
 	&NonManifold , &PolygonMesh , &ASCII , &ShowResidual ,
 	&ValueWeight , &GradientWeight ,
 	&LapWeight , &BiLapWeight ,
-	&Grid , &Threads ,
+	&Grid ,
 	&Tree ,
 	&FullDepth ,
 	&BaseDepth , &BaseVCycles ,
@@ -161,7 +160,6 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <bi-laplacian weight>=%.3e]\n" , BiLapWeight.name , BiLapWeight.value );
 	printf( "\t[--%s <iterations>=%d]\n" , Iters.name , Iters.value );
 	printf( "\t[--%s]\n" , ExactInterpolation.name );
-	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
 	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
@@ -400,14 +398,14 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 		// Compute average
 		Real avg = 0;
 		std::vector< Real > avgs( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
+		ThreadPool::ParallelFor( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
 		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) avg += avgs[t];
 		avg /= (Real)totalResolution;
 
 		// Compute standard deviation
 		Real std = 0;
 		std::vector< Real > stds( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
+		ThreadPool::ParallelFor( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
 		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) std += stds[t];
 		std = (Real)sqrt( std / totalResolution );
 
@@ -424,7 +422,7 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 		}
 
 		unsigned char *pixels = new unsigned char[ totalResolution*3 ];
-		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int , size_t i )
+		ThreadPool::ParallelFor( 0 , totalResolution , [&]( unsigned int , size_t i )
 		{
 			Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
 			v = (Real)( ( v + 1. ) / 2. * 256. );
@@ -545,10 +543,9 @@ void Execute( UIntPack< FEMSigs ... > )
 		std::cout << "** Running Point Interpolant (Version " << ADAPTIVE_SOLVERS_VERSION << ") **" << std::endl;
 		std::cout << "***********************************************" << std::endl;
 		std::cout << "***********************************************" << std::endl;
-		if( !Threads.set ) std::cout << "Running with " << Threads.value << " threads" << std::endl;
 	}
 
-	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
+	ThreadPool::ParallelizationType= (ThreadPool::ParallelType)ParallelType.value;
 
 	XForm< Real , Dim+1 > modelToUnitCube , unitCubeToModel;
 	if( Transform.set )
@@ -805,7 +802,7 @@ void Execute( UIntPack< FEMSigs ... > )
 			typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &tree , solution );
 			std::pair< double , double > valueStat(0,0);
 			std::vector< std::pair< double , double > > valueStats( ThreadPool::NumThreads() , std::pair< double , double >(0,0) );
-			ThreadPool::Parallel_for( 0 , valueSamples->size() , [&]( unsigned int thread , size_t j )
+			ThreadPool::ParallelFor( 0 , valueSamples->size() , [&]( unsigned int thread , size_t j )
 			{
 				ProjectiveData< Point< Real , Dim > , Real >& sample = (*valueSamples)[j].sample;
 				Real w = sample.weight;
@@ -827,7 +824,7 @@ void Execute( UIntPack< FEMSigs ... > )
 			typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 1 > evaluator( &tree , solution );
 			std::pair< double , double > gradientStat(0,0);
 			std::vector< std::pair< double , double > > gradientStats( ThreadPool::NumThreads() , std::pair< double , double >(0,0) );
-			ThreadPool::Parallel_for( 0 , gradientSamples->size() , [&]( unsigned int thread , size_t j )
+			ThreadPool::ParallelFor( 0 , gradientSamples->size() , [&]( unsigned int thread , size_t j )
 			{
 				ProjectiveData< Point< Real , Dim > , Real >& sample = (*gradientSamples)[j].sample;
 				Real w = sample.weight;
@@ -958,8 +955,8 @@ int main( int argc , char* argv[] )
 	CmdLineParse( argc-1 , &argv[1] , params );
 
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
-	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
-	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
+	ThreadPool::ChunkSize = ThreadChunkSize.value;
+	ThreadPool::Schedule = (ThreadPool::ScheduleType)ScheduleType.value;
 
 	if( !InValues.set && !InGradients.set )
 	{

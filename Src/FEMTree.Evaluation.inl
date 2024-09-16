@@ -641,7 +641,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 				offsets() , cornerValues()
 			);
 		}
-		ThreadPool::Parallel_for( 0 , cellCount , [&]( unsigned int , size_t c )
+		ThreadPool::ParallelFor( 0 , cellCount , [&]( unsigned int , size_t c )
 		{
 			V& value = values[c];
 			int idx[Dim];
@@ -726,7 +726,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 				offsets() , centerValues()
 			);
 		}
-		ThreadPool::Parallel_for( 0 , cellCount , [&]( unsigned int , size_t c )
+		ThreadPool::ParallelFor( 0 , cellCount , [&]( unsigned int , size_t c )
 		{
 			V& value = values[c];
 			int idx[Dim];
@@ -830,7 +830,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 				offsets() , cornerValues()
 			);
 		}
-		ThreadPool::Parallel_for( 0 , cellCount , [&]( unsigned int , size_t c )
+		ThreadPool::ParallelFor( 0 , cellCount , [&]( unsigned int , size_t c )
 			{
 				V &value = values[c];
 				int idx[Dim];
@@ -915,7 +915,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 				offsets() , centerValues()
 			);
 		}
-		ThreadPool::Parallel_for( 0 , cellCount , [&]( unsigned int , size_t c )
+		ThreadPool::ParallelFor( 0 , cellCount , [&]( unsigned int , size_t c )
 			{
 				V &value = values[c];
 				int idx[Dim];
@@ -1048,7 +1048,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridUpSample( const DenseNodeData< V 
 		for( int dd=0 ; dd<Dim ; dd++ ) count *= gridDimensions[_depth].dim[dd];
 		upSampledCoefficients = NewPointer< V >( count );
 		memset( upSampledCoefficients , 0 , sizeof( V ) * count );
-		ThreadPool::Parallel_for( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( unsigned int , size_t i )
+		ThreadPool::ParallelFor( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( unsigned int , size_t i )
 		{
 			if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
 			{
@@ -1072,7 +1072,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridUpSample( const DenseNodeData< V 
 		Pointer( V ) _coefficients = NewPointer< V >( count );
 		memset( _coefficients , 0 , sizeof( V ) * count );
 		if( _depth<=_maxDepth )
-			ThreadPool::Parallel_for( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( unsigned int , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( unsigned int , size_t i )
 			{
 				if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
 				{
@@ -1117,7 +1117,7 @@ V FEMTree< Dim , Real >::average( const DenseNodeData< V , UIntPack< DataSigs ..
 		double __begin[Dim] , __end[Dim];
 		for( int dd=0 ; dd<Dim ; dd++ ) off[dd] = center , __begin[dd] = 0 , __end[dd] = 1;
 		double integral = FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , __begin , __end );
-		ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 		{
 			if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 			{
@@ -1149,7 +1149,7 @@ SparseNodeData< CumulativeDerivativeValues< Real , Dim , PointD > , IsotropicUIn
 	{
 		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
-		ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 		{
 			if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 			{

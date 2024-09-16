@@ -810,7 +810,7 @@ namespace PoissonRecon
 					}
 					if( params.confidenceBias>0 ) *normalInfo = implicit.tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionAndBiasFunction );
 					else                          *normalInfo = implicit.tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionFunction );
-					ThreadPool::Parallel_for( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
+					ThreadPool::ParallelFor( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
 					if( params.verbose )
 					{
 						std::cout << "#     Got normal field: " << profiler << std::endl;
@@ -865,7 +865,7 @@ namespace PoissonRecon
 							for( int i=0 ; i<vectorFieldElementCounts.size() ; i++ ) vectorFieldElementCounts[i] = 0;
 
 							// In parallel, iterate over the base nodes and mark the nodes containing non-zero vector field coefficients
-							ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int t , size_t  i )
+							ThreadPool::ParallelFor( 0 , baseNodes.size() , [&]( unsigned int t , size_t  i )
 								{
 									auto nodeFunctor = [&]( FEMTreeNode *node )
 										{
@@ -883,7 +883,7 @@ namespace PoissonRecon
 							{
 								std::vector< std::vector< FEMTreeNode * > > _vectorFieldElements( baseNodes.size() );
 								for( int i=0 ; i<_vectorFieldElements.size() ; i++ ) _vectorFieldElements[i].reserve( vectorFieldElementCounts[i] );
-								ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int t , size_t  i )
+								ThreadPool::ParallelFor( 0 , baseNodes.size() , [&]( unsigned int t , size_t  i )
 									{
 										auto nodeFunctor = [&]( FEMTreeNode *node )
 											{
@@ -902,10 +902,10 @@ namespace PoissonRecon
 							implicit.tree.template processNeighboringLeaves< -BSplineSupportSizes< Poisson::NormalDegree >::SupportStart , BSplineSupportSizes< Poisson::NormalDegree >::SupportEnd >( &vectorFieldElements[0] , vectorFieldElements.size() , SetScratchFlag , false );
 
 							// Set sub-trees rooted at interior nodes @ ExactDepth to interior
-							ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int , size_t  i ){ if( baseNodes[i]->nodeData.getScratchFlag() ) PropagateToLeaves( baseNodes[i] ); } );
+							ThreadPool::ParallelFor( 0 , baseNodes.size() , [&]( unsigned int , size_t  i ){ if( baseNodes[i]->nodeData.getScratchFlag() ) PropagateToLeaves( baseNodes[i] ); } );
 
 							// Adjust the coarser node designators in case exterior nodes have become boundary.
-							ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int , size_t  i ){ FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( baseNodes[i] , geometryNodeDesignators ); } );
+							ThreadPool::ParallelFor( 0 , baseNodes.size() , [&]( unsigned int , size_t  i ){ FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( baseNodes[i] , geometryNodeDesignators ); } );
 							FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( &implicit.tree.spaceRoot() , geometryNodeDesignators , params.baseDepth );
 						}
 					}
@@ -1015,7 +1015,7 @@ namespace PoissonRecon
 				double valueSum = 0 , weightSum = 0;
 				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &implicit.tree , implicit.solution );
 				std::vector< double > valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
-				ThreadPool::Parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
+				ThreadPool::ParallelFor( 0 , samples->size() , [&]( unsigned int thread , size_t j )
 					{
 						ProjectiveData< Point< Real , Dim > , Real >& sample = (*samples)[j].sample;
 						Real w = sample.weight;
@@ -1320,7 +1320,7 @@ namespace PoissonRecon
 				double valueSum = 0 , weightSum = 0;
 				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &implicit.tree , implicit.solution );
 				std::vector< double > valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
-				ThreadPool::Parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
+				ThreadPool::ParallelFor( 0 , samples->size() , [&]( unsigned int thread , size_t j )
 					{
 						ProjectiveData< Point< Real , Dim > , Real >& sample = (*samples)[j].sample;
 						Real w = sample.weight;

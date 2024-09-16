@@ -93,7 +93,7 @@ template< class T2 >
 void SparseMatrixInterface< T , const_iterator >::multiply( ConstPointer( T2 ) In , Pointer( T2 ) Out , char multiplyFlag ) const
 {
 	ConstPointer( T2 ) in = In;
-	ThreadPool::Parallel_for( 0 , rows() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , rows() , [&]( unsigned int , size_t i )
 	{
 		T2 temp;
 		memset( &temp , 0 , sizeof(T2) );
@@ -111,7 +111,7 @@ template< class T2 >
 void SparseMatrixInterface< T , const_iterator >::multiplyScaled( T scale , ConstPointer( T2 ) In , Pointer( T2 ) Out , char multiplyFlag ) const
 {
 	ConstPointer( T2 ) in = In;
-	ThreadPool::Parallel_for( 0 , rows() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , rows() , [&]( unsigned int , size_t i )
 	{
 		T2 temp;
 		memset( &temp , 0 , sizeof(T2) );
@@ -129,7 +129,7 @@ void SparseMatrixInterface< T , const_iterator >::multiplyScaled( T scale , Cons
 template< class T , class const_iterator >
 void SparseMatrixInterface< T , const_iterator >::setDiagonal( Pointer( T ) diagonal ) const
 {
-	ThreadPool::Parallel_for( 0 , rows() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , rows() , [&]( unsigned int , size_t i )
 	{
 		diagonal[i] = (T)0;
 		const_iterator e = end( i );
@@ -141,7 +141,7 @@ void SparseMatrixInterface< T , const_iterator >::setDiagonal( Pointer( T ) diag
 template< class T , class const_iterator >
 void SparseMatrixInterface< T , const_iterator >::setDiagonalR( Pointer( T ) diagonal ) const
 {
-	ThreadPool::Parallel_for( 0 , rows() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , rows() , [&]( unsigned int , size_t i )
 	{
 		diagonal[i] = (T)0;
 		const_iterator e = end( i );
@@ -157,9 +157,9 @@ void SparseMatrixInterface< T , const_iterator >::jacobiIteration( ConstPointer(
 {
 	multiply( in , out );
 	if( dReciprocal )
-		ThreadPool::Parallel_for( 0 , rows() , [&]( unsigned int , size_t i ){ out[i] = in[i] + ( b[i] - out[i] ) * diagonal[i]; } );
+		ThreadPool::ParallelFor( 0 , rows() , [&]( unsigned int , size_t i ){ out[i] = in[i] + ( b[i] - out[i] ) * diagonal[i]; } );
 	else
-		ThreadPool::Parallel_for( 0 , rows() , [&]( unsigned int , size_t i ){ out[i] = in[i] + ( b[i] - out[i] ) / diagonal[i]; } );
+		ThreadPool::ParallelFor( 0 , rows() , [&]( unsigned int , size_t i ){ out[i] = in[i] + ( b[i] - out[i] ) / diagonal[i]; } );
 }
 template< class T , class const_iterator >
 template< class T2 >
@@ -195,7 +195,7 @@ template< class T2 >
 void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector< size_t >& multiColorIndices , ConstPointer( T ) diagonal , ConstPointer( T2 ) b , Pointer( T2 ) x , bool dReciprocal ) const
 {
 	if( dReciprocal )
-		ThreadPool::Parallel_for( 0 , multiColorIndices.size() , [&]( unsigned int , size_t j )
+		ThreadPool::ParallelFor( 0 , multiColorIndices.size() , [&]( unsigned int , size_t j )
 		{
 			size_t jj = multiColorIndices[j];
 			T2 _b = b[jj];
@@ -205,7 +205,7 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 		}
 	);
 	else
-			ThreadPool::Parallel_for( 0 , multiColorIndices.size() , [&]( unsigned int , size_t j )
+			ThreadPool::ParallelFor( 0 , multiColorIndices.size() , [&]( unsigned int , size_t j )
 		{
 			size_t jj = multiColorIndices[j];
 			T2 _b = b[jj];
@@ -224,7 +224,7 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 	{
 		auto Iterate = [&]( const std::vector< size_t > &indices )
 			{
-				ThreadPool::Parallel_for( 0 , indices.size() , [&]( unsigned int , size_t k )
+				ThreadPool::ParallelFor( 0 , indices.size() , [&]( unsigned int , size_t k )
 					{
 						size_t jj = indices[k];
 						T2 _b = b[jj];
@@ -241,7 +241,7 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 	{
 		auto Iterate = [&]( const std::vector< size_t > &indices )
 			{
-				ThreadPool::Parallel_for( 0 , indices.size() , [&]( unsigned int , size_t k )
+				ThreadPool::ParallelFor( 0 , indices.size() , [&]( unsigned int , size_t k )
 					{
 						size_t jj = indices[k];
 						T2 _b = b[jj];
@@ -265,7 +265,7 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > size
 
 	Real delta_new = 0 , delta_0;
 	M( ( ConstPointer( T ) )x , r );
-	ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ d[i] = r[i] = b[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ); } );
+	ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int thread , size_t i ){ d[i] = r[i] = b[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ); } );
 	for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ){ delta_new += scratch[t] ; scratch[t] = 0; }
 
 	delta_0 = delta_new;
@@ -281,7 +281,7 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > size
 	{
 		M( ( ConstPointer( T ) )d , q );
 		Real dDotQ = 0;
-		ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ scratch[thread] += Dot( d[i] , q[i] ); } );
+		ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int thread , size_t i ){ scratch[thread] += Dot( d[i] , q[i] ); } );
 		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ){ dDotQ += scratch[t] ; scratch[t] = 0; }
 		if( !dDotQ ) break;
 
@@ -290,19 +290,19 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > size
 		delta_new = 0;
 		if( (ii%50)==(50-1) )
 		{
-			ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int , size_t i ){ x[i] += (T)( d[i] * alpha ); } );
+			ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int , size_t i ){ x[i] += (T)( d[i] * alpha ); } );
 			M( ( ConstPointer( T ) )x , r );
-			ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] = b[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ) , x[i] += (T)( d[i] * alpha ); } );
+			ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] = b[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ) , x[i] += (T)( d[i] * alpha ); } );
 			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ){ delta_new += scratch[t] ; scratch[t] = 0; }
 		}
 		else
 		{
-			ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] -=(T)( q[i] * alpha ) , scratch[thread] += Dot( r[i] , r[i] ) ,  x[i] += (T)( d[i] * alpha ); } );
+			ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] -=(T)( q[i] * alpha ) , scratch[thread] += Dot( r[i] , r[i] ) ,  x[i] += (T)( d[i] * alpha ); } );
 			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ){ delta_new += scratch[t] ; scratch[t] = 0; }
 		}
 
 		Real beta = delta_new / delta_old;
-		ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int , size_t i ){ d[i] = r[i] + (T)( d[i] * beta ); } );
+		ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int , size_t i ){ d[i] = r[i] + (T)( d[i] * beta ); } );
 	}
 	FreePointer( r );
 	FreePointer( d );
@@ -328,7 +328,7 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 	Real delta_new = 0 , delta_0;
 	P( b , Pb );
 	PM( ( ConstPointer( T ) )x , r );
-	ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ d[i] = r[i] = Pb[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ); } );
+	ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int thread , size_t i ){ d[i] = r[i] = Pb[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ); } );
 	for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ){ delta_new += scratch[t] ; scratch[t] = 0; }
 
 	delta_0 = delta_new;
@@ -346,7 +346,7 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 	{
 		PM( ( ConstPointer( T ) )d , q );
 		Real dDotQ = 0;
-		ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ scratch[thread] += Dot( d[i] , q[i] ); } );
+		ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int thread , size_t i ){ scratch[thread] += Dot( d[i] , q[i] ); } );
 		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ){ dDotQ += scratch[t] ; scratch[t] = 0; }
 		if( !dDotQ ) break;
 
@@ -355,19 +355,19 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 		delta_new = 0;
 		if( (ii%50)==(50-1) )
 		{
-			ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int , size_t i ){ x[i] += (T)( d[i] * alpha ); } );
+			ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int , size_t i ){ x[i] += (T)( d[i] * alpha ); } );
 			PM( ( ConstPointer( T ) )x , r );
-			ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] = Pb[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ) , x[i] += (T)( d[i] * alpha ); } );
+			ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] = Pb[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ) , x[i] += (T)( d[i] * alpha ); } );
 			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) delta_new += scratch[t];
 		}
 		else
 		{
-			ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] -=(T)( q[i] * alpha ) , scratch[thread] += Dot( r[i] , r[i] ) ,  x[i] += (T)( d[i] * alpha ); } );
+			ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] -=(T)( q[i] * alpha ) , scratch[thread] += Dot( r[i] , r[i] ) ,  x[i] += (T)( d[i] * alpha ); } );
 			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) delta_new += scratch[t];
 		}
 
 		Real beta = delta_new / delta_old;
-		ThreadPool::Parallel_for( 0 , dim , [&]( unsigned int , size_t i ){ d[i] = r[i] + (T)( d[i] * beta ); } );
+		ThreadPool::ParallelFor( 0 , dim , [&]( unsigned int , size_t i ){ d[i] = r[i] + (T)( d[i] * beta ); } );
 	}
 	FreePointer( Pb );
 	FreePointer( r );

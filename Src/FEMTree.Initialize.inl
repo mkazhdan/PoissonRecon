@@ -145,7 +145,7 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std
 	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
 
 	std::vector< node_index_type > nodeToIndexMap;
-	ThreadPool::Parallel_for( 0 , simplices.size() , [&]( unsigned int t , size_t  i )
+	ThreadPool::ParallelFor( 0 , simplices.size() , [&]( unsigned int t , size_t  i )
 	{
 		Simplex< Real , Dim , Dim-1 > s;
 		for( int k=0 ; k<Dim ; k++ ) s[k] = vertices[ simplices[i][k] ];
@@ -161,7 +161,7 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , const std
 	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
 
 	std::vector< node_index_type > nodeToIndexMap;
-	ThreadPool::Parallel_for( 0 , points.size() , [&]( unsigned int t , size_t  i )
+	ThreadPool::ParallelFor( 0 , points.size() , [&]( unsigned int t , size_t  i )
 	{
 		_AddSample< true >( root , points[i] , maxDepth , samples , mergeNodeSamples ? &nodeToIndexMap :NULL , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
 	} );
@@ -173,7 +173,7 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , const std
 	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
 
 	std::vector< node_index_type > nodeToIndexMap;
-	ThreadPool::Parallel_for( 0 , points.size() , [&]( unsigned int t , size_t  i )
+	ThreadPool::ParallelFor( 0 , points.size() , [&]( unsigned int t , size_t  i )
 	{
 		_AddSample( root , points[i] , maxDepth , samples , mergeNodeSamples ? &nodeToIndexMap : NULL );
 	} );
@@ -500,7 +500,7 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std
 
 		std::vector< Allocator< FEMTreeNode > * > _nodeAllocators( ThreadPool::NumThreads() );
 		for( int i=0 ; i<_nodeAllocators.size() ; i++ ) _nodeAllocators[i] = nodeAllocators.size() ? nodeAllocators[i] : NULL;
-		ThreadPool::Parallel_for( 0 , geometricCellCount , [&]( unsigned int t , size_t i )
+		ThreadPool::ParallelFor( 0 , geometricCellCount , [&]( unsigned int t , size_t i )
 		{
 			auto &cellSimplices = raster[ cellIndices[i] ];
 			for( int j=0 ; j<cellSimplices.size() ; j++ ) _AddSimplex< false , true >( *roots[i] , cellSimplices[j].first , cellSimplices[j].second , maxDepth , nodeSimplices , nodeToIndexMap , _nodeAllocators[t] , NodeInitializer );
@@ -745,7 +745,7 @@ typename std::enable_if< _Dim!=1 , DenseNodeData< typename FEMTreeInitializer< D
 {
 	static_assert( Dim==_Dim , "[ERROR] Dimensions don't match" );
 	std::vector< Point< Real , Dim > > normals( simplices.size() );
-	ThreadPool::Parallel_for
+	ThreadPool::ParallelFor
 	(
 		0 , simplices.size() ,
 		[&]( unsigned int , size_t i )
@@ -796,7 +796,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 
 	geometryNodeDesignators.resize( nodeCount );
 
-	ThreadPool::Parallel_for( 0 , nodeSimplices.size() , [&]( unsigned int , size_t i ){ for( FEMTreeNode *node=nodeSimplices[i].node ; node ; node=node->parent ) geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY; } );
+	ThreadPool::ParallelFor( 0 , nodeSimplices.size() , [&]( unsigned int , size_t i ){ for( FEMTreeNode *node=nodeSimplices[i].node ; node ; node=node->parent ) geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY; } );
 
 	// Propagate out from the boundary nodes
 	std::vector< const FEMTreeNode * > interiorNodes , exteriorNodes;
@@ -806,7 +806,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( maxDepth );
 
 	// In the first pass, flood-fill from the geometry-containing nodes
-	ThreadPool::Parallel_for( 0 , nodeSimplices.size() , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( 0 , nodeSimplices.size() , [&]( unsigned int thread , size_t i )
 	{
 		std::vector< const FEMTreeNode * > &interiorNodes = _interiorNodes[thread];
 		std::vector< const FEMTreeNode * > &exteriorNodes = _exteriorNodes[thread];
@@ -901,7 +901,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 		for( int i=0 ; i<_interiorNodes.size() ; i++ ) _interiorNodes[i].resize( 0 );
 		for( int i=0 ; i<_exteriorNodes.size() ; i++ ) _exteriorNodes[i].resize( 0 );
 
-		ThreadPool::Parallel_for( 0 , interiorNodes.size() , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( 0 , interiorNodes.size() , [&]( unsigned int thread , size_t i )
 		{
 			std::vector< const FEMTreeNode * > &__interiorNodes = _interiorNodes[thread];
 			NeighborKey &neighborKey = neighborKeys[thread];
@@ -926,7 +926,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 			}
 		} );
 
-		ThreadPool::Parallel_for( 0 , exteriorNodes.size() , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( 0 , exteriorNodes.size() , [&]( unsigned int thread , size_t i )
 		{
 			std::vector< const FEMTreeNode * > &__exteriorNodes = _exteriorNodes[thread];
 			NeighborKey &neighborKey = neighborKeys[thread];

@@ -324,7 +324,7 @@ int main( int argc , char* argv[] )
 {
 	Timer timer;
 	CmdLineParse( argc-1 , &argv[1] , params );
-	ThreadPool::Init( (ThreadPool::ParallelType)0 , std::thread::hardware_concurrency() );
+	ThreadPool::ParallelizationType= (ThreadPool::ParallelType)0;
 
 	if( !SampleNum.set )
 	{
@@ -355,6 +355,5 @@ int main( int argc , char* argv[] )
 		printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 	}
 
-	ThreadPool::Terminate();
 	return EXIT_SUCCESS;
 }

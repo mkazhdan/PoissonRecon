@@ -51,9 +51,8 @@ CmdLineParameter< std::string >
 CmdLineParameter< int >
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	ParallelType( "parallel" , 0 ) ,
-	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
-	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ,
+	ScheduleType( "schedule" , (int)ThreadPool::Schedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::ChunkSize ) ,
 	MultiClient( "multi" , 1 ) ,
 	Port( "port" , 0 ) ,
 	PeakMemorySampleMS( "sampleMS" , 10 );
@@ -65,7 +64,7 @@ CmdLineReadable
 CmdLineReadable* params[] =
 {
 	&Port , &MultiClient , &Address ,
-	&MaxMemoryGB , &ParallelType , &ScheduleType , &ThreadChunkSize , &Threads ,
+	&MaxMemoryGB , &ParallelType , &ScheduleType , &ThreadChunkSize ,
 	&Pause ,
 	&PeakMemorySampleMS ,
 	NULL
@@ -77,7 +76,6 @@ void ShowUsage( char* ex )
 	printf( "\t --%s <server port>\n" , Port.name );
 	printf( "\t[--%s <multiplicity of serial sub-clients>=%d]\n" , MultiClient.name , MultiClient.value );
 	printf( "\t[--%s <server connection address>=%s]\n" , Address.name , Address.value.c_str() );
-	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
 	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
@@ -174,9 +172,9 @@ int main( int argc , char* argv[] )
 	}
 
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
-	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
-	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
-	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
+	ThreadPool::ChunkSize = ThreadChunkSize.value;
+	ThreadPool::Schedule = (ThreadPool::ScheduleType)ScheduleType.value;
+	ThreadPool::ParallelizationType= (ThreadPool::ParallelType)ParallelType.value;
 
 	std::vector< Socket > serverSockets( MultiClient.value , NULL );
 	for( unsigned int i=0 ; i<(unsigned int)MultiClient.value ; i++ ) serverSockets[i] = GetConnectSocket( Address.value.c_str() , Port.value , SOCKET_CONNECT_WAIT , false );
@@ -194,8 +192,6 @@ int main( int argc , char* argv[] )
 
 		for( unsigned int i=0 ; i<serverSockets.size() ; i++ ) CloseSocket( serverSockets[i] );
 	}
-
-	ThreadPool::Terminate();
 
 	if( Pause.set )
 	{

@@ -37,6 +37,7 @@ else
 # 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++17 -Wno-invalid-offsetof
 # 	LFLAGS += -liomp5 -lstdc++
 	CFLAGS += -Wno-deprecated -std=c++17 -pthread -Wno-invalid-offsetof -Wno-dangling-else
+	CFLAGS += -Wno-nan-infinity-disabled
 	LFLAGS += -lstdc++
 endif
 LFLAGS_IMG += -lz -lpng -ljpeg

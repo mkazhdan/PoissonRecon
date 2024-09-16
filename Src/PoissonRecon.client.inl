@@ -652,8 +652,8 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 #endif // ADAPTIVE_PADDING
 		}
 
-		ThreadPool::Parallel_for( 0 , _normalInfo->size() , [&]( unsigned int , size_t i ){ (*_normalInfo)[i] *= (Real)-1.; } );
-		ThreadPool::Parallel_for( 0 , _paddedNormalInfo->size() , [&]( unsigned int , size_t i ){ (*_paddedNormalInfo)[i] *= (Real)-1.; } );
+		ThreadPool::ParallelFor( 0 , _normalInfo->size() , [&]( unsigned int , size_t i ){ (*_normalInfo)[i] *= (Real)-1.; } );
+		ThreadPool::ParallelFor( 0 , _paddedNormalInfo->size() , [&]( unsigned int , size_t i ){ (*_paddedNormalInfo)[i] *= (Real)-1.; } );
 		profiler.update();
 		if( clientReconInfo.verbose>1 )
 		{
@@ -1122,7 +1122,7 @@ std::pair< double , double > Client< Real , Dim , BType , Degree >::_process5( c
 		Timer timer;
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &_tree , _solution );
 		std::vector< double > valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , _samples.size() , [&]( unsigned int thread , size_t j )
+		ThreadPool::ParallelFor( 0 , _samples.size() , [&]( unsigned int thread , size_t j )
 			{
 				ProjectiveData< Point< Real , Dim > , Real > &sample = _samples[j].sample;
 				Real w = sample.weight;

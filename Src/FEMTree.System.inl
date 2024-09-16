@@ -216,7 +216,7 @@ void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , nod
 		for( int dd=0 ; dd<Dim ; dd++ ) index = index * Moduli::Values[Dim-dd-1] + PR_MODULO( off[Dim-dd-1] , Moduli::Values[Dim-dd-1] );
 		return index;
 	};
-	ThreadPool::Parallel_for( start , end , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( start , end , [&]( unsigned int thread , size_t i )
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
@@ -256,7 +256,7 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 		Pointer( Real ) D = AllocPointer< Real >( _sNodesEnd( depth ) - _sNodesBegin( depth ) );
 		Pointer( T ) _constraints = AllocPointer< T >( _sNodesSize( depth ) );
 		_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , M , D , bsData , depth , _sNodesBegin( depth ) , _sNodesEnd( depth ) , prolongedSolution , _constraints , ccStencil , pcStencils , interpolationInfos );
-		ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[ _sNodes.treeNodes[i]->nodeData.nodeIndex ] - _constraints[ i - _sNodesBegin(depth) ]; } );
+		ThreadPool::ParallelFor( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[ _sNodes.treeNodes[i]->nodeData.nodeIndex ] - _constraints[ i - _sNodesBegin(depth) ]; } );
 		{
 			node_index_type begin = _sNodesBegin( depth ) , end = _sNodesEnd( depth );
 			for( node_index_type i=begin ; i<end ; i++ ) if( M.rowSize( i-begin ) ) D[i-begin] *= sorWeights[i];
@@ -272,7 +272,7 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 		if( computeNorms )
 		{
 			std::vector< double > bNorms( ThreadPool::NumThreads() , 0 ) , inRNorms( ThreadPool::NumThreads() , 0 );
-			ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
+			ThreadPool::ParallelFor( 0 , M.rows() , [&]( unsigned int thread , size_t j )
 			{
 				T temp = {};
 				ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = M[j];
@@ -294,7 +294,7 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 		if( computeNorms )
 		{
 			std::vector< double > outRNorms( ThreadPool::NumThreads() , 0 );
-			ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
+			ThreadPool::ParallelFor( 0 , M.rows() , [&]( unsigned int thread , size_t j )
 			{
 				T temp = {};
 				ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = M[j];
@@ -461,7 +461,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 					t = Time();
 					_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , _M[_b] , _D[_b] , bsData , depth , _sNodesBegin( depth , BlockFirst( b ) ) , _sNodesEnd( depth , BlockLast( b ) ) , prolongedSolution , _constraints[_b] , ccStencil , pcStencils , interpolationInfos );
 					size_t begin = _sNodesBegin( depth , BlockFirst( b ) ) , end = _sNodesEnd( depth , BlockLast( b ) );
-					ThreadPool::Parallel_for( begin , end , [&]( unsigned int , size_t i ){  _constraints[_b][ i-begin ] = constraints[i] - _constraints[_b][ i-begin ]; } );
+					ThreadPool::ParallelFor( begin , end , [&]( unsigned int , size_t i ){  _constraints[_b][ i-begin ] = constraints[i] - _constraints[_b][ i-begin ]; } );
 					{
 						node_index_type begin = _sNodesBegin( depth , BlockFirst( b ) ) , end = _sNodesEnd( depth , BlockLast( b ) );
 						for( node_index_type i=begin ; i<end ; i++ ) if( _M[_b].rowSize( i-begin ) ) _D[_b][i-begin] *= sorWeights[i];
@@ -472,7 +472,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 						ConstPointer( T ) B = _constraints[_b];
 						ConstPointer( T ) X = XBlocks( depth , b , solution );
 						std::vector< double > bNorms( ThreadPool::NumThreads() , 0 ) , inRNorms( ThreadPool::NumThreads() , 0 );
-						ThreadPool::Parallel_for( 0 , _M[_b].rows() , [&]( unsigned int thread , size_t j )
+						ThreadPool::ParallelFor( 0 , _M[_b].rows() , [&]( unsigned int thread , size_t j )
 						{
 							T temp = {};
 							ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = _M[_b][j];
@@ -515,7 +515,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 					ConstPointer( T ) B = _constraints[_b];
 					ConstPointer( T ) X = XBlocks( depth , b , solution );
 					std::vector< double > outRNorms( ThreadPool::NumThreads() , 0 );
-					ThreadPool::Parallel_for( 0 , _M[_b].rows() , [&]( unsigned int thread , size_t j )
+					ThreadPool::ParallelFor( 0 , _M[_b].rows() , [&]( unsigned int thread , size_t j )
 					{
 						T temp = {};
 						ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = _M[_b][j];
@@ -562,7 +562,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	F.template setStencil< false >( ccStencil );
 	F.template setStencils< true >( pcStencils );
 	_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... >() , F , M , NullPointer( Real ) , bsData , depth , _sNodesBegin( depth ) , _sNodesEnd( depth ) , prolongedSolution , _constraints , ccStencil , pcStencils , interpolationInfos );
-	ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[i] - _constraints[ i - _sNodesBegin(depth) ]; } );
+	ThreadPool::ParallelFor( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[i] - _constraints[ i - _sNodesBegin(depth) ]; } );
 	systemTime = Time()-systemTime;
 	solveTime = Time();
 	// Solve the linear system
@@ -580,7 +580,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	if( computeNorms )
 	{
 		std::vector< double > bNorms( ThreadPool::NumThreads() , 0 ) , inRNorms( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
+		ThreadPool::ParallelFor( 0 , M.rows() , [&]( unsigned int thread , size_t j )
 		{
 			T temp = {};
 			ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = M[j];
@@ -620,7 +620,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	if( computeNorms )
 	{
 		std::vector< double > outRNorms( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
+		ThreadPool::ParallelFor( 0 , M.rows() , [&]( unsigned int thread , size_t j )
 		{
 			T temp = {};
 			ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = M[j];
@@ -700,7 +700,7 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 		const SparseMatrix< Real , matrix_index_type >& _M = M.back();
 		ConstPointer( T ) _X = X.back();
 		std::vector< double > bNorms( ThreadPool::NumThreads() , 0 ) , inRNorms( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int thread , size_t j )
+		ThreadPool::ParallelFor( 0 , _M.rows() , [&]( unsigned int thread , size_t j )
 		{
 			T temp = {};
 			ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = _M[j];
@@ -777,7 +777,7 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 		const SparseMatrix< Real , matrix_index_type >& _M = M.back();
 		ConstPointer( T ) _X = X.back();
 		std::vector< double > outRNorms( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int thread , size_t j )
+		ThreadPool::ParallelFor( 0 , _M.rows() , [&]( unsigned int thread , size_t j )
 		{
 			T temp = {};
 			ConstPointer( MatrixEntry< Real , matrix_index_type > ) start = _M[j];
@@ -1308,7 +1308,7 @@ void FEMTree< Dim , Real >::_updateRestrictedIntegralConstraints( UIntPack< FEMS
 	// Iterate over the nodes @(highDepth)
 	std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( highDepth )-1 );
-	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
@@ -1370,7 +1370,7 @@ void FEMTree< Dim , Real >::_setPointValuesFromProlongedSolution( LocalDepth hig
 	std::vector< ConstPointSupportKey< FEMDegrees > > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
 
-	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
@@ -1413,7 +1413,7 @@ void FEMTree< Dim , Real >::_updateRestrictedInterpolationConstraints( const Poi
 	node_index_type start = _sNodesBegin(lowDepth) , end = _sNodesEnd(lowDepth);
 	std::vector< ConstPointSupportKey< FEMDegrees > > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
-	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 	{
 		if( _isValidSpaceNode( _sNodes.treeNodes[i] ) ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 		{
@@ -1469,7 +1469,7 @@ DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::coarseCoeffi
 {
 	DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
 	memset( coarseCoefficients() , 0 , sizeof(Real)*_sNodesEnd(_maxDepth-1) );
-	ThreadPool::Parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( unsigned int , size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
+	ThreadPool::ParallelFor( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( unsigned int , size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
 	typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
 	for( LocalDepth d=1 ; d<_maxDepth ; d++ ) _upSample( UIntPack< FEMSigs ... >() , rp , d , ( ConstPointer(C) )coarseCoefficients()+_sNodesBegin(d-1) , coarseCoefficients()+_sNodesBegin(d) );
 	return coarseCoefficients;
@@ -1481,7 +1481,7 @@ DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::coarseCoeffi
 {
 	DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
 	memset( coarseCoefficients() , 0 , sizeof(C)*_sNodesEnd(_maxDepth-1) );
-	ThreadPool::Parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( unsigned int , size_t i )
 	{
 		const C* c = coefficients( _sNodes.treeNodes[i] );
 		if( c ) coarseCoefficients[i] = *c;
@@ -1498,7 +1498,7 @@ DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::denseCoeffic
 {
 	DenseNodeData< C , UIntPack< FEMSigs ... > > denseCoefficients( _sNodesEnd(_maxDepth) );
 	memset( denseCoefficients() , 0 , sizeof(C)*_sNodesEnd(_maxDepth) );
-	ThreadPool::Parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(0) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i )
 	{
 		const C* c = coefficients( _sNodes.treeNodes[i] );
 		if( c ) denseCoefficients[i] = *c;
@@ -1587,7 +1587,7 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 	matrix.resize( range );
 	std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( depth ) );
-	ThreadPool::Parallel_for( 0 , range , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( 0 , range , [&]( unsigned int thread , size_t i )
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i+nBegin] ) )
 		{
@@ -1639,7 +1639,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::systemMatrix( UI
 	matrix.resize( _sNodesSize(depth) );
 	std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( depth ) );
-	ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd( depth ) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(depth) , _sNodesEnd( depth ) , [&]( unsigned int thread , size_t i )
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
@@ -1674,7 +1674,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::prolongedSystemM
 	matrix.resize( _sNodesSize(highDepth) );
 	std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( highDepth ) );
-	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
@@ -1725,7 +1725,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::_downSampleMatri
 		upSampleStencil()
 	);
 
-	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 	{
 		if( validNodeFunctor( _sNodes.treeNodes[i] ) )
 		{
@@ -1819,7 +1819,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::_upSampleMatrix(
 	);
 
 	// For Dirichlet constraints, can't get to all children from parents because boundary nodes are invalid
-	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
 	{
 		if( validNodeFunctor( _sNodes.treeNodes[i] ) )
 		{
@@ -1902,7 +1902,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::_restrictSystemM
 	// Compute the window indices of all nodes at the coarser resolution
 	static const unsigned int StartOffsetIndex = GetWindowIndex( UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... >() , StartOffset );
 	std::vector< unsigned int > windowIndices( _sNodesSize(lowDepth) );
-	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 	{
 		node_index_type _i = (node_index_type)i - _sNodesBegin(lowDepth);
 		LocalDepth d ; LocalOffset off;
@@ -1911,7 +1911,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::_restrictSystemM
 	} );
 
 	// Iterate over all low-depth nodes
-	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 	{
 		if( validNodeFunctor( _sNodes.treeNodes[i] ) )
 		{
@@ -1987,7 +1987,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix
 		SparseMatrix< Real , matrix_index_type >& M = systemMatrices[d];
 		M.resize( size );
 		SparseMatrix< Real , matrix_index_type > _M = systemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d , interpolationInfos );
-		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
+		ThreadPool::ParallelFor( 0 , _M.rows() , [&]( unsigned int , size_t i )
 		{
 			M.setRowSize( (matrix_index_type)( i + _sNodesBegin(d) ) , _M.rowSize(i) );
 			for( int j=0 ; j<_M.rowSize(i) ; j++ ) M[i+_sNodesBegin(d)][j] = MatrixEntry< Real , matrix_index_type >( _M[i][j].N + (matrix_index_type)_sNodesBegin(d) , _M[i][j].Value );
@@ -1999,7 +1999,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix
 		SparseMatrix< Real , matrix_index_type >& M = prolongedSystemMatrices[d];
 		M.resize( size );
 		SparseMatrix< Real , matrix_index_type > _M = prolongedSystemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d+1 , interpolationInfos );
-		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
+		ThreadPool::ParallelFor( 0 , _M.rows() , [&]( unsigned int , size_t i )
 		{
 			M.setRowSize( i + (matrix_index_type)_sNodesBegin(d+1) , _M.rowSize(i) );
 			for( int j=0 ; j<_M.rowSize(i) ; j++ ) M[i+_sNodesBegin(d+1)][j] = MatrixEntry< Real , matrix_index_type >( _M[i][j].N + (matrix_index_type)_sNodesBegin(d) , _M[i][j].Value );
@@ -2011,7 +2011,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix
 		SparseMatrix< Real , matrix_index_type >& M = upSampleMatrices[d][d+1];
 		M.resize( size );
 		SparseMatrix< Real , matrix_index_type > _M = downSampleMatrix( UIntPack< FEMSigs ... >() , d+1 ).transpose( _sNodesSize( d+1 ) );
-		ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
+		ThreadPool::ParallelFor( 0 , _M.rows() , [&]( unsigned int , size_t i )
 		{
 			M.setRowSize( i + (matrix_index_type)_sNodesBegin(d+1) , _M.rowSize(i) );
 			for( int j=0 ; j<_M.rowSize(i) ; j++ ) M[i+_sNodesBegin(d+1)][j] = MatrixEntry< Real , matrix_index_type >( _M[i][j].N + (matrix_index_type)_sNodesBegin(d) , _M[i][j].Value );
@@ -2037,7 +2037,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::fullSystemMatrix
 		for( int d2=0 ; d2<=depth ; d2++ ) if( d1!=d2 )
 		{
 			SparseMatrix< Real , matrix_index_type > _M = Matrix( d1 , d2 );
-			ThreadPool::Parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
+			ThreadPool::ParallelFor( 0 , _M.rows() , [&]( unsigned int , size_t i )
 			{
 				if( _M.rowSize(i) )
 				{
@@ -2071,7 +2071,7 @@ void FEMTree< Dim , Real >::_downSample( UIntPack< FEMSigs ... > , typename Base
 	typename BaseRestrictionProlongation::UpSampleStencil upSampleStencil;
 	rp.setStencil( upSampleStencil );
 
-	ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
@@ -2130,7 +2130,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::supportWe
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
 		F.init( d );
 		F.template setStencil< false >( stencil );
-		ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 		{
 			if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 			{
@@ -2204,7 +2204,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 	std::vector< UpSampleKey > neighborKeys( ThreadPool::NumThreads() );
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( _maxDepth-1 ) );
 
-	ThreadPool::Parallel_for( _sNodesBegin(_maxDepth) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i ){ weights[i] = (Real)0.; } );
+	ThreadPool::ParallelFor( _sNodesBegin(_maxDepth) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i ){ weights[i] = (Real)0.; } );
 
 	for( int lowDepth=0 ; lowDepth<_maxDepth ; lowDepth++ )
 	{
@@ -2212,7 +2212,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 		typename BaseRestrictionProlongation::UpSampleStencil upSampleStencil;
 		rp.setStencil( upSampleStencil );
 
-		ThreadPool::Parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
 		{
 			if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 			{
@@ -2283,7 +2283,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 			typename BaseRestrictionProlongation::DownSampleStencils downSampleStencils;
 			rp.setStencils( downSampleStencils );
 
-			ThreadPool::Parallel_for( _sNodesBegin(lowDepth+1) , _sNodesEnd(lowDepth+1) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(lowDepth+1) , _sNodesEnd(lowDepth+1) , [&]( unsigned int thread , size_t i )
 			{
 				if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 				{
@@ -2376,7 +2376,7 @@ void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFE
 	} 
 	);
 	// For Dirichlet constraints, can't get to all children from parents because boundary nodes are invalid
-	ThreadPool::Parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
@@ -2687,7 +2687,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 		if( depth==_maxDepth ) return;
 
 		if     ( depth< _baseDepth ){}
-		else if( depth==_baseDepth ) ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] = solution[i]; } );
+		else if( depth==_baseDepth ) ThreadPool::ParallelFor( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] = solution[i]; } );
 		else if( depth< _maxDepth )
 		{
 			// Clear the prolonged solution @(depth)
@@ -2698,7 +2698,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 			_upSample( UIntPack< FEMSigs ... >() , F.restrictionProlongation() , depth , ( ConstPointer(T) )_prolongedSolution+_sNodesBegin(depth-1) , _prolongedSolution+_sNodesBegin(depth) );
 
 			// Add in the solution @(depth) to the prolonged solution
-			ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] += solution[i]; } );
+			ThreadPool::ParallelFor( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] += solution[i]; } );
 		}
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Should this be here or in SetResidualConstraints" )
@@ -2725,7 +2725,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 
 		// Update the constraints @(depth) using the restriced residual @(depth)
 		if( depth<_maxDepth && _restrictedConstraints )
-			ThreadPool::Parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _residualConstraints[i] -= _restrictedConstraints[i]; } );
+			ThreadPool::ParallelFor( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _residualConstraints[i] -= _restrictedConstraints[i]; } );
 	};
 	auto OutputSolverStats = [&] ( int cycle , int depth , const _SolverStats& sStats , bool showResidual , int actualIters )
 	{
@@ -2949,7 +2949,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		F.template setStencils< true  >( stencils );
 		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
-		ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d)  , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d)  , [&]( unsigned int thread , size_t i )
 		{
 			if( d<maxDepth ) constraints[i] += _constraints[i];
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
@@ -3061,7 +3061,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		memset( _coefficients , 0 , sizeof(D) * _sNodesEnd(maxDepth-1) );
 		for( LocalDepth d=maxDepth-1 ; d>=0 ; d-- )
 		{
-			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int , size_t i )
 			{
 				const D* d = coefficients( _sNodes.treeNodes[i] );
 				if( d ) _coefficients[i] += *d;
@@ -3082,7 +3082,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d-1 ) );
 
-			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 			{
 				if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 				{
@@ -3136,7 +3136,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		FreePointer( _coefficients );
 	}
 
-	ThreadPool::Parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( _sNodesBegin(0) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i )
 	{
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) && _sNodes.treeNodes[i]->nodeData.getDirichletElementFlag() ) constraints[i] *= (Real)0;
 	} );
@@ -3170,7 +3170,7 @@ void FEMTree< Dim , Real >::_addInterpolationConstraints( DenseNodeData< T , UIn
 			{
 				return eState.template dValues< Real , CumulativeDerivatives< Dim , PointD > >( off );
 			};
-			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 			{
 				if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 				{
@@ -3234,7 +3234,7 @@ double FEMTree< Dim , Real >::_interpolationDot( UIntPack< FEMSigs1 ... > , UInt
 		size_t begin , end;
 		iInfo->range( _spaceRoot , begin , end );
 		std::vector< double > dots( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( begin , end , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( begin , end , [&]( unsigned int thread , size_t i )
 		{
 			Point< Real , Dim > p = (*iInfo)[i].position;
 			Real w = (*iInfo)[i].weight;
@@ -3272,7 +3272,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
 
 			std::vector< double > dots( ThreadPool::NumThreads() , 0 );
-			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 			{
 				double &dot = dots[thread];
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
@@ -3326,7 +3326,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 		for( LocalDepth d=1 ; d<=_maxDepth ; d++ )
 		{
 			// Update the cumulative coefficients with the coefficients @(depth-1)
-			ThreadPool::Parallel_for( _sNodesBegin(d-1) , _sNodesEnd(d-1) , [&]( unsigned int , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(d-1) , _sNodesEnd(d-1) , [&]( unsigned int , size_t i )
 			{
 				const T* _data1 = coefficients1( _sNodes.treeNodes[i] );
 				if( _data1 ) cumulative1[i] += *_data1;
@@ -3341,7 +3341,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d-1 ) );
 
 			std::vector< double > dots( ThreadPool::NumThreads() , 0 );
-			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 			{
 				double &dot = dots[thread];
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
@@ -3409,7 +3409,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 
 			// Update the cumulative constraints @(depth-1) from @(depth)
 			std::vector< double > dots( ThreadPool::NumThreads() , 0 );
-			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 			{
 				double &dot = dots[thread];
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
@@ -3467,7 +3467,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dot += dots[t];
 			// Update the dot-product using the cumulative constraints @(depth-1)
 			for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) dots[t] = 0;
-			ThreadPool::Parallel_for( _sNodesBegin(d-1) , _sNodesEnd(d-1) , [&]( unsigned int thread , size_t i )
+			ThreadPool::ParallelFor( _sNodesBegin(d-1) , _sNodesEnd(d-1) , [&]( unsigned int thread , size_t i )
 			{
 				double &dot = dots[thread];
 				const FEMTreeNode* node = _sNodes.treeNodes[i];

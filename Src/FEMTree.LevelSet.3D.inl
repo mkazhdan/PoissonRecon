@@ -879,7 +879,7 @@ public:
 		std::vector< ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > bNeighborKeys( ThreadPool::NumThreads() );
 		if( useBoundaryEvaluation ) for( size_t i=0 ; i<neighborKeys.size() ; i++ ) bNeighborKeys[i].set( tree._localToGlobal( depth ) );
 		else                        for( size_t i=0 ; i<neighborKeys.size() ; i++ )  neighborKeys[i].set( tree._localToGlobal( depth ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -971,7 +971,7 @@ public:
 	{
 		SliceValues& sValues = slabValues[depth].sliceValues( slice );
 		bool useBoundaryEvaluation = false;
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 			{
 				Real squareValues[ HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ];
 				TreeNode* leaf = tree._sNodes.treeNodes[i];
@@ -1017,7 +1017,7 @@ public:
 		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( ThreadPool::NumThreads() );
 		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) ) , weightKeys[i].set( tree._localToGlobal( depth ) ) , dataKeys[i].set( tree._localToGlobal( depth ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -1154,7 +1154,7 @@ public:
 		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( ThreadPool::NumThreads() );
 		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) ) , weightKeys[i].set( tree._localToGlobal( depth ) ) , dataKeys[i].set( tree._localToGlobal( depth ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -1271,7 +1271,7 @@ public:
 		typename SliceValues::Scratch &cSliceScratch = slabValues[depth+1].sliceScratch(slice<<1);
 		LevelSetExtraction::SliceCellIndexData< Dim > &pCellIndices = pSliceValues.cellIndices;
 		LevelSetExtraction::SliceCellIndexData< Dim > &cCellIndices = cSliceValues.cellIndices;
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) ) if( IsActiveNode< Dim >( tree._sNodes.treeNodes[i]->children ) )
 			{
@@ -1339,7 +1339,7 @@ public:
 		bool has0 = cSliceValues0.slab()==((slab<<1)|0);
 		bool has1 = cSliceValues1.slab()==((slab<<1)|1);
 
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 		{
 			// If the node is not a leaf, inherit iso-edges from children
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) &&  IsActiveNode< Dim >( tree._sNodes.treeNodes[i]->children ) )
@@ -1419,7 +1419,7 @@ public:
 		typename SliceValues::Scratch &sScratch = slabValues[depth].sliceScratch( slice );
 		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth, slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth, slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -1490,7 +1490,7 @@ public:
 
 		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -1571,7 +1571,7 @@ public:
 	{
 		std::vector< std::pair< node_index_type , Vertex > > polygon;
 		std::vector< std::vector< IsoEdge > > edgess( ThreadPool::NumThreads() );
-		ThreadPool::Parallel_for( tree._sNodesBegin(depth,offset) , tree._sNodesEnd(depth,offset) , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( tree._sNodesBegin(depth,offset) , tree._sNodesEnd(depth,offset) , [&]( unsigned int thread , size_t i )
 		{
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
 			{
@@ -2034,7 +2034,7 @@ public:
 		if constexpr( HasData ) if( data ) pointEvaluator = new typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >( tree._maxDepth );
 		DenseNodeData< Real , UIntPack< FEMSigs ... > > coarseCoefficients( tree._sNodesEnd( tree._maxDepth-1 ) );
 		memset( coarseCoefficients() , 0 , sizeof(Real)*tree._sNodesEnd( tree._maxDepth-1 ) );
-		ThreadPool::Parallel_for( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( unsigned int, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
+		ThreadPool::ParallelFor( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( unsigned int, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
 		typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
 		for( LocalDepth d=1 ; d<tree._maxDepth ; d++ ) tree._upSample( UIntPack< FEMSigs ... >() , rp , d , ( ConstPointer(Real) )coarseCoefficients()+tree._sNodesBegin(d-1) , coarseCoefficients()+tree._sNodesBegin(d) );
 

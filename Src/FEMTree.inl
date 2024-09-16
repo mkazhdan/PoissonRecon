@@ -735,7 +735,7 @@ void FEMTree< Dim , Real >::processNeighboringLeaves( FEMTreeNode **nodes , size
 	std::vector< NeighborKey > neighborKeys( ThreadPool::NumThreads() );
 	for( int i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( maxDepth );
 
-	ThreadPool::Parallel_for( 0 , nodeCount , [&]( unsigned int t , size_t  i )
+	ThreadPool::ParallelFor( 0 , nodeCount , [&]( unsigned int t , size_t  i )
 		{
 			typedef StaticWindow< FEMTreeNode * , IsotropicUIntPack< Dim , LeftRadius+RightRadius+1 > > NeighborLeafNodes;
 			NeighborLeafNodes neighborLeafNodes;
@@ -805,7 +805,7 @@ void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real
 	std::vector< node_index_type > sampleMap( nodeCount() , -1 );
 
 	// Initialize the map from node indices to samples
-	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );
+	ThreadPool::ParallelFor( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );
 
 	std::function< ProjectiveData< Point< Real , Dim > , Real > ( FEMTreeNode* ) > SetDensity = [&] ( FEMTreeNode* node )
 	{
@@ -837,7 +837,7 @@ void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real
 	std::vector< node_index_type > sampleMap( nodeCount() , -1 );
 
 	// Initialize the map from node indices to samples
-	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );
+	ThreadPool::ParallelFor( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );
 
 	std::function< ProjectiveData< Point< Real , Dim > , Real > ( FEMTreeNode* ) > SetDensity = [&] ( FEMTreeNode* node )
 	{
@@ -918,7 +918,7 @@ SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setI
 	pointDepthAndWeight.weight = 0;
 	SparseNodeData< OutData , UIntPack< DataSigs ... > > dataField;
 	std::vector< Point< Real , 2 > > pointDepthAndWeightSums( ThreadPool::NumThreads() , Point< Real , 2 >() );
-	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( 0 , samples.size() , [&]( unsigned int thread , size_t i )
 		{
 			DensityKey& densityKey = densityKeys[ thread ];
 			DataKey& dataKey = dataKeys[ thread ];
@@ -1007,7 +1007,7 @@ SparseNodeData< OutData , UIntPack< DataSigs ... > > FEMTree< Dim , Real >::setI
 	pointDepthAndWeight.weight = 0;
 	SparseNodeData< OutData , UIntPack< DataSigs ... > > dataField;
 	std::vector< Point< Real , 2 > > pointDepthAndWeightSums( ThreadPool::NumThreads() , Point< Real , 2 >() );
-	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( 0 , samples.size() , [&]( unsigned int thread , size_t i )
 		{
 			DensityKey& densityKey = densityKeys[ thread ];
 			DataKey& dataKey = dataKeys[ thread ];
@@ -1130,7 +1130,7 @@ void FEMTree< Dim , Real >::_supportApproximateProlongation( void )
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] This may be overkill as we only need to check if the support overlaps the support of the children" )
 #endif // SHOW_WARNINGS
-		ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
+		ThreadPool::ParallelFor( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
 			{
 				NeighborKey& neighborKey = neighborKeys[ thread ];
 				FEMTreeNode *node = nodes[i];
@@ -1180,7 +1180,7 @@ void FEMTree< Dim , Real >::_markNonBaseDirichletElements( void )
 		}
 	};
 
-	ThreadPool::Parallel_for( 0 , baseNodes.size() , [&]( unsigned int t , size_t i ){ ProcessSubTree( baseNodes[i] , supportKeys[t] , neighborLeaves[t] ); } );
+	ThreadPool::ParallelFor( 0 , baseNodes.size() , [&]( unsigned int t , size_t i ){ ProcessSubTree( baseNodes[i] , supportKeys[t] , neighborLeaves[t] ); } );
 }
 
 template< unsigned int Dim , typename Real >
@@ -1197,7 +1197,7 @@ void FEMTree< Dim , Real >::_markBaseDirichletElements( void )
 	std::vector< FEMTreeNode* > nodes;
 	_tree.processNodes( [&]( FEMTreeNode *node ){ if( _localDepth( node )==_baseDepth && node->nodeData.getDirichletNodeFlag() ) nodes.push_back( node ) ; return _localDepth(node)<_baseDepth; } );
 
-	ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
+	ThreadPool::ParallelFor( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
 		{
 			SupportKey &supportKey = supportKeys[ thread ];
 			FEMTreeNode *node = nodes[i];
@@ -1416,7 +1416,7 @@ template< unsigned int Dim , class Real >
 void FEMTree< Dim , Real >::_setSpaceValidityFlags( void ) const
 {
 	const unsigned char MASK = ~( FEMTreeNodeData::SPACE_FLAG );
-	ThreadPool::Parallel_for( 0 , _sNodes.size() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , _sNodes.size() , [&]( unsigned int , size_t i )
 		{
 			_sNodes.treeNodes[i]->nodeData.flags &= MASK;
 			if( isValidSpaceNode( _sNodes.treeNodes[i] ) ) _sNodes.treeNodes[i]->nodeData.flags |= FEMTreeNodeData::SPACE_FLAG;
@@ -1477,7 +1477,7 @@ void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth full
 	node_index_type sz = nodeCount();
 	Pointer( char ) nodeHasData = NewPointer< char >( sz );
 	for( node_index_type i=0 ; i<sz ; i++ ) nodeHasData[i] = 0;
-	ThreadPool::Parallel_for( 0 , regularNodes.size() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , regularNodes.size() , [&]( unsigned int , size_t i )
 		{
 			regularNodes[i]->processNodes( [&]( FEMTreeNode *node ){ if( node->nodeData.nodeIndex!=-1 ) nodeHasData[node->nodeData.nodeIndex] = f( node ) ? 1 : 0; } );
 		} );
@@ -1492,10 +1492,10 @@ void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth full
 		return hasData;
 	};
 
-	ThreadPool::Parallel_for( 0 , regularNodes.size() , [&]( unsigned int , size_t i ){ PullHasDataFromChildren( regularNodes[i] ); } );
+	ThreadPool::ParallelFor( 0 , regularNodes.size() , [&]( unsigned int , size_t i ){ PullHasDataFromChildren( regularNodes[i] ); } );
 
 	// Mark all children of a node as ghost if none of them have data
-	ThreadPool::Parallel_for( 0 , regularNodes.size() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , regularNodes.size() , [&]( unsigned int , size_t i )
 		{
 			auto nodeFunctor = [&]( FEMTreeNode *node )
 			{
@@ -1516,7 +1516,7 @@ template< typename T , typename Data , unsigned int PointD , typename Constraint
 void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , bool noRescale )
 {
 	_sampleSpan.resize( tree.nodesSize() );
-	ThreadPool::Parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
+	ThreadPool::ParallelFor( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
 	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
 	{
 		const FEMTreeNode* leaf = samples[i].node;
@@ -1565,7 +1565,7 @@ void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , Poin
 		}
 	}
 
-	ThreadPool::Parallel_for( 0 , _iData.size() , [&]( unsigned int , size_t i  )
+	ThreadPool::ParallelFor( 0 , _iData.size() , [&]( unsigned int , size_t i  )
 		{
 			Real w = _iData[i].pointInfo.weight;
 			_iData[i] /= w;
@@ -1580,7 +1580,7 @@ template< typename T , unsigned int PointD , typename ConstraintDual , typename 
 void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
 {
 	_sampleSpan.resize( tree._nodeCount );
-	ThreadPool::Parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
+	ThreadPool::ParallelFor( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
 	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
 	{
 		const FEMTreeNode* leaf = samples[i].node;
@@ -1629,7 +1629,7 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , Constraint
 		}
 	}
 
-	ThreadPool::Parallel_for( 0 , _iData.size() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , _iData.size() , [&]( unsigned int , size_t i )
 		{
 			Real w = _iData[i].weight;
 			_iData[i] /= w;
@@ -1644,7 +1644,7 @@ template< unsigned int PointD , typename ConstraintDual , typename SystemDual >
 void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
 {
 	_sampleSpan.resize( tree._nodeCount );
-	ThreadPool::Parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
+	ThreadPool::ParallelFor( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
 	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
 	{
 		const FEMTreeNode* leaf = samples[i].node;
@@ -1692,7 +1692,7 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , Const
 		}
 	}
 
-	ThreadPool::Parallel_for( 0 , _iData.size() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , _iData.size() , [&]( unsigned int , size_t i )
 		{
 			Real w = _iData[i].weight;
 			_iData[i] /= w;
@@ -1744,7 +1744,7 @@ void FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( Spar
 	// Set the interior values
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
-	ThreadPool::Parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , iInfo.size() , [&]( unsigned int , size_t i )
 		{
 			Real w = iInfo[i].weight;
 			iInfo[i] /= w ; iInfo[i].weight = w;
@@ -1789,7 +1789,7 @@ void FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( Spar
 	// Set the interior values
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
-	ThreadPool::Parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , iInfo.size() , [&]( unsigned int , size_t i )
 		{
 			Real w = iInfo[i].pointInfo.weight;
 			iInfo[i] /= w ; iInfo[i].pointInfo.weight = w;
@@ -1855,7 +1855,7 @@ SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , IsotropicUIntPac
 	// Set the interior values
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
-	ThreadPool::Parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , iInfo.size() , [&]( unsigned int , size_t i )
 		{
 			iInfo[i].finalize();
 			for( size_t c=0 ; c<iInfo[i].size() ; c++ )
@@ -1896,7 +1896,7 @@ SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , Is
 	// Set the interior values
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
-	ThreadPool::Parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
+	ThreadPool::ParallelFor( 0 , iInfo.size() , [&]( unsigned int , size_t i )
 		{
 			iInfo[i].finalize();
 			for( size_t c=0 ; c<iInfo[i].size() ; c++ )

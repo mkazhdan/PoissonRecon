@@ -56,17 +56,17 @@ protected:
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin , end , thread , updateState , function , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin , end , thread , updateState , function , w[i] ... ); } );
 	}
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin+1 , end+1 , thread , updateState , function , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin+1 , end+1 , thread , updateState , function , w[i] ... ); } );
 	}
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , thread , updateState , function , w[i] ... ); } );
+		ThreadPool::ParallelFor( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , thread , updateState , function , w[i] ... ); } );
 	}
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
@@ -116,17 +116,17 @@ protected:
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin , end , thread , updateState , function , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin , end , thread , updateState , function , w[i] ... ); } );
 	}
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin+1 , end+1 , thread , updateState , function , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin+1 , end+1 , thread , updateState , function , w[i] ... ); } );
 	}
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , thread , updateState , function , w[i] ... ); } );
+		ThreadPool::ParallelFor( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , thread , updateState , function , w[i] ... ); } );
 	}
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
@@ -176,17 +176,17 @@ protected:
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
 	}
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
 	}
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+		ThreadPool::ParallelFor( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
 	}
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
@@ -237,17 +237,17 @@ protected:
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
 	}
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
 	}
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+		ThreadPool::ParallelFor( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
 	}
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
@@ -299,17 +299,17 @@ protected:
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
 	}
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+		ThreadPool::ParallelFor( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
 	}
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
-		ThreadPool::Parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+		ThreadPool::ParallelFor( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
 	}
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >

@@ -64,9 +64,8 @@ CmdLineReadable
 
 CmdLineParameter< int >
 	ParallelType( "parallel" , 0 ) ,
-	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
-	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
-	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ,
+	ScheduleType( "schedule" , (int)ThreadPool::Schedule ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::ChunkSize ) ,
 	IsoSlabDepth( "sDepth" , 0 ) ,
 	IsoSlabStart( "sStart" , 0 ) ,
 	IsoSlabEnd  ( "sEnd"   , 1 ) ,
@@ -86,7 +85,6 @@ CmdLineReadable* params[] =
 	&OutMesh , &NonManifold , &PolygonMesh , &FlipOrientation , &ASCII , &NonLinearFit , &IsoValue ,
 	&OutGrid , &PrimalGrid ,
 	&OutTree , &TreeScale , &TreeDepth ,
-	&Threads ,
 	&Verbose , 
 	&ParallelType ,
 	&ScheduleType ,
@@ -106,7 +104,6 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <ouput tree grid>]\n" , OutTree.name );
 	printf( "\t[--%s <tree scale factor>=%d]\n" , TreeScale.name , TreeScale.value );
 	printf( "\t[--%s <tree depth>=%d]\n" , TreeDepth.name , TreeDepth.value );
-	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
 	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
@@ -141,14 +138,14 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 		// Compute average
 		Real avg = 0;
 		std::vector< Real > avgs( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
+		ThreadPool::ParallelFor( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
 		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) avg += avgs[t];
 		avg /= (Real)totalResolution;
 
 		// Compute standard deviation
 		Real std = 0;
 		std::vector< Real > stds( ThreadPool::NumThreads() , 0 );
-		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
+		ThreadPool::ParallelFor( 0 , totalResolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
 		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) std += stds[t];
 		std = (Real)sqrt( std / totalResolution );
 
@@ -165,7 +162,7 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 		}
 
 		unsigned char *pixels = new unsigned char[ totalResolution*3 ];
-		ThreadPool::Parallel_for( 0 , totalResolution , [&]( unsigned int , size_t i )
+		ThreadPool::ParallelFor( 0 , totalResolution , [&]( unsigned int , size_t i )
 		{
 			Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
 			v = (Real)( ( v + 1. ) / 2. * 256. );
@@ -198,7 +195,7 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelToUnitCube , BinaryStream &stream )
 {
-	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
+	ThreadPool::ParallelizationType= (ThreadPool::ParallelType)ParallelType.value;
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > > coefficients;
 
@@ -227,7 +224,7 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 		};
 		while( ( pointsRead=ReadBatch() ) )
 		{
-			ThreadPool::Parallel_for( 0 , pointsRead , [&]( unsigned int thread , size_t j )
+			ThreadPool::ParallelFor( 0 , pointsRead , [&]( unsigned int thread , size_t j )
 			{
 				Point< Real , Dim > p = modelToUnitCube * points[j];
 				bool inBounds = true;
@@ -260,11 +257,11 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 	if( OutTree.set )
 	{
 		DenseNodeData< Real , IsotropicUIntPack< Dim , FEMTrivialSignature > > _coefficients = tree->initDenseNodeData( IsotropicUIntPack< Dim , FEMTrivialSignature >() );
-		ThreadPool::Parallel_for( 0 , _coefficients.size() , [&]( unsigned int , size_t i ){ _coefficients[i] = 0; } );
+		ThreadPool::ParallelFor( 0 , _coefficients.size() , [&]( unsigned int , size_t i ){ _coefficients[i] = 0; } );
 
 		if( TreeDepth.value!=-1 )
 		{
-			ThreadPool::Parallel_for
+			ThreadPool::ParallelFor
 			(
 				tree->nodesBegin(TreeDepth.value) , tree->nodesEnd(TreeDepth.value) ,
 				[&]( unsigned int , size_t i )
@@ -276,7 +273,7 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 		}
 		else
 		{
-			ThreadPool::Parallel_for
+			ThreadPool::ParallelFor
 			(
 				tree->nodesBegin(0) , tree->nodesEnd( tree->depth() ) ,
 				[&]( unsigned int , size_t i )
@@ -466,8 +463,8 @@ int main( int argc , char* argv[] )
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	CmdLineParse( argc-1 , &argv[1] , params );
-	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
-	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
+	ThreadPool::ChunkSize = ThreadChunkSize.value;
+	ThreadPool::Schedule = (ThreadPool::ScheduleType)ScheduleType.value;
 	if( Verbose.set )
 	{
 		printf( "**************************************************\n" );
@@ -475,7 +472,6 @@ int main( int argc , char* argv[] )
 		printf( "** Running Octree Visualization (Version %s) **\n" , ADAPTIVE_SOLVERS_VERSION );
 		printf( "**************************************************\n" );
 		printf( "**************************************************\n" );
-		if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );
 	}
 
 	if( !In.set )
