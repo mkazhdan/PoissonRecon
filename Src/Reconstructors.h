@@ -41,6 +41,7 @@ namespace PoissonRecon
 
 	namespace Reconstructor
 	{
+		unsigned int ProfilerMS = 20;				// The number of ms at which to poll the performance (set to zero for no polling)
 		static const unsigned int DataDegree = 0;	// The order of the B-Spline used to splat in data for auxiliary data interpolation
 		static const unsigned int WeightDegree = 2;	// The order of the B-Spline used to splat in the weights for density estimation
 
@@ -498,7 +499,7 @@ namespace PoissonRecon
 
 			if constexpr( Dim==3 )
 			{
-				Profiler profiler(20);
+				Profiler profiler( ProfilerMS );
 
 				std::string statsString;
 
@@ -525,7 +526,7 @@ namespace PoissonRecon
 			}
 			else if constexpr( Dim==2 )
 			{
-				Profiler profiler(20);
+				Profiler profiler( ProfilerMS );
 
 				std::string statsString;
 
@@ -598,7 +599,7 @@ namespace PoissonRecon
 
 			XForm< Real , Dim+1 > modelToUnitCube = XForm< Real , Dim+1 >::Identity();
 
-			Profiler profiler(20);
+			Profiler profiler( ProfilerMS );
 
 			size_t pointCount;
 
@@ -1069,7 +1070,7 @@ namespace PoissonRecon
 
 			XForm< Real , Dim+1 > modelToUnitCube = XForm< Real , Dim+1 >::Identity();
 
-			Profiler profiler(20);
+			Profiler profiler( ProfilerMS );
 
 			size_t pointCount;
 
