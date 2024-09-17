@@ -522,8 +522,8 @@ namespace PLY
 			//
 			Edge< OutputIndex > ply_edge;
 			if( !edgeStream.read( edge ) ) ERROR_OUT( "Failed to read edge " , i , " / " , edgeNum ); 
-			ply_edge.v1 = (Index)edge.first;
-			ply_edge.v2 = (Index)edge.second;
+			ply_edge.v1 = (OutputIndex)edge.first;
+			ply_edge.v2 = (OutputIndex)edge.second;
 			ply->put_element( (void *)&ply_edge );
 		}  // for, write edges
 

@@ -55,7 +55,7 @@ DAMAGE.
 #include "DataStream.h"
 #include "RegularTree.h"
 #include "SparseMatrix.h"
-#include "BlockedVector.h"
+#include "NestedVector.h"
 #include "Rasterizer.h"
 #include <limits>
 #include <functional>
@@ -330,54 +330,34 @@ namespace PoissonRecon
 		const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 		Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node )
 		{
-#ifdef SANITIZED_PR
-			static std::shared_mutex _insertionMutex;
-#else // !SANITIZED_PR
-			static std::mutex _insertionMutex;
-#endif // SANITIZED_PR
-			// If the node hasn't been indexed yet
-			if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() )
-			{
-#ifdef SANITIZED_PR
-				std::unique_lock lock( _insertionMutex );
-#else // !SANITIZED_PR
-				std::lock_guard< std::mutex > lock( _insertionMutex );
-#endif // SANITIZED_PR
-				if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() ) _indices.resize( node->nodeData.nodeIndex+1 , -1 );
-			}
+			_indices.resize( node->nodeData.nodeIndex+1 , -1 );
+
 			// If the node hasn't been allocated yet
 #ifdef SANITIZED_PR
-			volatile node_index_type * indexPtr;
-			{
-				std::shared_lock lock( _insertionMutex );
-				indexPtr = &_indices[ node->nodeData.nodeIndex ];
-			}
+			volatile node_index_type *indexPtr = &_indices[ node->nodeData.nodeIndex ];
 			node_index_type _index = ReadAtomic( *indexPtr );
 #else // !SANITIZED_PR
 			volatile node_index_type &_index = _indices[ node->nodeData.nodeIndex ];
 #endif // SANITIZED_PR
 			if( _index==-1 )
 			{
+				static std::mutex _updateMutex;
+				std::lock_guard< std::mutex > lock( _updateMutex );
 #ifdef SANITIZED_PR
-				std::unique_lock lock( _insertionMutex );
 				_index = ReadAtomic( *indexPtr );
-#else // !SANITIZED_PR
-				std::lock_guard< std::mutex > lock( _insertionMutex );
 #endif // SANITIZED_PR
 				if( _index==-1 )
 				{
 					size_t sz = _data.size();
 					_data.resize( sz + 1 );
-					_index = (node_index_type)sz;
 #ifdef SANITIZED_PR
-					// [WARNING] Why is this necessary, given that we are within a critical section?
-					SetAtomic( *indexPtr , _index , (node_index_type)-1 );
+					_index = (node_index_type)sz;
+					SetAtomic( *indexPtr , _index );
+#else // !SANITIZED_PR
+					*(node_index_type*)&_index = (node_index_type)sz;
 #endif // SANITIZED_PR
 				}
 			}
-#ifdef SANITIZED_PR
-			std::shared_lock lock( _insertionMutex );
-#endif // SANITIZED_PR
 			return _data[ _index ];
 		}
 		node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) const
@@ -474,14 +454,14 @@ namespace PoissonRecon
 		// Map should be the size of the new number of entries and map[i] should give the old index of the i-th node
 		void _remapIndices( ConstPointer( node_index_type )oldNodeIndices , size_t newNodeCount )
 		{
-			BlockedVector< node_index_type > newIndices;
+			NestedVector< node_index_type , NESTED_VECTOR_LEVELS > newIndices;
 			newIndices.resize( newNodeCount );
 			for( node_index_type i=0 ; i<(node_index_type)newNodeCount ; i++ )
 			{
 				newIndices[i] = -1;
 				if( oldNodeIndices[i]!=-1 && oldNodeIndices[i]<(node_index_type)_indices.size() ) newIndices[i] = _indices[ oldNodeIndices[i] ];
 			}
-			_indices = newIndices;
+			std::swap( _indices , newIndices );
 		}
 
 		SparseNodeData _trim( node_index_type endIndex ) const
@@ -503,8 +483,8 @@ namespace PoissonRecon
 			return sparseNodeData;
 		}
 
-		BlockedVector< node_index_type > _indices; 
-		BlockedVector< Data > _data;
+		NestedVector< node_index_type , NESTED_VECTOR_LEVELS > _indices;
+		NestedVector< Data , NESTED_VECTOR_LEVELS > _data;
 	};
 
 	template< class Data , typename Pack > struct DenseNodeData{};
