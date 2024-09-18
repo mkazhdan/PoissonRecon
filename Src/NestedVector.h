@@ -122,21 +122,25 @@ namespace PoissonRecon
 
 		void write( BinaryStream &stream ) const
 		{
-			stream.write( _size );
-			stream.write( _data , _size );
+			size_t sz = _size;
+			stream.write( sz );
+			stream.write( GetPointer( _data , _Size ) , sz );
 		}
 
 		void read( BinaryStream &stream )
 		{
-			if( !stream.read( _size ) ) ERROR_OUT( "Failed to read _size" );
-			if( !stream.read( _data , _size ) ) ERROR_OUT( "Failed to read _data" );
+			size_t sz;
+			if( !stream.read( sz ) ) ERROR_OUT( "Failed to read _size" );
+			resize( sz );
+			if( !stream.read( GetPointer( _data , _Size ) , _size ) ) ERROR_OUT( "Failed to read _data" );
 		}
 
 		void write( BinaryStream &stream , const Serializer< T > &serializer ) const
 		{
 			const size_t serializedSize = serializer.size();
 
-			stream.write( _size );
+			size_t sz = _size;
+			stream.write( sz );
 			if( _size )
 			{
 				char *buffer = new char[ _size * serializedSize ];
@@ -149,9 +153,11 @@ namespace PoissonRecon
 		{
 			const size_t serializedSize = serializer.size();
 
-			if( !stream.read( _size ) ) ERROR_OUT( "Failed to read _size" );
+			size_t sz;
+			if( !stream.read( sz ) ) ERROR_OUT( "Failed to read _size" );
 			if( _size )
 			{
+				resize( sz );
 				char *buffer = new char[ _size * serializedSize ];
 				if( !stream.read( buffer , serializedSize*_size ) ) ERROR_OUT( "Failed tor read in data" );
 				for( size_t i=0 ; i<_size ; i++ ) serializer.deserialize( buffer+i*serializedSize , operator[]( i ) );
@@ -302,13 +308,16 @@ namespace PoissonRecon
 
 		void write( BinaryStream &stream ) const
 		{
-			stream.write( _size );
+			size_t sz = _size;
+			stream.write( sz );
 			for( size_t i=0 ; i<_size ; i++ ) _data[i]->write( stream );
 		}
 
 		void read( BinaryStream &stream )
 		{
-			if( !stream.read( _size ) ) ERROR_OUT( "Failed to read _size" );
+			size_t sz;
+			if( !stream.read( sz ) ) ERROR_OUT( "Failed to read _size" );
+			resize( sz );
 			for( size_t i=0 ; i<_size ; i++ ) _data[i]->read(stream);
 		}
 
@@ -316,14 +325,17 @@ namespace PoissonRecon
 		{
 			const size_t serializedSize = serializer.size();
 
-			stream.write( _size );
+			size_t sz = _size;
+			stream.write( sz );
 			for( size_t i=0 ; i<_size ; i++ ) _data[i]->write( stream , serializer );
 		}
 		void read( BinaryStream &stream , const Serializer< T > &serializer )
 		{
 			const size_t serializedSize = serializer.size();
 
-			if( !stream.read( _size ) ) ERROR_OUT( "Failed to read _size" );
+			size_t sz;
+			if( !stream.read( sz ) ) ERROR_OUT( "Failed to read _size" );
+			resize( sz );
 			for( size_t i=0 ; i<_size ; i++ ) _data[i]->read( stream , serializer );
 		}
 
