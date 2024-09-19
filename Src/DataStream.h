@@ -117,6 +117,7 @@ namespace PoissonRecon
 		MultiInputDataStream( InputDataStream< Data > **streams , size_t N ) : _current(0) , _streams( streams , streams+N ) {}
 		MultiInputDataStream( const std::vector< InputDataStream< Data > * > &streams ) : _current(0) , _streams( streams ) {}
 		void reset( void ){ for( unsigned int i=0 ; i<_streams.size() ; i++ ) _streams[i]->reset(); }
+		unsigned int numStreams( void ) const { return _streams.size(); }
 
 	protected:
 		std::vector< InputDataStream< Data > * > _streams;
@@ -137,12 +138,11 @@ namespace PoissonRecon
 	template< typename Data >
 	struct MultiOutputDataStream : public OutputDataStream< Data >
 	{
-		MultiOutputDataStream( OutputDataStream< Data > **streams , size_t N ) : _current(0) , _streams( streams , streams+N ) {}
-		MultiOutputDataStream( const std::vector< OutputDataStream< Data > * > &streams ) : _current(0) , _streams( streams ) {}
+		MultiOutputDataStream( OutputDataStream< Data > **streams , size_t N ) : _streams( streams , streams+N ) {}
+		MultiOutputDataStream( const std::vector< OutputDataStream< Data > * > &streams ) : _streams( streams ) {}
 
 	protected:
 		std::vector< OutputDataStream< Data > * > _streams;
-		unsigned int _current;
 
 		void base_write( const Data &d ){ _streams[0]->base_write(d); }
 		void base_write( unsigned int t , const Data &d ){ _streams[t]->base_write(d); }

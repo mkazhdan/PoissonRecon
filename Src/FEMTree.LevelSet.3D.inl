@@ -1066,6 +1066,7 @@ public:
 									}
 									if( stillOwner )
 									{
+										sValues.edgeKeys[ vIndex ] = key;
 										sScratch.eKeyValues[ thread ].push_back( std::pair< Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 										// We only need to pass the iso-vertex down if the edge it lies on is adjacent to a coarser leaf
 										auto IsNeeded = [&]( unsigned int depth )
@@ -1204,7 +1205,7 @@ public:
 									}
 									if( stillOwner )
 									{
-										
+										xValues.edgeKeys[ vIndex ] = key;
 										xScratch.eKeyValues[ thread ].push_back( std::pair< Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 
 										// We only need to pass the iso-vertex down if the edge it lies on is adjacent to a coarser leaf

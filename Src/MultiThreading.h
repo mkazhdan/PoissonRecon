@@ -84,10 +84,18 @@ namespace PoissonRecon
 			std::atomic< size_t > index;
 			index.store( 0 );
 
-			if( range<chunkSize || pType==ParallelType::NONE || numThreads==1 )
+			// If the computation is serial, go ahead and run it
+			if( pType==ParallelType::NONE || numThreads<=1 )
 			{
 				for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 				return;
+			}
+
+			// If the chunkSize is too large to satisfy all the threads, lower it
+			if( range<=chunkSize*(numThreads-1) )
+			{
+				chunkSize = ( range + numThreads - 1 ) / numThreads;
+				chunks = numThreads = (unsigned int)( ( range + chunkSize - 1 ) / chunkSize );
 			}
 
 			std::function< void (unsigned int , size_t ) > _ChunkFunction = [ &iterationFunction , begin , end , chunkSize ]( unsigned int thread , size_t chunk )

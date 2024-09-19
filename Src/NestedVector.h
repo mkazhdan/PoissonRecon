@@ -86,20 +86,7 @@ namespace PoissonRecon
 		const T& operator[]( size_t idx ) const { return _data[idx]; }
 		T& operator[]( size_t idx ){ return _data[idx]; }
 
-		size_t resize( size_t sz )
-		{
-			if( sz>_MaxSize ) ERROR_OUT( "Resize size exceeds max size, considering increasing nesting: " , sz , " > " , _MaxSize );
-
-			// Quick check to see if anything needs doing
-			if( sz<_size ) return size();
-
-			// Otherwise lock it down and get to work
-			std::lock_guard lock( _mutex );
-
-			// Check if the size got changed
-			if( sz>_size ) _size = sz;
-			return size();
-		}
+		size_t resize( size_t sz ){ return resize( sz , T{} ); }
 
 		size_t resize( size_t sz , const T &defaultValue )
 		{
@@ -235,37 +222,7 @@ namespace PoissonRecon
 		const T& operator[]( size_t idx ) const { return ( *_data[ idx>>(LogSize*Depth) ] )[ idx & NestedVector< T , Depth-1 , LogSize >::_Mask ] ; }
 		T& operator[]( size_t idx ){ return ( *( _data[ idx>>(LogSize*Depth) ] ) )[ idx & NestedVector< T , Depth-1 , LogSize >::_Mask ] ; }
 
-		size_t resize( size_t sz )
-		{
-			if( sz>_MaxSize ) ERROR_OUT( "Resize size exceeds max size, considering increasing nesting: " , sz , " > " , _MaxSize );
-
-			size_t _sz = (sz+NestedVector< T , Depth-1 , LogSize >::_Mask)>>(LogSize*Depth);
-
-			// Quick check to see if anything needs doing
-			if( !_sz || _sz<_size ) return size();
-
-			// Otherwise lock it down and get to work
-			std::lock_guard lock( _mutex );
-
-			// Check if the size got changed
-			if( _sz>_size )
-			{
-				for( size_t i=_size ; i<_sz ; i++ )
-				{
-					_data[i] = new _DataType();
-					size_t __sz = (_sz==i+1) ? ( sz - NestedVector< T , Depth-1 , LogSize >::_MaxSize * i ) : ( NestedVector< T , Depth-1 , LogSize >::_MaxSize );
-					_data[i]->resize( __sz );
-				}
-				_size = _sz;
-			}
-			else if( _sz==_size )
-			{
-				size_t i = _sz-1;
-				size_t __sz = _sz==(i+1) ? ( sz - NestedVector< T , Depth-1 , LogSize >::_MaxSize * i ) : ( NestedVector< T , Depth-1 , LogSize >::_MaxSize );
-				_data[i]->resize( __sz );
-			}
-			return size();
-		}
+		size_t resize( size_t sz ){ return resize( sz , T{} ); }
 
 		size_t resize( size_t sz , const T &defaultValue )
 		{

@@ -214,7 +214,11 @@ BSplineEvaluationData< FEMSig >::BSplineUpSamplingCoefficients::BSplineUpSamplin
 	memset( _coefficients , 0 , sizeof(int) * BSplineSupportSizes< Degree >::UpSampleSize );
 
 	// Get the array of coefficients, relative to the origin
-	int* coefficients = _coefficients - ( 2*offset + BSplineSupportSizes< Degree >::UpSampleStart );
+#ifdef SANITIZED_PR
+	int baseOffset = - ( 2*offset + BSplineSupportSizes< Degree >::UpSampleStart );
+#else // !SANITIZED_PR
+	Pointer( int ) coefficients = GetPointer( _coefficients , BSplineSupportSizes< Degree >::UpSampleSize ) - ( 2*offset + BSplineSupportSizes< Degree >::UpSampleStart );
+#endif // SANITIZED_PR
 	for( int i=BSplineSupportSizes< Degree >::UpSampleStart ; i<=BSplineSupportSizes< Degree >::UpSampleEnd ; i++ )
 	{
 		int _offset = 2*offset+i;
@@ -222,7 +226,11 @@ BSplineEvaluationData< FEMSig >::BSplineUpSamplingCoefficients::BSplineUpSamplin
 		if( useReflected || !reflect )
 		{
 			int _multiplier = multiplier * ( ( BType==BOUNDARY_DIRICHLET && reflect ) ? -1 : 1 );
+#ifdef SANITIZED_PR
+			_coefficients[ _offset + baseOffset ] += b[ i-BSplineSupportSizes< Degree >::UpSampleStart ] * _multiplier;
+#else // !SANITIZED_PR
 			coefficients[ _offset ] += b[ i-BSplineSupportSizes< Degree >::UpSampleStart ] * _multiplier;
+#endif // SANITIZED_PR
 		}
 		// If we are not inset and we are at the boundary, use the reflection as well
 		if( BType!=BOUNDARY_FREE && !BSplineSupportSizes< Degree >::Inset && ( offset % (dim-1) ) && !( _offset % (_dim-1) ) )
@@ -230,7 +238,11 @@ BSplineEvaluationData< FEMSig >::BSplineUpSamplingCoefficients::BSplineUpSamplin
 			_offset = BSplineData< FEMSig >::RemapOffset( depth+1 , _offset , reflect );
 			int _multiplier = multiplier * ( ( BType==BOUNDARY_DIRICHLET && reflect ) ? -1 : 1 );
 			if( BType==BOUNDARY_DIRICHLET ) _multiplier *= -1;
+#ifdef SANITIZED_PR
+			_coefficients[ _offset + baseOffset ] += b[ i-BSplineSupportSizes< Degree >::UpSampleStart ] * _multiplier;
+#else // !SANITIZED_PR
 			coefficients[ _offset ] += b[ i-BSplineSupportSizes< Degree >::UpSampleStart ] * _multiplier;
+#endif // SANITIZED_PR
 		}
 	}
 }

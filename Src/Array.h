@@ -32,8 +32,12 @@ DAMAGE.
 #include <vector>
 #include "MyExceptions.h"
 
+#ifdef ARRAY_DEBUG
+#else // !ARRAY_DEBUG
 namespace PoissonRecon
 {
+#endif // ARRAY_DEBUG
+	
 	// Code from http://stackoverflow.com
 	inline void* aligned_malloc( size_t size , size_t align )
 	{
@@ -109,6 +113,6 @@ namespace PoissonRecon
 	template< class C > const C* GetPointer( const C* c , size_t sz ) { return c; }
 	template< class C >       C* GetPointer(       C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return c; }
 	template< class C > const C* GetPointer( const C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return c; }
-#endif // ARRAY_DEBUG
 }
+#endif // ARRAY_DEBUG
 #endif // ARRAY_INCLUDED
