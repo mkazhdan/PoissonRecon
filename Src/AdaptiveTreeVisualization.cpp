@@ -405,12 +405,12 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 		Factory factory = VInfo::GetFactory();
 
 		// A backing stream for the vertices
-		Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false );
+		Reconstructor::OutputInputFactoryTypeStream< Factory , false > vertexStream( factory , false );
 		Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
 
 		{
 			// The wrapper converting native to output types
-			typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
+			typename VInfo::StreamWrapper _vertexStream( vertexStream );
 			Reconstructor::TransformedOutputVertexStream< Real , Dim > __vertexStream( modelToUnitCube.inverse() , _vertexStream );
 
 			// Extract the mesh

@@ -102,6 +102,7 @@ struct SphereSampleStream : public Reconstructor::InputSampleStream< Real , Dim 
 		}
 		else return false;
 	}
+	bool base_read( unsigned int , Point< Real , Dim > &p , Point< Real , Dim > &n ){ return base_read( p , n ); }
 
 	static Point< Real , Dim > RandomSpherePoint( std::default_random_engine &generator , std::uniform_real_distribution< Real > &distribution )
 	{
@@ -118,7 +119,7 @@ protected:
 
 // A stream for generating random samples with color on the sphere
 template< typename Real , unsigned int Dim >
-struct SphereSampleWithColorStream : public Reconstructor::InputSampleWithDataStream< Real , Dim , RGBColor< Real > >
+struct SphereSampleWithColorStream : public Reconstructor::InputSampleStream< Real , Dim , RGBColor< Real > >
 {
 	// from https://en.cppreference.com/w/cpp/numeric/random/uniform_real_distribution
 	std::random_device randomDevice;
@@ -128,12 +129,12 @@ struct SphereSampleWithColorStream : public Reconstructor::InputSampleWithDataSt
 	// Constructs a stream that contains the specified number of samples
 	SphereSampleWithColorStream( unsigned int sz ) :
 		_size(sz) , _current(0) , generator(0) , distribution((Real)-1.0,(Real)1.0) ,
-		Reconstructor::InputSampleWithDataStream< Real , Dim , RGBColor< Real > >( RGBColor< Real >() ) {}
+		Reconstructor::InputSampleStream< Real , Dim , RGBColor< Real > >( RGBColor< Real >() ) {}
 
-	// Overrides the pure abstract method from InputSampleWithDataStream< Real , Dim , RGBColor< Real > >
+	// Overrides the pure abstract method from InputSampleStream< Real , Dim , RGBColor< Real > >
 	void reset( void ){ generator.seed(0) ; _current = 0; }
 
-	// Overrides the pure abstract method from InputSampleWithDataStream< Real , Dim , RGBColor< Real > >
+	// Overrides the pure abstract method from InputSampleStream< Real , Dim , RGBColor< Real > >
 	bool base_read( Point< Real , Dim > &p , Point< Real , Dim > &n , RGBColor< Real > &c )
 	{
 		if( _current<_size )
@@ -148,6 +149,7 @@ struct SphereSampleWithColorStream : public Reconstructor::InputSampleWithDataSt
 		}
 		else return false;
 	}
+	bool base_read( unsigned int , Point< Real , Dim > &p , Point< Real , Dim > &n , RGBColor< Real > &c ){ return base_read( p , n ,c ); }
 
 	static Point< Real , Dim > RandomSpherePoint( std::default_random_engine &generator , std::uniform_real_distribution< Real > &distribution )
 	{
@@ -188,14 +190,15 @@ struct VertexStream : public Reconstructor::OutputVertexStream< Real , Dim >
 	VertexStream( std::vector< Real > &vCoordinates ) : _vCoordinates( vCoordinates ) {}
 
 	// Override the pure abstract method from Reconstructor::OutputVertexStream< Real , Dim >
-	void base_write( Point< Real , Dim > p , Point< Real , Dim > , Real ){ for( unsigned int d=0 ; d<Dim ; d++ ) _vCoordinates.push_back( p[d] ); }
+	void base_write(                Point< Real , Dim > p , Point< Real , Dim >   , Real   ){ for( unsigned int d=0 ; d<Dim ; d++ ) _vCoordinates.push_back( p[d] ); }
+	void base_write( unsigned int , Point< Real , Dim > p , Point< Real , Dim > g , Real r ){ return base_write( p , g , r ); }
 protected:
 	std::vector< Real > &_vCoordinates;
 };
 
 // A stream into which we can write the output vertices and colors of the extracted mesh
 template< typename Real , unsigned int Dim >
-struct VertexWithColorStream : public Reconstructor::OutputVertexWithDataStream< Real , Dim , RGBColor< Real > >
+struct VertexWithColorStream : public Reconstructor::OutputVertexStream< Real , Dim , RGBColor< Real > >
 {
 	// Construct a stream that adds vertices into the coordinates
 	VertexWithColorStream( std::vector< Real > &vCoordinates , std::vector< Real > &rgbCoordinates ) :
@@ -209,6 +212,7 @@ struct VertexWithColorStream : public Reconstructor::OutputVertexWithDataStream<
 		_rgbCoordinates.push_back( c.g );
 		_rgbCoordinates.push_back( c.b );
 	}
+	void base_write( unsigned int , Point< Real , Dim > p , Point< Real , Dim > g , Real r , RGBColor< Real > c ){ return base_write( p , g , r , c ); }
 protected:
 	std::vector< Real > &_vCoordinates;
 	std::vector< Real > &_rgbCoordinates;

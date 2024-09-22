@@ -43,26 +43,34 @@ namespace PoissonRecon
 		template< typename Real , unsigned int Dim > using Gradient = Point< Real , Dim >;
 
 		// Basic types
-		template< typename Real , unsigned int Dim >
-		using BaseSample = VectorTypeUnion< Real , Position< Real , Dim > , Normal< Real , Dim > >;
+		template< typename Real , unsigned int Dim , typename ... Other >
+		using BaseSample = std::conditional_t< sizeof...(Other)==0 , VectorTypeUnion< Real , Position< Real , Dim > , Normal< Real , Dim > > , VectorTypeUnion< Real , Position< Real , Dim > , VectorTypeUnion< Real , Normal< Real , Dim > , Other... > > >;
 
-		template< typename Real , unsigned int Dim , typename Data >
-		using BaseSampleWithData = VectorTypeUnion< Real , Position< Real , Dim > , VectorTypeUnion< Real , Normal< Real , Dim > , Data > >;
+		// The types output by the extractor
+		template< typename Real , unsigned int Dim , typename ... Other >
+		using LevelSetVertex = typename LevelSetExtractor< Real , Dim , Other... >::Vertex;
 
-		template< typename Real , unsigned int Dim >
-		using BaseVertex = VectorTypeUnion< Real , Position< Real , Dim > , Normal< Real , Dim > , Real >;
+		template< typename Real , unsigned int Dim , typename ... Other >
+		using LevelSetIndexedVertex = typename LevelSetExtractor< Real , Dim , Other... >::IndexedVertex;
 
-		template< typename Real , unsigned int Dim , typename Data >
-		using BaseVertexWithData = VectorTypeUnion< Real , Position< Real , Dim > , Gradient< Real , Dim > , Real , Data >;
+		template< typename Real , unsigned int Dim , typename ... Other > using BaseInputSampleStream = InputDataStream< BaseSample< Real , Dim  , Other... > >;
+		template< typename Real , unsigned int Dim , typename ... Other > using LevelSetVertexStream = OutputDataStream< LevelSetVertex< Real , Dim , Other... > >;
+		template< typename Real , unsigned int Dim , typename ... Other > using LevelSetIndexedVertexStream = OutputDataStream< LevelSetIndexedVertex< Real , Dim , Other... > >;
+
+		// Stream types
+		template< typename Real , unsigned int Dim , typename ... Other > struct InputSampleStream;
+
+		template< typename Real , unsigned int Dim , typename InputStream , typename ... Other > struct TransformedInputSampleStream;
+		template< typename Real , unsigned int Dim , typename ... Other > struct OutputVertexStream;
+		template< typename Real , unsigned int Dim , typename ... Other > struct OutputIndexedVertexStream;
+		template< typename Real , unsigned int Dim , typename ... Other > struct TransformedOutputVertexStream;
+		template< typename Real , unsigned int Dim , typename ... Other > struct TransformedOutputIndexedVertexStream;
+		template< typename Vertex , typename Real , unsigned int Dim , typename ... Other > struct OutputVertexStreamWrapper;
+		template< typename Vertex , typename Real , unsigned int Dim , typename ... Other > struct OutputIndexedVertexStreamWrapper;
+		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename ... Other > struct OutputVertexInfo;
+		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename ... Other > struct OutputIndexedVertexInfo;
 
 		template< unsigned int FaceDim , typename T=node_index_type > using Face = std::conditional_t< FaceDim==2 , std::vector< T > , std::conditional_t< FaceDim==1 , std::pair< T , T > , void * > >;
-
-		// Basic streams
-		template< typename Real , unsigned int Dim                 > using BaseInputSampleStream         = InputDataStream< BaseSample        < Real , Dim >        >;
-		template< typename Real , unsigned int Dim , typename Data > using BaseInputSampleWithDataStream = InputDataStream< BaseSampleWithData< Real , Dim , Data > >;
-
-		template< typename Real , unsigned int Dim                 > using BaseOutputVertexStream         = OutputDataStream< BaseVertex        < Real , Dim >        >;
-		template< typename Real , unsigned int Dim , typename Data > using BaseOutputVertexWithDataStream = OutputDataStream< BaseVertexWithData< Real , Dim , Data > >;
 
 		template< unsigned int FaceDim > using  InputFaceStream =  InputDataStream< Face< FaceDim > >;
 		template< unsigned int FaceDim > using OutputFaceStream = OutputDataStream< Face< FaceDim > >;
@@ -78,19 +86,23 @@ namespace PoissonRecon
 
 			// Functionality to extract the next position/normal pair.
 			// The method returns true if there was another point in the stream to read, and false otherwise
-			virtual bool base_read( Position< Real , Dim > &p , Real &v ) = 0;
+			virtual bool base_read(                       Position< Real , Dim > &p , Real &v ) = 0;
+			virtual bool base_read( unsigned int thread , Position< Real , Dim > &p , Real &v ) = 0;
 			// Implementation of InputDataStream::read
-			bool base_read( VectorTypeUnion< Real , Point< Real , Dim > , Real > &s ){ return base_read( s.template get<0>() , s.template get<1>() ); }
+			bool base_read(                       VectorTypeUnion< Real , Point< Real , Dim > , Real > &s ){ return base_read(          s.template get<0>() , s.template get<1>() ); }
+			bool base_read( unsigned int thread , VectorTypeUnion< Real , Point< Real , Dim > , Real > &s ){ return base_read( thread , s.template get<0>() , s.template get<1>() ); }
 		};
 
 		/////////////////////////////////////////////////
 		// Transformed Value Interpolation Data Stream //
 		/////////////////////////////////////////////////
-		template< typename Real , unsigned int Dim >
+		template< typename Real , unsigned int Dim , typename InputStream >
 		struct TransformedValueInterpolationStream : public ValueInterpolationStream< Real , Dim >
 		{
+			static_assert( std::is_base_of< ValueInterpolationStream< Real , Dim > , InputStream >::value , "[ERROR] Unexpected stream type" );
+
 			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
-			TransformedValueInterpolationStream( XForm< Real , Dim+1 > xForm , ValueInterpolationStream< Real , Dim > &stream ) : _stream(stream) , _xForm(xForm) {}
+			TransformedValueInterpolationStream( XForm< Real , Dim+1 > xForm , InputStream &stream ) : _stream(stream) , _xForm(xForm) {}
 
 			// Functionality to reset the stream to the start
 			void reset( void ){ _stream.reset(); }
@@ -104,10 +116,17 @@ namespace PoissonRecon
 				if( ret ) p = _xForm * s.template get<0>() , v = s.template get<1>();
 				return ret;
 			}
+			bool base_read( unsigned int thread , Position< Real , Dim > &p , Real &v )
+			{
+				VectorTypeUnion< Real , Point< Real , Dim > , Real > s;
+				bool ret = _stream.read( thread , s );
+				if( ret ) p = _xForm * s.template get<0>() , v = s.template get<1>();
+				return ret;
+			}
 
 		protected:
 			// A reference to the underlying stream
-			ValueInterpolationStream< Real , Dim > &_stream;
+			InputStream &_stream;
 
 			// The affine transformation to be applied to the positions
 			XForm< Real , Dim+1 > _xForm;
@@ -117,26 +136,28 @@ namespace PoissonRecon
 		// Oriented Point Stream //
 		///////////////////////////
 		template< typename Real , unsigned int Dim >
-		struct InputSampleStream : public BaseInputSampleStream< Real , Dim >
+		struct InputSampleStream< Real , Dim > : public BaseInputSampleStream< Real , Dim >
 		{
 			// Functionality to reset the stream to the start
 			virtual void reset( void ) = 0;
 
 			// Functionality to extract the next position/normal pair.
 			// The method returns true if there was another point in the stream to read, and false otherwise
-			virtual bool base_read( Position< Real , Dim > &p , Normal< Real , Dim > &n ) = 0;
+			virtual bool base_read(                       Position< Real , Dim > &p , Normal< Real , Dim > &n ) = 0;
+			virtual bool base_read( unsigned int thread , Position< Real , Dim > &p , Normal< Real , Dim > &n ) = 0;
 			// Implementation of InputDataStream::read
-			bool base_read( BaseSample< Real , Dim > &s ){ return base_read( s.template get<0>() , s.template get<1>() ); }
+			bool base_read(                       BaseSample< Real , Dim > &s ){ return base_read(          s.template get<0>() , s.template get<1>() ); }
+			bool base_read( unsigned int thread , BaseSample< Real , Dim > &s ){ return base_read( thread , s.template get<0>() , s.template get<1>() ); }
 		};
 
 		///////////////////////////////////
 		// Oriented Point w/ Data Stream //
 		///////////////////////////////////
 		template< typename Real , unsigned int Dim , typename Data >
-		struct InputSampleWithDataStream : public BaseInputSampleWithDataStream< Real , Dim , Data >
+		struct InputSampleStream< Real , Dim , Data > : public BaseInputSampleStream< Real , Dim , Data >
 		{
 			// A constructor initialized with an instance of "zero" data
-			InputSampleWithDataStream( Data zero ) : _zero(zero) {}
+			InputSampleStream( Data zero ) : _zero(zero) {}
 
 			// Functionality to reset the stream to the start
 			virtual void reset( void ) = 0;
@@ -146,8 +167,10 @@ namespace PoissonRecon
 
 			// Functionality to extract the next position/normal pair.
 			// The method returns true if there was another point in the stream to read, and false otherwise
-			virtual bool base_read( Position< Real , Dim > &p , Normal< Real , Dim > &n , Data &d ) = 0;
-			bool base_read( BaseSampleWithData< Real , Dim , Data > &s ){ return base_read( s.template get<0>() , s.template get<1>().template get<0>() , s.template get<1>().template get<1>() ); }
+			virtual bool base_read(                       Position< Real , Dim > &p , Normal< Real , Dim > &n , Data &d ) = 0;
+			virtual bool base_read( unsigned int thread , Position< Real , Dim > &p , Normal< Real , Dim > &n , Data &d ) = 0;
+			bool base_read(                       BaseSample< Real , Dim , Data > &s ){ return base_read(          s.template get<0>() , s.template get<1>().template get<0>() , s.template get<1>().template get<1>() ); }
+			bool base_read( unsigned int thread , BaseSample< Real , Dim , Data > &s ){ return base_read( thread , s.template get<0>() , s.template get<1>().template get<0>() , s.template get<1>().template get<1>() ); }
 
 			// An instance of "zero" data
 			Data _zero;
@@ -157,22 +180,12 @@ namespace PoissonRecon
 		///////////////////////////////////////
 		// Transformed Oriented Point Stream //
 		///////////////////////////////////////
-#ifdef DE_VIRTUALIZE_INPUT
 		template< typename Real , unsigned int Dim , typename InputStream >
-#else // !DE_VIRTUALIZE_INPUT
-		template< typename Real , unsigned int Dim >
-#endif // DE_VIRTUALIZE_INPUT
-		struct TransformedInputSampleStream : public InputSampleStream< Real , Dim >
+		struct TransformedInputSampleStream< Real , Dim , InputStream > : public InputSampleStream< Real , Dim >
 		{
-#ifdef DE_VIRTUALIZE_INPUT
 			static_assert( std::is_base_of< InputSampleStream< Real , Dim > , InputStream >::value , "[ERROR] Unexpected stream type" );
-#endif // DE_VIRTUALIZE_INPUT
 			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
-#ifdef DE_VIRTUALIZE_INPUT
 			TransformedInputSampleStream( XForm< Real , Dim+1 > xForm , InputStream &stream ) : _stream(stream) , _positionXForm(xForm)
-#else // !DE_VIRTUALIZE_INPUT
-			TransformedInputSampleStream( XForm< Real , Dim+1 > xForm , InputSampleStream< Real , Dim > &stream ) : _stream(stream) , _positionXForm(xForm)
-#endif // DE_VIRTUALIZE_INPUT
 			{
 				_normalXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( fabs( xForm.determinant() ) , 1./Dim );
 			}
@@ -189,14 +202,17 @@ namespace PoissonRecon
 				if( ret ) p = _positionXForm * s.template get<0>() , n = _normalXForm * s.template get<1>();
 				return ret;
 			}
+			bool base_read( unsigned int thread , Position< Real , Dim > &p , Normal< Real , Dim > &n )
+			{
+				BaseSample< Real , Dim > s;
+				bool ret = _stream.read( thread , s );
+				if( ret ) p = _positionXForm * s.template get<0>() , n = _normalXForm * s.template get<1>();
+				return ret;
+			}
 
 		protected:
 			// A reference to the underlying stream
-#ifdef DE_VIRTUALIZE_INPUT
 			InputStream &_stream;
-#else // !DE_VIRTUALIZE_INPUT
-			InputSampleStream< Real , Dim > &_stream;
-#endif // DE_VIRTUALIZE_INPUT
 
 			// The affine transformation to be applied to the positions
 			XForm< Real , Dim+1 > _positionXForm;
@@ -208,22 +224,13 @@ namespace PoissonRecon
 		///////////////////////////////////////////////
 		// Transformed Oriented Point w/ Data Stream //
 		///////////////////////////////////////////////
-#ifdef DE_VIRTUALIZE_INPUT
-		template< typename Real , unsigned int Dim , typename Data , typename InputStream >
-#else // !DE_VIRTUALIZE_INPUT
-		template< typename Real , unsigned int Dim , typename Data >
-#endif // DE_VIRTUALIZE_INPUT
-		struct TransformedInputSampleWithDataStream : public InputSampleWithDataStream< Real , Dim , Data >
+		template< typename Real , unsigned int Dim , typename InputStream , typename Data >
+		struct TransformedInputSampleStream< Real , Dim , InputStream , Data > : public InputSampleStream< Real , Dim , Data >
 		{
-#ifdef DE_VIRTUALIZE_INPUT
-			static_assert( std::is_base_of< InputSampleWithDataStream< Real , Dim , Data > , InputStream >::value , "[ERROR] Unexpected stream type" );
-#endif // DE_VIRTUALIZE_INPUT
+			static_assert( std::is_base_of< InputSampleStream< Real , Dim , Data > , InputStream >::value , "[ERROR] Unexpected stream type" );
+
 			// A constructor initialized with an instance of "zero" data
-#ifdef DE_VIRTUALIZE_INPUT
-			TransformedInputSampleWithDataStream( XForm< Real , Dim+1 > xForm , InputStream &stream ) : InputSampleWithDataStream< Real , Dim , Data >( stream.zero() ) , _stream(stream) , _positionXForm(xForm)
-#else // !DE_VIRTUALIZE_INPUT
-			TransformedInputSampleWithDataStream( XForm< Real , Dim+1 > xForm , InputSampleWithDataStream< Real , Dim , Data > &stream ) : InputSampleWithDataStream< Real , Dim , Data >( stream.zero() ) , _stream(stream) , _positionXForm(xForm)
-#endif // DE_VIRTUALIZE_INPUT
+			TransformedInputSampleStream( XForm< Real , Dim+1 > xForm , InputStream &stream ) : InputSampleStream< Real , Dim , Data >( stream.zero() ) , _stream(stream) , _positionXForm(xForm)
 			{
 				_normalXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
 			}
@@ -235,19 +242,22 @@ namespace PoissonRecon
 			// The method returns true if there was another point in the stream to read, and false otherwise
 			bool base_read( Position< Real , Dim > &p , Normal< Real , Dim > &n , Data &d )
 			{
-				BaseSampleWithData< Real , Dim , Data > s( Position< Real , Dim >() , VectorTypeUnion< Real , Normal< Real , Dim > , Data  >( Normal< Real , Dim >() , _stream.zero() ) );
+				BaseSample< Real , Dim , Data > s( Position< Real , Dim >() , VectorTypeUnion< Real , Normal< Real , Dim > , Data  >( Normal< Real , Dim >() , _stream.zero() ) );
 				bool ret = _stream.read( s );
+				if( ret ) p = _positionXForm * s.template get<0>() , n = _normalXForm * s.template get<1>().template get<0>() , d = s.template get<1>().template get<1>();
+				return ret;
+			}
+			bool base_read( unsigned int thread , Position< Real , Dim > &p , Normal< Real , Dim > &n , Data &d )
+			{
+				BaseSample< Real , Dim , Data > s( Position< Real , Dim >() , VectorTypeUnion< Real , Normal< Real , Dim > , Data  >( Normal< Real , Dim >() , _stream.zero() ) );
+				bool ret = _stream.read( thread , s );
 				if( ret ) p = _positionXForm * s.template get<0>() , n = _normalXForm * s.template get<1>().template get<0>() , d = s.template get<1>().template get<1>();
 				return ret;
 			}
 
 		protected:
 			// A reference to the underlying stream
-#ifdef DE_VIRTUALIZE_INPUT
 			InputStream &_stream;
-#else // !DE_VIRTUALIZE_INPUT
-			InputSampleWithDataStream< Real , Dim , Data > &_stream;
-#endif // DE_VIRTUALIZE_INPUT
 
 			// The affine transformation to be applied to the positions
 			XForm< Real , Dim+1 > _positionXForm;
@@ -257,39 +267,82 @@ namespace PoissonRecon
 		};
 
 
-		///////////////////
-		// Vertex Stream //
-		///////////////////
+		//////////////////////////////////////////////////////////////////////////////
+		// Vertex Stream:                                                           //
+		// Looks like a LevelSetVertexStream, but supports component-wise insertion //
+		//////////////////////////////////////////////////////////////////////////////
 		template< typename Real , unsigned int Dim >
-		struct OutputVertexStream : public BaseOutputVertexStream< Real , Dim >
+		struct OutputVertexStream< Real , Dim > : public LevelSetVertexStream< Real , Dim >
 		{
 			// Need to provide access to base write for counter support
-			using BaseOutputVertexStream< Real , Dim >::write;
+			using LevelSetVertexStream< Real , Dim >::write;
 
 			// Functionality to insert the next vertex
-			virtual void base_write( Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
-			void base_write( const BaseVertex< Real , Dim > &v ){ base_write( v.template get<0>() , v.template get<1>() , v.template get<2>() ); }
+			virtual void base_write(                       Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
+			virtual void base_write( unsigned int thread , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
+			void base_write(                       const LevelSetVertex< Real , Dim > &v ){ base_write(          v.template get<0>() , v.template get<1>() , v.template get<2>() ); }
+			void base_write( unsigned int thread , const LevelSetVertex< Real , Dim > &v ){ base_write( thread , v.template get<0>() , v.template get<1>() , v.template get<2>() ); }
+		};
+
+		///////////////////////////
+		// Indexed Vertex Stream //
+		///////////////////////////
+		template< typename Real , unsigned int Dim >
+		struct OutputIndexedVertexStream< Real , Dim > : public LevelSetIndexedVertexStream< Real , Dim >
+		{
+			// Need to provide access to base write for counter support
+			using LevelSetIndexedVertexStream< Real , Dim >::write;
+
+			// Functionality to insert the next vertex
+			virtual void base_write(                       node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
+			virtual void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
+			void base_write( const LevelSetIndexedVertex< Real , Dim > &v )
+			{
+				base_write( v.first , v.second.template get<0>() , v.second.template get<1>() , v.second.template get<2>() );
+			}
+			void base_write( unsigned int thread , const LevelSetIndexedVertex< Real , Dim > &v )
+			{
+				base_write( thread , v.first , v.second.template get<0>() , v.second.template get<1>() , v.second.template get<2>() );
+			}
 		};
 
 		///////////////////////////
 		// Vertex w/ Data Stream //
 		///////////////////////////
 		template< typename Real , unsigned int Dim , typename Data >
-		struct OutputVertexWithDataStream : public BaseOutputVertexWithDataStream< Real , Dim , Data >
+		struct OutputVertexStream< Real , Dim , Data > : public LevelSetVertexStream< Real , Dim , Data >
 		{
 			// Need to provide access to base write for counter support
-			using BaseOutputVertexWithDataStream< Real , Dim , Data >::write;
+			using LevelSetVertexStream< Real , Dim , Data >::write;
 
 			// Functionality to insert the next vertex
-			virtual void base_write( Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
-			void base_write( const BaseVertexWithData< Real , Dim , Data > &v ){ return base_write( v.template get<0>() , v.template get<1>() , v.template get<2>() , v.template get<3>() ); }
+			virtual void base_write(                       Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
+			virtual void base_write( unsigned int thread , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
+			void base_write(                       const LevelSetVertex< Real , Dim , Data > &v ){ return base_write(          v.template get<0>() , v.template get<1>() , v.template get<2>() , v.template get<3>() ); }
+			void base_write( unsigned int thread , const LevelSetVertex< Real , Dim , Data > &v ){ return base_write( thread , v.template get<0>() , v.template get<1>() , v.template get<2>() , v.template get<3>() ); }
+		};
+
+		///////////////////////////////////
+		// Indexed vertex w/ Data Stream //
+		///////////////////////////////////
+		template< typename Real , unsigned int Dim , typename Data >
+		struct OutputIndexedVertexStream< Real , Dim , Data > : public LevelSetIndexedVertexStream< Real , Dim , Data >
+		{
+			// Need to provide access to base write for counter support
+			using LevelSetIndexedVertexStream< Real , Dim , Data >::write;
+
+			// Functionality to insert the next vertex
+			virtual void base_write(                       node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
+			virtual void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
+			void base_write(                       const LevelSetIndexedVertex< Real , Dim , Data > &v ){ return base_write(          v.first , v.second.template get<0>() , v.second.template get<1>() , v.second.template get<2>() , v.second.template get<3>() ); }
+			void base_write( unsigned int thread , const LevelSetIndexedVertex< Real , Dim , Data > &v ){ return base_write( thread , v.first , v.second.template get<0>() , v.second.template get<1>() , v.second.template get<2>() , v.second.template get<3>() ); }
 		};
 
 		///////////////////////////////
 		// Transformed Vertex Stream //
 		///////////////////////////////
 		template< typename Real , unsigned int Dim >
-		struct TransformedOutputVertexStream : public OutputVertexStream< Real , Dim >
+		struct TransformedOutputVertexStream< Real , Dim > : public OutputVertexStream< Real , Dim >
 		{
 			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
 			TransformedOutputVertexStream( XForm< Real , Dim+1 > xForm , OutputVertexStream< Real , Dim > &stream ) : _stream(stream) , _positionXForm(xForm)
@@ -298,7 +351,8 @@ namespace PoissonRecon
 			}
 
 			// Need to write the union to ensure that the counter gets set
-			void base_write( Position< Real , Dim > p , Normal< Real , Dim > g , Real w ){ _stream.write( BaseVertex< Real , Dim >( _positionXForm * p , _gradientXForm * g , w ) ); }
+			void base_write(                       Position< Real , Dim > p , Normal< Real , Dim > g , Real w ){ _stream.write(          LevelSetVertex< Real , Dim >( _positionXForm * p , _gradientXForm * g , w ) ); }
+			void base_write( unsigned int thread , Position< Real , Dim > p , Normal< Real , Dim > g , Real w ){ _stream.write( thread , LevelSetVertex< Real , Dim >( _positionXForm * p , _gradientXForm * g , w ) ); }
 
 		protected:
 			// A reference to the underlying stream
@@ -316,19 +370,86 @@ namespace PoissonRecon
 		// Transformed Vertex w/ Data Stream //
 		///////////////////////////////////////
 		template< typename Real , unsigned int Dim , typename Data >
-		struct TransformedOutputVertexWithDataStream : public OutputVertexWithDataStream< Real , Dim , Data >
+		struct TransformedOutputVertexStream< Real , Dim , Data > : public OutputVertexStream< Real , Dim , Data >
 		{
 			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
-			TransformedOutputVertexWithDataStream( XForm< Real , Dim+1 > xForm , OutputVertexWithDataStream< Real , Dim , Data > &stream ) : _stream(stream) , _positionXForm(xForm)
+			TransformedOutputVertexStream( XForm< Real , Dim+1 > xForm , OutputVertexStream< Real , Dim , Data > &stream ) : _stream(stream) , _positionXForm(xForm)
 			{
 				_gradientXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
 			}
 
-			void base_write( Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d ){ _stream.write( BaseVertexWithData< Real , Dim , Data >( _positionXForm * p , _gradientXForm * g , w , d ) ); }
+			void base_write(                       Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d ){ _stream.write(          LevelSetVertex< Real , Dim , Data >( _positionXForm * p , _gradientXForm * g , w , d ) ); }
+			void base_write( unsigned int thread , Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d ){ _stream.write( thread , LevelSetVertex< Real , Dim , Data >( _positionXForm * p , _gradientXForm * g , w , d ) ); }
 
 		protected:
 			// A reference to the underlying stream
-			OutputVertexWithDataStream< Real , Dim , Data > &_stream;
+			OutputVertexStream< Real , Dim , Data > &_stream;
+
+			// The affine transformation to be applied to the positions
+			XForm< Real , Dim+1 > _positionXForm;
+
+			// The linear transformation to be applied to the normals
+			XForm< Real , Dim > _gradientXForm;
+		};
+
+		///////////////////////////////////////
+		// Transformed Indexed Vertex Stream //
+		///////////////////////////////////////
+		template< typename Real , unsigned int Dim >
+		struct TransformedOutputIndexedVertexStream< Real , Dim > : public OutputIndexedVertexStream< Real , Dim >
+		{
+			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
+			TransformedOutputIndexedVertexStream( XForm< Real , Dim+1 > xForm , OutputIndexedVertexStream< Real , Dim > &stream ) : _stream(stream) , _positionXForm(xForm)
+			{
+				_gradientXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
+			}
+
+			// Need to write the union to ensure that the counter gets set
+			void base_write( node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w )
+			{
+				_stream.write( std::pair< node_index_type , LevelSetVertex< Real , Dim > >( idx , LevelSetVertex< Real , Dim > (_positionXForm * p , _gradientXForm * g , w ) ) );
+			}
+			void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w )
+			{
+				_stream.write( thread , std::pair< node_index_type , LevelSetVertex< Real , Dim > >( idx , LevelSetVertex< Real , Dim > (_positionXForm * p , _gradientXForm * g , w ) ) );
+			}
+
+		protected:
+			// A reference to the underlying stream
+			OutputIndexedVertexStream< Real , Dim > &_stream;
+
+			// The affine transformation to be applied to the positions
+			XForm< Real , Dim+1 > _positionXForm;
+
+			// The linear transformation to be applied to the normals
+			XForm< Real , Dim > _gradientXForm;
+		};
+
+
+		///////////////////////////////////////////////
+		// Transformed Indexed Vertex w/ Data Stream //
+		///////////////////////////////////////////////
+		template< typename Real , unsigned int Dim , typename Data >
+		struct TransformedOutputIndexedVertexStream< Real , Dim , Data > : public OutputIndexedVertexStream< Real , Dim , Data >
+		{
+			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
+			TransformedOutputIndexedVertexStream( XForm< Real , Dim+1 > xForm , OutputIndexedVertexStream< Real , Dim , Data > &stream ) : _stream(stream) , _positionXForm(xForm)
+			{
+				_gradientXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
+			}
+
+			void base_write( node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d )
+			{
+				_stream.write( std::pair< node_index_type , LevelSetVertex< Real , Dim , Data > >( idx , LevelSetVertex< Real , Dim , Data >( _positionXForm * p , _gradientXForm * g , w , d ) ) );
+			}
+			void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d )
+			{
+				_stream.write( thread , std::pair< node_index_type , LevelSetVertex< Real , Dim , Data > >( idx , LevelSetVertex< Real , Dim , Data >( _positionXForm * p , _gradientXForm * g , w , d ) ) );
+			}
+
+		protected:
+			// A reference to the underlying stream
+			OutputIndexedVertexStream< Real , Dim , Data > &_stream;
 
 			// The affine transformation to be applied to the positions
 			XForm< Real , Dim+1 > _positionXForm;
@@ -340,49 +461,136 @@ namespace PoissonRecon
 		///////////////////////////////////////////
 		// A wrapper class to write out vertices //
 		///////////////////////////////////////////
-		template< typename Real , unsigned int Dim , typename Vertex >
-		struct OutputVertexStreamWrapper : public OutputVertexStream< Real , Dim >
+		template< typename Vertex , typename Real , unsigned int Dim >
+		struct OutputVertexStreamWrapper< Vertex , Real , Dim > : public OutputVertexStream< Real , Dim >
 		{
-			virtual void set( Vertex &out , const BaseVertex< Real , Dim > &in ) = 0;
+			virtual Vertex toOutputVertex( const LevelSetVertex< Real , Dim > &in ) = 0;
 
-			OutputVertexStreamWrapper( OutputDataStream< Vertex > &stream , Vertex out ) : _stream(stream) , _out(out) {}
+			OutputVertexStreamWrapper( OutputDataStream< Vertex > &stream ) : _stream(stream){}
 
 			void base_write( Position< Real , Dim > p , Normal< Real , Dim > g , Real w )
 			{
-				_in.template get<0>() = p;
-				_in.template get<1>() = g;
-				_in.template get<2>() = w;
-				set( _out , _in );
-				_stream.write( _out );
+				LevelSetVertex< Real , Dim > in;
+				in.template get<0>() = p;
+				in.template get<1>() = g;
+				in.template get<2>() = w;
+
+				Vertex out = toOutputVertex( in );
+				_stream.write( out );
+			}
+			void base_write( unsigned int thread , Position< Real , Dim > p , Normal< Real , Dim > g , Real w )
+			{
+				LevelSetVertex< Real , Dim > in;
+				in.template get<0>() = p;
+				in.template get<1>() = g;
+				in.template get<2>() = w;
+
+				Vertex out = toOutputVertex( in );
+				_stream.write( thread , out );
 			}
 		protected:
 			OutputDataStream< Vertex > &_stream;
-			BaseVertex< Real , Dim > _in;
-			Vertex _out;
 		};
 
-		template< typename Real , unsigned int Dim , typename Data , typename Vertex >
-		struct OutputVertexWithDataStreamWrapper : public OutputVertexWithDataStream< Real , Dim , Data >
+		template< typename Vertex , typename Real , unsigned int Dim , typename Data >
+		struct OutputVertexStreamWrapper< Vertex , Real , Dim , Data > : public OutputVertexStream< Real , Dim , Data >
 		{
-			virtual void set( Vertex &out , const BaseVertexWithData< Real , Dim , Data > &in ) = 0;
+			virtual Vertex toOutputVertex( const LevelSetVertex< Real , Dim , Data > &in ) = 0;
 
-			OutputVertexWithDataStreamWrapper( OutputDataStream< Vertex > &stream , BaseVertexWithData< Real , Dim , Data > in , Vertex out ) : _stream(stream) , _in(in) , _out(out) {}
+			OutputVertexStreamWrapper( OutputDataStream< Vertex > &stream ) : _stream(stream){}
 
 			void base_write( Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d )
 			{
-				_in.template get<0>() = p;
-				_in.template get<1>() = g;
-				_in.template get<2>() = w;
-				_in.template get<3>() = d;
-				set( _out , _in );
-				_stream.write( _out );
+				LevelSetVertex< Real , Dim , Data > in;
+				in.template get<0>() = p;
+				in.template get<1>() = g;
+				in.template get<2>() = w;
+				in.template get<3>() = d;
+
+				Vertex out = toOutputVertex( in );
+				_stream.write( out );
+			}
+			void base_write( unsigned int thread , Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d )
+			{
+				LevelSetVertex< Real , Dim , Data > in;
+				in.template get<0>() = p;
+				in.template get<1>() = g;
+				in.template get<2>() = w;
+				in.template get<3>() = d;
+
+				Vertex out = toOutputVertex( in );
+				_stream.write( thread , out );
 			}
 		protected:
 			OutputDataStream< Vertex > &_stream;
-			BaseVertexWithData< Real , Dim , Data > _in;
-			Vertex _out;
 		};
 
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		// A wrapper class to write out indexed vertices: OutputDataStream< IndexedVertex > -> OutputIndexedVertexStream< Real , Dim > //
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		template< typename Vertex , typename Real , unsigned int Dim >
+		struct OutputIndexedVertexStreamWrapper< Vertex , Real , Dim > : public OutputIndexedVertexStream< Real , Dim >
+		{
+			virtual Vertex toOutputVertex( const LevelSetVertex< Real , Dim > &in ) = 0;
+
+			OutputIndexedVertexStreamWrapper( OutputDataStream< std::pair< node_index_type , Vertex > > &stream ) : _stream(stream){}
+
+			void base_write( node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w )
+			{
+				LevelSetVertex< Real , Dim > in;
+				in.template get<0>() = p;
+				in.template get<1>() = g;
+				in.template get<2>() = w;
+
+				std::pair< node_index_type , Vertex > out( idx , toOutputVertex(in) );
+				_stream.write( out );
+			}
+			void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w )
+			{
+				LevelSetVertex< Real , Dim > in;
+				in.template get<0>() = p;
+				in.template get<1>() = g;
+				in.template get<2>() = w;
+
+				std::pair< node_index_type , Vertex > out( idx , toOutputVertex(in) );
+				_stream.write( thread , out );
+			}
+		protected:
+			OutputDataStream< std::pair< node_index_type , Vertex > > &_stream;
+		};
+
+		template< typename Vertex , typename Real , unsigned int Dim , typename Data >
+		struct OutputIndexedVertexStreamWrapper< Vertex , Real , Dim , Data > : public OutputIndexedVertexStream< Real , Dim , Data >
+		{
+			virtual Vertex toOutputVertex( const LevelSetVertex< Real , Dim , Data > &in ) = 0;
+
+			OutputIndexedVertexStreamWrapper( OutputDataStream< std::pair< node_index_type , Vertex > > &stream ) : _stream(stream){}
+
+			void base_write( node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d )
+			{
+				LevelSetVertex< Real , Dim , Data > in;
+				in.template get<0>() = p;
+				in.template get<1>() = g;
+				in.template get<2>() = w;
+				in.template get<3>() = d;
+
+				std::pair< node_index_type , Vertex > out( idx , toOutputVertex(in) );
+				_stream.write( out );
+			}
+			void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d )
+			{
+				LevelSetVertex< Real , Dim , Data > in;
+				in.template get<0>() = p;
+				in.template get<1>() = g;
+				in.template get<2>() = w;
+				in.template get<3>() = d;
+
+				std::pair< node_index_type , Vertex > out( idx , toOutputVertex(in) );
+				_stream.write( thread , out );
+			}
+		protected:
+			OutputDataStream< std::pair< node_index_type , Vertex > > &_stream;
+		};
 		//////////////////////////////////
 		// File-backed streaming memory //
 		//////////////////////////////////
@@ -518,19 +726,25 @@ namespace PoissonRecon
 			std::vector< OutputDataStream< Face< FaceDim > > * > _outStreams;
 		};
 
-		template< typename Factory >
-		struct OutputInputFactoryTypeStream : public OutputDataStream< typename Factory::VertexType > , public InputDataStream< typename Factory::VertexType >
+		template< typename Factory , bool Parallel >
+		struct OutputInputFactoryTypeStream :
+			public std::conditional_t< Parallel , MultiOutputDataStream< std::pair< node_index_type , typename Factory::VertexType > > , OutputDataStream< typename Factory::VertexType > > ,
+			public std::conditional_t< Parallel ,  MultiInputDataStream< std::pair< node_index_type , typename Factory::VertexType > > ,  InputDataStream< typename Factory::VertexType > >
 		{
-			typedef typename Factory::VertexType Vertex;
+			using Vertex = std::conditional_t< Parallel , std::pair< node_index_type , typename Factory::VertexType > , typename Factory::VertexType >;
 			// The streams for communicating the information
-			InputDataStream < Vertex > * inStream;
-			OutputDataStream< Vertex > *outStream;
+			using  InputStreamType = std::conditional_t< Parallel ,  MultiInputDataStream< Vertex > ,  InputDataStream< Vertex > >;
+			using OutputStreamType = std::conditional_t< Parallel , MultiOutputDataStream< Vertex > , OutputDataStream< Vertex > >;
+			InputStreamType * inStream;
+			OutputStreamType *outStream;
 
 			void reset( void ){ inStream->reset(); }
-			void base_write( const Vertex &v ){ outStream->write( v ); }
-			bool base_read( Vertex &v ){ return inStream->read( v ); }
+			void base_write(                       const Vertex &v ){ outStream->write(          v ); }
+			void base_write( unsigned int thread , const Vertex &v ){ outStream->write( thread , v ); }
+			bool base_read(                       Vertex &v ){ return inStream->read(          v ); }
+			bool base_read( unsigned int thread , Vertex &v ){ return inStream->read( thread , v ); }
 
-			OutputInputFactoryTypeStream( Factory &factory , bool inCore , bool multi )
+			OutputInputFactoryTypeStream( Factory &factory , bool inCore )
 			{
 				size_t sz = std::thread::hardware_concurrency();
 
@@ -545,7 +759,7 @@ namespace PoissonRecon
 
 				if( inCore )
 				{
-					if( multi )
+					if constexpr( Parallel )
 					{
 						for( unsigned int i=0 ; i<sz ; i++ )
 						{
@@ -566,13 +780,13 @@ namespace PoissonRecon
 				}
 				else
 				{
-					if( multi )
+					if constexpr( Parallel )
 					{
 						for( unsigned int i=0 ; i<sz ; i++ )
 						{
 							_backingFiles[i] = new FileBackedReadWriteStream::FileDescription( NULL );
-							_inStreams[i] = new FileBackedInputFactoryTypeStream< Factory >( _backingFiles[i]->fp , factory );
-							_outStreams[i] = new FileBackedOutputFactoryTypeStream< Factory >( _backingFiles[i]->fp , factory  );
+							_inStreams[i] = new FileBackedInputFactoryTypeStream< Factory , Parallel , node_index_type >( _backingFiles[i]->fp , factory );
+							_outStreams[i] = new FileBackedOutputFactoryTypeStream< Factory , Parallel , node_index_type >( _backingFiles[i]->fp , factory  );
 						}
 						inStream = new MultiInputDataStream< Vertex >( _inStreams );
 						outStream = new MultiOutputDataStream< Vertex >( _outStreams );
@@ -580,9 +794,14 @@ namespace PoissonRecon
 					else
 					{
 						_backingFile = new FileBackedReadWriteStream::FileDescription( NULL );
-						inStream = new FileBackedInputFactoryTypeStream< Factory >( _backingFile->fp , factory );
-						outStream = new FileBackedOutputFactoryTypeStream< Factory >( _backingFile->fp , factory );
+						inStream = new FileBackedInputFactoryTypeStream< Factory , Parallel , node_index_type >( _backingFile->fp , factory );
+						outStream = new FileBackedOutputFactoryTypeStream< Factory , Parallel , node_index_type >( _backingFile->fp , factory );
 					}
+				}
+				if constexpr( Parallel )
+				{
+					MultiOutputDataStream< std::pair< node_index_type , typename Factory::VertexType > >::_init( _outStreams );
+					MultiInputDataStream< std::pair< node_index_type , typename Factory::VertexType > >::_init( _inStreams );
 				}
 			}
 
@@ -614,7 +833,7 @@ namespace PoissonRecon
 		};
 
 		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity >
-		struct OutputVertexInfo
+		struct OutputVertexInfo< Real , Dim , HasGradients , HasDensity >
 		{
 			using Factory =
 				typename std::conditional
@@ -637,12 +856,14 @@ namespace PoissonRecon
 
 			static Factory GetFactory( void ){ return Factory(); }
 
-			struct StreamWrapper : public Reconstructor::OutputVertexStreamWrapper< Real , Dim , Vertex >
+			struct StreamWrapper : public Reconstructor::OutputVertexStreamWrapper< Vertex , Real , Dim >
 			{
-				StreamWrapper( OutputDataStream< Vertex > &stream , Vertex out ) :
-					Reconstructor::OutputVertexStreamWrapper< Real , Dim , Vertex >( stream , out ){}
-				void set( Vertex &out , const Reconstructor::BaseVertex< Real , Dim > &in )
+				StreamWrapper( OutputDataStream< Vertex > &stream ) :
+					Reconstructor::OutputVertexStreamWrapper< Vertex , Real , Dim >( stream ){}
+
+				Vertex toOutputVertex( const Reconstructor::LevelSetVertex< Real , Dim > &in )
 				{
+					Vertex out;
 					if constexpr( HasGradients || HasDensity )
 					{
 						out.template get<0>() = in.template get<0>();
@@ -657,12 +878,13 @@ namespace PoissonRecon
 						}
 					}
 					else out = in.template get<0>();
+					return out;
 				}
 			};
 		};
 
-		template< typename Real , unsigned int Dim , typename AuxDataFactory , bool HasGradients , bool HasDensity >
-		struct OutputVertexWithDataInfo
+		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename AuxDataFactory >
+		struct OutputVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >
 		{
 			using Factory =
 				typename std::conditional
@@ -700,13 +922,14 @@ namespace PoissonRecon
 				}
 			}
 
-			struct StreamWrapper : public Reconstructor::OutputVertexWithDataStreamWrapper< Real , Dim , AuxData , Vertex >
+			struct StreamWrapper : public Reconstructor::OutputVertexStreamWrapper< Vertex , Real , Dim , AuxData >
 			{
-				StreamWrapper( OutputDataStream< Vertex > &stream , Vertex out ) :
-					Reconstructor::OutputVertexWithDataStreamWrapper< Real , Dim , AuxData , Vertex >( stream , _Vertex() , out ){}
+				StreamWrapper( OutputDataStream< Vertex > &stream ) :
+					Reconstructor::OutputVertexStreamWrapper< Vertex , Real , Dim , AuxData >( stream ){}
 
-				void set( Vertex &out , const Reconstructor::BaseVertexWithData< Real , Dim , AuxData > &in )
+				Vertex toOutputVertex( const Reconstructor::LevelSetVertex< Real , Dim , AuxData > &in )
 				{
+					Vertex out;
 					out.template get<0>() = in.template get<0>();
 					if constexpr( HasGradients )
 					{
@@ -719,6 +942,123 @@ namespace PoissonRecon
 						if constexpr( HasDensity ) out.template get<1>() = in.template get<2>() , out.template get<2>() = in.template get<3>();
 						else out.template get<1>() = in.template get<3>();
 					}
+					return out;
+				}
+			};
+		};
+		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity >
+		struct OutputIndexedVertexInfo< Real , Dim , HasGradients , HasDensity >
+		{
+			using Factory =
+				typename std::conditional
+				<
+				HasGradients ,
+				typename std::conditional
+				<
+				HasDensity ,
+				VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::NormalFactory< Real , Dim > , VertexFactory::ValueFactory< Real > > ,
+				VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::NormalFactory< Real , Dim > >
+				>::type ,
+				typename std::conditional
+				<
+				HasDensity ,
+				VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::ValueFactory< Real > > ,
+				VertexFactory::PositionFactory< Real , Dim >
+				>::type
+				>::type;
+			using Vertex = typename Factory::VertexType;
+			using IndexedVertex = std::pair< node_index_type , Vertex >;
+
+			static Factory GetFactory( void ){ return Factory(); }
+
+			struct StreamWrapper : public Reconstructor::OutputIndexedVertexStreamWrapper< Vertex , Real , Dim >
+			{
+				StreamWrapper( OutputDataStream< IndexedVertex > &stream ) :
+					Reconstructor::OutputIndexedVertexStreamWrapper< Vertex , Real , Dim >( stream ){}
+
+				Vertex toOutputVertex( const Reconstructor::LevelSetVertex< Real , Dim > &in )
+				{
+					Vertex out;
+					if constexpr( HasGradients || HasDensity )
+					{
+						out.template get<0>() = in.template get<0>();
+						if constexpr( HasGradients )
+						{
+							out.template get<1>() = in.template get<1>();
+							if constexpr( HasDensity ) out.template get<2>() = in.template get<2>();
+						}
+						else
+						{
+							if constexpr( HasDensity ) out.template get<1>() = in.template get<2>();
+						}
+					}
+					else out = in.template get<0>();
+					return out;
+				}
+			};
+		};
+
+		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename AuxDataFactory >
+		struct OutputIndexedVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >
+		{
+			using Factory =
+				typename std::conditional
+				<
+				HasGradients ,
+				typename std::conditional
+				<
+				HasDensity ,
+				VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::NormalFactory< Real , Dim > , VertexFactory::ValueFactory< Real > , AuxDataFactory > ,
+				VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::NormalFactory< Real , Dim > , AuxDataFactory >
+				>::type ,
+				typename std::conditional
+				<
+				HasDensity ,
+				VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::ValueFactory< Real > , AuxDataFactory > ,
+				VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , AuxDataFactory >
+				>::type
+				>::type;
+			using AuxData = typename AuxDataFactory::VertexType;
+
+			using _Vertex = VectorTypeUnion< Real , Point< Real , Dim > , Point< Real , Dim > , Real , typename AuxDataFactory::VertexType >;
+			using Vertex = typename Factory::VertexType;
+			using IndexedVertex = std::pair< node_index_type , Vertex >;
+
+			static Factory GetFactory( AuxDataFactory auxDataFactory )
+			{
+				if constexpr( HasGradients )
+				{
+					if constexpr( HasDensity ) return Factory( VertexFactory::PositionFactory< Real , Dim >() , VertexFactory::NormalFactory< Real , Dim >() , VertexFactory::ValueFactory< Real >() , auxDataFactory );
+					else                       return Factory( VertexFactory::PositionFactory< Real , Dim >() , VertexFactory::NormalFactory< Real , Dim >() ,                                         auxDataFactory );
+				}
+				else
+				{
+					if constexpr( HasDensity ) return Factory( VertexFactory::PositionFactory< Real , Dim >() ,                                                VertexFactory::ValueFactory< Real >() , auxDataFactory );
+					else                       return Factory( VertexFactory::PositionFactory< Real , Dim >() ,                                                                                        auxDataFactory );
+				}
+			}
+
+			struct StreamWrapper : public Reconstructor::OutputIndexedVertexStreamWrapper< Vertex , Real , Dim , AuxData >
+			{
+				StreamWrapper( OutputDataStream< IndexedVertex > &stream ) :
+					Reconstructor::OutputIndexedVertexStreamWrapper< Vertex , Real , Dim , AuxData >( stream ){}
+
+				Vertex toOutputVertex( const Reconstructor::LevelSetVertex< Real , Dim , AuxData > &in )
+				{
+					Vertex out;
+					out.template get<0>() = in.template get<0>();
+					if constexpr( HasGradients )
+					{
+						out.template get<1>() = in.template get<1>();
+						if constexpr( HasDensity ) out.template get<2>() = in.template get<2>() , out.template get<3>() = in.template get<3>();
+						else out.template get<2>() = in.template get<3>();
+					}
+					else
+					{
+						if constexpr( HasDensity ) out.template get<1>() = in.template get<2>() , out.template get<2>() = in.template get<3>();
+						else out.template get<1>() = in.template get<3>();
+					}
+					return out;
 				}
 			};
 		};

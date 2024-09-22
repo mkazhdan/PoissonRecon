@@ -51,16 +51,18 @@ size_t FEMTreeInitializer< Dim , Real >::_Initialize( FEMTreeNode &node , int ma
 }
 
 template< unsigned int Dim , class Real >
-template< typename AuxData >
-size_t FEMTreeInitializer< Dim , Real >::Initialize( StreamInitializationData &sid , FEMTreeNode &root , typename InputPointStream< AuxData >::StreamType &pointStream , AuxData zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< typename InputPointStream< AuxData >::DataType > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , typename InputPointStream< AuxData >::DataType & ) > ProcessData )
+template< typename AuxData , typename PointStream >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , PointStream &pointStream , AuxData zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
 {
-	return Initialize< AuxData >( sid , root , pointStream , zeroData , maxDepth , [&]( Point< Real , Dim > ){ return maxDepth; } , samplePoints , sampleData , mergeNodeSamples , nodeAllocator , NodeInitializer , ProcessData );
+	return Initialize< AuxData , PointStream >( sid , root , pointStream , zeroData , maxDepth , [&]( Point< Real , Dim > ){ return maxDepth; } , samplePoints , sampleData , mergeNodeSamples , nodeAllocator , NodeInitializer , ProcessData );
 }
 
 template< unsigned int Dim , class Real >
-template< typename AuxData >
-size_t FEMTreeInitializer< Dim , Real >::Initialize( StreamInitializationData &sid , FEMTreeNode& root , typename InputPointStream< AuxData >::StreamType &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< typename InputPointStream< AuxData >::DataType > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , typename InputPointStream< AuxData >::DataType & ) > ProcessData )
+template< typename AuxData , typename PointStream >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , PointStream &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
 {
+	using Sample = VectorTypeUnion< Real , Point< Real , Dim > , AuxData >;
+	static_assert( std::is_base_of< InputDataStream< Sample > , PointStream >::value , "[ERROR] Unexpected point stream type" );
 	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
 
 
@@ -94,12 +96,13 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( StreamInitializationData &s
 	size_t outOfBoundPoints = 0 , badData = 0 , pointCount = 0;
 	{
 		std::vector< node_index_type > &nodeToIndexMap = sid._nodeToIndexMap;
-		typename InputPointStream< AuxData >::PointAndDataType pd;
-		pd.template get<1>() = zeroData;
-		while( pointStream.read( pd ) )
+
+		Sample s;
+		s.template get<1>() = zeroData;
+		while( pointStream.read( s ) )
 		{
-			Point< Real , Dim > p = pd.template get<0>();
-			typename InputPointStream< AuxData >::DataType d = InputPointStream< AuxData >::GetData( pd );
+			Point< Real , Dim > p = s.template get<0>();
+			AuxData d = s.template get<1>();
 			Real weight = ProcessData( p , d );
 			if( weight<=0 ){ badData++ ; continue; }
 			FEMTreeNode *temp = Leaf( root , p , pointDepthFunctor(p) );

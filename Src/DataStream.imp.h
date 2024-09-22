@@ -139,10 +139,10 @@ namespace PoissonRecon
 	////////////////////////////////////////////////////////
 	// File-backed stream with data desribed by a factory //
 	////////////////////////////////////////////////////////
-	template< typename Factory >
-	struct FileBackedInputFactoryTypeStream : public InputDataStream< typename Factory::VertexType >
+	template< typename Factory , bool ParallelStream , typename Index=size_t >
+	struct FileBackedInputFactoryTypeStream : public InputDataStream< std::conditional_t< ParallelStream , std::pair< Index , typename Factory::VertexType > , typename Factory::VertexType > >
 	{
-		typedef typename Factory::VertexType Data;
+		using Data = std::conditional_t< ParallelStream , std::pair< Index , typename Factory::VertexType > , typename Factory::VertexType >;
 		// It is assumed that the file pointer was open for binary reading
 		FileBackedInputFactoryTypeStream( FILE *fp , const Factory &factory ) : _fp(fp) , _factory(factory) , _buffer( NewPointer< char >( _factory.bufferSize() ) ) , _bufferSize( _factory.bufferSize() ) {}
 		~FileBackedInputFactoryTypeStream( void ){ DeletePointer( _buffer ); }
@@ -154,13 +154,34 @@ namespace PoissonRecon
 		Pointer( char ) _buffer;
 		const size_t _bufferSize;
 
-		bool base_read( Data &d ){ if( fread( _buffer , sizeof(unsigned char) , _bufferSize , _fp )==_bufferSize ){ _factory.fromBuffer( _buffer , d ) ; return true; } else return false; }
+		bool base_read( Data &d )
+		{
+			if constexpr( ParallelStream )
+			{
+				if( fread( &d.first , sizeof(Index) , 1 , _fp )!=1 ) return false;
+				if( fread( _buffer , sizeof(unsigned char) , _bufferSize , _fp )==_bufferSize )
+				{
+					_factory.fromBuffer( _buffer , d.second );
+					return true;
+				}
+				else return false;
+			}
+			else
+			{
+				if( fread( _buffer , sizeof(unsigned char) , _bufferSize , _fp )==_bufferSize )
+				{
+					_factory.fromBuffer( _buffer , d );
+					return true;
+				}
+				else return false;
+			}
+		}
 	};
 
-	template< typename Factory >
-	struct FileBackedOutputFactoryTypeStream : public OutputDataStream< typename Factory::VertexType >
+	template< typename Factory , bool ParallelStream , typename Index=size_t >
+	struct FileBackedOutputFactoryTypeStream : public OutputDataStream< std::conditional_t< ParallelStream , std::pair< Index , typename Factory::VertexType > , typename Factory::VertexType > >
 	{
-		typedef typename Factory::VertexType Data;
+		using Data = std::conditional_t< ParallelStream , std::pair< Index , typename Factory::VertexType > , typename Factory::VertexType >;
 
 		// It is assumed that the file pointer was open for binary reading
 		FileBackedOutputFactoryTypeStream( FILE *fp , const Factory &factory ) : _fp(fp) , _factory(factory) , _buffer( NewPointer< char >( _factory.bufferSize() ) ) , _bufferSize( _factory.bufferSize() ) {}
@@ -172,7 +193,20 @@ namespace PoissonRecon
 		Pointer( char ) _buffer;
 		const size_t _bufferSize;
 
-		void base_write( const Data &d ){ _factory.toBuffer( d , _buffer ) ; fwrite( _buffer , sizeof(unsigned char) , _bufferSize , _fp ); }
+		void base_write( const Data &d )
+		{
+			if constexpr( ParallelStream )
+			{
+				fwrite( &d.first , sizeof(Index) , 1 , _fp );
+				_factory.toBuffer( d.second , _buffer );
+				fwrite( _buffer , sizeof(unsigned char) , _bufferSize , _fp );
+			}
+			else
+			{
+				_factory.toBuffer( d , _buffer );
+				fwrite( _buffer , sizeof(unsigned char) , _bufferSize , _fp );
+			}
+		}
 	};
 
 

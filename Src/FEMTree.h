@@ -319,6 +319,12 @@ namespace PoissonRecon
 		SparseNodeData( void ){}
 		SparseNodeData( BinaryStream &stream ){ read(stream); }
 		SparseNodeData( BinaryStream &stream , const Serializer< Data > &serializer ){ read(stream,serializer); }
+		// [WARNING] Default constructing the mutex
+		SparseNodeData( const SparseNodeData &d ) : _indices(d._indices) , _data(d._data){};
+		SparseNodeData( SparseNodeData &&d ) : _indices(d._indices) , _data(d._data){};
+		// [WARNING] Not copying the mutex
+		SparseNodeData &operator = ( const SparseNodeData &d ){ _indices = d._indices , _data = d._data ; return *this; }
+		SparseNodeData &operator = ( SparseNodeData &&d ){ std::swap( _indices , d._indices ) , std::swap( _data , d._data ); return *this; }
 
 		size_t size( void ) const { return _data.size(); }
 		const Data& operator[] ( size_t idx ) const { return _data[idx]; }
@@ -341,7 +347,6 @@ namespace PoissonRecon
 #endif // SANITIZED_PR
 			if( _index==-1 )
 			{
-				static std::mutex _updateMutex;
 				std::lock_guard< std::mutex > lock( _updateMutex );
 #ifdef SANITIZED_PR
 				_index = ReadAtomic( *indexPtr );
@@ -483,6 +488,7 @@ namespace PoissonRecon
 			return sparseNodeData;
 		}
 
+		std::mutex _updateMutex;
 		NestedVector< node_index_type , NESTED_VECTOR_LEVELS > _indices;
 		NestedVector< Data , NESTED_VECTOR_LEVELS > _data;
 	};
@@ -3028,10 +3034,10 @@ namespace PoissonRecon
 			std::vector< node_index_type > _nodeToIndexMap;
 		};
 
-		template< typename Data >
-		static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , typename InputPointStream< Data >::StreamType &pointStream , Data zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< typename InputPointStream< Data >::DataType > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ) > ProcessData = []( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ){ return (Real)1.; } );
-		template< typename Data >
-		static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , typename InputPointStream< Data >::StreamType &pointStream , Data zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< typename InputPointStream< Data >::DataType > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ) > ProcessData = []( const Point< Real , Dim > & , typename InputPointStream< Data >::DataType & ){ return (Real)1.; } );
+		template< typename AuxData , typename PointStream >
+		static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , PointStream &pointStream , AuxData zeroData , int maxDepth ,                                                                  std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData = []( const Point< Real , Dim > & , AuxData & ){ return (Real)1.; } );
+		template< typename AuxData , typename PointStream >
+		static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , PointStream &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData = []( const Point< Real , Dim > & , AuxData & ){ return (Real)1.; } );
 
 		// Initialize the tree using simplices
 		static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer );

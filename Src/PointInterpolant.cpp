@@ -360,13 +360,13 @@ void ExtractLevelSet
 	Factory factory = VInfo::GetFactory();
 
 	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false );
+	Reconstructor::OutputInputFactoryTypeStream< Factory , false > vertexStream( factory , false );
 	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
 	typename LevelSetExtractor< Real , Dim >::Stats stats;
 
 	{
 		// The wrapper converting native to output types
-		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
+		typename VInfo::StreamWrapper _vertexStream( vertexStream );
 		Reconstructor::TransformedOutputVertexStream< Real , Dim > __vertexStream( unitCubeToModel , _vertexStream );
 
 		// Extract the mesh

@@ -117,14 +117,21 @@ namespace PoissonRecon
 		MultiInputDataStream( InputDataStream< Data > **streams , size_t N ) : _current(0) , _streams( streams , streams+N ) {}
 		MultiInputDataStream( const std::vector< InputDataStream< Data > * > &streams ) : _current(0) , _streams( streams ) {}
 		void reset( void ){ for( unsigned int i=0 ; i<_streams.size() ; i++ ) _streams[i]->reset(); }
-		unsigned int numStreams( void ) const { return _streams.size(); }
+		unsigned int numStreams( void ) const { return (unsigned int)_streams.size(); }
 
 	protected:
 		std::vector< InputDataStream< Data > * > _streams;
 		unsigned int _current;
 
+		MultiInputDataStream( void ) {}
+		void _init( InputDataStream< Data > **streams , size_t N )
+		{
+			_streams.resize( N );
+			for( unsigned int i=0 ; i<N ; i++ ) _streams[i] = streams[i];
+		}
+		void _init( const std::vector< InputDataStream< Data > * > &streams ){ _streams = streams; }
 		bool base_read( unsigned int t , Data &d ){ return _streams[t]->base_read(d); }
-		bool base_read( Data &d )
+		bool base_read(                  Data &d )
 		{
 			while( _current<_streams.size() )
 			{
@@ -140,12 +147,79 @@ namespace PoissonRecon
 	{
 		MultiOutputDataStream( OutputDataStream< Data > **streams , size_t N ) : _streams( streams , streams+N ) {}
 		MultiOutputDataStream( const std::vector< OutputDataStream< Data > * > &streams ) : _streams( streams ) {}
+		unsigned int numStreams( void ) const { return (unsigned int)_streams.size(); }
 
 	protected:
 		std::vector< OutputDataStream< Data > * > _streams;
 
-		void base_write( const Data &d ){ _streams[0]->base_write(d); }
+		MultiOutputDataStream( void ) {}
+		void _init( OutputDataStream< Data > **streams , size_t N )
+		{
+			_streams.resize( N );
+			for( unsigned int i=0 ; i<N ; i++ ) _streams[i] = streams[i];
+		}
+		void _init( const std::vector< OutputDataStream< Data > * > &streams ){ _streams = streams; }
+		void base_write(                  const Data &d ){ _streams[0]->base_write(d); }
 		void base_write( unsigned int t , const Data &d ){ _streams[t]->base_write(d); }
+	};
+
+	template< typename Index , typename Data >
+	struct IndexedInputDataStream : public InputDataStream< Data >
+	{
+		IndexedInputDataStream( MultiInputDataStream< std::pair< Index , Data > > &multiStream , Data data ) : _multiStream( multiStream )
+		{
+			_nextValues.resize( multiStream.numStreams() );
+			for( unsigned int i=0 ; i<_nextValues.size() ; i++ ) _nextValues[i].data.second = data;
+			for( unsigned int i=0 ; i<_nextValues.size() ; i++ )
+			{
+				_nextValues[i].validData = _multiStream.read( i , _nextValues[i].data );
+				_nextValues[i].streamIndex = i;
+			}
+			std::make_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
+		}
+		void reset( void )
+		{
+			_multiStream.reset();
+			for( unsigned int i=0 ; i<_nextValues.size() ; i++ )
+			{
+				_nextValues[i].validData = _multiStream.read( i , _nextValues[i].data );
+				_nextValues[i].streamIndex = i;
+			}
+			std::make_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
+		}
+
+
+	protected:
+		struct _NextValue
+		{
+			std::pair< Index , Data > data;
+			unsigned int streamIndex;
+			bool validData;
+
+			// Returns true if v1>v2 so that it's a min-heap
+			static bool Compare( const _NextValue &v1 , const _NextValue &v2 )
+			{
+				if( !v2.validData ) return false;
+				else if( !v1.validData && v2.validData ) return true;
+				else return v1.data.first>v2.data.first;
+			};
+		};
+
+		MultiInputDataStream< std::pair< Index , Data > > &_multiStream;
+		std::vector< _NextValue > _nextValues;
+
+		bool base_read( unsigned int t , Data &d ){ return base_read(d); }
+		bool base_read(                  Data &d )
+		{
+			std::pop_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
+			_NextValue &next = _nextValues.back();
+			if( !next.validData ) return false;
+			d = next.data.second;
+			next.validData = _multiStream.read( next.streamIndex , next.data );
+
+			std::push_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
+			return true;
+		}
 	};
 }
 

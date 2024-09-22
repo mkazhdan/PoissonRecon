@@ -1251,24 +1251,24 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 
 
 	// A description of the output vertex information
-	using VInfo = Reconstructor::OutputVertexWithDataInfo< Real , Dim , AuxDataFactory , HasGradients , HasDensity >;
+	using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >;
 
 	// A factory generating the output vertices
 	using Factory = typename VInfo::Factory;
 	Factory factory = VInfo::GetFactory( auxDataFactory );
 
 	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory > vertexStream( factory , false , false );
+	Reconstructor::OutputInputFactoryTypeStream< Factory , false > vertexStream( factory , false );
 	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
 
 	typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
 
 	{
 		// The wrapper converting native to output types
-		typename VInfo::StreamWrapper _vertexStream( vertexStream , factory() );
+		typename VInfo::StreamWrapper _vertexStream( vertexStream );
 
 		// The transformed stream
-		Reconstructor::TransformedOutputVertexWithDataStream< Real , Dim , AuxData > __vertexStream( unitCubeToModel , _vertexStream );
+		Reconstructor::TransformedOutputVertexStream< Real , Dim , AuxData > __vertexStream( unitCubeToModel , _vertexStream );
 
 		// Extract the mesh
 		stats = LevelSetExtractor< Real , Dim , AuxData >::template Extract< Reconstructor::WeightDegree , DataSig >
@@ -1319,8 +1319,16 @@ void Client< Real , Dim , BType , Degree >::_process7( const ClientReconstructio
 	// Extract the mesh
 	if constexpr( Dim==3 )
 	{
-		if( clientReconInfo.density ) _writeMeshWithData< false , true  >( clientReconInfo , state7 , _modelToUnitCube.inverse() );
-		else                          _writeMeshWithData< false , false >( clientReconInfo , state7 , _modelToUnitCube.inverse() );
+		XForm< Real , Dim+1 > unitCubeToModel;
+		if( clientReconInfo.gridCoordinates )
+		{
+			unitCubeToModel = XForm< Real , Dim+1 >::Identity();
+			unsigned int res = 1<<clientReconInfo.reconstructionDepth;
+			for( unsigned int d=0 ; d<Dim ; d++ ) unitCubeToModel(d,d) = (Real)res;
+		}
+		else unitCubeToModel = _modelToUnitCube.inverse();
+		if( clientReconInfo.density ) _writeMeshWithData< false , true  >( clientReconInfo , state7 , unitCubeToModel );
+		else                          _writeMeshWithData< false , false >( clientReconInfo , state7 , unitCubeToModel );
 	}
 
 	if( clientReconInfo.ouputVoxelGrid )

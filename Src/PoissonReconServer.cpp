@@ -96,6 +96,7 @@ CmdLineReadable
 	LinearFit( "linearFit" ) ,
 	OutputVoxelGrid( "grid" ) ,
 	OutputBoundarySlices( "boundary" ) ,
+	GridCoordinates( "gridCoordinates" ) ,
 	KeepSeparate( "keepSeparate" ) ,
 	OutputSolution( "solution" ) ,
 	ShowDiscontinuity( "showDiscontinuity" );
@@ -135,6 +136,7 @@ CmdLineReadable* params[] =
 	&PeakMemorySampleMS ,
 	&OutputVoxelGrid ,
 	&OutputBoundarySlices ,
+	&GridCoordinates ,
 	&OutputSolution ,
 	&AlignmentDir ,
 	&ShowDiscontinuity ,
@@ -193,6 +195,7 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s]\n" , LinearFit.name );
 	printf( "\t[--%s]\n" , OutputVoxelGrid.name );
 	printf( "\t[--%s]\n" , OutputBoundarySlices.name );
+	printf( "\t[--%s]\n" , GridCoordinates.name );
 	printf( "\t[--%s]\n" , OutputSolution.name );
 	printf( "\t[--%s]\n" , ShowDiscontinuity.name );
 	printf( "\t[--%s]\n" , KeepSeparate.name );
@@ -503,6 +506,7 @@ int main( int argc , char* argv[] )
 		clientReconInfo.ouputVoxelGrid = OutputVoxelGrid.set;
 		clientReconInfo.targetValue = TargetValue.value;
 		clientReconInfo.outputSolution = OutputSolution.set;
+		clientReconInfo.gridCoordinates = GridCoordinates.set;
 		clientReconInfo.verbose = Verbose.value;
 		clientReconInfo.filesPerDir = FilesPerDir.value;
 		clientReconInfo.padSize = PadSize.value;

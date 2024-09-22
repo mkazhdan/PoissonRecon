@@ -598,8 +598,25 @@ public:
 	}
 
 
-	template< unsigned int WeightDegree , unsigned int DataSig >
-	static void SetIsoVertices( const LevelSetExtraction::KeyGenerator< Dim > &keyGenerator , const FEMTree< Dim , Real >& tree , bool nonLinearFit , bool outputGradients , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > > *pointEvaluator , const DensityEstimator< WeightDegree > *densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , LocalDepth fullDepth , node_index_type &vOffset , OutputDataStream< Vertex > &vertexStream , std::vector< SliceValues > &sliceValues , std::vector< typename SliceValues::Scratch > &scratchValues , const Data &zeroData )
+	template< unsigned int WeightDegree , unsigned int DataSig , typename OutputVertexStream >
+	static void SetIsoVertices
+	(
+		const LevelSetExtraction::KeyGenerator< Dim > &keyGenerator ,
+		const FEMTree< Dim , Real >& tree ,
+		bool nonLinearFit ,
+		bool outputGradients ,
+		typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > > *pointEvaluator ,
+		const DensityEstimator< WeightDegree > *densityWeights ,
+		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data ,
+		Real isoValue ,
+		LocalDepth depth ,
+		LocalDepth fullDepth ,
+		std::atomic< node_index_type > &vOffset ,
+		OutputVertexStream &vertexStream ,
+		std::vector< SliceValues > &sliceValues ,
+		std::vector< typename SliceValues::Scratch > &scratchValues ,
+		const Data &zeroData
+	)
 	{
 		auto _EdgeIndex = [&]( const TreeNode *node , typename HyperCube::Cube< Dim >::template Element< 1 > e )
 		{
@@ -656,37 +673,51 @@ public:
 									Key key = _EdgeIndex( leaf , e );
 									GetIsoVertex< WeightDegree , DataSig >( tree , nonLinearFit , outputGradients , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , e , sValues , vertex , zeroData );
 									bool stillOwner = false;
-									node_index_type hashed_vertex;
+									std::pair< node_index_type , Vertex > hashed_vertex;
+									if constexpr( std::is_base_of_v< OutputDataStream< std::pair< node_index_type , Vertex > > , OutputVertexStream > )
+									{
+										char desired = 1 , expected = 0;
+#ifdef SANITIZED_PR
+										if( edgeSet.compare_exchange_weak( expected , desired ) )
+#else // !SANITIZED_PR
+										if( SetAtomic( edgeSet , desired , expected ) )
+#endif // SANITIZED_PR
+										{
+											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset++ , vertex );
+											vertexStream.write( thread , hashed_vertex );
+											stillOwner = true;
+										}
+									}
+									else if constexpr( std::is_base_of_v< OutputDataStream< Vertex > , OutputVertexStream > )
 									{
 										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
 										if( !edgeSet )
 										{
+											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset++ , vertex );
 											vertexStream.write( vertex );
 											edgeSet = 1;
-											hashed_vertex = vOffset;
-											sValues.edgeKeys[ vIndex ] = key;
-											vOffset++;
 											stillOwner = true;
 										}
 									}
+									else ERROR_OUT( "Bad stream type: " , typeid(OutputVertexStream).name() );
+
 									if( stillOwner )	// If this edge is the one generating the iso-vertex
 									{
-										scValues.eKeyValues[ thread ].push_back( std::pair< Key , node_index_type >( key , hashed_vertex ) );
-										// We only need to pass the iso-vertex down if the edge it lies on is adjacent to a coarser leaf
+										sValues.edgeKeys[ vIndex ] = key;
+										scValues.eKeyValues[ thread ].push_back( std::pair< Key , node_index_type >( key , hashed_vertex.first ) );
 
+										// We only need to pass the iso-vertex down if the edge it lies on is adjacent to a coarser leaf
+										const typename HyperCube::Cube< Dim >::template Element< Dim > *f = HyperCubeTables< Dim , 1 , Dim >::OverlapElements[e.index];
+										// Note that this is a trivial loop of size 1
+										for( int k=0 ; k<HyperCubeTables< Dim , 1 , Dim >::OverlapElementNum ; k++ )
 										{
-											const typename HyperCube::Cube< Dim >::template Element< Dim > *f = HyperCubeTables< Dim , 1 , Dim >::OverlapElements[e.index];
-											// Note that this is a trivial loop of size 1
-											for( int k=0 ; k<HyperCubeTables< Dim , 1 , Dim >::OverlapElementNum ; k++ )
+											TreeNode *node = leaf;
+											LocalDepth _depth = depth;
+											while( _depth>fullDepth && tree._isValidSpaceNode( node->parent ) && HyperCubeTables< Dim , Dim , 0 >::Overlap[f[k].index][(unsigned int)(node-node->parent->children) ] ) 
 											{
-												TreeNode *node = leaf;
-												LocalDepth _depth = depth;
-												while( _depth>fullDepth && tree._isValidSpaceNode( node->parent ) && HyperCubeTables< Dim , Dim , 0 >::Overlap[f[k].index][(unsigned int)(node-node->parent->children) ] ) 
-												{
-													node = node->parent , _depth--;
-													typename SliceValues::Scratch &_scValues = scratchValues[_depth];
-													_scValues.eKeyValues[ thread ].push_back( std::pair< Key , node_index_type >( key , hashed_vertex ) );
-												}
+												node = node->parent , _depth--;
+												typename SliceValues::Scratch &_scValues = scratchValues[_depth];
+												_scValues.eKeyValues[ thread ].push_back( std::pair< Key , node_index_type >( key , hashed_vertex.first ) );
 											}
 										}
 									}
@@ -1004,8 +1035,8 @@ public:
 	static int SetIsoEdgesFlag    ( void ){ return _SetFlag::CORNER_VALUES | _SetFlag::ISO_VERTICES | _SetFlag::ISO_EDGES; }
 
 
-	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
-	static Stats SetSliceValues( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real > &tree , int maxKeyDepth , const DensityEstimator< WeightDegree > *densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , OutputDataStream< Vertex > &vertexStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , std::vector< SliceValues > &sliceValues , int setFlag )
+	template< unsigned int WeightDegree , unsigned int DataSig , typename OutputVertexStream , unsigned int ... FEMSigs >
+	static Stats SetSliceValues( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real > &tree , int maxKeyDepth , const DensityEstimator< WeightDegree > *densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , OutputVertexStream &vertexStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , std::vector< SliceValues > &sliceValues , int setFlag )
 	{
 		if( maxKeyDepth<tree._maxDepth ) ERROR_OUT( "Max key depth has to be at least tree depth: " , tree._maxDepth , " <= " , maxKeyDepth );
 		LevelSetExtraction::KeyGenerator< Dim > keyGenerator( maxKeyDepth );
@@ -1021,7 +1052,7 @@ public:
 		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 && nonLinearFit ) ERROR_OUT( "Constant B-Splines do not support gradient estimation" );
 
 		LevelSetExtraction::SetHyperCubeTables< Dim >();
-		node_index_type vOffset = 0;
+		std::atomic< node_index_type > vOffset = 0;
 
 		typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator = NULL;
 		if constexpr( HasData ) if( data ) pointEvaluator = new typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >( tree._maxDepth );
@@ -1101,8 +1132,8 @@ public:
 	}
 
 
-	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
-	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::pair< node_index_type , node_index_type > > &edgeStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , bool flipOrientation )
+	template< unsigned int WeightDegree , unsigned int DataSig , typename OutputVertexStream , unsigned int ... FEMSigs >
+	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , OutputVertexStream &vertexStream , OutputDataStream< std::pair< node_index_type , node_index_type > > &edgeStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , bool flipOrientation )
 	{
 		std::vector< SliceValues > sliceValues;
 
@@ -1131,6 +1162,7 @@ struct LevelSetExtractor< Real , 2 >
 	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::SliceValues SliceValues;
 	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::TreeSliceValuesAndVertexPositions TreeSliceValuesAndVertexPositions;
 	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::TreeNode TreeNode;
+	using IndexedVertex = std::pair< node_index_type , Vertex >;
 	template< unsigned int WeightDegree > using DensityEstimator = typename _LevelSetExtractor< HasData , Real , Dim , Data >::template DensityEstimator< WeightDegree >;
 	static int SetCornerValuesFlag( void ){ return _LevelSetExtractor< HasData , Real , Dim , Data >::SetCornerValuesFlag(); }
 	static int SetIsoVerticesFlag ( void ){ return _LevelSetExtractor< HasData , Real , Dim , Data >::SetIsoVerticesFlag (); }
@@ -1143,7 +1175,17 @@ struct LevelSetExtractor< Real , 2 >
 		Data zeroData = 0;
 		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
 		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data = NULL;
-		return _LevelSetExtractor< HasData , Real , Dim , Data >::template Extract< WeightDegree , DataSig , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , densityWeights , data , coefficients , isoValue , vertexStream , edgeStream , zeroData , nonLinearFit , outputGradients , flipOrientation );
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template Extract< WeightDegree , DataSig , OutputDataStream< Vertex > , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , densityWeights , data , coefficients , isoValue , vertexStream , edgeStream , zeroData , nonLinearFit , outputGradients , flipOrientation );
+	}
+
+	template< unsigned int WeightDegree , unsigned int ... FEMSigs >
+	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , OutputDataStream< IndexedVertex > &vertexStream , OutputDataStream< std::pair< node_index_type , node_index_type > > &edgeStream , bool nonLinearFit , bool outputGradients , bool flipOrientation )
+	{
+		typedef unsigned char Data;
+		Data zeroData = 0;
+		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
+		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data = NULL;
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template Extract< WeightDegree , DataSig , OutputDataStream< IndexedVertex > , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , densityWeights , data , coefficients , isoValue , vertexStream , edgeStream , zeroData , nonLinearFit , outputGradients , flipOrientation );
 	}
 
 	template< unsigned int WeightDegree , unsigned int ... FEMSigs >
@@ -1153,7 +1195,17 @@ struct LevelSetExtractor< Real , 2 >
 		Data zeroData = 0;
 		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
 		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data = NULL;
-		return _LevelSetExtractor< HasData , Real , Dim , Data >::template SetSliceValues< WeightDegree , DataSig , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , maxKeyDepth , densityWeights , data , coefficients , isoValue , vertexStream , zeroData , nonLinearFit , outputGradients , sliceValues , setFlag );
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template SetSliceValues< WeightDegree , DataSig , OutputDataStream< Vertex > , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , maxKeyDepth , densityWeights , data , coefficients , isoValue , vertexStream , zeroData , nonLinearFit , outputGradients , sliceValues , setFlag );
+	}
+
+	template< unsigned int WeightDegree , unsigned int ... FEMSigs >
+	static Stats SetSliceValues( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , const FEMTree< Dim , Real > &tree , int maxKeyDepth , const DensityEstimator< WeightDegree > *densityWeights , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , OutputDataStream< IndexedVertex > &vertexStream , bool nonLinearFit , bool outputGradients , std::vector< SliceValues > &sliceValues , int setFlag )
+	{
+		typedef unsigned char Data;
+		Data zeroData = 0;
+		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
+		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data = NULL;
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template SetSliceValues< WeightDegree , DataSig , OutputDataStream< IndexedVertex > , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , maxKeyDepth , densityWeights , data , coefficients , isoValue , vertexStream , zeroData , nonLinearFit , outputGradients , sliceValues , setFlag );
 	}
 };
 
@@ -1167,6 +1219,7 @@ struct LevelSetExtractor< Real , 2 , Data >
 	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::SliceValues SliceValues;
 	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::TreeSliceValuesAndVertexPositions TreeSliceValuesAndVertexPositions;
 	typedef typename _LevelSetExtractor< HasData , Real , Dim , Data >::TreeNode TreeNode;
+	using IndexedVertex = std::pair< node_index_type , Vertex >;
 	template< unsigned int WeightDegree > using DensityEstimator = typename _LevelSetExtractor< HasData , Real , Dim , Data >::template DensityEstimator< WeightDegree >;
 	static int SetCornerValuesFlag( void ){ return _LevelSetExtractor< HasData , Real , Dim , Data >::SetCornerValuesFlag(); }
 	static int SetIsoVerticesFlag ( void ){ return _LevelSetExtractor< HasData , Real , Dim , Data >::SetIsoVerticesFlag (); }
@@ -1175,12 +1228,22 @@ struct LevelSetExtractor< Real , 2 , Data >
 	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
 	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree > *densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , OutputDataStream< Vertex > &vertexStream , OutputDataStream< std::pair< node_index_type , node_index_type > > &edgeStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , bool flipOrientation )
 	{
-		return _LevelSetExtractor< HasData , Real , Dim , Data >::template Extract< WeightDegree , DataSig , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , densityWeights , data , coefficients , isoValue , vertexStream , edgeStream , zeroData , nonLinearFit , outputGradients , flipOrientation );
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template Extract< WeightDegree , DataSig , OutputDataStream< Vertex > , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , densityWeights , data , coefficients , isoValue , vertexStream , edgeStream , zeroData , nonLinearFit , outputGradients , flipOrientation );
+	}
+	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
+	static Stats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree > *densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , OutputDataStream< IndexedVertex > &vertexStream , OutputDataStream< std::pair< node_index_type , node_index_type > > &edgeStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , bool flipOrientation )
+	{
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template Extract< WeightDegree , DataSig , OutputDataStream< IndexedVertex > , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , densityWeights , data , coefficients , isoValue , vertexStream , edgeStream , zeroData , nonLinearFit , outputGradients , flipOrientation );
 	}
 
 	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
 	static Stats SetSliceValues( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real > &tree , int maxKeyDepth , const DensityEstimator< WeightDegree > *densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , OutputDataStream< Vertex > &vertexStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , std::vector< SliceValues > &sliceValues , int setFlag )
 	{
-		return _LevelSetExtractor< HasData , Real , Dim , Data >::template SetSliceValues< WeightDegree , DataSig , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , maxKeyDepth , densityWeights , data , coefficients , isoValue , vertexStream , zeroData , nonLinearFit , outputGradients , sliceValues , setFlag );
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template SetSliceValues< WeightDegree , DataSig , OutputDataStream< Vertex > , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , maxKeyDepth , densityWeights , data , coefficients , isoValue , vertexStream , zeroData , nonLinearFit , outputGradients , sliceValues , setFlag );
+	}
+	template< unsigned int WeightDegree , unsigned int DataSig , unsigned int ... FEMSigs >
+	static Stats SetSliceValues( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real > &tree , int maxKeyDepth , const DensityEstimator< WeightDegree > *densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , OutputDataStream< IndexedVertex > &vertexStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , std::vector< SliceValues > &sliceValues , int setFlag )
+	{
+		return _LevelSetExtractor< HasData , Real , Dim , Data >::template SetSliceValues< WeightDegree , DataSig , OutputDataStream< IndexedVertex > , FEMSigs ... >( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tree , maxKeyDepth , densityWeights , data , coefficients , isoValue , vertexStream , zeroData , nonLinearFit , outputGradients , sliceValues , setFlag );
 	}
 };

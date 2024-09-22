@@ -55,12 +55,13 @@ namespace PoissonRecon
 			bool outputGradients;
 			bool forceManifold;
 			bool polygonMesh;
+			bool gridCoordinates;
 			bool verbose;
-			LevelSetExtractionParameters( void ) : linearFit(false) , outputGradients(false) , forceManifold(true) , polygonMesh(false) , verbose(false) {}
+			LevelSetExtractionParameters( void ) : linearFit(false) , outputGradients(false) , forceManifold(true) , polygonMesh(false) , gridCoordinates(false) , verbose(false) {}
 		};
 
 		// "Private" function for extracting meshes
-		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
+		template< bool HasAuxData , bool IndexedVertexStream , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
 		void _ExtractLevelSet( UIntPack< FEMSigs ... >  , const ImplicitType &implicit , OutputVertexStream &vertexStream , OutputFaceStream< Dim-1 > &faceStream , typename Implicit< Real , Dim , FEMSig >::LevelSetExtractionParameters params );
 
 		// Specialized solution information without auxiliary data
@@ -98,7 +99,12 @@ namespace PoissonRecon
 			void extractLevelSet( OutputVertexStream< Real , Dim > &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params ) const
 			{
 				typedef unsigned char AuxData;
-				_ExtractLevelSet< false , Real , Dim , FEMSig , AuxData , OutputVertexStream< Real , Dim > , Implicit< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , faceStream , params );
+				_ExtractLevelSet< false , false , Real , Dim , FEMSig , AuxData , OutputVertexStream< Real , Dim > , Implicit< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , faceStream , params );
+			}
+			void extractLevelSet( OutputIndexedVertexStream< Real , Dim > &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params ) const
+			{
+				typedef unsigned char AuxData;
+				_ExtractLevelSet< false , true , Real , Dim , FEMSig , AuxData , OutputIndexedVertexStream< Real , Dim > , Implicit< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , faceStream , params );
 			}
 		};
 
@@ -135,9 +141,13 @@ namespace PoissonRecon
 			}
 
 			// A method for writing the extracted mesh to the streams
-			void extractLevelSet( OutputVertexWithDataStream< Real , Dim , AuxData > &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params ) const
+			void extractLevelSet( OutputVertexStream< Real , Dim , AuxData > &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params ) const
 			{
-				_ExtractLevelSet< true , Real , Dim , FEMSig , AuxData , OutputVertexWithDataStream< Real , Dim , AuxData > , Implicit< Real , Dim , FEMSig , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , faceStream , params );
+				_ExtractLevelSet< true , false , Real , Dim , FEMSig , AuxData , OutputVertexStream< Real , Dim , AuxData > , Implicit< Real , Dim , FEMSig , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , faceStream , params );
+			}
+			void extractLevelSet( OutputIndexedVertexStream< Real , Dim , AuxData > &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params ) const
+			{
+				_ExtractLevelSet< true , true , Real , Dim , FEMSig , AuxData , OutputIndexedVertexStream< Real , Dim , AuxData > , Implicit< Real , Dim , FEMSig , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , faceStream , params );
 			}
 		};
 
@@ -284,10 +294,10 @@ namespace PoissonRecon
 			template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
 			struct Implicit< Real , Dim , FEMSig , AuxData > : public Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >
 			{
-				Implicit( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL , ValueInterpolationStream< Real , Dim > *valueInterpolationStream=NULL )
+				Implicit( InputSampleStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL , ValueInterpolationStream< Real , Dim > *valueInterpolationStream=NULL )
 					: Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >( pointStream.zero() )
 				{
-					_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh , valueInterpolationStream );
+					_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh , valueInterpolationStream );
 				}
 			};
 		};
@@ -447,55 +457,72 @@ namespace PoissonRecon
 			template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
 			struct Implicit< Real , Dim , FEMSig , AuxData > : public Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >
 			{
-				Implicit( InputSampleWithDataStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params )
+				Implicit( InputSampleStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params )
 					: Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >( pointStream.zero() )
 				{
-					_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleWithDataStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
+					_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
 				}
 			};
 		};
 
-		template< class Real , unsigned int Dim , bool ExtendedAxes >
-		PointExtent::Extent< Real , Dim , ExtendedAxes > GetExtent( InputDataStream< Point< Real , Dim > > &stream )
+		template< class Real , unsigned int Dim , bool ExtendedAxes , typename SampleStream >
+		PointExtent::Extent< Real , Dim , ExtendedAxes > GetExtent( SampleStream &stream )
 		{
-			Point< Real , Dim > p;
+			using Sample = Point< Real , Dim >;
+			static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
+			Sample s;
 			PointExtent::Extent< Real , Dim , ExtendedAxes > e;
-			while( stream.read( p ) ) e.add( p );
+			while( stream.read( s ) ) e.add(s);
 			stream.reset();
 			return e;
 		}
 
-		template< class Real , unsigned int Dim , bool ExtendedAxes , typename AuxData >
-		PointExtent::Extent< Real , Dim , ExtendedAxes > GetExtent( InputDataStream< VectorTypeUnion< Real , Point< Real , Dim > , AuxData > > &stream , AuxData d )
+		template< class Real , unsigned int Dim , bool ExtendedAxes , typename AuxData , typename SampleStream >
+		PointExtent::Extent< Real , Dim , ExtendedAxes > GetExtent( SampleStream &stream , AuxData d )
 		{
-			VectorTypeUnion< Real , Point< Real , Dim > , AuxData > p( Point< Real , Dim >() , d );
+			using Sample = VectorTypeUnion< Real , Point< Real , Dim > , AuxData >;
+			static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
+			Sample s( Point< Real , Dim >() , d );
 			PointExtent::Extent< Real , Dim , ExtendedAxes > e;
-			while( stream.read( p ) ) e.add( p.template get<0>() );
+			while( stream.read( s ) ) e.add( s.template get<0>() );
 			stream.reset();
 			return e;
 		}
 
-		template< class Real , unsigned int Dim , bool ExtendedAxes >
-		XForm< Real , Dim+1 > GetPointXForm( InputDataStream< Point< Real , Dim > > &stream , Real scaleFactor , unsigned int dir )
+		template< class Real , unsigned int Dim , bool ExtendedAxes , typename SampleStream >
+		XForm< Real , Dim+1 > GetPointXForm( SampleStream &stream , Real scaleFactor , unsigned int dir )
 		{
-			PointExtent::Extent< Real , Dim , ExtendedAxes > e = GetExtent< Real , Dim , ExtendedAxes >( stream );
+			using Sample = Point< Real , Dim >;
+			static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
+			PointExtent::Extent< Real , Dim , ExtendedAxes > e = GetExtent< Real , Dim , ExtendedAxes , SampleStream >( stream );
 			return PointExtent::GetBoundingBoxXForm( e , scaleFactor , dir );
 		}
 
-		template< class Real , unsigned int Dim , bool ExtendedAxes , typename AuxData >
-		XForm< Real , Dim+1 > GetPointXForm( InputDataStream< VectorTypeUnion< Real , Point< Real , Dim > , AuxData > > &stream , AuxData d , Real scaleFactor , unsigned int dir )
+		template< class Real , unsigned int Dim , bool ExtendedAxes , typename AuxData , typename SampleStream >
+		XForm< Real , Dim+1 > GetPointXForm( SampleStream &stream , AuxData d , Real scaleFactor , unsigned int dir )
 		{
-			PointExtent::Extent< Real , Dim , ExtendedAxes > e = GetExtent< Real , Dim , ExtendedAxes , AuxData >( stream , d );
+			using Sample = VectorTypeUnion< Real , Point< Real , Dim > , AuxData >;
+			static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
+			PointExtent::Extent< Real , Dim , ExtendedAxes > e = GetExtent< Real , Dim , ExtendedAxes , AuxData , SampleStream >( stream , d );
 			return PointExtent::GetBoundingBoxXForm( e , scaleFactor , dir );
 		}
 
-		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
+		template< bool HasAuxData , bool IndexedVertexStream , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
 		void _ExtractLevelSet( UIntPack< FEMSigs ... > , const ImplicitType &implicit , OutputVertexStream &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params )
 		{
 			typedef UIntPack< FEMSigs ... > Sigs;
 			static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs ... > >::value , "[ERROR] Signatures don't match" );
 			static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;
 			typedef typename ImplicitType::DensityEstimator DensityEstimator;
+
+			XForm< Real , Dim+1 > unitCubeToModel;
+			if( params.gridCoordinates )
+			{
+				unitCubeToModel = XForm< Real , Dim+1 >::Identity();
+				unsigned int res = 1<<implicit.tree.depth();
+				for( unsigned int d=0 ; d<Dim ; d++ ) unitCubeToModel(d,d) = (Real)res;
+			}
+			else unitCubeToModel = implicit.unitCubeToModel;
 
 			if constexpr( Dim==3 )
 			{
@@ -506,14 +533,14 @@ namespace PoissonRecon
 				if constexpr( HasAuxData )
 				{
 					typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
-					TransformedOutputVertexWithDataStream< Real , Dim , AuxData > _vertexStream( implicit.unitCubeToModel , vertexStream );
+					std::conditional_t< IndexedVertexStream , TransformedOutputIndexedVertexStream< Real , Dim , AuxData > , TransformedOutputVertexStream< Real , Dim , AuxData > > _vertexStream( unitCubeToModel , vertexStream );
 					stats = LevelSetExtractor< Real , Dim , AuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , implicit.tree , implicit.density , implicit.auxData , implicit.solution , implicit.isoValue , _vertexStream , faceStream , implicit.zeroAuxData , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
 					statsString = stats.toString();
 				}
 				else
 				{
 					typename LevelSetExtractor< Real , Dim >::Stats stats;
-					TransformedOutputVertexStream< Real , Dim > _vertexStream( implicit.unitCubeToModel , vertexStream );
+					std::conditional_t< IndexedVertexStream , TransformedOutputIndexedVertexStream< Real , Dim > , TransformedOutputVertexStream< Real , Dim > > _vertexStream( unitCubeToModel , vertexStream );
 					stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , implicit.tree , implicit.density , implicit.solution , implicit.isoValue , _vertexStream , faceStream , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
 					statsString = stats.toString();
 				}
@@ -533,14 +560,14 @@ namespace PoissonRecon
 				if constexpr( HasAuxData )
 				{
 					typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
-					TransformedOutputVertexWithDataStream< Real , Dim , AuxData > _vertexStream( implicit.unitCubeToModel , vertexStream );
+					std::conditional_t< IndexedVertexStream , TransformedOutputIndexedVertexStream< Real , Dim , AuxData > , TransformedOutputVertexStream< Real , Dim , AuxData > > _vertexStream( unitCubeToModel , vertexStream );
 					stats = LevelSetExtractor< Real , Dim , AuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , implicit.tree , implicit.density , implicit.auxData , implicit.solution , implicit.isoValue , _vertexStream , faceStream , implicit.zeroAuxData , !params.linearFit , params.outputGradients , false );
 					statsString = stats.toString();
 				}
 				else
 				{
 					typename LevelSetExtractor< Real , Dim >::Stats stats;
-					TransformedOutputVertexStream< Real , Dim > _vertexStream( implicit.unitCubeToModel , vertexStream );
+					std::conditional_t< IndexedVertexStream , TransformedOutputIndexedVertexStream< Real , Dim > , TransformedOutputVertexStream< Real , Dim > > _vertexStream( unitCubeToModel , vertexStream );
 					stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , implicit.tree , implicit.density , implicit.solution , implicit.isoValue , _vertexStream , faceStream , !params.linearFit , params.outputGradients , false );
 					statsString = stats.toString();
 				}
@@ -671,11 +698,7 @@ namespace PoissonRecon
 
 				if constexpr( HasAuxData )
 				{
-#ifdef DE_VIRTUALIZE_OUTPUT
-					TransformedInputSampleWithDataStream< Real , Dim , AuxData , InputSampleStreamType > _pointStream( modelToUnitCube , pointStream );
-#else // !DE_VIRTUALIZE_OUTPUT
-					TransformedInputSampleWithDataStream< Real , Dim , AuxData > _pointStream( modelToUnitCube , pointStream );
-#endif // DE_VIRTUALIZE_OUTPUT
+					TransformedInputSampleStream< Real , Dim , InputSampleStreamType , AuxData > _pointStream( modelToUnitCube , pointStream );
 					auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , NormalAndAuxData &d )
 						{
 							Real l = (Real)Length( d.template get<0>() );
@@ -696,11 +719,7 @@ namespace PoissonRecon
 				}
 				else
 				{
-#ifdef DE_VIRTUALIZE_OUTPUT
 					TransformedInputSampleStream< Real , Dim , InputSampleStreamType > _pointStream( modelToUnitCube , pointStream );
-#else // !DE_VIRTUALIZE_OUTPUT
-					TransformedInputSampleStream< Real , Dim > _pointStream( modelToUnitCube , pointStream );
-#endif // DE_VIRTUALIZE_OUTPUT
 					auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , NormalAndAuxData &d )
 						{
 							Real l = (Real)Length( d );
@@ -734,7 +753,7 @@ namespace PoissonRecon
 				valueInterpolationSamples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
 				valueInterpolationSampleData = new std::vector< Real >();
 				// Wrap the point stream in a transforming stream
-				TransformedValueInterpolationStream< Real , Dim > _valueInterpolationStream( modelToUnitCube , *valueInterpolationStream );
+				TransformedValueInterpolationStream< Real , Dim , ValueInterpolationStream< Real , Dim > > _valueInterpolationStream( modelToUnitCube , *valueInterpolationStream );
 
 				// Assign each sample a weight of 1.
 				auto ProcessData = []( const Point< Real , Dim > &p , Real &d ){ return (Real)1.; };
@@ -1122,11 +1141,7 @@ namespace PoissonRecon
 
 				if constexpr( HasAuxData )
 				{
-#ifdef DE_VIRTUALIZE_OUTPUT
-					TransformedInputSampleWithDataStream< Real , Dim , AuxData , InputSampleStreamType > _pointStream( modelToUnitCube , pointStream );
-#else // !DE_VIRTUALIZE_OUTPUT
-					TransformedInputSampleWithDataStream< Real , Dim , AuxData > _pointStream( modelToUnitCube , pointStream );
-#endif // DE_VIRTUALIZE_OUTPUT
+					TransformedInputSampleStream< Real , Dim , InputSampleStreamType , AuxData > _pointStream( modelToUnitCube , pointStream );
 					auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , NormalAndAuxData &d )
 						{
 							Real l = (Real)Length( d.template get<0>() );
@@ -1147,11 +1162,7 @@ namespace PoissonRecon
 				}
 				else
 				{
-#ifdef DE_VIRTUALIZE_OUTPUT
 					TransformedInputSampleStream< Real , Dim , InputSampleStreamType > _pointStream( modelToUnitCube , pointStream );
-#else // !DE_VIRTUALIZE_OUTPUT
-					TransformedInputSampleStream< Real , Dim > _pointStream( modelToUnitCube , pointStream );
-#endif // DE_VIRTUALIZE_OUTPUT
 					auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , NormalAndAuxData &d )
 						{
 							Real l = (Real)Length( d );

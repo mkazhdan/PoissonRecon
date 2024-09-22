@@ -710,14 +710,13 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 			const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim-1 , DataSig > > *data=NULL;
 			{
 				VectorBackedOutputDataStream< Point< Real , Dim-1 > > _vertices( state6.vertices );
-				struct VertexStreamWrapper : public Reconstructor::OutputVertexStreamWrapper< Real , Dim-1 , Point< Real , Dim-1 > >
+				struct VertexStreamWrapper : public Reconstructor::OutputVertexStreamWrapper< Point< Real , Dim-1 > , Real , Dim-1 >
 				{
 					typedef Point< Real , Dim-1 > Vertex;
-					VertexStreamWrapper( OutputDataStream< Vertex > &stream , Vertex out ) : 
-						Reconstructor::OutputVertexStreamWrapper< Real , Dim-1 , Point< Real , Dim-1 > >( stream , out ) {}
-					void set( Vertex &out , const Reconstructor::BaseVertex< Real , Dim-1 > &in ){ out = in.template get<0>(); }
+					VertexStreamWrapper( OutputDataStream< Vertex > &stream ) : Reconstructor::OutputVertexStreamWrapper< Point< Real , Dim-1 > , Real , Dim-1 >( stream ) {}
+					Vertex toOutputVertex(const Reconstructor::LevelSetVertex< Real , Dim-1 > &in ){ return in.template get<0>(); }
 				};
-				VertexStreamWrapper __vertexStream( _vertices , Point< Real , Dim-1 >() );
+				VertexStreamWrapper __vertexStream( _vertices );
 
 				LevelSetExtractor< Real , Dim-1 >::SetSliceValues( SliceSigs() , UIntPack< Reconstructor::WeightDegree >() , *state6.sliceTree , clientReconInfo.reconstructionDepth , density , state6.solution , isoValue , __vertexStream , !clientReconInfo.linearFit , false , state6.sliceValues , LevelSetExtractor< Real , Dim-1 , Vertex >::SetIsoEdgesFlag() );
 				if( !clientReconInfo.linearFit ) LevelSetExtractor< Real , Dim-1 >::SetSliceValues( SliceSigs() , UIntPack< Reconstructor::WeightDegree >() , *state6.sliceTree , clientReconInfo.reconstructionDepth , density , state6.dSolution , isoValue , __vertexStream , false , false , state6.dSliceValues , LevelSetExtractor< Real , Dim-1 , Vertex >::SetCornerValuesFlag() );

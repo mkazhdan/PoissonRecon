@@ -333,6 +333,7 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( void )
 	filesPerDir = -1;
 	outputSolution = false;
 	targetValue = (Real)0.5;
+	gridCoordinates = false;
 }
 
 template< typename Real , unsigned int Dim >
@@ -371,6 +372,7 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( BinaryStream &
 	if( !ReadBool( density ) ) ERROR_OUT( "Failed to read density flag" );
 	if( !ReadBool( linearFit ) ) ERROR_OUT( "Failed to read linear-fit flag" );
 	if( !ReadBool( outputSolution ) ) ERROR_OUT( "Failed to read output-solution flag" );
+	if( !ReadBool( gridCoordinates ) ) ERROR_OUT( "Failed to read grid-coordinates flag" );
 	if( !ReadBool( ouputVoxelGrid ) ) ERROR_OUT( "Failed to read output-voxel-grid flag" );
 	{
 		size_t sz;
@@ -414,6 +416,7 @@ void ClientReconstructionInfo< Real , Dim >::write( BinaryStream &stream ) const
 	WriteBool( density );
 	WriteBool( linearFit );
 	WriteBool( outputSolution );
+	WriteBool( gridCoordinates );
 	WriteBool( ouputVoxelGrid );
 	{
 		size_t sz = auxProperties.size();
