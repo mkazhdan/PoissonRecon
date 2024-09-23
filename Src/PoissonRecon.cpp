@@ -213,7 +213,7 @@ void WriteMesh
 )
 {
 	// A description of the output vertex information
-	using VInfo = Reconstructor::OutputIndexedVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactories ... >;
+	using VInfo = Reconstructor::OutputIndexedLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactories ... >;
 
 	// A factory generating the output vertices
 	using Factory = typename VInfo::Factory;
@@ -418,7 +418,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		typedef InputDataStream< SampleType > _InputPointStream;
 		_InputPointStream &pointStream;
 		SampleType scratch;
-		_InputSampleWithDataStream( _InputPointStream &pointStream , typename AuxDataFactory::VertexType zero ) : Reconstructor::InputSampleStream< Real , Dim , typename AuxDataFactory::VertexType >( zero ) , pointStream( pointStream )
+		_InputSampleWithDataStream( _InputPointStream &pointStream , typename AuxDataFactory::VertexType zero ) : pointStream( pointStream )
 		{
 			scratch = SampleType( Reconstructor::Position< Real , Dim >() , DataType( Reconstructor::Normal< Real , Dim >() , zero ) );
 		}
@@ -445,10 +445,10 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		if( Transform.set )
 		{
 			Reconstructor::TransformedInputSampleStream< Real , Dim , _InputSampleWithDataStream , typename AuxDataFactory::VertexType > _sampleStream( toModel , sampleStream );
-			implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( _sampleStream , sParams , envelopeMesh );
+			implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( _sampleStream , sParams , auxDataFactory() , envelopeMesh );
 			implicit->unitCubeToModel = toModel.inverse() * implicit->unitCubeToModel;
 		}
-		else implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( sampleStream , sParams , envelopeMesh );
+		else implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( sampleStream , sParams , auxDataFactory() , envelopeMesh );
 	}
 	else
 	{

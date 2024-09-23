@@ -1251,7 +1251,7 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 
 
 	// A description of the output vertex information
-	using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >;
+	using VInfo = Reconstructor::OutputLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >;
 
 	// A factory generating the output vertices
 	using Factory = typename VInfo::Factory;
@@ -1268,7 +1268,7 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 		typename VInfo::StreamWrapper _vertexStream( vertexStream );
 
 		// The transformed stream
-		Reconstructor::TransformedOutputVertexStream< Real , Dim , AuxData > __vertexStream( unitCubeToModel , _vertexStream );
+		Reconstructor::TransformedOutputLevelSetVertexStream< Real , Dim , AuxData > __vertexStream( unitCubeToModel , _vertexStream );
 
 		// Extract the mesh
 		stats = LevelSetExtractor< Real , Dim , AuxData >::template Extract< Reconstructor::WeightDegree , DataSig >

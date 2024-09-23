@@ -353,7 +353,7 @@ void ExtractLevelSet
 	}
 
 	// A description of the output vertex information
-	using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , false , false >;
+	using VInfo = Reconstructor::OutputLevelSetVertexInfo< Real , Dim , false , false >;
 
 	// A factory generating the output vertices
 	using Factory = typename VInfo::Factory;
@@ -367,7 +367,7 @@ void ExtractLevelSet
 	{
 		// The wrapper converting native to output types
 		typename VInfo::StreamWrapper _vertexStream( vertexStream );
-		Reconstructor::TransformedOutputVertexStream< Real , Dim > __vertexStream( unitCubeToModel , _vertexStream );
+		Reconstructor::TransformedOutputLevelSetVertexStream< Real , Dim > __vertexStream( unitCubeToModel , _vertexStream );
 
 		// Extract the mesh
 		stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< 0 >() , tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , solution , isoValue , __vertexStream , faceStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );

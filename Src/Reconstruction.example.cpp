@@ -127,9 +127,7 @@ struct SphereSampleWithColorStream : public Reconstructor::InputSampleStream< Re
 	std::uniform_real_distribution< Real > distribution;
 
 	// Constructs a stream that contains the specified number of samples
-	SphereSampleWithColorStream( unsigned int sz ) :
-		_size(sz) , _current(0) , generator(0) , distribution((Real)-1.0,(Real)1.0) ,
-		Reconstructor::InputSampleStream< Real , Dim , RGBColor< Real > >( RGBColor< Real >() ) {}
+	SphereSampleWithColorStream( unsigned int sz ) :_size(sz) , _current(0) , generator(0) , distribution((Real)-1.0,(Real)1.0) {}
 
 	// Overrides the pure abstract method from InputSampleStream< Real , Dim , RGBColor< Real > >
 	void reset( void ){ generator.seed(0) ; _current = 0; }
@@ -184,12 +182,12 @@ protected:
 
 // A stream into which we can write the output vertices of the extracted mesh
 template< typename Real , unsigned int Dim >
-struct VertexStream : public Reconstructor::OutputVertexStream< Real , Dim >
+struct VertexStream : public Reconstructor::OutputLevelSetVertexStream< Real , Dim >
 {
 	// Construct a stream that adds vertices into the coordinates
 	VertexStream( std::vector< Real > &vCoordinates ) : _vCoordinates( vCoordinates ) {}
 
-	// Override the pure abstract method from Reconstructor::OutputVertexStream< Real , Dim >
+	// Override the pure abstract method from Reconstructor::OutputLevelSetVertexStream< Real , Dim >
 	void base_write(                Point< Real , Dim > p , Point< Real , Dim >   , Real   ){ for( unsigned int d=0 ; d<Dim ; d++ ) _vCoordinates.push_back( p[d] ); }
 	void base_write( unsigned int , Point< Real , Dim > p , Point< Real , Dim > g , Real r ){ return base_write( p , g , r ); }
 protected:
@@ -198,7 +196,7 @@ protected:
 
 // A stream into which we can write the output vertices and colors of the extracted mesh
 template< typename Real , unsigned int Dim >
-struct VertexWithColorStream : public Reconstructor::OutputVertexStream< Real , Dim , RGBColor< Real > >
+struct VertexWithColorStream : public Reconstructor::OutputLevelSetVertexStream< Real , Dim , RGBColor< Real > >
 {
 	// Construct a stream that adds vertices into the coordinates
 	VertexWithColorStream( std::vector< Real > &vCoordinates , std::vector< Real > &rgbCoordinates ) :
@@ -279,7 +277,7 @@ void Execute( void )
 		SphereSampleWithColorStream< Real , Dim > sampleStream( SampleNum.value );
 
 		// Construct the implicit representation
-		Implicit implicit( sampleStream , solverParams );
+		Implicit implicit( sampleStream , solverParams , RGBColor< Real >() );
 
 		// Scale the color information to give extrapolation preference to data at finer depths
 		implicit.weightAuxDataByDepth( (Real)32. );

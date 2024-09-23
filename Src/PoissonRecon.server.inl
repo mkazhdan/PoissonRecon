@@ -710,10 +710,10 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 			const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim-1 , DataSig > > *data=NULL;
 			{
 				VectorBackedOutputDataStream< Point< Real , Dim-1 > > _vertices( state6.vertices );
-				struct VertexStreamWrapper : public Reconstructor::OutputVertexStreamWrapper< Point< Real , Dim-1 > , Real , Dim-1 >
+				struct VertexStreamWrapper : public Reconstructor::OutputLevelSetVertexStreamWrapper< Point< Real , Dim-1 > , Real , Dim-1 >
 				{
 					typedef Point< Real , Dim-1 > Vertex;
-					VertexStreamWrapper( OutputDataStream< Vertex > &stream ) : Reconstructor::OutputVertexStreamWrapper< Point< Real , Dim-1 > , Real , Dim-1 >( stream ) {}
+					VertexStreamWrapper( OutputDataStream< Vertex > &stream ) : Reconstructor::OutputLevelSetVertexStreamWrapper< Point< Real , Dim-1 > , Real , Dim-1 >( stream ) {}
 					Vertex toOutputVertex(const Reconstructor::LevelSetVertex< Real , Dim-1 > &in ){ return in.template get<0>(); }
 				};
 				VertexStreamWrapper __vertexStream( _vertices );

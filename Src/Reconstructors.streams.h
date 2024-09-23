@@ -44,34 +44,29 @@ namespace PoissonRecon
 
 		// Basic types
 		template< typename Real , unsigned int Dim , typename ... Other >
-		using BaseSample = std::conditional_t< sizeof...(Other)==0 , VectorTypeUnion< Real , Position< Real , Dim > , Normal< Real , Dim > > , VectorTypeUnion< Real , Position< Real , Dim > , VectorTypeUnion< Real , Normal< Real , Dim > , Other... > > >;
+		using Sample = std::conditional_t< sizeof...(Other)==0 , VectorTypeUnion< Real , Position< Real , Dim > , Normal< Real , Dim > > , VectorTypeUnion< Real , Position< Real , Dim > , VectorTypeUnion< Real , Normal< Real , Dim > , Other... > > >;
 
 		// The types output by the extractor
 		template< typename Real , unsigned int Dim , typename ... Other >
 		using LevelSetVertex = typename LevelSetExtractor< Real , Dim , Other... >::Vertex;
-
 		template< typename Real , unsigned int Dim , typename ... Other >
 		using LevelSetIndexedVertex = typename LevelSetExtractor< Real , Dim , Other... >::IndexedVertex;
 
-		template< typename Real , unsigned int Dim , typename ... Other > using BaseInputSampleStream = InputDataStream< BaseSample< Real , Dim  , Other... > >;
-		template< typename Real , unsigned int Dim , typename ... Other > using LevelSetVertexStream = OutputDataStream< LevelSetVertex< Real , Dim , Other... > >;
-		template< typename Real , unsigned int Dim , typename ... Other > using LevelSetIndexedVertexStream = OutputDataStream< LevelSetIndexedVertex< Real , Dim , Other... > >;
-
 		// Stream types
 		template< typename Real , unsigned int Dim , typename ... Other > struct InputSampleStream;
-
 		template< typename Real , unsigned int Dim , typename InputStream , typename ... Other > struct TransformedInputSampleStream;
-		template< typename Real , unsigned int Dim , typename ... Other > struct OutputVertexStream;
-		template< typename Real , unsigned int Dim , typename ... Other > struct OutputIndexedVertexStream;
-		template< typename Real , unsigned int Dim , typename ... Other > struct TransformedOutputVertexStream;
-		template< typename Real , unsigned int Dim , typename ... Other > struct TransformedOutputIndexedVertexStream;
-		template< typename Vertex , typename Real , unsigned int Dim , typename ... Other > struct OutputVertexStreamWrapper;
-		template< typename Vertex , typename Real , unsigned int Dim , typename ... Other > struct OutputIndexedVertexStreamWrapper;
-		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename ... Other > struct OutputVertexInfo;
-		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename ... Other > struct OutputIndexedVertexInfo;
+
+		template< typename Real , unsigned int Dim , typename ... Other > struct OutputLevelSetVertexStream;
+		template< typename Real , unsigned int Dim , typename ... Other > struct OutputIndexedLevelSetVertexStream;
+		template< typename Real , unsigned int Dim , typename ... Other > struct TransformedOutputLevelSetVertexStream;
+		template< typename Real , unsigned int Dim , typename ... Other > struct TransformedOutputIndexedLevelSetVertexStream;
+		template< typename Vertex , typename Real , unsigned int Dim , typename ... Other > struct OutputLevelSetVertexStreamWrapper;
+		template< typename Vertex , typename Real , unsigned int Dim , typename ... Other > struct OutputIndexedLevelSetVertexStreamWrapper;
+
+		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename ... Other > struct OutputLevelSetVertexInfo;
+		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename ... Other > struct OutputIndexedLevelSetVertexInfo;
 
 		template< unsigned int FaceDim , typename T=node_index_type > using Face = std::conditional_t< FaceDim==2 , std::vector< T > , std::conditional_t< FaceDim==1 , std::pair< T , T > , void * > >;
-
 		template< unsigned int FaceDim > using  InputFaceStream =  InputDataStream< Face< FaceDim > >;
 		template< unsigned int FaceDim > using OutputFaceStream = OutputDataStream< Face< FaceDim > >;
 
@@ -136,7 +131,7 @@ namespace PoissonRecon
 		// Oriented Point Stream //
 		///////////////////////////
 		template< typename Real , unsigned int Dim >
-		struct InputSampleStream< Real , Dim > : public BaseInputSampleStream< Real , Dim >
+		struct InputSampleStream< Real , Dim > : public InputDataStream< Sample< Real , Dim > >
 		{
 			// Functionality to reset the stream to the start
 			virtual void reset( void ) = 0;
@@ -146,34 +141,25 @@ namespace PoissonRecon
 			virtual bool base_read(                       Position< Real , Dim > &p , Normal< Real , Dim > &n ) = 0;
 			virtual bool base_read( unsigned int thread , Position< Real , Dim > &p , Normal< Real , Dim > &n ) = 0;
 			// Implementation of InputDataStream::read
-			bool base_read(                       BaseSample< Real , Dim > &s ){ return base_read(          s.template get<0>() , s.template get<1>() ); }
-			bool base_read( unsigned int thread , BaseSample< Real , Dim > &s ){ return base_read( thread , s.template get<0>() , s.template get<1>() ); }
+			bool base_read(                       Sample< Real , Dim > &s ){ return base_read(          s.template get<0>() , s.template get<1>() ); }
+			bool base_read( unsigned int thread , Sample< Real , Dim > &s ){ return base_read( thread , s.template get<0>() , s.template get<1>() ); }
 		};
 
 		///////////////////////////////////
 		// Oriented Point w/ Data Stream //
 		///////////////////////////////////
 		template< typename Real , unsigned int Dim , typename Data >
-		struct InputSampleStream< Real , Dim , Data > : public BaseInputSampleStream< Real , Dim , Data >
+		struct InputSampleStream< Real , Dim , Data > : public InputDataStream< Sample< Real , Dim  , Data > >			
 		{
-			// A constructor initialized with an instance of "zero" data
-			InputSampleStream( Data zero ) : _zero(zero) {}
-
 			// Functionality to reset the stream to the start
 			virtual void reset( void ) = 0;
-
-			// Returns the zero instance
-			const Data &zero( void ) const{ return _zero; }
 
 			// Functionality to extract the next position/normal pair.
 			// The method returns true if there was another point in the stream to read, and false otherwise
 			virtual bool base_read(                       Position< Real , Dim > &p , Normal< Real , Dim > &n , Data &d ) = 0;
 			virtual bool base_read( unsigned int thread , Position< Real , Dim > &p , Normal< Real , Dim > &n , Data &d ) = 0;
-			bool base_read(                       BaseSample< Real , Dim , Data > &s ){ return base_read(          s.template get<0>() , s.template get<1>().template get<0>() , s.template get<1>().template get<1>() ); }
-			bool base_read( unsigned int thread , BaseSample< Real , Dim , Data > &s ){ return base_read( thread , s.template get<0>() , s.template get<1>().template get<0>() , s.template get<1>().template get<1>() ); }
-
-			// An instance of "zero" data
-			Data _zero;
+			bool base_read(                       Sample< Real , Dim , Data > &s ){ return base_read(          s.template get<0>() , s.template get<1>().template get<0>() , s.template get<1>().template get<1>() ); }
+			bool base_read( unsigned int thread , Sample< Real , Dim , Data > &s ){ return base_read( thread , s.template get<0>() , s.template get<1>().template get<0>() , s.template get<1>().template get<1>() ); }
 		};
 
 
@@ -197,14 +183,14 @@ namespace PoissonRecon
 			// The method returns true if there was another point in the stream to read, and false otherwise
 			bool base_read( Position< Real , Dim > &p , Normal< Real , Dim > &n )
 			{
-				BaseSample< Real , Dim > s;
+				Sample< Real , Dim > s;
 				bool ret = _stream.read( s );
 				if( ret ) p = _positionXForm * s.template get<0>() , n = _normalXForm * s.template get<1>();
 				return ret;
 			}
 			bool base_read( unsigned int thread , Position< Real , Dim > &p , Normal< Real , Dim > &n )
 			{
-				BaseSample< Real , Dim > s;
+				Sample< Real , Dim > s;
 				bool ret = _stream.read( thread , s );
 				if( ret ) p = _positionXForm * s.template get<0>() , n = _normalXForm * s.template get<1>();
 				return ret;
@@ -230,7 +216,7 @@ namespace PoissonRecon
 			static_assert( std::is_base_of< InputSampleStream< Real , Dim , Data > , InputStream >::value , "[ERROR] Unexpected stream type" );
 
 			// A constructor initialized with an instance of "zero" data
-			TransformedInputSampleStream( XForm< Real , Dim+1 > xForm , InputStream &stream ) : InputSampleStream< Real , Dim , Data >( stream.zero() ) , _stream(stream) , _positionXForm(xForm)
+			TransformedInputSampleStream( XForm< Real , Dim+1 > xForm , InputStream &stream ) : _stream(stream) , _positionXForm(xForm)
 			{
 				_normalXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
 			}
@@ -242,14 +228,14 @@ namespace PoissonRecon
 			// The method returns true if there was another point in the stream to read, and false otherwise
 			bool base_read( Position< Real , Dim > &p , Normal< Real , Dim > &n , Data &d )
 			{
-				BaseSample< Real , Dim , Data > s( Position< Real , Dim >() , VectorTypeUnion< Real , Normal< Real , Dim > , Data  >( Normal< Real , Dim >() , _stream.zero() ) );
+				Sample< Real , Dim , Data > s( Position< Real , Dim >() , VectorTypeUnion< Real , Normal< Real , Dim > , Data  >( Normal< Real , Dim >() , d ) );
 				bool ret = _stream.read( s );
 				if( ret ) p = _positionXForm * s.template get<0>() , n = _normalXForm * s.template get<1>().template get<0>() , d = s.template get<1>().template get<1>();
 				return ret;
 			}
 			bool base_read( unsigned int thread , Position< Real , Dim > &p , Normal< Real , Dim > &n , Data &d )
 			{
-				BaseSample< Real , Dim , Data > s( Position< Real , Dim >() , VectorTypeUnion< Real , Normal< Real , Dim > , Data  >( Normal< Real , Dim >() , _stream.zero() ) );
+				Sample< Real , Dim , Data > s( Position< Real , Dim >() , VectorTypeUnion< Real , Normal< Real , Dim > , Data  >( Normal< Real , Dim >() , d ) );
 				bool ret = _stream.read( thread , s );
 				if( ret ) p = _positionXForm * s.template get<0>() , n = _normalXForm * s.template get<1>().template get<0>() , d = s.template get<1>().template get<1>();
 				return ret;
@@ -272,10 +258,10 @@ namespace PoissonRecon
 		// Looks like a LevelSetVertexStream, but supports component-wise insertion //
 		//////////////////////////////////////////////////////////////////////////////
 		template< typename Real , unsigned int Dim >
-		struct OutputVertexStream< Real , Dim > : public LevelSetVertexStream< Real , Dim >
+		struct OutputLevelSetVertexStream< Real , Dim > : public OutputDataStream< LevelSetVertex< Real , Dim > >			
 		{
 			// Need to provide access to base write for counter support
-			using LevelSetVertexStream< Real , Dim >::write;
+			using OutputDataStream< LevelSetVertex< Real , Dim > >::write;
 
 			// Functionality to insert the next vertex
 			virtual void base_write(                       Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
@@ -288,10 +274,10 @@ namespace PoissonRecon
 		// Indexed Vertex Stream //
 		///////////////////////////
 		template< typename Real , unsigned int Dim >
-		struct OutputIndexedVertexStream< Real , Dim > : public LevelSetIndexedVertexStream< Real , Dim >
+		struct OutputIndexedLevelSetVertexStream< Real , Dim > : public OutputDataStream< LevelSetIndexedVertex< Real , Dim > >
 		{
 			// Need to provide access to base write for counter support
-			using LevelSetIndexedVertexStream< Real , Dim >::write;
+			using OutputDataStream< LevelSetIndexedVertex< Real , Dim > >::write;
 
 			// Functionality to insert the next vertex
 			virtual void base_write(                       node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
@@ -310,10 +296,10 @@ namespace PoissonRecon
 		// Vertex w/ Data Stream //
 		///////////////////////////
 		template< typename Real , unsigned int Dim , typename Data >
-		struct OutputVertexStream< Real , Dim , Data > : public LevelSetVertexStream< Real , Dim , Data >
+		struct OutputLevelSetVertexStream< Real , Dim , Data > : public OutputDataStream< LevelSetVertex< Real , Dim , Data > >
 		{
 			// Need to provide access to base write for counter support
-			using LevelSetVertexStream< Real , Dim , Data >::write;
+			using OutputDataStream< LevelSetVertex< Real , Dim , Data > >::write;
 
 			// Functionality to insert the next vertex
 			virtual void base_write(                       Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
@@ -326,10 +312,10 @@ namespace PoissonRecon
 		// Indexed vertex w/ Data Stream //
 		///////////////////////////////////
 		template< typename Real , unsigned int Dim , typename Data >
-		struct OutputIndexedVertexStream< Real , Dim , Data > : public LevelSetIndexedVertexStream< Real , Dim , Data >
+		struct OutputIndexedLevelSetVertexStream< Real , Dim , Data > : public OutputDataStream< LevelSetIndexedVertex< Real , Dim , Data > >
 		{
 			// Need to provide access to base write for counter support
-			using LevelSetIndexedVertexStream< Real , Dim , Data >::write;
+			using OutputDataStream< LevelSetIndexedVertex< Real , Dim , Data > >::write;
 
 			// Functionality to insert the next vertex
 			virtual void base_write(                       node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
@@ -342,10 +328,10 @@ namespace PoissonRecon
 		// Transformed Vertex Stream //
 		///////////////////////////////
 		template< typename Real , unsigned int Dim >
-		struct TransformedOutputVertexStream< Real , Dim > : public OutputVertexStream< Real , Dim >
+		struct TransformedOutputLevelSetVertexStream< Real , Dim > : public OutputLevelSetVertexStream< Real , Dim >
 		{
 			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
-			TransformedOutputVertexStream( XForm< Real , Dim+1 > xForm , OutputVertexStream< Real , Dim > &stream ) : _stream(stream) , _positionXForm(xForm)
+			TransformedOutputLevelSetVertexStream( XForm< Real , Dim+1 > xForm , OutputLevelSetVertexStream< Real , Dim > &stream ) : _stream(stream) , _positionXForm(xForm)
 			{
 				_gradientXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
 			}
@@ -356,7 +342,7 @@ namespace PoissonRecon
 
 		protected:
 			// A reference to the underlying stream
-			OutputVertexStream< Real , Dim > &_stream;
+			OutputLevelSetVertexStream< Real , Dim > &_stream;
 
 			// The affine transformation to be applied to the positions
 			XForm< Real , Dim+1 > _positionXForm;
@@ -370,10 +356,10 @@ namespace PoissonRecon
 		// Transformed Vertex w/ Data Stream //
 		///////////////////////////////////////
 		template< typename Real , unsigned int Dim , typename Data >
-		struct TransformedOutputVertexStream< Real , Dim , Data > : public OutputVertexStream< Real , Dim , Data >
+		struct TransformedOutputLevelSetVertexStream< Real , Dim , Data > : public OutputLevelSetVertexStream< Real , Dim , Data >
 		{
 			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
-			TransformedOutputVertexStream( XForm< Real , Dim+1 > xForm , OutputVertexStream< Real , Dim , Data > &stream ) : _stream(stream) , _positionXForm(xForm)
+			TransformedOutputLevelSetVertexStream( XForm< Real , Dim+1 > xForm , OutputLevelSetVertexStream< Real , Dim , Data > &stream ) : _stream(stream) , _positionXForm(xForm)
 			{
 				_gradientXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
 			}
@@ -383,7 +369,7 @@ namespace PoissonRecon
 
 		protected:
 			// A reference to the underlying stream
-			OutputVertexStream< Real , Dim , Data > &_stream;
+			OutputLevelSetVertexStream< Real , Dim , Data > &_stream;
 
 			// The affine transformation to be applied to the positions
 			XForm< Real , Dim+1 > _positionXForm;
@@ -396,10 +382,10 @@ namespace PoissonRecon
 		// Transformed Indexed Vertex Stream //
 		///////////////////////////////////////
 		template< typename Real , unsigned int Dim >
-		struct TransformedOutputIndexedVertexStream< Real , Dim > : public OutputIndexedVertexStream< Real , Dim >
+		struct TransformedOutputIndexedLevelSetVertexStream< Real , Dim > : public OutputIndexedLevelSetVertexStream< Real , Dim >
 		{
 			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
-			TransformedOutputIndexedVertexStream( XForm< Real , Dim+1 > xForm , OutputIndexedVertexStream< Real , Dim > &stream ) : _stream(stream) , _positionXForm(xForm)
+			TransformedOutputIndexedLevelSetVertexStream( XForm< Real , Dim+1 > xForm , OutputIndexedLevelSetVertexStream< Real , Dim > &stream ) : _stream(stream) , _positionXForm(xForm)
 			{
 				_gradientXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
 			}
@@ -416,7 +402,7 @@ namespace PoissonRecon
 
 		protected:
 			// A reference to the underlying stream
-			OutputIndexedVertexStream< Real , Dim > &_stream;
+			OutputIndexedLevelSetVertexStream< Real , Dim > &_stream;
 
 			// The affine transformation to be applied to the positions
 			XForm< Real , Dim+1 > _positionXForm;
@@ -430,10 +416,10 @@ namespace PoissonRecon
 		// Transformed Indexed Vertex w/ Data Stream //
 		///////////////////////////////////////////////
 		template< typename Real , unsigned int Dim , typename Data >
-		struct TransformedOutputIndexedVertexStream< Real , Dim , Data > : public OutputIndexedVertexStream< Real , Dim , Data >
+		struct TransformedOutputIndexedLevelSetVertexStream< Real , Dim , Data > : public OutputIndexedLevelSetVertexStream< Real , Dim , Data >
 		{
 			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
-			TransformedOutputIndexedVertexStream( XForm< Real , Dim+1 > xForm , OutputIndexedVertexStream< Real , Dim , Data > &stream ) : _stream(stream) , _positionXForm(xForm)
+			TransformedOutputIndexedLevelSetVertexStream( XForm< Real , Dim+1 > xForm , OutputIndexedLevelSetVertexStream< Real , Dim , Data > &stream ) : _stream(stream) , _positionXForm(xForm)
 			{
 				_gradientXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
 			}
@@ -449,7 +435,7 @@ namespace PoissonRecon
 
 		protected:
 			// A reference to the underlying stream
-			OutputIndexedVertexStream< Real , Dim , Data > &_stream;
+			OutputIndexedLevelSetVertexStream< Real , Dim , Data > &_stream;
 
 			// The affine transformation to be applied to the positions
 			XForm< Real , Dim+1 > _positionXForm;
@@ -462,11 +448,11 @@ namespace PoissonRecon
 		// A wrapper class to write out vertices //
 		///////////////////////////////////////////
 		template< typename Vertex , typename Real , unsigned int Dim >
-		struct OutputVertexStreamWrapper< Vertex , Real , Dim > : public OutputVertexStream< Real , Dim >
+		struct OutputLevelSetVertexStreamWrapper< Vertex , Real , Dim > : public OutputLevelSetVertexStream< Real , Dim >
 		{
 			virtual Vertex toOutputVertex( const LevelSetVertex< Real , Dim > &in ) = 0;
 
-			OutputVertexStreamWrapper( OutputDataStream< Vertex > &stream ) : _stream(stream){}
+			OutputLevelSetVertexStreamWrapper( OutputDataStream< Vertex > &stream ) : _stream(stream){}
 
 			void base_write( Position< Real , Dim > p , Normal< Real , Dim > g , Real w )
 			{
@@ -493,11 +479,11 @@ namespace PoissonRecon
 		};
 
 		template< typename Vertex , typename Real , unsigned int Dim , typename Data >
-		struct OutputVertexStreamWrapper< Vertex , Real , Dim , Data > : public OutputVertexStream< Real , Dim , Data >
+		struct OutputLevelSetVertexStreamWrapper< Vertex , Real , Dim , Data > : public OutputLevelSetVertexStream< Real , Dim , Data >
 		{
 			virtual Vertex toOutputVertex( const LevelSetVertex< Real , Dim , Data > &in ) = 0;
 
-			OutputVertexStreamWrapper( OutputDataStream< Vertex > &stream ) : _stream(stream){}
+			OutputLevelSetVertexStreamWrapper( OutputDataStream< Vertex > &stream ) : _stream(stream){}
 
 			void base_write( Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d )
 			{
@@ -525,15 +511,15 @@ namespace PoissonRecon
 			OutputDataStream< Vertex > &_stream;
 		};
 
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		// A wrapper class to write out indexed vertices: OutputDataStream< IndexedVertex > -> OutputIndexedVertexStream< Real , Dim > //
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		// A wrapper class to write out indexed vertices: OutputDataStream< IndexedVertex > -> OutputIndexedLevelSetVertexStream< Real , Dim > //
+		/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		template< typename Vertex , typename Real , unsigned int Dim >
-		struct OutputIndexedVertexStreamWrapper< Vertex , Real , Dim > : public OutputIndexedVertexStream< Real , Dim >
+		struct OutputIndexedLevelSetVertexStreamWrapper< Vertex , Real , Dim > : public OutputIndexedLevelSetVertexStream< Real , Dim >
 		{
 			virtual Vertex toOutputVertex( const LevelSetVertex< Real , Dim > &in ) = 0;
 
-			OutputIndexedVertexStreamWrapper( OutputDataStream< std::pair< node_index_type , Vertex > > &stream ) : _stream(stream){}
+			OutputIndexedLevelSetVertexStreamWrapper( OutputDataStream< std::pair< node_index_type , Vertex > > &stream ) : _stream(stream){}
 
 			void base_write( node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w )
 			{
@@ -560,11 +546,11 @@ namespace PoissonRecon
 		};
 
 		template< typename Vertex , typename Real , unsigned int Dim , typename Data >
-		struct OutputIndexedVertexStreamWrapper< Vertex , Real , Dim , Data > : public OutputIndexedVertexStream< Real , Dim , Data >
+		struct OutputIndexedLevelSetVertexStreamWrapper< Vertex , Real , Dim , Data > : public OutputIndexedLevelSetVertexStream< Real , Dim , Data >
 		{
 			virtual Vertex toOutputVertex( const LevelSetVertex< Real , Dim , Data > &in ) = 0;
 
-			OutputIndexedVertexStreamWrapper( OutputDataStream< std::pair< node_index_type , Vertex > > &stream ) : _stream(stream){}
+			OutputIndexedLevelSetVertexStreamWrapper( OutputDataStream< std::pair< node_index_type , Vertex > > &stream ) : _stream(stream){}
 
 			void base_write( node_index_type idx , Position< Real , Dim > p , Normal< Real , Dim > g , Real w , Data d )
 			{
@@ -833,7 +819,7 @@ namespace PoissonRecon
 		};
 
 		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity >
-		struct OutputVertexInfo< Real , Dim , HasGradients , HasDensity >
+		struct OutputLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity >
 		{
 			using Factory =
 				typename std::conditional
@@ -856,10 +842,10 @@ namespace PoissonRecon
 
 			static Factory GetFactory( void ){ return Factory(); }
 
-			struct StreamWrapper : public Reconstructor::OutputVertexStreamWrapper< Vertex , Real , Dim >
+			struct StreamWrapper : public Reconstructor::OutputLevelSetVertexStreamWrapper< Vertex , Real , Dim >
 			{
 				StreamWrapper( OutputDataStream< Vertex > &stream ) :
-					Reconstructor::OutputVertexStreamWrapper< Vertex , Real , Dim >( stream ){}
+					Reconstructor::OutputLevelSetVertexStreamWrapper< Vertex , Real , Dim >( stream ){}
 
 				Vertex toOutputVertex( const Reconstructor::LevelSetVertex< Real , Dim > &in )
 				{
@@ -884,7 +870,7 @@ namespace PoissonRecon
 		};
 
 		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename AuxDataFactory >
-		struct OutputVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >
+		struct OutputLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >
 		{
 			using Factory =
 				typename std::conditional
@@ -922,10 +908,10 @@ namespace PoissonRecon
 				}
 			}
 
-			struct StreamWrapper : public Reconstructor::OutputVertexStreamWrapper< Vertex , Real , Dim , AuxData >
+			struct StreamWrapper : public Reconstructor::OutputLevelSetVertexStreamWrapper< Vertex , Real , Dim , AuxData >
 			{
 				StreamWrapper( OutputDataStream< Vertex > &stream ) :
-					Reconstructor::OutputVertexStreamWrapper< Vertex , Real , Dim , AuxData >( stream ){}
+					Reconstructor::OutputLevelSetVertexStreamWrapper< Vertex , Real , Dim , AuxData >( stream ){}
 
 				Vertex toOutputVertex( const Reconstructor::LevelSetVertex< Real , Dim , AuxData > &in )
 				{
@@ -947,7 +933,7 @@ namespace PoissonRecon
 			};
 		};
 		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity >
-		struct OutputIndexedVertexInfo< Real , Dim , HasGradients , HasDensity >
+		struct OutputIndexedLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity >
 		{
 			using Factory =
 				typename std::conditional
@@ -971,10 +957,10 @@ namespace PoissonRecon
 
 			static Factory GetFactory( void ){ return Factory(); }
 
-			struct StreamWrapper : public Reconstructor::OutputIndexedVertexStreamWrapper< Vertex , Real , Dim >
+			struct StreamWrapper : public Reconstructor::OutputIndexedLevelSetVertexStreamWrapper< Vertex , Real , Dim >
 			{
 				StreamWrapper( OutputDataStream< IndexedVertex > &stream ) :
-					Reconstructor::OutputIndexedVertexStreamWrapper< Vertex , Real , Dim >( stream ){}
+					Reconstructor::OutputIndexedLevelSetVertexStreamWrapper< Vertex , Real , Dim >( stream ){}
 
 				Vertex toOutputVertex( const Reconstructor::LevelSetVertex< Real , Dim > &in )
 				{
@@ -999,7 +985,7 @@ namespace PoissonRecon
 		};
 
 		template< typename Real , unsigned int Dim , bool HasGradients , bool HasDensity , typename AuxDataFactory >
-		struct OutputIndexedVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >
+		struct OutputIndexedLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >
 		{
 			using Factory =
 				typename std::conditional
@@ -1038,10 +1024,10 @@ namespace PoissonRecon
 				}
 			}
 
-			struct StreamWrapper : public Reconstructor::OutputIndexedVertexStreamWrapper< Vertex , Real , Dim , AuxData >
+			struct StreamWrapper : public Reconstructor::OutputIndexedLevelSetVertexStreamWrapper< Vertex , Real , Dim , AuxData >
 			{
 				StreamWrapper( OutputDataStream< IndexedVertex > &stream ) :
-					Reconstructor::OutputIndexedVertexStreamWrapper< Vertex , Real , Dim , AuxData >( stream ){}
+					Reconstructor::OutputIndexedLevelSetVertexStreamWrapper< Vertex , Real , Dim , AuxData >( stream ){}
 
 				Vertex toOutputVertex( const Reconstructor::LevelSetVertex< Real , Dim , AuxData > &in )
 				{
