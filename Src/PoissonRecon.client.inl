@@ -1251,14 +1251,14 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 
 
 	// A description of the output vertex information
-	using VInfo = Reconstructor::OutputLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >;
+	using VInfo = Reconstructor::OutputIndexedLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >;
 
 	// A factory generating the output vertices
 	using Factory = typename VInfo::Factory;
 	Factory factory = VInfo::GetFactory( auxDataFactory );
 
 	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory , false > vertexStream( factory , false );
+	Reconstructor::OutputInputFactoryTypeStream< Factory , true > vertexStream( factory , false );
 	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
 
 	typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
@@ -1268,7 +1268,7 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 		typename VInfo::StreamWrapper _vertexStream( vertexStream );
 
 		// The transformed stream
-		Reconstructor::TransformedOutputLevelSetVertexStream< Real , Dim , AuxData > __vertexStream( unitCubeToModel , _vertexStream );
+		Reconstructor::TransformedOutputIndexedLevelSetVertexStream< Real , Dim , AuxData > __vertexStream( unitCubeToModel , _vertexStream );
 
 		// Extract the mesh
 		stats = LevelSetExtractor< Real , Dim , AuxData >::template Extract< Reconstructor::WeightDegree , DataSig >
@@ -1307,7 +1307,9 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 
 	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
-	PLY::Write< Factory , node_index_type , Real , Dim >( outFileName.c_str() , factory , vertexStream.size() , faceStream.size() , vertexStream , faceStream , PLY_BINARY_NATIVE , noComments );
+	vertexStream.reset();
+	IndexedInputDataStream< node_index_type , typename Factory::VertexType > vStream( vertexStream );
+	PLY::Write< Factory , node_index_type , Real , Dim >( outFileName.c_str() , factory , vertexStream.size() , faceStream.size() , vStream , faceStream , PLY_BINARY_NATIVE , noComments );
 }
 
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >

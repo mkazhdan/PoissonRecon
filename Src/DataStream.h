@@ -166,28 +166,11 @@ namespace PoissonRecon
 	template< typename Index , typename Data >
 	struct IndexedInputDataStream : public InputDataStream< Data >
 	{
-		IndexedInputDataStream( MultiInputDataStream< std::pair< Index , Data > > &multiStream , Data data ) : _multiStream( multiStream )
+		IndexedInputDataStream( MultiInputDataStream< std::pair< Index , Data > > &multiStream ) : _multiStream( multiStream ) , _firstTime(true)
 		{
 			_nextValues.resize( multiStream.numStreams() );
-			for( unsigned int i=0 ; i<_nextValues.size() ; i++ ) _nextValues[i].data.second = data;
-			for( unsigned int i=0 ; i<_nextValues.size() ; i++ )
-			{
-				_nextValues[i].validData = _multiStream.read( i , _nextValues[i].data );
-				_nextValues[i].streamIndex = i;
-			}
-			std::make_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
 		}
-		void reset( void )
-		{
-			_multiStream.reset();
-			for( unsigned int i=0 ; i<_nextValues.size() ; i++ )
-			{
-				_nextValues[i].validData = _multiStream.read( i , _nextValues[i].data );
-				_nextValues[i].streamIndex = i;
-			}
-			std::make_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
-		}
-
+		void reset( void ){ _multiStream.reset() , _firstTime = true; }
 
 	protected:
 		struct _NextValue
@@ -207,10 +190,27 @@ namespace PoissonRecon
 
 		MultiInputDataStream< std::pair< Index , Data > > &_multiStream;
 		std::vector< _NextValue > _nextValues;
+		bool _firstTime;
 
-		bool base_read( unsigned int t , Data &d ){ return base_read(d); }
-		bool base_read(                  Data &d )
+		void _init( const Data &data )
 		{
+			for( unsigned int i=0 ; i<_nextValues.size() ; i++ ) _nextValues[i].data.second = data;
+			for( unsigned int i=0 ; i<_nextValues.size() ; i++ )
+			{
+				_nextValues[i].validData = _multiStream.read( i , _nextValues[i].data );
+				_nextValues[i].streamIndex = i;
+			}
+			std::make_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
+		}
+
+		bool base_read( unsigned int t , Data &d )
+		{
+			ERROR_OUT( "Multi-threaded read not supported" );
+			return false;
+		}
+		bool base_read( Data &d )
+		{
+			if( _firstTime ) _init(d) , _firstTime = false;
 			std::pop_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
 			_NextValue &next = _nextValues.back();
 			if( !next.validData ) return false;

@@ -265,8 +265,7 @@ namespace PoissonRecon
 
 		void write( BinaryStream &stream ) const
 		{
-			size_t sz = _size;
-			stream.write( sz );
+			stream.write( size() );
 			for( size_t i=0 ; i<_size ; i++ ) _data[i]->write( stream );
 		}
 
@@ -282,8 +281,7 @@ namespace PoissonRecon
 		{
 			const size_t serializedSize = serializer.size();
 
-			size_t sz = _size;
-			stream.write( sz );
+			stream.write( size() );
 			for( size_t i=0 ; i<_size ; i++ ) _data[i]->write( stream , serializer );
 		}
 		void read( BinaryStream &stream , const Serializer< T > &serializer )

@@ -227,7 +227,7 @@ void WriteMesh
 	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
 	vertexStream.reset();
-	IndexedInputDataStream< node_index_type , typename Factory::VertexType > vStream( vertexStream , factory() );
+	IndexedInputDataStream< node_index_type , typename Factory::VertexType > vStream( vertexStream );
 	PLY::Write< Factory , node_index_type , Real , Dim >( fileName , factory , vertexStream.size() , faceStream.size() , vStream , faceStream , ascii ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
 }
 
