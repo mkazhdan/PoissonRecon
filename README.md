@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.10)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.20)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.10/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.20/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.10/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.20/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.10/">V18.10</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.05/">V18.05</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.04/">V18.04</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.03/">V18.03</a>,
@@ -1030,22 +1031,33 @@ This method writes the information for the next vertx into the stream. The data 
 The reconstructed surface is then computed in two steps:
 <UL>
 <LI><CODE>Poisson::Implicit&lt; Real , Dim , FEMSig &gt;::Implicit( InputSampleStream&lt; Real , Dim &gt; &#38;sStream , SolutionParameters&lt; Real &gt; sParams )</CODE>:<BR>
-This constructor creates a Poisson reconstruction object from an input sample stream (<code>sStream</code>) and a description of the reconstruction parameters (<code>sParams</code>) desribing the depth, number of samples per node, etc. (<code>Reconstructors.h</code>, line 229). This object derives from <CODE>Implicit&lt; Real , Dim , FEMSig &gt;</CODE>.
+This constructor creates a Poisson reconstruction object from an input sample stream (<code>sStream</code>) and a description of the reconstruction parameters (<code>sParams</code>) desribing the depth, number of samples per node, etc. (<code>Reconstructors.h</code>, line 340). This object derives from <CODE>Implicit&lt; Real , Dim , FEMSig &gt;</CODE>.
 <LI><CODE>void Implicit&lt; Real , Dim , FEMSig &gt::extractLevelSet( OutputVertexStream&lt; Real , Dim &gt; &#38;vStream , &#38;pStream , LevelSetExtractionParameters meParams )</CODE>:<BR>
-This member function takes references to the output vertex and polygon streams (<code>vStream</code> and <code>pStream</code>) and parameters for level-set extraction (<code>meParams</code>) and computes the extracted triangle/polygon mesh, writing its vertices and faces into the corresponding output streams as they are generated (<code>Reconstructors.h</code>, line 98).
+This member function takes references to the output vertex and polygon streams (<code>vStream</code> and <code>pStream</code>) and parameters for level-set extraction (<code>meParams</code>) and computes the extracted triangle/polygon mesh, writing its vertices and faces into the corresponding output streams as they are generated (<code>Reconstructors.h</code>, line 99).
+</UL>
+In Addition, the code supports evaluation of the implicit function at points within the bounding cube:
+<UL>
+<LI><CODE>Poisson::Implicit::evaluator( void )</CODE>:<BR>
+This member function returns an object of type <CODE>Implicit::Evaluator</CODE>. (Note that as the <CODE>Implicit::Evaluator</CODE> object stores <CODE>const</CODE> references to the state in the <CODE>Poisson::Implicit</CODE> object, it will not be valid once the defining <CODE>Poisson::Implicit</CODE> object goes out of scope.)
+<LI><CODE>Real Implicit::Evaluator::operator()( Point&lt; Real , Dim &gt; )</CODE>:<BR>
+This member function returns the value of the implicit function at the prescribed point. The point is assumed to be given in world coordinates, and a <CODE>Implicit::Evaluator::OutOfUnitCubeException</CODE> is thrown if it is outside of the unit-cube containing the input samples.
+<LI><CODE>Point&lt; Real , Dim &gt; Implicit::Evaluator::grad( Point&lt; Real , Dim &gt; )</CODE>:<BR>
+This member function returns the gradient of the implicit function at the prescribed point. The point is assumed to be given in world coordinates, and a <CODE>Implicit::Evaluator::OutOfUnitCubeException</CODE> is thrown if it is outside of the unit-cube containing the input samples.
 </UL>
 <B>Code walk-through</B>:<br>
 <UL>
 These steps can be found in the <code>Reconstruction.example.cpp</code> code.
 <UL>
-<LI>The finite-elements signature is created in line 254.
-<LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 78-115 and constructed in line 301.
-<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 164-179 and constructed in line 311.
-<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is desfined in lines 182-192 and constructed in line 312.
-<LI>The reconstructor is constructed in line 304.
-<LI>The level-set extraction is performed on line 315.
+<LI>The finite-elements signature is created in line 257.
+<LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 81-119 and constructed in line 324.
+<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 167-182 and constructed in line 333.
+<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is desfined in lines 185-195 and constructed in line 334.
+<LI>The reconstructor is constructed in line 326.
+<LI>The level-set extraction is performed on line 337.
+<LI>The evaluator is created on line 283.
+<LI>The evaluator is used to query the values and gradients of the implicit function in line 276.
 </UL>
-Note that a similar approach can be used to perform the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance</A> reconstruction (line 302). The approach also supports reconstruction of meshes with auxiliary information like color (lines 263-295), with the only constraint that the auxiliary data type supports the computation affine combinations (e.g. the <CODE>RGBColor</CODE> type defined in lines 60-75).
+Note that a similar approach can be used to perform the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance</A> reconstruction (lines 370 and 371). The approach also supports reconstruction of meshes with auxiliary information like color (lines 292-319), with the only constraint that the auxiliary data type supports the computation affine combinations (e.g. the <CODE>RGBColor</CODE> type defined in lines 63-78).
 </UL>
 </DL>
 </UL>
@@ -1599,6 +1611,13 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.05/">Version 18.10</a>:
 <OL>
 <LI> Removed mutual exclusion in the iso-surfacing phase.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.05/">Version 18.20</a>:
+<OL>
+<LI> Added an interface for evaluating the implicit function's values and gradients at points inside the bounding cube.
+<LI> Added a <CODE>--evaluate</CODE> flag to the <CODE>Reconstructor.example</CODE> executable that evaluates the implicit function at an interior/exterior/boundary point on the sphere.
+<LI> Changed defaults for PoissonReconstruction to use value interpolation and to evaluate to 0.5 at the input samples.
 </OL>
 
 </DETAILS>
