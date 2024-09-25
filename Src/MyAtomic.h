@@ -240,72 +240,48 @@ namespace PoissonRecon
 	template< typename Value >
 	void AddAtomic8_( volatile Value *a , Value b )
 	{
-#ifdef SANITIZED_PR
 		Value current = ReadAtomic8_( a );
-#else // !SANITIZED_PR
-		Value current = *a;
-#endif // SANITIZED_PR
 		Value sum = current+b;
 #if defined( _WIN32 ) || defined( _WIN64 )
 		char *_current = (char *)&current;
 		char *_sum = (char *)&sum;
-#ifdef SANITIZED_PR
 		while( InterlockedCompareExchange( (char*)a , *_sum , *_current )!=*_current )
 		{
 			current = ReadAtomic8_( a );
 			sum = current + b;
 		}
-#else // !SANITIZED_PR
-		while( InterlockedCompareExchange( (char*)a , *_sum , *_current )!=*_current ) current = *(Value*)a , sum = *(Value*)a+b;
-#endif // SANITIZED_PR
 #else // !_WIN32 && !_WIN64
 		uint8_t *_current = (uint8_t *)&current;
 		uint8_t *_sum = (uint8_t *)&sum;
-#ifdef SANITIZED_PR
 		while( __sync_val_compare_and_swap( (uint8_t *)a , *_current , *_sum )!=*_current )
 		{
 			current = ReadAtomic8_( a );
 			sum = current+b;
 		}
-#else // !SANITIZED_PR
-		while( __sync_val_compare_and_swap( (uint8_t *)a , *_current , *_sum )!=*_current ) current = *(Value*)a , sum = *(Value*)a+b;
-#endif // SANITIZED_PR
 #endif // _WIN32 || _WIN64
 	}
 
 	template< typename Value >
 	void AddAtomic32_( volatile Value *a , Value b )
 	{
-#ifdef SANITIZED_PR
 		Value current = ReadAtomic32_( a );
-#else // !SANITIZED_PR
-		Value current = *a;
-#endif // SANITIZED_PR
 		Value sum = current+b;
 #if defined( _WIN32 ) || defined( _WIN64 )
 		long *_current = (long *)&current;
 		long *_sum = (long *)&sum;
-#ifdef SANITIZED_PR
 		while( InterlockedCompareExchange( (long*)a , *_sum , *_current )!=*_current )
 		{
 			current = ReadAtomic32_( a );
 			sum = current + b;
 		}
-#else // !SANITIZED_PR
-		while( InterlockedCompareExchange( (long*)a , *_sum , *_current )!=*_current ) current = *(Value*)a , sum = *(Value*)a+b;
-#endif // SANITIZED_PR
 #else // !_WIN32 && !_WIN64
 		uint32_t *_current = (uint32_t *)&current;
 		uint32_t *_sum = (uint32_t *)&sum;
-#ifdef SANITIZED_PR
 		while( __sync_val_compare_and_swap( (uint32_t *)a , *_current , *_sum )!=*_current )
 		{
 			current = ReadAtomic32_( a );
 			sum = current+b;
 		}
-#else // !SANITIZED_PR
-		while( __sync_val_compare_and_swap( (uint32_t *)a , *_current , *_sum )!=*_current ) current = *(Value*)a , sum = *(Value*)a+b;
-#endif // SANITIZED_PR
 #endif // _WIN32 || _WIN64
 	}
 
@@ -313,7 +289,6 @@ namespace PoissonRecon
 	void AddAtomic64_( volatile Value * a , Value b )
 	{
 #if 1
-#ifdef SANITIZED_PR
 		Value current = ReadAtomic64_( a );
 		Value sum = current+b;
 		while( !SetAtomic64_( a , sum , current ) )
@@ -321,42 +296,25 @@ namespace PoissonRecon
 			current = ReadAtomic64_( a );
 			sum = current+b;
 		}
-#else // !SANITIZED_PR
-		Value current = *a;
-		Value sum = current+b;
-		while( !SetAtomic64_( a , sum , current ) ) current = *(Value*)a , sum = *(Value*)a+b;
-#endif // SANITIZED_PR
 #else
-#ifdef SANITIZED_PR
 		Value current = ReadAtomic64_( a );
-#else // !SANITIZED_PR
-		Value current = a;
-#endif // SANITIZED_PR
 		Value sum = current+b;
 #if defined( _WIN32 ) || defined( _WIN64 )
 		__int64 *_current = (__int64 *)&current;
 		__int64 *_sum = (__int64 *)&sum;
-#ifdef SANITIZED_PR
 		while( InterlockedCompareExchange64( (__int64*)a , *_sum , *_current )!=*_current )
 		{
 			current = ReadAtomic64_( a );
 			sum = current+b;
 		}
-#else // !SANITIZED_PR
-		while( InterlockedCompareExchange64( (__int64*)a , *_sum , *_current )!=*_current ) current = *(Value*)a , sum = a+b;
-#endif // SANITIZED_PR
 #else // !_WIN32 && !_WIN64
 		uint64_t *_current = (uint64_t *)&current;
 		uint64_t *_sum = (uint64_t *)&sum;
-#ifdef SANITIZED_PR
 		while( __sync_val_compare_and_swap( (uint64_t *)a , *_current , *_sum )!=*_current )
 		{
 			current = ReadAtomic64_( a);
 			sum = current+b;
 		}
-#else // !SANITIZED_PR
-		while( __sync_val_compare_and_swap( (uint64_t *)a , *_current , *_sum )!=*_current ) current = *(Value*)a , sum = a+b;
-#endif // SANITIZED_PR
 #endif // _WIN32 || _WIN64
 #endif
 	}

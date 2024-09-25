@@ -106,6 +106,49 @@ namespace PoissonRecon
 				typedef unsigned char AuxData;
 				_ExtractLevelSet< false , true , Real , Dim , FEMSig , AuxData , OutputIndexedLevelSetVertexStream< Real , Dim > , Implicit< Real , Dim , FEMSig > >( IsotropicUIntPack< Dim , FEMSig >() , *this , vertexStream , faceStream , params );
 			}
+
+			struct Evaluator
+			{
+				struct OutOfUnitCubeException : public std::exception
+				{
+					OutOfUnitCubeException( Point< Real , Dim > world , Point< Real , Dim > cube )
+					{
+						std::stringstream sStream;
+						sStream << "Out-of-unit-cube input: " << world << " -> " << cube;
+						_message = sStream.str();						
+					}
+					const char * what( void ) const noexcept { return _message.c_str(); }
+				protected:
+					std::string _message;
+				};
+
+				Evaluator( const FEMTree< Dim , Real > *tree , const DenseNodeData< Real , Sigs > &coefficients , XForm< Real , Dim+1 > worldToUnitCube )
+					: _evaluator( tree , coefficients , ThreadPool::NumThreads() ) , _xForm(worldToUnitCube) { _gxForm = XForm< Real , Dim >(_xForm).transpose(); }
+
+				Point< Real , Dim > grad( unsigned int t , Point< Real , Dim > p )
+				{
+					CumulativeDerivativeValues< Real , Dim , 1 > v = _values( t , p );
+					Point< Real , Dim > g;
+					for( unsigned int d=0 ; d<Dim ; d++ ) g[d] = v[d+1];
+					return _gxForm * g;
+				}
+				Real operator()( unsigned int t , Point< Real , Dim > p ){ return _values(t,p)[0]; }
+
+				Real operator()( Point< Real , Dim > p ){ return operator()( 0 , p ); }
+				Point< Real , Dim > grad( Point< Real , Dim > p ){ return grad( 0 , p ); }
+			protected:
+				CumulativeDerivativeValues< Real , Dim , 1 > _values( unsigned int t , Point< Real , Dim > p )
+				{
+					Point< Real , Dim > q = _xForm * p;
+					for( unsigned int d=0 ; d<Dim ; d++ ) if( q[d]<0 || q[d]>1 ) throw OutOfUnitCubeException(p,q);
+					return _evaluator.values( q , t );
+				}
+
+				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 1 > _evaluator;
+				XForm< Real , Dim+1 > _xForm;
+				XForm< Real , Dim > _gxForm;
+			};
+			Evaluator evaluator( void ) const { return Evaluator( &tree , solution , unitCubeToModel.inverse() ); }
 		};
 
 		// Specialized solution information with auxiliary data
@@ -261,7 +304,7 @@ namespace PoissonRecon
 				SolutionParameters( void ) :
 					verbose(false) , dirichletErode(false) , outputDensity(false) , exactInterpolation(false) , showResidual(false) ,
 					scale((Real)1.1) , confidence((Real)0.) , confidenceBias((Real)0.) , lowDepthCutOff((Real)0.) , width((Real)0.) ,
-					pointWeight((Real)0.) , valueInterpolationWeight((Real)0.) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) , targetValue((Real)0.) ,
+					pointWeight((Real)( WeightMultiplier * DefaultFEMDegree ) ) , valueInterpolationWeight((Real)0.) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) , targetValue((Real)0.5) ,
 					depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) ,
 					envelopeDepth((unsigned int)-1) , baseVCycles((unsigned int)1) , iters((unsigned int)8) , alignDir(0)
 				{}

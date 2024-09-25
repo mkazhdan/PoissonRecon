@@ -41,10 +41,10 @@ DAMAGE.
 using namespace PoissonRecon;
 
 CmdLineParameter< char* > Out( "out" );
-CmdLineReadable SSDReconstruction( "ssd" ) , UseColor( "color" ) , Verbose( "verbose" );
+CmdLineReadable SSDReconstruction( "ssd" ) , UseColor( "color" ) , EvaluateImplicit( "evaluate" ) , Verbose( "verbose" );
 CmdLineParameter< int >	Depth( "depth" , 8 ) , SampleNum( "samples" , 100000 );
 
-CmdLineReadable* params[] = { &Out , &SSDReconstruction , &UseColor , &Verbose , &Depth , &SampleNum , nullptr };
+CmdLineReadable* params[] = { &Out , &SSDReconstruction , &UseColor , &Verbose , &Depth , &SampleNum , &EvaluateImplicit , nullptr };
 
 void ShowUsage( char* ex )
 {
@@ -54,6 +54,7 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <reconstruction depth>=%d]\n" , Depth.name , Depth.value );
 	printf( "\t[--%s]\n" , UseColor.name );
 	printf( "\t[--%s]\n" , SSDReconstruction.name );
+	printf( "\t[--%s]\n" , EvaluateImplicit.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
 
@@ -188,8 +189,7 @@ struct VertexStream : public Reconstructor::OutputLevelSetVertexStream< Real , D
 	VertexStream( std::vector< Real > &vCoordinates ) : _vCoordinates( vCoordinates ) {}
 
 	// Override the pure abstract method from Reconstructor::OutputLevelSetVertexStream< Real , Dim >
-	void base_write(                Point< Real , Dim > p , Point< Real , Dim >   , Real   ){ for( unsigned int d=0 ; d<Dim ; d++ ) _vCoordinates.push_back( p[d] ); }
-	void base_write( unsigned int , Point< Real , Dim > p , Point< Real , Dim > g , Real r ){ return base_write( p , g , r ); }
+	void base_write( Point< Real , Dim > p , Point< Real , Dim >   , Real   ){ for( unsigned int d=0 ; d<Dim ; d++ ) _vCoordinates.push_back( p[d] ); }
 protected:
 	std::vector< Real > &_vCoordinates;
 };
@@ -210,7 +210,6 @@ struct VertexWithColorStream : public Reconstructor::OutputLevelSetVertexStream<
 		_rgbCoordinates.push_back( c.g );
 		_rgbCoordinates.push_back( c.b );
 	}
-	void base_write( unsigned int , Point< Real , Dim > p , Point< Real , Dim > g , Real r , RGBColor< Real > c ){ return base_write( p , g , r , c ); }
 protected:
 	std::vector< Real > &_vCoordinates;
 	std::vector< Real > &_rgbCoordinates;
@@ -268,11 +267,30 @@ void Execute( void )
 	extractionParams.linearFit = SSDReconstruction.set;		// Since the SSD solution approximates a TSDF, linear fitting works well
 	extractionParams.verbose = Verbose.set;
 
+	// The type of the reconstructor
+	using Implicit = std::conditional_t< UseColor , typename ReconType::template Implicit< Real , Dim , FEMSig , RGBColor< Real > > , typename ReconType::template Implicit< Real , Dim , FEMSig > >;
+
+	// Functionality for evaluating at a single point
+	auto _Evaluate = []( typename Implicit::Evaluator &evaluator , Point< double , Dim > p )
+		{
+			try{ std::cout << "\tValue/Gradient @ " << p << ": " << evaluator(p) << " / " << evaluator.grad(p) << std::endl; }
+			catch( typename Implicit::Evaluator::OutOfUnitCubeException &e ){ std::cout << e.what() << std::endl; }
+		};
+
+	// Functionality for evaluating at interior/exterior/boundary points
+	auto Evaluate = [&_Evaluate]( const Implicit &implicit )
+		{
+			typename Implicit::Evaluator evaluator = implicit.evaluator();
+			std::cout << "Evaluating interior:" << std::endl;
+			_Evaluate( evaluator , Point< Real , Dim >( (Real)0.0 , (Real)0.0 , (Real)0.0 ) );
+			std::cout << "Evaluating exterior: " << std::endl;
+			_Evaluate( evaluator , Point< Real , Dim >( (Real)1.0 , (Real)1.0 , (Real)1.0 ) );
+			std::cout << "Evaluating boundary: " << std::endl;
+			_Evaluate( evaluator , Point< Real , Dim >( (Real)1.0 , (Real)1.0 , (Real)1.0 )/(Real)sqrt(3.) );
+		};
+
 	if constexpr( UseColor )
 	{
-		// The type of the reconstructor
-		using Implicit = typename ReconType::template Implicit< Real , Dim , FEMSig , RGBColor< Real > >;
-
 		// A stream generating random points on the sphere with color
 		SphereSampleWithColorStream< Real , Dim > sampleStream( SampleNum.value );
 
@@ -281,7 +299,6 @@ void Execute( void )
 
 		// Scale the color information to give extrapolation preference to data at finer depths
 		implicit.weightAuxDataByDepth( (Real)32. );
-
 
 		// vectors for storing the polygons (specifically, triangles), the coordinates of the vertices, and the colors at the vertices
 		std::vector< std::vector< int > > polygons;
@@ -294,13 +311,14 @@ void Execute( void )
 		// Extract the iso-surface
 		implicit.extractLevelSet( vStream , pStream , extractionParams );
 
+		// Write out the level-set
 		if( Out.set ) WritePly( Out.value , vStream.size() , vCoordinates.data() , rgbCoordinates.data() , polygons );
+
+		// Evaluate the implicit function
+		if( EvaluateImplicit.set ) Evaluate(implicit);
 	}
 	else
 	{
-		// The type of the reconstructor
-		using Implicit = typename ReconType::template Implicit< Real , Dim , FEMSig >;
-
 		// A stream generating random points on the sphere
 		SphereSampleStream< Real , Dim > sampleStream( SampleNum.value );
 
@@ -318,7 +336,11 @@ void Execute( void )
 		// Extract the iso-surface
 		implicit.extractLevelSet( vStream , pStream , extractionParams );
 
+		// Write out the level-set
 		if( Out.set ) WritePly( Out.value , vStream.size() , vCoordinates.data() , (Real*)nullptr , polygons );
+
+		// Evaluate the implicit function
+		if( EvaluateImplicit.set ) Evaluate(implicit);
 	}
 }
 

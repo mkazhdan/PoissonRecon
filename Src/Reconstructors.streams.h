@@ -265,9 +265,15 @@ namespace PoissonRecon
 
 			// Functionality to insert the next vertex
 			virtual void base_write(                       Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
-			virtual void base_write( unsigned int thread , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
+			virtual void base_write( unsigned int thread , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w )
+			{
+				std::lock_guard< std::mutex > guard(_insertionMutex);
+				base_write( p , g , w );
+			}
 			void base_write(                       const LevelSetVertex< Real , Dim > &v ){ base_write(          v.template get<0>() , v.template get<1>() , v.template get<2>() ); }
 			void base_write( unsigned int thread , const LevelSetVertex< Real , Dim > &v ){ base_write( thread , v.template get<0>() , v.template get<1>() , v.template get<2>() ); }
+		protected:
+			std::mutex _insertionMutex;
 		};
 
 		///////////////////////////
@@ -281,7 +287,11 @@ namespace PoissonRecon
 
 			// Functionality to insert the next vertex
 			virtual void base_write(                       node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
-			virtual void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w ) = 0;
+			virtual void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w )
+			{
+				std::lock_guard< std::mutex > guard(_insertionMutex);
+				base_write( idx , p , g , w );
+			}
 			void base_write( const LevelSetIndexedVertex< Real , Dim > &v )
 			{
 				base_write( v.first , v.second.template get<0>() , v.second.template get<1>() , v.second.template get<2>() );
@@ -290,6 +300,8 @@ namespace PoissonRecon
 			{
 				base_write( thread , v.first , v.second.template get<0>() , v.second.template get<1>() , v.second.template get<2>() );
 			}
+		protected:
+			std::mutex _insertionMutex;
 		};
 
 		///////////////////////////
@@ -303,9 +315,15 @@ namespace PoissonRecon
 
 			// Functionality to insert the next vertex
 			virtual void base_write(                       Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
-			virtual void base_write( unsigned int thread , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
+			virtual void base_write( unsigned int thread , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d )
+			{
+				std::lock_guard< std::mutex > guard( _insertionMutex );
+				base_write( p , g , w , d );
+			}
 			void base_write(                       const LevelSetVertex< Real , Dim , Data > &v ){ return base_write(          v.template get<0>() , v.template get<1>() , v.template get<2>() , v.template get<3>() ); }
 			void base_write( unsigned int thread , const LevelSetVertex< Real , Dim , Data > &v ){ return base_write( thread , v.template get<0>() , v.template get<1>() , v.template get<2>() , v.template get<3>() ); }
+		protected:
+			std::mutex _insertionMutex;
 		};
 
 		///////////////////////////////////
@@ -319,9 +337,15 @@ namespace PoissonRecon
 
 			// Functionality to insert the next vertex
 			virtual void base_write(                       node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
-			virtual void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d ) = 0;
+			virtual void base_write( unsigned int thread , node_index_type idx , Position< Real , Dim > p , Gradient< Real , Dim > g , Real w , Data d )
+			{
+				std::lock_guard< std::mutex > guard( _insertionMutex );
+				base_write( idx , p , g , w , d );
+			}
 			void base_write(                       const LevelSetIndexedVertex< Real , Dim , Data > &v ){ return base_write(          v.first , v.second.template get<0>() , v.second.template get<1>() , v.second.template get<2>() , v.second.template get<3>() ); }
 			void base_write( unsigned int thread , const LevelSetIndexedVertex< Real , Dim , Data > &v ){ return base_write( thread , v.first , v.second.template get<0>() , v.second.template get<1>() , v.second.template get<2>() , v.second.template get<3>() ); }
+		protected:
+			std::mutex _insertionMutex;
 		};
 
 		///////////////////////////////
