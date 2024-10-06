@@ -51,20 +51,17 @@ size_t FEMTreeInitializer< Dim , Real >::_Initialize( FEMTreeNode &node , int ma
 }
 
 template< unsigned int Dim , class Real >
-template< typename AuxData , typename PointStream >
-size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , PointStream &pointStream , AuxData zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
+template< typename AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
 {
-	return Initialize< AuxData , PointStream >( sid , root , pointStream , zeroData , maxDepth , [&]( Point< Real , Dim > ){ return maxDepth; } , samplePoints , sampleData , mergeNodeSamples , nodeAllocator , NodeInitializer , ProcessData );
+	return Initialize< AuxData >( sid , root , pointStream , zeroData , maxDepth , [&]( Point< Real , Dim > ){ return maxDepth; } , samplePoints , sampleData , mergeNodeSamples , nodeAllocator , NodeInitializer , ProcessData );
 }
 
 template< unsigned int Dim , class Real >
-template< typename AuxData , typename PointStream >
-size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , PointStream &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
+template< typename AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
 {
-	using Sample = VectorTypeUnion< Real , Point< Real , Dim > , AuxData >;
-	static_assert( std::is_base_of< InputDataStream< Sample > , PointStream >::value , "[ERROR] Unexpected point stream type" );
 	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
-
 
 	auto Leaf = [&]( FEMTreeNode& root , Point< Real , Dim > p , unsigned int maxDepth )
 	{
@@ -97,12 +94,10 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitialization
 	{
 		std::vector< node_index_type > &nodeToIndexMap = sid._nodeToIndexMap;
 
-		Sample s;
-		s.template get<1>() = zeroData;
-		while( pointStream.read( s ) )
+		Point< Real , Dim > p;
+		AuxData d = zeroData;
+		while( pointStream.read( p , d ) )
 		{
-			Point< Real , Dim > p = s.template get<0>();
-			AuxData d = s.template get<1>();
 			Real weight = ProcessData( p , d );
 			if( weight<=0 ){ badData++ ; continue; }
 			FEMTreeNode *temp = Leaf( root , p , pointDepthFunctor(p) );

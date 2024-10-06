@@ -233,10 +233,10 @@ namespace PoissonRecon
 			template< unsigned int Dim , typename Real >
 			struct ValueInterpolationConstraintDual
 			{
-				typedef VectorTypeUnion< Real , Real > PointSampleData;
+				typedef DirectSum< Real , Real > PointSampleData;
 				Real vWeight;
 				ValueInterpolationConstraintDual( Real v ) : vWeight(v){ }
-				CumulativeDerivativeValues< Real , Dim , 0 > operator()( const Point< Real , Dim > &p , const VectorTypeUnion< Real , Real >& data ) const 
+				CumulativeDerivativeValues< Real , Dim , 0 > operator()( const Point< Real , Dim > &p , const DirectSum< Real , Real >& data ) const 
 				{
 					Real value = data.template get<0>();
 					CumulativeDerivativeValues< Real , Dim , 0 > cdv;
@@ -250,11 +250,11 @@ namespace PoissonRecon
 			{
 				CumulativeDerivativeValues< Real , Dim , 0 > weight;
 				ValueInterpolationSystemDual( Real v ){ weight[0] = v; }
-				CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Real > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
+				CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const DirectSum< Real , Real > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
 				{
 					return dValues * weight;
 				}
-				CumulativeDerivativeValues< double , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Real > &data , const CumulativeDerivativeValues< double , Dim , 0 > &dValues ) const
+				CumulativeDerivativeValues< double , Dim , 0 > operator()( Point< Real , Dim > p , const DirectSum< Real , Real > &data , const CumulativeDerivativeValues< double , Dim , 0 > &dValues ) const
 				{
 					return dValues * weight;
 				}
@@ -267,7 +267,7 @@ namespace PoissonRecon
 				Real weight;
 				ValueInterpolationSystemDual( void ) : weight(0) {}
 				ValueInterpolationSystemDual( Real v ) : weight(v) {}
-				CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Real > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
+				CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const DirectSum< Real , Real > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
 				{
 					return dValues * weight;
 				}
@@ -319,28 +319,28 @@ namespace PoissonRecon
 
 			template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
-			template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-			static void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh , ValueInterpolationStream< Real , Dim > *valueInterpolationStream );
+			template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputOrientedSampleStreamType , unsigned int ... FEMSigs >
+			static void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputOrientedSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh , InputValuedSampleStream< Real , Dim > *valueInterpolationStream );
 
 			template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
 			template< typename Real , unsigned int Dim , unsigned int FEMSig >
 			struct Implicit< Real , Dim , FEMSig > : public Reconstructor::Implicit< Real , Dim , FEMSig >
 			{
-				Implicit( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL , ValueInterpolationStream< Real , Dim > *valueInterpolationStream=NULL )
+				Implicit( InputOrientedSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL , InputValuedSampleStream< Real , Dim > *valueInterpolationStream=NULL )
 				{
 					typedef unsigned char AuxData;
-					_Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh , valueInterpolationStream );
+					_Solve< false , Real , Dim , FEMSig , AuxData , InputOrientedSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh , valueInterpolationStream );
 				}
 			};
 
 			template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
 			struct Implicit< Real , Dim , FEMSig , AuxData > : public Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >
 			{
-				Implicit( InputSampleStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , AuxData zero , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL , ValueInterpolationStream< Real , Dim > *valueInterpolationStream=NULL )
+				Implicit( InputOrientedSampleStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , AuxData zero , const EnvelopeMesh< Real , Dim > *envelopeMesh=NULL , InputValuedSampleStream< Real , Dim > *valueInterpolationStream=NULL )
 					: Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >( zero )
 				{
-					_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh , valueInterpolationStream );
+					_Solve< true , Real , Dim , FEMSig , AuxData , InputOrientedSampleStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params , envelopeMesh , valueInterpolationStream );
 				}
 			};
 		};
@@ -374,7 +374,7 @@ namespace PoissonRecon
 			{
 				Real target , vWeight , gWeight;
 				ConstraintDual( Real t , Real v , Real g ) : target(t) , vWeight(v) , gWeight(g) { }
-				CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const VectorTypeUnion< Real , Point< Real , Dim > , AuxData > &normalAndAuxData ) const 
+				CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const DirectSum< Real , Point< Real , Dim > , AuxData > &normalAndAuxData ) const 
 				{
 					Point< Real , Dim > n = normalAndAuxData.template get<0>();
 					CumulativeDerivativeValues< Real , Dim , 1 > cdv;
@@ -424,11 +424,11 @@ namespace PoissonRecon
 					weight[0] = v;
 					for( int d=0 ; d<Dim ; d++ ) weight[d+1] = g;
 				}
-				CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Point< Real , Dim > , AuxData > & , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
+				CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const DirectSum< Real , Point< Real , Dim > , AuxData > & , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
 				{
 					return dValues * weight;
 				}
-				CumulativeDerivativeValues< double , Dim , 1 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Point< Real , Dim > , AuxData > & , const CumulativeDerivativeValues< double , Dim , 1 >& dValues ) const
+				CumulativeDerivativeValues< double , Dim , 1 > operator()( Point< Real , Dim > p , const DirectSum< Real , Point< Real , Dim > , AuxData > & , const CumulativeDerivativeValues< double , Dim , 1 >& dValues ) const
 				{
 					return dValues * weight;
 				};
@@ -440,7 +440,7 @@ namespace PoissonRecon
 				typedef double Real;
 				CumulativeDerivativeValues< Real , Dim , 1 > weight;
 				SystemDual( Real v , Real g ) : weight( v , g , g , g ) { }
-				CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Point< Real , Dim > , AuxData > & , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
+				CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const DirectSum< Real , Point< Real , Dim > , AuxData > & , const CumulativeDerivativeValues< Real , Dim , 1 >& dValues ) const
 				{
 					return dValues * weight;
 				}
@@ -484,71 +484,31 @@ namespace PoissonRecon
 
 			template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... Other > struct Implicit;
 
-			template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-			static void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params );
+			template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputOrientedSampleStreamType , unsigned int ... FEMSigs >
+			static void _Solve( UIntPack< FEMSigs... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputOrientedSampleStreamType &pointStream , SolutionParameters< Real > params );
 
 			template< typename Real , unsigned int Dim , unsigned int FEMSig >
 			struct Implicit< Real , Dim , FEMSig > : public Reconstructor::Implicit< Real , Dim , FEMSig >
 			{
-				Implicit( InputSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params )
+				Implicit( InputOrientedSampleStream< Real , Dim > &pointStream , SolutionParameters< Real > params )
 				{
 					typedef unsigned char AuxData;
-					_Solve< false , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
+					_Solve< false , Real , Dim , FEMSig , AuxData , InputOrientedSampleStream< Real , Dim > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
 				}
 			};
 
 			template< typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData >
 			struct Implicit< Real , Dim , FEMSig , AuxData > : public Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >
 			{
-				Implicit( InputSampleStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , AuxData zero )
+				Implicit( InputOrientedSampleStream< Real , Dim , AuxData > &pointStream , SolutionParameters< Real > params , AuxData zero )
 					: Reconstructor::Implicit< Real , Dim , FEMSig , AuxData >( zero )
 				{
-					_Solve< true , Real , Dim , FEMSig , AuxData , InputSampleStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
+					_Solve< true , Real , Dim , FEMSig , AuxData , InputOrientedSampleStream< Real , Dim , AuxData > >( IsotropicUIntPack< Dim , FEMSig >() , *this , pointStream , params );
 				}
 			};
 		};
 
-		template< class Real , unsigned int Dim , bool ExtendedAxes , typename SampleStream >
-		PointExtent::Extent< Real , Dim , ExtendedAxes > GetExtent( SampleStream &stream )
-		{
-			using Sample = Point< Real , Dim >;
-			static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
-			Sample s;
-			PointExtent::Extent< Real , Dim , ExtendedAxes > e;
-			while( stream.read( s ) ) e.add(s);
-			stream.reset();
-			return e;
-		}
 
-		template< class Real , unsigned int Dim , bool ExtendedAxes , typename AuxData , typename SampleStream >
-		PointExtent::Extent< Real , Dim , ExtendedAxes > GetExtent( SampleStream &stream , AuxData d )
-		{
-			using Sample = VectorTypeUnion< Real , Point< Real , Dim > , AuxData >;
-			static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
-			Sample s( Point< Real , Dim >() , d );
-			PointExtent::Extent< Real , Dim , ExtendedAxes > e;
-			while( stream.read( s ) ) e.add( s.template get<0>() );
-			stream.reset();
-			return e;
-		}
-
-		template< class Real , unsigned int Dim , bool ExtendedAxes , typename SampleStream >
-		XForm< Real , Dim+1 > GetPointXForm( SampleStream &stream , Real scaleFactor , unsigned int dir )
-		{
-			using Sample = Point< Real , Dim >;
-			static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
-			PointExtent::Extent< Real , Dim , ExtendedAxes > e = GetExtent< Real , Dim , ExtendedAxes , SampleStream >( stream );
-			return PointExtent::GetBoundingBoxXForm( e , scaleFactor , dir );
-		}
-
-		template< class Real , unsigned int Dim , bool ExtendedAxes , typename AuxData , typename SampleStream >
-		XForm< Real , Dim+1 > GetPointXForm( SampleStream &stream , AuxData d , Real scaleFactor , unsigned int dir )
-		{
-			using Sample = VectorTypeUnion< Real , Point< Real , Dim > , AuxData >;
-			static_assert( std::is_base_of< InputDataStream< Sample > , SampleStream >::value , "[ERROR] Unexpected sample stream type" );
-			PointExtent::Extent< Real , Dim , ExtendedAxes > e = GetExtent< Real , Dim , ExtendedAxes , AuxData , SampleStream >( stream , d );
-			return PointExtent::GetBoundingBoxXForm( e , scaleFactor , dir );
-		}
 
 		template< bool HasAuxData , bool IndexedVertexStream , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename OutputVertexStream , typename ImplicitType , unsigned int ... FEMSigs >
 		void _ExtractLevelSet( UIntPack< FEMSigs ... > , const ImplicitType &implicit , OutputVertexStream &vertexStream , OutputFaceStream< Dim-1 > &faceStream , LevelSetExtractionParameters params )
@@ -623,8 +583,8 @@ namespace PoissonRecon
 			}
 			else WARN( "Extraction only supported for dimensions 2 and 3" );	}
 
-		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-		void Poisson::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh , ValueInterpolationStream< Real , Dim > *valueInterpolationStream )
+		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputOrientedSampleStreamType , unsigned int ... FEMSigs >
+		void Poisson::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputOrientedSampleStreamType &pointStream , SolutionParameters< Real > params , const EnvelopeMesh< Real , Dim > *envelopeMesh , InputValuedSampleStream< Real , Dim > *valueInterpolationStream )
 		{
 			static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs... > >::value , "[ERROR] Signatures don't match" );
 			if( params.valueInterpolationWeight<0 )
@@ -657,7 +617,7 @@ namespace PoissonRecon
 			typedef typename FEMTreeInitializer< Dim , Real >::GeometryNodeType GeometryNodeType;
 
 			// The type of the auxiliary information (including the normal)
-			typedef typename std::conditional< HasAuxData , VectorTypeUnion< Real , Normal< Real , Dim > , AuxData > , Normal< Real , Dim > >::type NormalAndAuxData;
+			typedef typename std::conditional< HasAuxData , DirectSum< Real , Normal< Real , Dim > , AuxData > , Normal< Real , Dim > >::type NormalAndAuxData;
 
 			// The type describing the sampling density
 			typedef typename std::conditional< HasAuxData , Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
@@ -690,7 +650,9 @@ namespace PoissonRecon
 				pointStream.reset();
 				sampleNormalAndAuxData = new std::vector< NormalAndAuxData >();
 
-				modelToUnitCube = params.scale>0 ? GetPointXForm< Real , Dim , true >( pointStream , zeroNormalAndAuxData , params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
+				if constexpr( HasAuxData ) modelToUnitCube = params.scale>0 ? PointExtent::GetXForm< Real , Dim , true , Point< Real , Dim > , AuxData >( pointStream , Point< Real , Dim >() , implicit.zeroAuxData , params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
+				else                       modelToUnitCube = params.scale>0 ? PointExtent::GetXForm< Real , Dim , true , Point< Real , Dim >           >( pointStream , Point< Real , Dim >() ,                        params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
+				pointStream.reset();
 
 				if( params.width>0 )
 				{
@@ -741,7 +703,7 @@ namespace PoissonRecon
 
 				if constexpr( HasAuxData )
 				{
-					TransformedInputSampleStream< Real , Dim , InputSampleStreamType , AuxData > _pointStream( modelToUnitCube , pointStream );
+					TransformedInputOrientedSampleStream< Real , Dim , AuxData > _pointStream( modelToUnitCube , pointStream );
 					auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , NormalAndAuxData &d )
 						{
 							Real l = (Real)Length( d.template get<0>() );
@@ -757,12 +719,33 @@ namespace PoissonRecon
 						};
 
 					typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-					if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
-					else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
+					{
+						using ExternalType = std::tuple< Point< Real , Dim > , NormalAndAuxData >;
+						if constexpr( HasAuxData )
+						{
+							using InternalType = std::tuple< Point< Real , Dim > , Point< Real , Dim > , AuxData >;
+							auto converter = []( const InternalType &iType )
+								{
+									ExternalType xType;
+									std::get< 0 >( xType ) = std::get< 0 >( iType );
+									std::get< 1 >( xType ).template get<0>() = std::get< 1 >( iType );
+									std::get< 1 >( xType ).template get<1>() = std::get< 2 >( iType );
+									return xType;
+								};
+							InputDataStreamConverter< InternalType , ExternalType > __pointStream( _pointStream , converter , Point< Real , Dim >() , Point< Real , Dim >() , implicit.zeroAuxData );
+							if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+							else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
+						}
+						else
+						{
+							if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+							else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
+						}
+					}
 				}
 				else
 				{
-					TransformedInputSampleStream< Real , Dim , InputSampleStreamType > _pointStream( modelToUnitCube , pointStream );
+					TransformedInputOrientedSampleStream< Real , Dim > _pointStream( modelToUnitCube , pointStream );
 					auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , NormalAndAuxData &d )
 						{
 							Real l = (Real)Length( d );
@@ -796,7 +779,7 @@ namespace PoissonRecon
 				valueInterpolationSamples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
 				valueInterpolationSampleData = new std::vector< Real >();
 				// Wrap the point stream in a transforming stream
-				TransformedValueInterpolationStream< Real , Dim , ValueInterpolationStream< Real , Dim > > _valueInterpolationStream( modelToUnitCube , *valueInterpolationStream );
+				TransformedInputValuedSampleStream< Real , Dim > _valueInterpolationStream( modelToUnitCube , *valueInterpolationStream );
 
 				// Assign each sample a weight of 1.
 				auto ProcessData = []( const Point< Real , Dim > &p , Real &d ){ return (Real)1.; };
@@ -975,7 +958,12 @@ namespace PoissonRecon
 				}
 
 				if( !params.outputDensity ){ delete implicit.density ; implicit.density = NULL; }
-				if constexpr( HasAuxData ) implicit.auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( implicit.tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( samples->size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return (*samples)[i]; } , [&]( size_t i ) -> const AuxData & { return (*sampleNormalAndAuxData)[i].template get<1>(); } , (DensityEstimator*)NULL ) );
+				if constexpr( HasAuxData )
+				{
+					profiler.reset();
+					implicit.auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( implicit.tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( samples->size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return (*samples)[i]; } , [&]( size_t i ) -> const AuxData & { return (*sampleNormalAndAuxData)[i].template get<1>(); } , (DensityEstimator*)NULL ) );
+					if( params.verbose ) std::cout << "#         Got aux data: " << profiler << std::endl;
+				}
 				delete sampleNormalAndAuxData;
 
 				// Add the interpolation constraints
@@ -1094,8 +1082,8 @@ namespace PoissonRecon
 			delete samples;
 		}
 
-		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputSampleStreamType , unsigned int ... FEMSigs >
-		void SSD::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputSampleStreamType &pointStream , SolutionParameters< Real > params )
+		template< bool HasAuxData , typename Real , unsigned int Dim , unsigned int FEMSig , typename AuxData , typename InputOrientedSampleStreamType , unsigned int ... FEMSigs >
+		void SSD::_Solve( UIntPack< FEMSigs ... > , typename std::conditional< HasAuxData , Reconstructor::Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type &implicit , InputOrientedSampleStreamType &pointStream , SolutionParameters< Real > params )
 		{
 			static_assert( std::is_same< IsotropicUIntPack< Dim , FEMSig > , UIntPack< FEMSigs... > >::value , "[ERROR] Signatures don't match" );
 
@@ -1120,7 +1108,7 @@ namespace PoissonRecon
 			typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
 
 			// The type of the auxiliary information (including the normal)
-			typedef typename std::conditional< HasAuxData , VectorTypeUnion< Real , Normal< Real , Dim > , AuxData > , Normal< Real , Dim > >::type NormalAndAuxData;
+			typedef typename std::conditional< HasAuxData , DirectSum< Real , Normal< Real , Dim > , AuxData > , Normal< Real , Dim > >::type NormalAndAuxData;
 
 			// The type describing the sampling density
 			typedef typename std::conditional< HasAuxData , Implicit< Real , Dim , FEMSig , AuxData > , Implicit< Real , Dim , FEMSig > >::type::DensityEstimator DensityEstimator;
@@ -1150,7 +1138,9 @@ namespace PoissonRecon
 				pointStream.reset();
 				sampleNormalAndAuxData = new std::vector< NormalAndAuxData >();
 
-				modelToUnitCube = params.scale>0 ? GetPointXForm< Real , Dim , true >( pointStream , zeroNormalAndAuxData , params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
+				if constexpr( HasAuxData ) modelToUnitCube = params.scale>0 ? PointExtent::GetXForm< Real , Dim , true , Point< Real , Dim > , AuxData >( pointStream , Point< Real , Dim >() , implicit.zeroAuxData , params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
+				else                       modelToUnitCube = params.scale>0 ? PointExtent::GetXForm< Real , Dim , true , Point< Real , Dim >           >( pointStream , Point< Real , Dim >() ,                        params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
+				pointStream.reset();
 
 				if( params.width>0 )
 				{
@@ -1184,7 +1174,7 @@ namespace PoissonRecon
 
 				if constexpr( HasAuxData )
 				{
-					TransformedInputSampleStream< Real , Dim , InputSampleStreamType , AuxData > _pointStream( modelToUnitCube , pointStream );
+					TransformedInputOrientedSampleStream< Real , Dim , AuxData > _pointStream( modelToUnitCube , pointStream );
 					auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , NormalAndAuxData &d )
 						{
 							Real l = (Real)Length( d.template get<0>() );
@@ -1200,12 +1190,32 @@ namespace PoissonRecon
 						};
 
 					typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-					if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
-					else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
-				}
+					{
+						using ExternalType = std::tuple< Point< Real , Dim > , NormalAndAuxData >;
+						if constexpr( HasAuxData )
+						{
+							using InternalType = std::tuple< Point< Real , Dim > , Point< Real , Dim > , AuxData >;
+							auto converter = []( const InternalType &iType )
+								{
+									ExternalType xType;
+									std::get< 0 >( xType ) = std::get< 0 >( iType );
+									std::get< 1 >( xType ).template get<0>() = std::get< 1 >( iType );
+									std::get< 1 >( xType ).template get<1>() = std::get< 2 >( iType );
+									return xType;
+								};
+							InputDataStreamConverter< InternalType , ExternalType > __pointStream( _pointStream , converter , Point< Real , Dim >() , Point< Real , Dim >() , implicit.zeroAuxData );
+							if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+							else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
+						}
+						else
+						{
+							if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+							else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
+						}
+					}				}
 				else
 				{
-					TransformedInputSampleStream< Real , Dim , InputSampleStreamType > _pointStream( modelToUnitCube , pointStream );
+					TransformedInputOrientedSampleStream< Real , Dim > _pointStream( modelToUnitCube , pointStream );
 					auto ProcessDataWithConfidence = [&]( const Point< Real , Dim > &p , NormalAndAuxData &d )
 						{
 							Real l = (Real)Length( d );
@@ -1306,7 +1316,12 @@ namespace PoissonRecon
 				}
 
 				if( !params.outputDensity ){ delete implicit.density ; implicit.density = NULL; }
-				if constexpr( HasAuxData ) implicit.auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( implicit.tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( samples->size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return (*samples)[i]; } , [&]( size_t i ) -> const AuxData & { return (*sampleNormalAndAuxData)[i].template get<1>(); } , (DensityEstimator*)NULL ) );
+				if constexpr( HasAuxData )
+				{
+					profiler.reset();
+					implicit.auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( implicit.tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( samples->size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return (*samples)[i]; } , [&]( size_t i ) -> const AuxData & { return (*sampleNormalAndAuxData)[i].template get<1>(); } , (DensityEstimator*)NULL ) );
+					if( params.verbose ) std::cout << "#         Got aux data: " << profiler << std::endl;
+				}
 
 				// Add the interpolation constraints
 				if( params.pointWeight>0 || params.gradientWeight>0 )

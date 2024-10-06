@@ -245,7 +245,7 @@ std::pair< PointPartition::PointSetInfo< Real , Dim > , PointPartition::Partitio
 		SocketStream( clientSockets[c] ).read( _e );
 		e = e + _e;
 	}
-	pointSetInfo.modelToUnitCube = PointExtent::GetBoundingBoxXForm( e , clientPartitionInfo.scale , clientPartitionInfo.sliceDir );
+	pointSetInfo.modelToUnitCube = PointExtent::GetXForm( e , clientPartitionInfo.scale , clientPartitionInfo.sliceDir );
 
 	// Send the transformation to the clients
 	for( unsigned int c=0 ; c<clientSockets.size() ; c++ ) SocketStream( clientSockets[c] ).write( pointSetInfo.modelToUnitCube );

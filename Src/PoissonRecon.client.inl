@@ -39,8 +39,8 @@ struct Client
 	typedef typename AuxDataFactory::VertexType AuxData;
 	typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::Factory< Real , VertexFactory::NormalFactory< Real , Dim > , AuxDataFactory > > InputSampleFactory;
 	typedef VertexFactory::Factory< Real , VertexFactory::NormalFactory< Real , Dim > , AuxDataFactory > InputSampleDataFactory;
-	typedef VectorTypeUnion< Real , Point< Real , Dim > , typename AuxDataFactory::VertexType > InputSampleDataType;
-	typedef VectorTypeUnion< Real , Point< Real , Dim > , InputSampleDataType > InputSampleType;
+	typedef DirectSum< Real , Point< Real , Dim > , typename AuxDataFactory::VertexType > InputSampleDataType;
+	typedef DirectSum< Real , Point< Real , Dim > , InputSampleDataType > InputSampleType;
 	typedef InputDataStream< InputSampleType > InputPointStream;
 	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
 	using BoundaryData = std::conditional_t< Dim==3 , typename LevelSetExtractor< Real , 2 , Point< Real , 2 > >::TreeSliceValuesAndVertexPositions , char >;
@@ -518,13 +518,25 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 
 		using MultiPointStream = MultiInputDataStream< typename InputSampleFactory::VertexType >;
 
+		using ExternalType = std::tuple< Point< Real , Dim > , InputSampleDataType >;
+		using InternalType = std::tuple< typename InputSampleFactory::VertexType >;
+		auto converter = []( const InternalType &iType )
+			{
+				ExternalType xType;
+				std::get< 0 >( xType )                   = std::get< 0 >( iType ).template get<0>();
+				std::get< 1 >( xType ).template get<0>() = std::get< 0 >( iType ).template get<1>().template get<0>();
+				std::get< 1 >( xType ).template get<1>() = std::get< 0 >( iType ).template get<1>().template get<1>();
+				return xType;
+			};
+
 		auto ProcessInteriorPointSlabs = [&]( typename FEMTreeInitializer< Dim , Real >::StreamInitializationData &sid , unsigned int start , unsigned int end )
 		{
 			if( start==end ) return;
 			MultiPointStream pointStream( &pointStreams[start-beginPaddedIndex] , end - start );
 			typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
-			if( clientReconInfo.confidence>0 ) pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-			else                               pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+			InputDataStreamConverter< InternalType , ExternalType > _pointStream( pointStream , converter , inputSampleFactory() );
+			if( clientReconInfo.confidence>0 ) pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+			else                               pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 			profiler.update();
 		};
 		auto ProcessPadPointSlabs = [&]( typename FEMTreeInitializer< Dim , Real >::StreamInitializationData &sid , unsigned int start , unsigned int end )
@@ -532,12 +544,13 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 			if( start==end ) return;
 			MultiPointStream pointStream( &pointStreams[start-beginPaddedIndex] , end - start );
 			typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
+			InputDataStreamConverter< InternalType , ExternalType > _pointStream( pointStream , converter , inputSampleFactory() );
 #ifdef ADAPTIVE_PADDING
-			if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-			else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+			if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+			else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 #else // !ADAPTIVE_PADDING
-			if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-			else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+			if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+			else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 #endif // ADAPTIVE_PADDING
 			profiler.update();
 		};
@@ -549,18 +562,20 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 			if( idx>=beginIndex && idx<endIndex )
 			{
 				typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
-				if( clientReconInfo.confidence>0 ) pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-				else                               pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+				InputDataStreamConverter< InternalType , ExternalType > _pointStream( pointStream , converter , inputSampleFactory() );
+				if( clientReconInfo.confidence>0 ) pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+				else                               pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 			}
 			else
 			{
 				typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
+				InputDataStreamConverter< InternalType , ExternalType > _pointStream( pointStream , converter , inputSampleFactory() );
 #ifdef ADAPTIVE_PADDING
-				if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-				else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+				if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+				else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 #else // !ADAPTIVE_PADDING
-				if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-				else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( _tree.spaceRoot() , pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+				if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+				else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 #endif // ADAPTIVE_PADDING
 			}
 			profiler.update();
@@ -1251,24 +1266,21 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 
 
 	// A description of the output vertex information
-	using VInfo = Reconstructor::OutputIndexedLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >;
+	using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactory >;
 
 	// A factory generating the output vertices
 	using Factory = typename VInfo::Factory;
 	Factory factory = VInfo::GetFactory( auxDataFactory );
 
 	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory , true > vertexStream( factory , false );
-	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
+	Reconstructor::OutputInputFactoryTypeStream< Real , Dim , Factory , false , true , AuxData > vertexStream( factory , VInfo::Convert );
+	Reconstructor::OutputInputFaceStream< Dim-1 , false , true > faceStream;
 
 	typename LevelSetExtractor< Real , Dim , AuxData >::Stats stats;
 
 	{
-		// The wrapper converting native to output types
-		typename VInfo::StreamWrapper _vertexStream( vertexStream );
-
 		// The transformed stream
-		Reconstructor::TransformedOutputIndexedLevelSetVertexStream< Real , Dim , AuxData > __vertexStream( unitCubeToModel , _vertexStream );
+		Reconstructor::TransformedOutputLevelSetVertexStream< Real , Dim , AuxData > __vertexStream( unitCubeToModel , vertexStream );
 
 		// Extract the mesh
 		stats = LevelSetExtractor< Real , Dim , AuxData >::template Extract< Reconstructor::WeightDegree , DataSig >
@@ -1308,8 +1320,7 @@ void Client< Real , Dim , BType , Degree >::_writeMeshWithData( const ClientReco
 	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
 	vertexStream.reset();
-	IndexedInputDataStream< node_index_type , typename Factory::VertexType > vStream( vertexStream );
-	PLY::Write< Factory , node_index_type , Real , Dim >( outFileName.c_str() , factory , vertexStream.size() , faceStream.size() , vStream , faceStream , PLY_BINARY_NATIVE , noComments );
+	PLY::Write< Factory , node_index_type , Real , Dim >( outFileName.c_str() , factory , vertexStream.size() , faceStream.size() , vertexStream , faceStream , PLY_BINARY_NATIVE , noComments );
 }
 
 template< typename Real , unsigned int Dim , BoundaryType BType , unsigned int Degree >

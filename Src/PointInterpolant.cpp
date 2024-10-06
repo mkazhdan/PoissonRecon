@@ -233,9 +233,9 @@ XForm< Real , Dim+1 > GetPointXForm( InputPointStream< Real , Dim , FunctionValu
 template< unsigned int Dim , typename Real , typename PointSampleData > struct ConstraintDual;
 
 template< unsigned int Dim , typename Real >
-struct ConstraintDual< Dim , Real , VectorTypeUnion< Real , Real > >
+struct ConstraintDual< Dim , Real , DirectSum< Real , Real > >
 {
-	typedef VectorTypeUnion< Real , Real > PointSampleData;
+	typedef DirectSum< Real , Real > PointSampleData;
 	Real vWeight;
 	ConstraintDual( Real v) : vWeight(v){ }
 	CumulativeDerivativeValues< Real , Dim , 0 > operator()( const Point< Real , Dim > &p , const PointSampleData& data ) const 
@@ -248,9 +248,9 @@ struct ConstraintDual< Dim , Real , VectorTypeUnion< Real , Real > >
 };
 
 template< unsigned int Dim , typename Real >
-struct ConstraintDual< Dim , Real , VectorTypeUnion< Real , Point< Real , Dim > > >
+struct ConstraintDual< Dim , Real , DirectSum< Real , Point< Real , Dim > > >
 {
-	typedef VectorTypeUnion< Real , Point< Real , Dim > > PointSampleData;
+	typedef DirectSum< Real , Point< Real , Dim > > PointSampleData;
 	Real gWeight;
 	ConstraintDual( Real g ) : gWeight(g) { }
 	CumulativeDerivativeValues< Real , Dim , 1 > operator()( const Point< Real , Dim >& p , const PointSampleData& data ) const 
@@ -265,33 +265,33 @@ struct ConstraintDual< Dim , Real , VectorTypeUnion< Real , Point< Real , Dim > 
 template< unsigned int Dim , typename Real , typename TotalPointSampleData > struct SystemDual;
 
 template< unsigned int Dim , typename Real >
-struct SystemDual< Dim , Real , VectorTypeUnion< Real , Real > >
+struct SystemDual< Dim , Real , DirectSum< Real , Real > >
 {
 	CumulativeDerivativeValues< Real , Dim , 0 > weight;
 	SystemDual( Real v ){ weight[0] = v; }
-	CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Real > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
+	CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const DirectSum< Real , Real > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
 	{
 		return dValues * weight;
 	}
-	CumulativeDerivativeValues< double , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Real > &data , const CumulativeDerivativeValues< double , Dim , 0 > &dValues ) const
+	CumulativeDerivativeValues< double , Dim , 0 > operator()( Point< Real , Dim > p , const DirectSum< Real , Real > &data , const CumulativeDerivativeValues< double , Dim , 0 > &dValues ) const
 	{
 		return dValues * weight;
 	};
 };
 template< unsigned int Dim >
-struct SystemDual< Dim , double , VectorTypeUnion< double , double > >
+struct SystemDual< Dim , double , DirectSum< double , double > >
 {
 	typedef double Real;
 	CumulativeDerivativeValues< Real , Dim , 0 > weight;
 	SystemDual( Real v ){ weight[0] = v; }
-	CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const VectorTypeUnion< double , double > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
+	CumulativeDerivativeValues< Real , Dim , 0 > operator()( Point< Real , Dim > p , const DirectSum< double , double > &data , const CumulativeDerivativeValues< Real , Dim , 0 > &dValues ) const
 	{
 		return dValues * weight;
 	}
 };
 
 template< unsigned int Dim , typename Real >
-struct SystemDual< Dim , Real , VectorTypeUnion< Real , Point< Real , Dim > > >
+struct SystemDual< Dim , Real , DirectSum< Real , Point< Real , Dim > > >
 {
 	CumulativeDerivativeValues< Real , Dim , 1 > weight;
 	SystemDual( Real g )
@@ -299,17 +299,17 @@ struct SystemDual< Dim , Real , VectorTypeUnion< Real , Point< Real , Dim > > >
 		weight[0] = 0;
 		for( int d=0 ; d<Dim ; d++ ) weight[d+1] = g;
 	}
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Point< Real , Dim > > &data , const CumulativeDerivativeValues< Real , Dim , 1 > &dValues ) const
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const DirectSum< Real , Point< Real , Dim > > &data , const CumulativeDerivativeValues< Real , Dim , 1 > &dValues ) const
 	{
 		return dValues * weight;
 	}
-	CumulativeDerivativeValues< double , Dim , 1 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Point< Real , Dim > > &data , const CumulativeDerivativeValues< double , Dim , 1 > &dValues ) const
+	CumulativeDerivativeValues< double , Dim , 1 > operator()( Point< Real , Dim > p , const DirectSum< Real , Point< Real , Dim > > &data , const CumulativeDerivativeValues< double , Dim , 1 > &dValues ) const
 	{
 		return dValues * weight;
 	};
 };
 template< unsigned int Dim >
-struct SystemDual< Dim , double , VectorTypeUnion< double , Point< double , Dim > > >
+struct SystemDual< Dim , double , DirectSum< double , Point< double , Dim > > >
 {
 	typedef double Real;
 	CumulativeDerivativeValues< Real , Dim , 1 > weight;
@@ -318,7 +318,7 @@ struct SystemDual< Dim , double , VectorTypeUnion< double , Point< double , Dim 
 		weight[0] = 0;
 		for( int d=0 ; d<Dim ; d++) weight[1+d] = g;
 	}
-	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const VectorTypeUnion< Real , Point< Real , Dim > > &data , const CumulativeDerivativeValues< Real , Dim , 1 > &dValues ) const
+	CumulativeDerivativeValues< Real , Dim , 1 > operator()( Point< Real , Dim > p , const DirectSum< Real , Point< Real , Dim > > &data , const CumulativeDerivativeValues< Real , Dim , 1 > &dValues ) const
 	{
 		return dValues * weight;
 	}
@@ -353,25 +353,21 @@ void ExtractLevelSet
 	}
 
 	// A description of the output vertex information
-	using VInfo = Reconstructor::OutputLevelSetVertexInfo< Real , Dim , false , false >;
+	using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , false , false >;
 
 	// A factory generating the output vertices
 	using Factory = typename VInfo::Factory;
 	Factory factory = VInfo::GetFactory();
 
 	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory , false > vertexStream( factory , false );
-	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
+	Reconstructor::OutputInputFactoryTypeStream< Real , Dim , Factory , false , true > vertexStream( factory , VInfo::Convert );
+	Reconstructor::OutputInputFaceStream< Dim-1 , false , true > faceStream;
 	typename LevelSetExtractor< Real , Dim >::Stats stats;
 
-	{
-		// The wrapper converting native to output types
-		typename VInfo::StreamWrapper _vertexStream( vertexStream );
-		Reconstructor::TransformedOutputLevelSetVertexStream< Real , Dim > __vertexStream( unitCubeToModel , _vertexStream );
+	Reconstructor::TransformedOutputLevelSetVertexStream< Real , Dim > _vertexStream( unitCubeToModel , vertexStream );
 
-		// Extract the mesh
-		stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< 0 >() , tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , solution , isoValue , __vertexStream , faceStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
-	}
+	// Extract the mesh
+	stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< 0 >() , tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , solution , isoValue , _vertexStream , faceStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , false );
 
 	if( Verbose.set )
 	{
@@ -493,7 +489,7 @@ void Execute( UIntPack< FEMSigs ... > )
 		InputDataStream< InputSampleValueType > &stream;
 		XForm< Real , Dim+1 > pointTransform;
 		XInputPointValueStream( InputDataStream< InputSampleValueType > &stream , XForm< Real , Dim+1 > modelToUnitCube ) : stream(stream) , pointTransform( modelToUnitCube ){}
-		bool base_read( InputSampleValueType &s )
+		bool read( InputSampleValueType &s )
 		{
 			if( stream.read( s ) ){ s.template get<0>() = pointTransform * s.template get<0>() ; return true; }
 			else return false;
@@ -516,7 +512,7 @@ void Execute( UIntPack< FEMSigs ... > )
 			pointTransform = modelToUnitCube;
 			gradientTransform = XForm< Real , Dim >( pointTransform ).inverse().transpose();
 		}
-		bool base_read( InputSampleGradientType &s )
+		bool read( InputSampleGradientType &s )
 		{
 			if( stream.read( s ) )
 			{
@@ -701,7 +697,19 @@ void Execute( UIntPack< FEMSigs ... > )
 			auto ProcessData = []( const Point< Real , Dim > &p , FunctionValueType &d ){ return (Real)1.; };
 			FunctionValueType zeroValue = functionValueFactory();
 			typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-			pointValueCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionValueType >( sid , tree.spaceRoot() , _pointStream , zeroValue , Depth.value , *valueSamples , *valueSampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
+			{
+				using ExternalType = std::tuple< Point< Real , Dim > , FunctionValueType >;
+				using InternalType = std::tuple< InputSampleValueType >;
+				auto converter = []( const InternalType &iType )
+					{
+						ExternalType xType;
+						std::get< 0 >( xType ) = std::get< 0 >( iType ).template get<0>();
+						std::get< 1 >( xType ) = std::get< 0 >( iType ).template get<1>();
+						return xType;
+					};
+				InputDataStreamConverter< InternalType , ExternalType > __pointStream( _pointStream , converter , InputSampleValueType( Point< Real , Dim >() , zeroValue ) );
+				pointValueCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionValueType >( sid , tree.spaceRoot() , __pointStream , zeroValue , Depth.value , *valueSamples , *valueSampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
+			}
 			delete pointValueStream;
 		}
 		else pointValueCount = 0;
@@ -713,7 +721,19 @@ void Execute( UIntPack< FEMSigs ... > )
 			auto ProcessData = []( const Point< Real , Dim > &p , FunctionGradientType &d ){ return (Real)1.; };
 			FunctionGradientType zeroGradient = functionGradientFactory();
 			typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-			pointGradientCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionGradientType >( sid , tree.spaceRoot() , _pointStream , zeroGradient , Depth.value , *gradientSamples , *gradientSampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
+			{
+				using ExternalType = std::tuple< Point< Real , Dim > , FunctionGradientType >;
+				using InternalType = std::tuple< InputSampleGradientType >;
+				auto converter = []( const InternalType &iType )
+					{
+						ExternalType xType;
+						std::get< 0 >( xType ) = std::get< 0 >( iType ).template get<0>();
+						std::get< 1 >( xType ) = std::get< 0 >( iType ).template get<1>();
+						return xType;
+					};
+				InputDataStreamConverter< InternalType , ExternalType > __pointGradientStream( _pointStream , converter , InputSampleGradientType( Point< Real , Dim >() , zeroGradient ) );
+				pointGradientCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionGradientType >( sid , tree.spaceRoot() , __pointGradientStream , zeroGradient , Depth.value , *gradientSamples , *gradientSampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
+			}
 			delete pointGradientStream;
 		}
 		else pointGradientCount = 0;

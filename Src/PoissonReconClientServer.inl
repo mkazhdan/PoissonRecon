@@ -74,14 +74,14 @@ protected:
 };
 
 template< typename Real , unsigned int Dim >
-using SampleDataType = VectorTypeUnion< Real , typename VertexFactory::NormalFactory< Real , Dim >::VertexType , typename VertexFactory::DynamicFactory< Real >::VertexType >;
+using SampleDataType = DirectSum< Real , typename VertexFactory::NormalFactory< Real , Dim >::VertexType , typename VertexFactory::DynamicFactory< Real >::VertexType >;
 
 template< typename Real , unsigned int Dim >
 struct SampleDataTypeSerializer : public Serializer< SampleDataType< Real , Dim > >
 {
 	using Normal = typename VertexFactory::NormalFactory< Real , Dim >::VertexType;
 	using AuxData = typename VertexFactory::DynamicFactory< Real >::VertexType;
-	using Data = VectorTypeUnion< Real , Normal , AuxData >;
+	using Data = DirectSum< Real , Normal , AuxData >;
 
 	SampleDataTypeSerializer( const std::vector< PlyProperty > &properties ) : _factory( properties ){}
 
@@ -108,7 +108,7 @@ struct ProjectiveSampleDataTypeSerializer : public Serializer< ProjectiveData< S
 {
 	using Normal = typename VertexFactory::NormalFactory< Real , Dim >::VertexType;
 	using AuxData = typename VertexFactory::DynamicFactory< Real >::VertexType;
-	using Data = ProjectiveData< VectorTypeUnion< Real , Normal , AuxData > , Real >;
+	using Data = ProjectiveData< DirectSum< Real , Normal , AuxData > , Real >;
 
 	ProjectiveSampleDataTypeSerializer( const std::vector< PlyProperty > &properties ) : _factory( properties ){}
 

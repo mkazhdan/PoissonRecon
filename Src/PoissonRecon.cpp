@@ -201,10 +201,9 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s]\n" , Verbose.name );
 }
 
-template< typename Real , unsigned int Dim , unsigned int FEMSig , bool HasGradients , bool HasDensity , typename ... AuxDataFactories >
+template< typename Real , unsigned int Dim , unsigned int FEMSig , bool HasGradients , bool HasDensity , bool InCore , typename ... AuxDataFactories >
 void WriteMesh
 (
-	bool inCore ,
 	Reconstructor::Implicit< Real , Dim , FEMSig , typename AuxDataFactories::VertexType ... > &implicit ,
 	const Reconstructor::LevelSetExtractionParameters &meParams ,
 	std::string fileName ,
@@ -213,29 +212,66 @@ void WriteMesh
 )
 {
 	// A description of the output vertex information
-	using VInfo = Reconstructor::OutputIndexedLevelSetVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactories ... >;
+	using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , HasGradients , HasDensity , AuxDataFactories ... >;
 
 	// A factory generating the output vertices
 	using Factory = typename VInfo::Factory;
 	Factory factory = VInfo::GetFactory( factories... );
 
-	// A backing stream for the vertices
-	Reconstructor::OutputInputFactoryTypeStream< Factory , true > vertexStream( factory , inCore );
-	Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( inCore , true );
+	Reconstructor::OutputInputFactoryTypeStream< Real , Dim , Factory , InCore , true , typename AuxDataFactories::VertexType... > vertexStream( factory , VInfo::Convert );
+	Reconstructor::OutputInputFaceStream< Dim-1 , InCore , true > faceStream;
 
-	{
-		// The wrapper converting native to output types
-		typename VInfo::StreamWrapper _vertexStream( vertexStream );
-
-		// Extract the level set
-		implicit.extractLevelSet( _vertexStream , faceStream , meParams );
-	}
+	implicit.extractLevelSet( vertexStream , faceStream , meParams );
 
 	// Write the mesh to a .ply file
 	std::vector< std::string > noComments;
 	vertexStream.reset();
-	IndexedInputDataStream< node_index_type , typename Factory::VertexType > vStream( vertexStream );
-	PLY::Write< Factory , node_index_type , Real , Dim >( fileName , factory , vertexStream.size() , faceStream.size() , vStream , faceStream , ascii ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
+	PLY::Write< Factory , node_index_type , Real , Dim >( fileName , factory , vertexStream.size() , faceStream.size() , vertexStream , faceStream , ascii ? PLY_ASCII : PLY_BINARY_NATIVE , noComments );
+}
+
+template< typename Real , unsigned int Dim , unsigned int FEMSig , bool HasDensity , bool InCore , typename ... AuxDataFactories >
+void WriteMesh
+(
+	bool hasGradients ,
+	Reconstructor::Implicit< Real , Dim , FEMSig , typename AuxDataFactories::VertexType ... > &implicit ,
+	const Reconstructor::LevelSetExtractionParameters &meParams ,
+	std::string fileName ,
+	bool ascii ,
+	const AuxDataFactories& ... factories
+)
+{
+	if( hasGradients ) return WriteMesh< Real , Dim, FEMSig , true  , HasDensity , InCore , AuxDataFactories ... >( implicit , meParams , fileName , ascii , factories... );
+	else               return WriteMesh< Real , Dim, FEMSig , false , HasDensity , InCore , AuxDataFactories ... >( implicit , meParams , fileName , ascii , factories... );
+}
+
+template< typename Real , unsigned int Dim , unsigned int FEMSig , bool InCore , typename ... AuxDataFactories >
+void WriteMesh
+(
+	bool hasGradients , bool hasDensity ,
+	Reconstructor::Implicit< Real , Dim , FEMSig , typename AuxDataFactories::VertexType ... > &implicit ,
+	const Reconstructor::LevelSetExtractionParameters &meParams ,
+	std::string fileName ,
+	bool ascii ,
+	const AuxDataFactories& ... factories
+)
+{
+	if( hasDensity ) return WriteMesh< Real , Dim, FEMSig , true  , InCore , AuxDataFactories ... >( hasGradients , implicit , meParams , fileName , ascii , factories... );
+	else             return WriteMesh< Real , Dim, FEMSig , false , InCore , AuxDataFactories ... >( hasGradients , implicit , meParams , fileName , ascii , factories... );
+}
+
+template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... AuxDataFactories >
+void WriteMesh
+(
+	bool hasGradients , bool hasDensity , bool inCore ,
+	Reconstructor::Implicit< Real , Dim , FEMSig , typename AuxDataFactories::VertexType ... > &implicit ,
+	const Reconstructor::LevelSetExtractionParameters &meParams ,
+	std::string fileName ,
+	bool ascii ,
+	const AuxDataFactories& ... factories
+)
+{
+	if( inCore ) return WriteMesh< Real , Dim, FEMSig , true  , AuxDataFactories ... >( hasGradients , hasDensity , implicit , meParams , fileName , ascii , factories... );
+	else         return WriteMesh< Real , Dim, FEMSig , false , AuxDataFactories ... >( hasGradients , hasDensity , implicit , meParams , fileName , ascii , factories... );
 }
 
 template< class Real , unsigned int Dim , unsigned int FEMSig , typename AuxDataFactory >
@@ -384,25 +420,25 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	}
 
 	// A wrapper class to realize InputDataStream< SampleType > as an InputSampleStream
-	struct _InputSampleStream : public Reconstructor::InputSampleStream< Real , Dim >
+	struct _InputOrientedSampleStream : public Reconstructor::InputOrientedSampleStream< Real , Dim >
 	{
 		typedef Reconstructor::Normal< Real , Dim > DataType;
-		typedef VectorTypeUnion< Real , Reconstructor::Position< Real , Dim > , DataType > SampleType;
+		typedef DirectSum< Real , Reconstructor::Position< Real , Dim > , DataType > SampleType;
 		typedef InputDataStream< SampleType > _InputPointStream;
 		_InputPointStream &pointStream;
 		SampleType scratch;
-		_InputSampleStream( _InputPointStream &pointStream ) : pointStream( pointStream )
+		_InputOrientedSampleStream( _InputPointStream &pointStream ) : pointStream( pointStream )
 		{
 			scratch = SampleType( Reconstructor::Position< Real , Dim >() , Reconstructor::Normal< Real , Dim >() );
 		}
 		void reset( void ){ pointStream.reset(); }
-		bool base_read( Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n ) 
+		bool read( Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n ) 
 		{
 			bool ret = pointStream.read( scratch );
 			if( ret ) p = scratch.template get<0>() , n = scratch.template get<1>();
 			return ret;
 		}
-		bool base_read( unsigned int thread , Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n ) 
+		bool read( unsigned int thread , Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n ) 
 		{
 			bool ret = pointStream.read( thread , scratch );
 			if( ret ) p = scratch.template get<0>() , n = scratch.template get<1>();
@@ -411,25 +447,25 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	};
 
 	// A wrapper class to realize InputDataStream< SampleType > as an InputSampleWithDataStream
-	struct _InputSampleWithDataStream : public Reconstructor::InputSampleStream< Real , Dim , typename AuxDataFactory::VertexType >
+	struct _InputOrientedSampleWithDataStream : public Reconstructor::InputOrientedSampleStream< Real , Dim , typename AuxDataFactory::VertexType >
 	{
-		typedef VectorTypeUnion< Real , Reconstructor::Normal< Real , Dim > , typename AuxDataFactory::VertexType > DataType;
-		typedef VectorTypeUnion< Real , Reconstructor::Position< Real , Dim > , DataType > SampleType;
+		typedef DirectSum< Real , Reconstructor::Normal< Real , Dim > , typename AuxDataFactory::VertexType > DataType;
+		typedef DirectSum< Real , Reconstructor::Position< Real , Dim > , DataType > SampleType;
 		typedef InputDataStream< SampleType > _InputPointStream;
 		_InputPointStream &pointStream;
 		SampleType scratch;
-		_InputSampleWithDataStream( _InputPointStream &pointStream , typename AuxDataFactory::VertexType zero ) : pointStream( pointStream )
+		_InputOrientedSampleWithDataStream( _InputPointStream &pointStream , typename AuxDataFactory::VertexType zero ) : pointStream( pointStream )
 		{
 			scratch = SampleType( Reconstructor::Position< Real , Dim >() , DataType( Reconstructor::Normal< Real , Dim >() , zero ) );
 		}
 		void reset( void ){ pointStream.reset(); }
-		bool base_read( Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n , typename AuxDataFactory::VertexType &d ) 
+		bool read( Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n , typename AuxDataFactory::VertexType &d ) 
 		{
 			bool ret = pointStream.read( scratch );
 			if( ret ) p = scratch.template get<0>() , n = scratch.template get<1>().template get<0>() , d = scratch.template get<1>().template get<1>();
 			return ret;
 		}
-		bool base_read( unsigned int thread , Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n , typename AuxDataFactory::VertexType &d ) 
+		bool read( unsigned int thread , Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n , typename AuxDataFactory::VertexType &d ) 
 		{
 			bool ret = pointStream.read( thread , scratch );
 			if( ret ) p = scratch.template get<0>() , n = scratch.template get<1>().template get<0>() , d = scratch.template get<1>().template get<1>();
@@ -440,11 +476,11 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	if( Transform.set && envelopeMesh ) for( unsigned int i=0 ; i<envelopeMesh->vertices.size() ; i++ ) envelopeMesh->vertices[i] = toModel * envelopeMesh->vertices[i];
 	if constexpr( HasAuxData )
 	{
-		_InputSampleWithDataStream sampleStream( *pointStream , auxDataFactory() );
+		_InputOrientedSampleWithDataStream sampleStream( *pointStream , auxDataFactory() );
 
 		if( Transform.set )
 		{
-			Reconstructor::TransformedInputSampleStream< Real , Dim , _InputSampleWithDataStream , typename AuxDataFactory::VertexType > _sampleStream( toModel , sampleStream );
+			Reconstructor::TransformedInputOrientedSampleStream< Real , Dim , typename AuxDataFactory::VertexType > _sampleStream( toModel , sampleStream );
 			implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( _sampleStream , sParams , auxDataFactory() , envelopeMesh );
 			implicit->unitCubeToModel = toModel.inverse() * implicit->unitCubeToModel;
 		}
@@ -452,11 +488,11 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	}
 	else
 	{
-		_InputSampleStream sampleStream( *pointStream );
+		_InputOrientedSampleStream sampleStream( *pointStream );
 
 		if( Transform.set )
 		{
-			Reconstructor::TransformedInputSampleStream< Real , Dim , _InputSampleStream > _sampleStream( toModel , sampleStream );
+			Reconstructor::TransformedInputOrientedSampleStream< Real , Dim > _sampleStream( toModel , sampleStream );
 			implicit = new typename Reconstructor::Poisson::Implicit< Real , Dim , FEMSig >( _sampleStream , sParams , envelopeMesh );
 			implicit->unitCubeToModel = toModel.inverse() * implicit->unitCubeToModel;
 		}
@@ -519,32 +555,8 @@ void Execute( const AuxDataFactory &auxDataFactory )
 			XForm< Real , Dim+1 > pXForm = implicit->unitCubeToModel;
 			XForm< Real , Dim > nXForm = XForm< Real , Dim >( pXForm ).inverse().transpose();
 
-			if( Gradients.set )
-			{
-				if( Density.set )
-				{
-					if constexpr( HasAuxData ) WriteMesh< Real , Dim , FEMSig , true , true >( InCore.set , *implicit , meParams , Out.value , ASCII.set , auxDataFactory );
-					else                       WriteMesh< Real , Dim , FEMSig , true , true >( InCore.set , *implicit , meParams , Out.value , ASCII.set );
-				}
-				else
-				{
-					if constexpr( HasAuxData ) WriteMesh< Real , Dim , FEMSig , true , false >( InCore.set , *implicit , meParams , Out.value , ASCII.set , auxDataFactory );
-					else                       WriteMesh< Real , Dim , FEMSig , true , false >( InCore.set , *implicit , meParams , Out.value , ASCII.set );
-				}
-			}
-			else
-			{
-				if( Density.set )
-				{
-					if constexpr( HasAuxData ) WriteMesh< Real , Dim , FEMSig , false , true >( InCore.set , *implicit , meParams , Out.value , ASCII.set , auxDataFactory );
-					else                       WriteMesh< Real , Dim , FEMSig , false , true >( InCore.set , *implicit , meParams , Out.value , ASCII.set );
-				}
-				else
-				{
-					if constexpr( HasAuxData ) WriteMesh< Real , Dim , FEMSig , false , false >( InCore.set , *implicit , meParams , Out.value , ASCII.set , auxDataFactory );
-					else                       WriteMesh< Real , Dim , FEMSig , false , false >( InCore.set , *implicit , meParams , Out.value , ASCII.set );
-				}
-			}
+			if constexpr( HasAuxData ) WriteMesh< Real , Dim , FEMSig >( Gradients.set , Density.set , InCore.set , *implicit , meParams , Out.value , ASCII.set , auxDataFactory );
+			else                       WriteMesh< Real , Dim , FEMSig >( Gradients.set , Density.set , InCore.set , *implicit , meParams , Out.value , ASCII.set );
 		}
 		else WARN( "Mesh extraction is only supported in dimensions 2 and 3" );
 

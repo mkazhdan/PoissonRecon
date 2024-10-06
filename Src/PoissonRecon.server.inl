@@ -39,8 +39,8 @@ struct Server
 	typedef typename AuxDataFactory::VertexType AuxData;
 	typedef VertexFactory::Factory< Real , VertexFactory::PositionFactory< Real , Dim > , VertexFactory::Factory< Real , VertexFactory::NormalFactory< Real , Dim > , AuxDataFactory > > InputSampleFactory;
 	typedef VertexFactory::Factory< Real , VertexFactory::NormalFactory< Real , Dim > , AuxDataFactory > InputSampleDataFactory;
-	typedef VectorTypeUnion< Real , Point< Real , Dim > , typename AuxDataFactory::VertexType > InputSampleDataType;
-	typedef VectorTypeUnion< Real , Point< Real , Dim > , InputSampleDataType > InputSampleType;
+	typedef DirectSum< Real , Point< Real , Dim > , typename AuxDataFactory::VertexType > InputSampleDataType;
+	typedef DirectSum< Real , Point< Real , Dim > , InputSampleDataType > InputSampleType;
 	typedef InputDataStream< InputSampleType > InputPointStream;
 	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
 
@@ -709,14 +709,16 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 			const typename FEMTree< Dim-1 , Real >::template DensityEstimator< Reconstructor::WeightDegree > *density=NULL;
 			const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim-1 , DataSig > > *data=NULL;
 			{
-				VectorBackedOutputDataStream< Point< Real , Dim-1 > > _vertices( state6.vertices );
-				struct VertexStreamWrapper : public Reconstructor::OutputLevelSetVertexStreamWrapper< Point< Real , Dim-1 > , Real , Dim-1 >
-				{
-					typedef Point< Real , Dim-1 > Vertex;
-					VertexStreamWrapper( OutputDataStream< Vertex > &stream ) : Reconstructor::OutputLevelSetVertexStreamWrapper< Point< Real , Dim-1 > , Real , Dim-1 >( stream ) {}
-					Vertex toOutputVertex(const Reconstructor::LevelSetVertex< Real , Dim-1 > &in ){ return in.template get<0>(); }
-				};
-				VertexStreamWrapper __vertexStream( _vertices );
+				VectorBackedOutputDataStream< Point< Real , Dim-1 > > _vertexStream( state6.vertices );
+				using ExternalType = std::tuple< Point< Real , Dim-1 > , Point< Real , Dim-1 > , Real >;
+				using InternalType = std::tuple< Point< Real , Dim-1 > >;
+				auto converter = []( const ExternalType &xType )
+					{
+						InternalType iType;
+						std::get< 0 >( iType ) = std::get< 0 >( xType );
+						return iType;
+					};
+				OutputDataStreamConverter< InternalType , ExternalType > __vertexStream( _vertexStream , converter );
 
 				LevelSetExtractor< Real , Dim-1 >::SetSliceValues( SliceSigs() , UIntPack< Reconstructor::WeightDegree >() , *state6.sliceTree , clientReconInfo.reconstructionDepth , density , state6.solution , isoValue , __vertexStream , !clientReconInfo.linearFit , false , state6.sliceValues , LevelSetExtractor< Real , Dim-1 , Vertex >::SetIsoEdgesFlag() );
 				if( !clientReconInfo.linearFit ) LevelSetExtractor< Real , Dim-1 >::SetSliceValues( SliceSigs() , UIntPack< Reconstructor::WeightDegree >() , *state6.sliceTree , clientReconInfo.reconstructionDepth , density , state6.dSolution , isoValue , __vertexStream , false , false , state6.dSliceValues , LevelSetExtractor< Real , Dim-1 , Vertex >::SetCornerValuesFlag() );

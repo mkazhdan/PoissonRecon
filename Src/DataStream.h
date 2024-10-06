@@ -32,195 +32,295 @@ DAMAGE.
 #include <mutex>
 #include <vector>
 #include <atomic>
+#include "Geometry.h"
 
 namespace PoissonRecon
 {
+	// The input/output stream types
+	template< typename ... Data > struct  InputDataStream;
+	template< typename ... Data > struct OutputDataStream;
 
-	// Pre-declare so we can make friends
-	template< typename Data > struct MultiInputDataStream;
-	template< typename Data > struct MultiOutputDataStream;
+	// Input/output streams, internally represented by an std::vector< Input/OutputDataStream< Data ... > >
+	template< typename ... Data > struct  MultiInputDataStream;
+	template< typename ... Data > struct MultiOutputDataStream;
 
-	////////////////////////////////////////
-	// Abstract input/output data streams //
-	////////////////////////////////////////
+	// Class for de-interleaving output
+	template< typename ... Data > using                    OutputIndexedDataStream =      OutputDataStream< size_t , Data ... >;
+	template< typename ... Data > using               MultiOutputIndexedDataStream = MultiOutputDataStream< size_t , Data ... >;
+	template< typename ... Data > struct DeInterleavedMultiOutputIndexedDataStream;
+
+	// Classes for re-interleaving input
+	template< typename ... Data > using                  InputIndexedDataStream =      InputDataStream< size_t , Data ... >;
+	template< typename ... Data > using             MultiInputIndexedDataStream = MultiInputDataStream< size_t , Data ... >;
+	template< typename ... Data > struct InterleavedMultiInputIndexedDataStream;
+
+	// Classes for converting one stream type to another
+	template< typename IDataTuple , typename XDataTuple > struct  InputDataStreamConverter;
+	template< typename IDataTuple , typename XDataTuple > struct OutputDataStreamConverter;
+
+	template< typename ... Data >
+	struct TupleConverter
+	{
+		static void FromTuple( const std::tuple< Data ... > &dTuple , Data& ... d );
+		static void ToTuple( std::tuple< Data ... > &dTuple , const Data& ... d );
+	protected:
+		template< unsigned int I , typename _Data , typename ... _Datas >
+		static void _FromTuple( const std::tuple< Data ... > &dTuple , _Data &d , _Datas& ... ds );
+		template< unsigned int I , typename _Data , typename ... _Datas >
+		static void _ToTuple( std::tuple< Data ... > &dTuple , const _Data &d , const _Datas& ... ds );
+	};
+
+	template< typename Real , typename ... Data >
+	struct DirectSumConverter
+	{
+		static void FromDirectSum( const DirectSum< Real ,  Data ... > &dSum , Data& ... d );
+		static void ToDirectSum( DirectSum< Real , Data ... > &dSum , const Data& ... d );
+	protected:
+		template< unsigned int I , typename _Data , typename ... _Datas >
+		static void _FromDirectSum( const DirectSum<Real , Data ... > &dSum , _Data &d , _Datas& ... ds );
+		template< unsigned int I , typename _Data , typename ... _Datas >
+		static void _ToDirectSum( DirectSum< Real , Data ... > &dSum , const _Data &d , const _Datas& ... ds );
+	};
+
+	////////////////////////
+	// Input data streams //
+	////////////////////////
 
 	// An input stream containing "Data" types
 	// Supporting:
 	// -- Resetting the stream to the start
 	// -- Trying to read the next element from the stream
-	template< typename Data >
+	template< typename ... Data >
 	struct InputDataStream
 	{
-		friend struct MultiInputDataStream< Data >;
+		friend struct MultiInputDataStream< Data...  >;
 
 		virtual ~InputDataStream( void ){}
 
 		// Reset to the start of the stream
 		virtual void reset( void ) = 0;
 
-		bool read( Data &d ){ return base_read(d); }
-		bool read( unsigned int thread , Data &d ){ return base_read(thread,d); }
+		// Read the next datum from the stream
+		virtual bool read(                       Data& ... d ) = 0;
+		virtual bool read( unsigned int thread , Data& ... d );
+
+		bool read(                       std::tuple< Data ... > &data );
+		bool read( unsigned int thread , std::tuple< Data ... > &data );
+
+		template< typename Real >
+		bool read(                       DirectSum< Real , Data ... > &data );
+		template< typename Real >
+		bool read( unsigned int thread , DirectSum< Real , Data ... > &data );
 
 	protected:
 		std::mutex _insertionMutex;
 
-		// Read in data in a single-threaded context
-		virtual bool base_read( Data &d ) = 0;
-
-		// Read in data in a multi-threaded context
-		virtual bool base_read( unsigned int thread , Data &d )
-		{
-			std::lock_guard< std::mutex > lock( _insertionMutex );
-			return base_read(d);
-		}
+		template< typename ... _Data >
+		bool _read( std::tuple< Data ... > &data , _Data& ... _data );
+		template< typename ... _Data >
+		bool _read( unsigned int thread , std::tuple< Data ... > &data , _Data& ... _data );
+		template< typename Real , typename ... _Data >
+		bool _read( DirectSum< Real , Data ... > &data , _Data& ... _data );
+		template< typename Real , typename ... _Data >
+		bool _read( unsigned int thread , DirectSum< Real , Data ... > &data , _Data& ... _data );
 	};
 
+
+	/////////////////////////
+	// Output data streams //
+	/////////////////////////
+	// 
 	// An output stream containing "Data" types
 	// Supporting:
 	// -- Writing the next element to the stream
-	// -- Writing the next element to the stream by a particular thread
-	template< typename Data >
+	// -- Pushing the next element to the stream (and getting the count of elements pushed so far)
+	template< typename ... Data >
 	struct OutputDataStream
 	{
-		friend struct MultiOutputDataStream< Data >;
+		friend struct MultiOutputDataStream< Data ... >;
 
-		OutputDataStream( void ) : _size(0) {}
+		OutputDataStream( void ){}
 		virtual ~OutputDataStream( void ){}
 
-		// Returns the number of items written to the stream
-		size_t size( void ) const { return _size; }
+		virtual size_t size( void ) const = 0;
 
-		void write( const Data &d ){ base_write(d) ; _size++; }
-		void write( unsigned int thread , const Data &d ){ base_write( thread , d ) ; _size++; }
+		virtual size_t write(                       const Data& ... d ) = 0;
+		virtual size_t write( unsigned int thread , const Data& ... d );
+
+		size_t write(                       const std::tuple< Data ... > &data );
+		size_t write( unsigned int thread , const std::tuple< Data ... > &data );
+
+		template< typename Real > size_t write(                       const DirectSum< Real , Data ... > &data );
+		template< typename Real > size_t write( unsigned int thread , const DirectSum< Real , Data ... > &data );
 
 	protected:
 		std::mutex _insertionMutex;
-		std::atomic< size_t > _size;
 
-		// Write out data in a single-threaded context
-		virtual void base_write( const Data &d ) = 0;
-		// Write out data in a multi-threaded context
-		virtual void base_write( unsigned int thread , const Data &d )
-		{
-			std::lock_guard< std::mutex > lock( _insertionMutex );
-			return base_write(d);
-		}
+		template< typename ... _Data > size_t _write(                       const std::tuple< Data ... > &data , const _Data& ... _data );
+		template< typename ... _Data > size_t _write( unsigned int thread , const std::tuple< Data ... > &data , const _Data& ... _data );
 
+		template< typename Real , typename ... _Data > size_t _write(                       const DirectSum< Real , Data ... > &data , const _Data& ... _data );
+		template< typename Real , typename ... _Data > size_t _write( unsigned int thread , const DirectSum< Real , Data ... > &data , const _Data& ... _data );
 	};
 
-	//////////////////////////////////////////
-	// Multi-streams for multi-threaded I/O //
-	//////////////////////////////////////////
-	template< typename Data >
-	struct MultiInputDataStream : public InputDataStream< Data >
+	////////////////////////////////
+	// Multiple input data stream //
+	////////////////////////////////
+	template< typename ...Data >
+	struct MultiInputDataStream : public InputDataStream< Data ... >
 	{
-		MultiInputDataStream( InputDataStream< Data > **streams , size_t N ) : _current(0) , _streams( streams , streams+N ) {}
-		MultiInputDataStream( const std::vector< InputDataStream< Data > * > &streams ) : _current(0) , _streams( streams ) {}
-		void reset( void ){ for( unsigned int i=0 ; i<_streams.size() ; i++ ) _streams[i]->reset(); }
-		unsigned int numStreams( void ) const { return (unsigned int)_streams.size(); }
+		using InputDataStream< Data ... >::read;
+
+		MultiInputDataStream( InputDataStream< Data ... > **streams , size_t N );
+		MultiInputDataStream( const std::vector< InputDataStream< Data ... > * > &streams );
+
+		void reset( void );
+
+		unsigned int numStreams( void ) const;
+
+		bool read( unsigned int t , Data& ... d );
+		bool read(                  Data& ... d );
 
 	protected:
-		std::vector< InputDataStream< Data > * > _streams;
+		std::vector< InputDataStream< Data ... > * > _streams;
 		unsigned int _current;
 
-		MultiInputDataStream( void ) {}
-		void _init( InputDataStream< Data > **streams , size_t N )
-		{
-			_streams.resize( N );
-			for( unsigned int i=0 ; i<N ; i++ ) _streams[i] = streams[i];
-		}
-		void _init( const std::vector< InputDataStream< Data > * > &streams ){ _streams = streams; }
-		bool base_read( unsigned int t , Data &d ){ return _streams[t]->base_read(d); }
-		bool base_read(                  Data &d )
-		{
-			while( _current<_streams.size() )
-			{
-				if( _streams[_current]->read( d ) ) return true;
-				else _current++;
-			}
-			return false;
-		}
+		MultiInputDataStream( void );
+		void _init( InputDataStream< Data ... > **streams , size_t N );
+		void _init( const std::vector< InputDataStream< Data ... > * > &streams );
 	};
 
-	template< typename Data >
-	struct MultiOutputDataStream : public OutputDataStream< Data >
+
+	/////////////////////////////////
+	// Multiple output data stream //
+	/////////////////////////////////
+	template< typename ... Data >
+	struct MultiOutputDataStream : public OutputDataStream< Data ... >
 	{
-		MultiOutputDataStream( OutputDataStream< Data > **streams , size_t N ) : _streams( streams , streams+N ) {}
-		MultiOutputDataStream( const std::vector< OutputDataStream< Data > * > &streams ) : _streams( streams ) {}
-		unsigned int numStreams( void ) const { return (unsigned int)_streams.size(); }
+		using OutputDataStream< Data ... >::write;
+
+		MultiOutputDataStream( OutputDataStream< Data ... > **streams , size_t N );
+		MultiOutputDataStream( const std::vector< OutputDataStream< Data ... > * > &streams );
+
+		unsigned int numStreams( void ) const;
+
+		size_t size( void ) const { return _size; }
+
+		size_t write(                  const Data& ... d );
+		size_t write( unsigned int t , const Data& ... d );
 
 	protected:
-		std::vector< OutputDataStream< Data > * > _streams;
+		std::vector< OutputDataStream< Data ... > * > _streams;
+		std::atomic< size_t > _size;
 
-		MultiOutputDataStream( void ) {}
-		void _init( OutputDataStream< Data > **streams , size_t N )
-		{
-			_streams.resize( N );
-			for( unsigned int i=0 ; i<N ; i++ ) _streams[i] = streams[i];
-		}
-		void _init( const std::vector< OutputDataStream< Data > * > &streams ){ _streams = streams; }
-		void base_write(                  const Data &d ){ _streams[0]->base_write(d); }
-		void base_write( unsigned int t , const Data &d ){ _streams[t]->base_write(d); }
+		MultiOutputDataStream( void );
+		void _init( OutputDataStream< Data ... > **streams , size_t N );
+		void _init( const std::vector< OutputDataStream< Data ... > * > &streams );
 	};
 
-	template< typename Index , typename Data >
-	struct IndexedInputDataStream : public InputDataStream< Data >
+	/////////////////////////////////
+	// Input data stream converter //
+	/////////////////////////////////
+	template< typename ... IData , typename ... XData >
+	struct InputDataStreamConverter< std::tuple< IData ... > , std::tuple< XData ... > > : public InputDataStream< XData ... >
 	{
-		IndexedInputDataStream( MultiInputDataStream< std::pair< Index , Data > > &multiStream ) : _multiStream( multiStream ) , _firstTime(true)
-		{
-			_nextValues.resize( multiStream.numStreams() );
-		}
-		void reset( void ){ _multiStream.reset() , _firstTime = true; }
+		using InputDataStream< XData ... >::read;
+
+		InputDataStreamConverter( InputDataStream< IData ... > &stream , std::function< std::tuple< XData ... > ( const std::tuple< IData ... >& ) > converter , IData ... zero );
+		void reset( void );
+		bool read(                       XData& ... xData );
+		bool read( unsigned int thread , XData& ... xData );
 
 	protected:
+		InputDataStream< IData ... > &_stream;
+		std::function< std::tuple< XData ... > ( const std::tuple< IData ... >& ) > _converter;
+		std::tuple< IData ... > _iZero;
+	};
+
+	//////////////////////////////////
+	// Output data stream converter //
+	//////////////////////////////////
+	template< typename ... IData , typename ... XData >
+	struct OutputDataStreamConverter< std::tuple< IData ... > , std::tuple< XData ... > > : public OutputDataStream< XData ... >
+	{
+		using OutputDataStream< XData ... >::write;
+
+		OutputDataStreamConverter( OutputDataStream< IData ... > &stream , std::function< std::tuple< IData ... > ( const std::tuple< XData ... >& ) > converter );
+
+		size_t size( void ) const { return _stream.size(); }
+
+		size_t write(                       const XData& ... xData );
+		size_t write( unsigned int thread , const XData& ... xData );
+	protected:
+		OutputDataStream< IData ... > &_stream;
+		std::function< std::tuple< IData ... > ( const std::tuple< XData ... >& ) > _converter;
+	};
+
+
+	////////////////////////////////////////////////
+	// De-interleaved multiple output data stream //
+	////////////////////////////////////////////////
+	template< typename ... Data >
+	struct DeInterleavedMultiOutputIndexedDataStream : public OutputDataStream< Data ... >
+	{
+		using OutputDataStream< Data ... >::write;
+
+		DeInterleavedMultiOutputIndexedDataStream( OutputIndexedDataStream< Data ... > **streams , size_t N );
+		DeInterleavedMultiOutputIndexedDataStream( const std::vector< OutputIndexedDataStream<  Data ... > * > &streams );
+
+		unsigned int numStreams( void ) const;
+
+		size_t size( void ) const { return _size; }
+
+		size_t write(                       const Data& ... d );
+		size_t write( unsigned int thread , const Data& ... d );
+
+	protected:
+		MultiOutputIndexedDataStream< Data ... > _multiStream;
+		std::atomic< size_t > _size;
+
+		DeInterleavedMultiOutputIndexedDataStream( void );
+		void _init( OutputIndexedDataStream< Data ... > **streams , size_t N );
+		void _init( const std::vector< OutputIndexedDataStream< Data ... > * > &streams );
+	};
+
+
+	////////////////////////////////////////////
+	// Interleaved multiple input data stream //
+	////////////////////////////////////////////
+
+	template< typename ... Data >
+	struct InterleavedMultiInputIndexedDataStream : public InputDataStream< Data ... >
+	{
+		using InputDataStream< Data... >::read;
+
+		InterleavedMultiInputIndexedDataStream( InputIndexedDataStream< Data ... > **streams , size_t N );
+		InterleavedMultiInputIndexedDataStream( const std::vector< InputIndexedDataStream<  Data ... > * > &streams );
+		void reset( void );
+		bool read( Data& ... d );
+
+	protected:
+
+#ifdef DEBUG_STREAM
+		size_t _current = 0;
+#endif // DEBUG_STREAM
 		struct _NextValue
 		{
-			std::pair< Index , Data > data;
+			std::tuple< size_t , Data ... > data;
 			unsigned int streamIndex;
 			bool validData;
 
 			// Returns true if v1>v2 so that it's a min-heap
-			static bool Compare( const _NextValue &v1 , const _NextValue &v2 )
-			{
-				if( !v2.validData ) return false;
-				else if( !v1.validData && v2.validData ) return true;
-				else return v1.data.first>v2.data.first;
-			};
+			static bool Compare( const _NextValue &v1 , const _NextValue &v2 );
 		};
 
-		MultiInputDataStream< std::pair< Index , Data > > &_multiStream;
+		MultiInputIndexedDataStream< Data... > _multiStream;
 		std::vector< _NextValue > _nextValues;
 		bool _firstTime;
 
-		void _init( const Data &data )
-		{
-			for( unsigned int i=0 ; i<_nextValues.size() ; i++ ) _nextValues[i].data.second = data;
-			for( unsigned int i=0 ; i<_nextValues.size() ; i++ )
-			{
-				_nextValues[i].validData = _multiStream.read( i , _nextValues[i].data );
-				_nextValues[i].streamIndex = i;
-			}
-			std::make_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
-		}
-
-		bool base_read( unsigned int t , Data &d )
-		{
-			ERROR_OUT( "Multi-threaded read not supported" );
-			return false;
-		}
-		bool base_read( Data &d )
-		{
-			if( _firstTime ) _init(d) , _firstTime = false;
-			std::pop_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
-			_NextValue &next = _nextValues.back();
-			if( !next.validData ) return false;
-			d = next.data.second;
-			next.validData = _multiStream.read( next.streamIndex , next.data );
-
-			std::push_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
-			return true;
-		}
+		void _init( const std::tuple< Data ... > &data );
 	};
+#include "DataStream.inl"
 }
 
 #endif // DATA_STREAM_INCLUDED

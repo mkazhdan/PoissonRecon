@@ -1089,25 +1089,49 @@ void FEMTree< Dim , Real >::updateExtrapolatedDataField( SparseNodeData< Project
 {
 	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
-	PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
-	PointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > > dataKey;
-	densityKey.set( _localToGlobal( maxDepth ) ) , dataKey.set( _localToGlobal( maxDepth ) );
 
-	for( node_index_type i=0 ; i<(node_index_type)sampleNum ; i++ )
+	if constexpr( CreateNodes )
 	{
-		const PointSample &sampleAndNode = sampleFunctor(i);
-		const ProjectiveData< Point< Real , Dim > , Real >& sample = sampleAndNode.sample;
-		const Data& data = sampleDataFunctor(i);
-		Point< Real , Dim > p = sample.weight==0 ? sample.data : sample.data / sample.weight;
-		if( !_InBounds(p) )
+		PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
+		PointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > > dataKey;
+		densityKey.set( _localToGlobal( maxDepth ) ) , dataKey.set( _localToGlobal( maxDepth ) );
+		for( node_index_type i=0 ; i<(node_index_type)sampleNum ; i++ )
 		{
-			WARN( "Point is out of bounds" );
-			continue;
+			const PointSample &sampleAndNode = sampleFunctor(i);
+			const ProjectiveData< Point< Real , Dim > , Real >& sample = sampleAndNode.sample;
+			const Data& data = sampleDataFunctor(i);
+			Point< Real , Dim > p = sample.weight==0 ? sample.data : sample.data / sample.weight;
+			if( !_InBounds(p) )
+			{
+				WARN( "Point is out of bounds" );
+				continue;
+			}
+			if( nearest ) _nearestMultiSplatPointData< DensityDegree >( density , (FEMTreeNode*)sampleAndNode.node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , 2 );
+			else          _multiSplatPointData< CreateNodes , false , DensityDegree >( nodeAllocator , density , (FEMTreeNode*)sampleAndNode.node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
 		}
-		if( nearest ) _nearestMultiSplatPointData< DensityDegree >( density , (FEMTreeNode*)sampleAndNode.node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , 2 );
-		else          _multiSplatPointData< CreateNodes , false , DensityDegree >( nodeAllocator , density , (FEMTreeNode*)sampleAndNode.node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
 	}
-}
+	else
+	{
+		std::vector< PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > > densityKeys( ThreadPool::NumThreads() );
+		std::vector< PointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > > > dataKeys( ThreadPool::NumThreads() );
+		for( unsigned int i=0 ; i<ThreadPool::NumThreads() ; i++ ) densityKeys[i].set( _localToGlobal( maxDepth ) ) , dataKeys[i].set( _localToGlobal( maxDepth ) );
+
+		ThreadPool::ParallelFor( 0 , sampleNum , [&]( unsigned int thread , size_t i ) {
+			PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > &densityKey = densityKeys[thread];
+			PointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > > &dataKey = dataKeys[thread];
+
+			const PointSample &sampleAndNode = sampleFunctor(i);
+			const ProjectiveData< Point< Real , Dim > , Real >& sample = sampleAndNode.sample;
+			const Data& data = sampleDataFunctor(i);
+			Point< Real , Dim > p = sample.weight==0 ? sample.data : sample.data / sample.weight;
+			if( !_InBounds(p) ) WARN( "Point is out of bounds" );
+			else
+			{
+				if( nearest ) _nearestMultiSplatPointData< DensityDegree >( density , (FEMTreeNode*)sampleAndNode.node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , 2 );
+				else          _multiSplatPointData< CreateNodes , false , DensityDegree >( nodeAllocator , density , (FEMTreeNode*)sampleAndNode.node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
+			}
+			} );
+	}}
 
 template< unsigned int Dim , class Real >
 template< unsigned int MaxDegree >

@@ -31,7 +31,7 @@ DAMAGE.
 // GetBoundingBox //
 ////////////////////
 template< class Real , unsigned int Dim >
-XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor , bool rotate )
+XForm< Real , Dim+1 > GetXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor , bool rotate )
 {
 	Point< Real , Dim > center = ( max + min ) / 2;
 	Real scale = max[0] - min[0];
@@ -51,7 +51,7 @@ XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real
 }
 
 template< class Real , unsigned int Dim , bool ExtendedAxes >
-XForm< Real , Dim+1 > GetBoundingBoxXForm( const Extent< Real , Dim , ExtendedAxes > &extent , Real scaleFactor , unsigned int dir )
+XForm< Real , Dim+1 > GetXForm( const Extent< Real , Dim , ExtendedAxes > &extent , Real scaleFactor , unsigned int dir )
 {
 	using _Extent = Extent< Real , Dim , ExtendedAxes >;
 	bool rotate = ( dir >= _Extent::DirectionN );
@@ -75,8 +75,7 @@ XForm< Real , Dim+1 > GetBoundingBoxXForm( const Extent< Real , Dim , ExtendedAx
 		bBox[0][d] = extent[ frame[d] ].first;
 		bBox[1][d] = extent[ frame[d] ].second;
 	}
-
-	return GetBoundingBoxXForm( bBox[0] , bBox[1] , scaleFactor , rotate ) * R;
+	return GetXForm( bBox[0] , bBox[1] , scaleFactor , rotate ) * R;
 }
 
 ///////////
@@ -160,4 +159,19 @@ std::ostream &operator << ( std::ostream &os , const Extent< Real , Dim , Extend
 		os << "\t(" << e.extents[d].second - e.extents[d].first << " )" << std::endl;
 	}
 	return os;
+}
+
+template< class Real , unsigned int Dim , bool ExtendedAxes , typename ... Data >
+Extent< Real , Dim , ExtendedAxes > GetExtent( InputDataStream< Point< Real , Dim > , Data ... > &stream , Data ... data )
+{
+	Point< Real,  Dim > p;
+	Extent< Real , Dim , ExtendedAxes > e;
+	while( stream.read( p , data... ) ) e.add(p);
+	return e;
+}
+
+template< class Real , unsigned int Dim , bool ExtendedAxes , typename ... Data >
+XForm< Real , Dim+1 > GetXForm( InputDataStream< Point< Real , Dim > , Data ... > &stream , Data ... data , Real scaleFactor , unsigned int dir )
+{
+	return GetXForm( GetExtent< Real , Dim , ExtendedAxes >( stream  , data... ) , scaleFactor , dir );
 }

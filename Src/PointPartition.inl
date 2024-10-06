@@ -518,7 +518,7 @@ void BufferedBinaryInputDataStream< InputFactory >::reset( void )
 }
 
 template< typename InputFactory >
-bool BufferedBinaryInputDataStream< InputFactory >::base_read( Data &d )
+bool BufferedBinaryInputDataStream< InputFactory >::read( Data &d )
 {
 	if( _current==_inBuffer ) 
 	{
@@ -570,7 +570,7 @@ void BufferedBinaryOutputDataStream< OutputFactory >::reset( void )
 }
 
 template< typename OutputFactory >
-void BufferedBinaryOutputDataStream< OutputFactory >::base_write( const Data &d )
+size_t BufferedBinaryOutputDataStream< OutputFactory >::write( const Data &d )
 {
 	if( _current==_bufferSize ) 
 	{
@@ -578,5 +578,8 @@ void BufferedBinaryOutputDataStream< OutputFactory >::base_write( const Data &d 
 		_current = 0;
 	}
 	_factory.toBuffer( d , _buffer + _elementSize*_current );
-	_current++;
+	return _current++;
 }
+
+template< typename OutputFactory >
+size_t BufferedBinaryOutputDataStream< OutputFactory >::size( void ) const { return _current; }

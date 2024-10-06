@@ -62,7 +62,7 @@ namespace PoissonRecon
 	template< typename Real > EmptyVectorType< Real > operator * ( Real s , EmptyVectorType< Real > v ){ return v*s; }
 
 	template< typename _Real , typename ... VectorTypes >
-	struct VectorTypeUnion
+	struct DirectSum
 	{
 	protected:
 		typedef std::tuple< VectorTypes ... > _VectorTuple;
@@ -72,19 +72,19 @@ namespace PoissonRecon
 		template< unsigned int I >       VectorType< I >& get( void )       { return std::get< I >( _vectorTypeTuple ); }
 		template< unsigned int I > const VectorType< I >& get( void ) const { return std::get< I >( _vectorTypeTuple ); }
 
-		VectorTypeUnion& operator += ( const VectorTypeUnion& p ){ _add<0>( p ) ; return *this; }
-		VectorTypeUnion& operator -= ( const VectorTypeUnion& p ){ _sub<0>( p ) ; return *this; }
-		VectorTypeUnion& operator *= ( Real s )                  { _mul<0>( s ) ; return *this; }
-		VectorTypeUnion& operator /= ( Real s )                  { _div<0>( s ) ; return *this; }
-		VectorTypeUnion  operator +  ( const VectorTypeUnion& p ) const { VectorTypeUnion _p = *this ; _p += p ; return _p; }
-		VectorTypeUnion  operator -  ( const VectorTypeUnion& p ) const { VectorTypeUnion _p = *this ; _p -= p ; return _p; }
-		VectorTypeUnion  operator *  ( Real s )                   const { VectorTypeUnion _p = *this ; _p *= s ; return _p; }
-		VectorTypeUnion  operator /  ( Real s )                   const { VectorTypeUnion _p = *this ; _p /= s ; return _p; }
+		DirectSum& operator += ( const DirectSum& p ){ _add<0>( p ) ; return *this; }
+		DirectSum& operator -= ( const DirectSum& p ){ _sub<0>( p ) ; return *this; }
+		DirectSum& operator *= ( Real s )                  { _mul<0>( s ) ; return *this; }
+		DirectSum& operator /= ( Real s )                  { _div<0>( s ) ; return *this; }
+		DirectSum  operator +  ( const DirectSum& p ) const { DirectSum _p = *this ; _p += p ; return _p; }
+		DirectSum  operator -  ( const DirectSum& p ) const { DirectSum _p = *this ; _p -= p ; return _p; }
+		DirectSum  operator *  ( Real s )                   const { DirectSum _p = *this ; _p *= s ; return _p; }
+		DirectSum  operator /  ( Real s )                   const { DirectSum _p = *this ; _p /= s ; return _p; }
 
-		VectorTypeUnion( void ){}
-		VectorTypeUnion( const VectorTypes & ... vectors ){ _set< 0 >( vectors ... ); }
+		DirectSum( void ){}
+		DirectSum( const VectorTypes & ... vectors ){ _set< 0 >( vectors ... ); }
 
-		friend std::ostream &operator << ( std::ostream &os , const VectorTypeUnion &v )
+		friend std::ostream &operator << ( std::ostream &os , const DirectSum &v )
 		{
 			os << "{ ";
 			v._streamOut< 0 >( os );
@@ -95,10 +95,10 @@ namespace PoissonRecon
 		std::tuple< VectorTypes ... > _vectorTypeTuple;
 		template< unsigned int I , typename _Vector , typename ... _Vectors > void _set( const _Vector &vector , const _Vectors & ... vectors ){ get< I >() = vector ; _set< I+1 >( vectors ... ); }
 		template< unsigned int I , typename _Vector                         > void _set( const _Vector &vector                                ){ get< I >() = vector ;                             }
-		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _add( const VectorTypeUnion& p ){ get<I>() += p.get<I>() ; _add< I+1 >( p ); }
-		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _add( const VectorTypeUnion& p ){ }
-		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _sub( const VectorTypeUnion& p ){ get<I>() -= p.get<I>() ; _sub< I+1 >( p ); }
-		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _sub( const VectorTypeUnion& p ){ }
+		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _add( const DirectSum& p ){ get<I>() += p.get<I>() ; _add< I+1 >( p ); }
+		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _add( const DirectSum& p ){ }
+		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _sub( const DirectSum& p ){ get<I>() -= p.get<I>() ; _sub< I+1 >( p ); }
+		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _sub( const DirectSum& p ){ }
 		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _mul( Real s ){ get<I>() *= s ; _mul< I+1 >( s ); }
 		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _mul( Real s ){ }
 		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _div( Real s ){ get<I>() /= s ; _div< I+1 >( s ); }
@@ -107,7 +107,7 @@ namespace PoissonRecon
 		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _streamOut( std::ostream &os ) const { }
 	};
 	template< typename Real , typename ... Vectors >
-	VectorTypeUnion< Real , Vectors ... > operator * ( Real s , VectorTypeUnion< Real , Vectors ... > vu ){ return vu * s; }
+	DirectSum< Real , Vectors ... > operator * ( Real s , DirectSum< Real , Vectors ... > vu ){ return vu * s; }
 
 	template< class Real > Real Random( void );
 

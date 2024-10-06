@@ -2998,7 +2998,7 @@ namespace PoissonRecon
 		struct InputPointStream
 		{
 			typedef Data DataType;
-			typedef VectorTypeUnion< Real , Point< Real , Dim > , Data > PointAndDataType;
+			typedef DirectSum< Real , Point< Real , Dim > , Data > PointAndDataType;
 			typedef InputDataStream< PointAndDataType > StreamType;
 			static       Point< Real , Dim > &GetPoint(       PointAndDataType &pd ){ return pd.template get<0>(); }
 			static const Point< Real , Dim > &GetPoint( const PointAndDataType &pd ){ return pd.template get<0>(); }
@@ -3019,7 +3019,7 @@ namespace PoissonRecon
 		struct OutputPointStream
 		{
 			typedef Data DataType;
-			typedef VectorTypeUnion< Real , Point< Real , Dim > , Data > PointAndDataType;
+			typedef DirectSum< Real , Point< Real , Dim > , Data > PointAndDataType;
 			typedef OutputDataStream< PointAndDataType > StreamType;
 			static       Point< Real , Dim > &GetPoint(       PointAndDataType &pd ){ return pd.template get<0>(); }
 			static const Point< Real , Dim > &GetPoint( const PointAndDataType &pd ){ return pd.template get<0>(); }
@@ -3034,10 +3034,10 @@ namespace PoissonRecon
 			std::vector< node_index_type > _nodeToIndexMap;
 		};
 
-		template< typename AuxData , typename PointStream >
-		static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , PointStream &pointStream , AuxData zeroData , int maxDepth ,                                                                  std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData = []( const Point< Real , Dim > & , AuxData & ){ return (Real)1.; } );
-		template< typename AuxData , typename PointStream >
-		static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , PointStream &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData = []( const Point< Real , Dim > & , AuxData & ){ return (Real)1.; } );
+		template< typename AuxData >
+		static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth ,                                                                  std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData = []( const Point< Real , Dim > & , AuxData & ){ return (Real)1.; } );
+		template< typename AuxData >
+		static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData = []( const Point< Real , Dim > & , AuxData & ){ return (Real)1.; } );
 
 		// Initialize the tree using simplices
 		static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer );

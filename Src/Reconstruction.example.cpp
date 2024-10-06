@@ -28,6 +28,7 @@ DAMAGE.
 
 #include "PreProcessor.h"
 #include "Reconstructors.h"
+#include "Extrapolator.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,10 +42,10 @@ DAMAGE.
 using namespace PoissonRecon;
 
 CmdLineParameter< char* > Out( "out" );
-CmdLineReadable SSDReconstruction( "ssd" ) , UseColor( "color" ) , EvaluateImplicit( "evaluate" ) , Verbose( "verbose" );
-CmdLineParameter< int >	Depth( "depth" , 8 ) , SampleNum( "samples" , 100000 );
+CmdLineReadable SSDReconstruction( "ssd" ) , EvaluateImplicit( "evaluate" ) , Verbose( "verbose" );
+CmdLineParameter< int >	Depth( "depth" , 8 ) , SampleNum( "samples" , 100000 ) , ColorMode( "color" , 0 );
 
-CmdLineReadable* params[] = { &Out , &SSDReconstruction , &UseColor , &Verbose , &Depth , &SampleNum , &EvaluateImplicit , nullptr };
+CmdLineReadable* params[] = { &Out , &SSDReconstruction , &ColorMode , &Verbose , &Depth , &SampleNum , &EvaluateImplicit , nullptr };
 
 void ShowUsage( char* ex )
 {
@@ -52,7 +53,10 @@ void ShowUsage( char* ex )
 	printf( "\t --%s <number of samples>\n" , SampleNum.name );
 	printf( "\t[--%s <ouput mesh>]\n" , Out.name );
 	printf( "\t[--%s <reconstruction depth>=%d]\n" , Depth.name , Depth.value );
-	printf( "\t[--%s]\n" , UseColor.name );
+	printf( "\t[--%s <color mode>=%d]\n" , ColorMode.name , ColorMode.value );
+	printf( "\t\t0] No color\n" );
+	printf( "\t\t1] Jointly extrapolated color\n" );
+	printf( "\t\t2] Independently extrapolated color\n" );
 	printf( "\t[--%s]\n" , SSDReconstruction.name );
 	printf( "\t[--%s]\n" , EvaluateImplicit.name );
 	printf( "\t[--%s]\n" , Verbose.name );
@@ -77,9 +81,9 @@ struct RGBColor
 	RGBColor operator / ( Real s ) const { return operator * (1/s); }
 };
 
-// A stream for generating random samples on the sphere
+// A stream for generating random oriented samples on the sphere
 template< typename Real , unsigned int Dim >
-struct SphereSampleStream : public Reconstructor::InputSampleStream< Real , Dim >
+struct SphereOrientedSampleStream : public Reconstructor::InputOrientedSampleStream< Real , Dim >
 {
 	// from https://en.cppreference.com/w/cpp/numeric/random/uniform_real_distribution
 	std::random_device randomDevice;
@@ -87,13 +91,13 @@ struct SphereSampleStream : public Reconstructor::InputSampleStream< Real , Dim 
 	std::uniform_real_distribution< Real > distribution;
 
 	// Constructs a stream that contains the specified number of samples
-	SphereSampleStream( unsigned int sz ) : _size(sz) , _current(0) , generator(0) , distribution((Real)-1.0,(Real)1.0) {}
+	SphereOrientedSampleStream( unsigned int sz ) : _size(sz) , _current(0) , generator(0) , distribution((Real)-1.0,(Real)1.0) {}
 
-	// Overrides the pure abstract method from InputSampleStream< Real , Dim >
+	// Overrides the pure abstract method from InputOrientedSampleStream< Real , Dim >
 	void reset( void ){ generator.seed(0) ; _current = 0; }
 
-	// Overrides the pure abstract method from InputSampleStream< Real , Dim >
-	bool base_read( Point< Real , Dim > &p , Point< Real , Dim > &n )
+	// Overrides the pure abstract method from InputOrientedSampleStream< Real , Dim >
+	bool read( Point< Real , Dim > &p , Point< Real , Dim > &n )
 	{
 		if( _current<_size )
 		{
@@ -103,7 +107,50 @@ struct SphereSampleStream : public Reconstructor::InputSampleStream< Real , Dim 
 		}
 		else return false;
 	}
-	bool base_read( unsigned int , Point< Real , Dim > &p , Point< Real , Dim > &n ){ return base_read( p , n ); }
+
+	static Point< Real , Dim > RandomSpherePoint( std::default_random_engine &generator , std::uniform_real_distribution< Real > &distribution )
+	{
+		while( true )
+		{
+			Point< Real , Dim > p;
+			for( unsigned int d=0 ; d<Dim ; d++ ) p[d] = distribution( generator );
+			if( Point< Real , Dim >::SquareNorm( p )<1 ) return p / (Real)sqrt( Point< Real , Dim >::SquareNorm(p) );
+		}
+	}
+protected:
+	unsigned int _size , _current;
+};
+
+// A stream for generating random oriented samples with color on the sphere
+template< typename Real , unsigned int Dim >
+struct SphereOrientedSampleWithColorStream : public Reconstructor::InputOrientedSampleStream< Real , Dim , RGBColor< Real > >
+{
+	// from https://en.cppreference.com/w/cpp/numeric/random/uniform_real_distribution
+	std::random_device randomDevice;
+	std::default_random_engine generator;
+	std::uniform_real_distribution< Real > distribution;
+
+	// Constructs a stream that contains the specified number of samples
+	SphereOrientedSampleWithColorStream( unsigned int sz ) : _size(sz) , _current(0) , generator(0) , distribution((Real)-1.0,(Real)1.0) {}
+
+	// Overrides the pure abstract method from InputOrientedSampleStream< Real , Dim , RGBColor< Real > >
+	void reset( void ){ generator.seed(0) ; _current = 0; }
+
+	// Overrides the pure abstract method from InputOrientedSampleStream< Real , Dim , RGBColor< Real > >
+	bool read( Point< Real , Dim > &p , Point< Real , Dim > &n , RGBColor< Real > &c )
+	{
+		if( _current<_size )
+		{
+			p = n = RandomSpherePoint( generator , distribution );
+			_current++;
+			c.r = c.g = c.b = 0;
+			if     ( p[0]<-1.f/3 ) c.r = 1.f;
+			else if( p[0]< 1.f/3 ) c.g = 1.f;
+			else                   c.b = 1.f;
+			return true;
+		}
+		else return false;
+	}
 
 	static Point< Real , Dim > RandomSpherePoint( std::default_random_engine &generator , std::uniform_real_distribution< Real > &distribution )
 	{
@@ -128,17 +175,17 @@ struct SphereSampleWithColorStream : public Reconstructor::InputSampleStream< Re
 	std::uniform_real_distribution< Real > distribution;
 
 	// Constructs a stream that contains the specified number of samples
-	SphereSampleWithColorStream( unsigned int sz ) :_size(sz) , _current(0) , generator(0) , distribution((Real)-1.0,(Real)1.0) {}
+	SphereSampleWithColorStream( unsigned int sz ) : _size(sz) , _current(0) , generator(0) , distribution((Real)-1.0,(Real)1.0) {}
 
 	// Overrides the pure abstract method from InputSampleStream< Real , Dim , RGBColor< Real > >
 	void reset( void ){ generator.seed(0) ; _current = 0; }
 
 	// Overrides the pure abstract method from InputSampleStream< Real , Dim , RGBColor< Real > >
-	bool base_read( Point< Real , Dim > &p , Point< Real , Dim > &n , RGBColor< Real > &c )
+	bool read( Point< Real , Dim > &p , RGBColor< Real > &c )
 	{
 		if( _current<_size )
 		{
-			p = n = RandomSpherePoint( generator , distribution );
+			p = RandomSpherePoint( generator , distribution );
 			_current++;
 			c.r = c.g = c.b = 0;
 			if     ( p[0]<-1.f/3 ) c.r = 1.f;
@@ -148,7 +195,6 @@ struct SphereSampleWithColorStream : public Reconstructor::InputSampleStream< Re
 		}
 		else return false;
 	}
-	bool base_read( unsigned int , Point< Real , Dim > &p , Point< Real , Dim > &n , RGBColor< Real > &c ){ return base_read( p , n ,c ); }
 
 	static Point< Real , Dim > RandomSpherePoint( std::default_random_engine &generator , std::uniform_real_distribution< Real > &distribution )
 	{
@@ -171,11 +217,13 @@ struct PolygonStream : public Reconstructor::OutputFaceStream< 2 >
 	PolygonStream( std::vector< std::vector< Index > > &polygonStream ) : _polygons( polygonStream ) {}
 
 	// Override the pure abstract method from OutputPolygonStream
-	void base_write( const std::vector< node_index_type > &polygon )
+	size_t size( void ) const { return _polygons.size(); }
+	size_t write( const std::vector< node_index_type > &polygon )
 	{
 		std::vector< Index > poly( polygon.size() );
 		for( unsigned int i=0 ; i<polygon.size() ; i++ ) poly[i] = (Index)polygon[i];
 		_polygons.push_back( poly );
+		return _polygons.size()-1;
 	}
 protected:
 	std::vector< std::vector< Index > > &_polygons;
@@ -188,8 +236,9 @@ struct VertexStream : public Reconstructor::OutputLevelSetVertexStream< Real , D
 	// Construct a stream that adds vertices into the coordinates
 	VertexStream( std::vector< Real > &vCoordinates ) : _vCoordinates( vCoordinates ) {}
 
-	// Override the pure abstract method from Reconstructor::OutputLevelSetVertexStream< Real , Dim >
-	void base_write( Point< Real , Dim > p , Point< Real , Dim >   , Real   ){ for( unsigned int d=0 ; d<Dim ; d++ ) _vCoordinates.push_back( p[d] ); }
+	// Override the pure abstract methods from Reconstructor::OutputLevelSetVertexStream< Real , Dim >
+	size_t size( void ) const { return _vCoordinates.size()/3; }
+	size_t write( const Point< Real , Dim > &p , const Point< Real , Dim > & , const Real & ){ for( unsigned int d=0 ; d<Dim ; d++ ) _vCoordinates.push_back( p[d] ); return _vCoordinates.size()/3-1; }
 protected:
 	std::vector< Real > &_vCoordinates;
 };
@@ -202,13 +251,15 @@ struct VertexWithColorStream : public Reconstructor::OutputLevelSetVertexStream<
 	VertexWithColorStream( std::vector< Real > &vCoordinates , std::vector< Real > &rgbCoordinates ) :
 		_vCoordinates( vCoordinates ) , _rgbCoordinates( rgbCoordinates ) {}
 
-	// Override the pure abstract methodfrom Reconstructor::OutputVertexWithColorStream< Real , Dim >
-	void base_write( Point< Real , Dim > p , Point< Real , Dim > , Real , RGBColor< Real > c )
+	// Override the pure abstract methods from Reconstructor::OutputLevelSetVertexStream< Real , Dim >
+	size_t size( void ) const { return _vCoordinates.size()/3; }
+	size_t write( const Point< Real , Dim > &p , const Point< Real , Dim > & , const Real & , const RGBColor< Real > &c )
 	{
 		for( unsigned int d=0 ; d<Dim ; d++ ) _vCoordinates.push_back( p[d] );
 		_rgbCoordinates.push_back( c.r );
 		_rgbCoordinates.push_back( c.g );
 		_rgbCoordinates.push_back( c.b );
+		return _rgbCoordinates.size()/3-1;
 	}
 protected:
 	std::vector< Real > &_vCoordinates;
@@ -291,8 +342,8 @@ void Execute( void )
 
 	if constexpr( UseColor )
 	{
-		// A stream generating random points on the sphere with color
-		SphereSampleWithColorStream< Real , Dim > sampleStream( SampleNum.value );
+		// A stream generating random oriented points on the sphere with color
+		SphereOrientedSampleWithColorStream< Real , Dim > sampleStream( SampleNum.value );
 
 		// Construct the implicit representation
 		Implicit implicit( sampleStream , solverParams , RGBColor< Real >() );
@@ -319,8 +370,8 @@ void Execute( void )
 	}
 	else
 	{
-		// A stream generating random points on the sphere
-		SphereSampleStream< Real , Dim > sampleStream( SampleNum.value );
+		// A stream generating random oriented points on the sphere
+		SphereOrientedSampleStream< Real , Dim > sampleStream( SampleNum.value );
 
 		// Construct the implicit representation
 		Implicit implicit( sampleStream , solverParams );
@@ -336,8 +387,39 @@ void Execute( void )
 		// Extract the iso-surface
 		implicit.extractLevelSet( vStream , pStream , extractionParams );
 
-		// Write out the level-set
-		if( Out.set ) WritePly( Out.value , vStream.size() , vCoordinates.data() , (Real*)nullptr , polygons );
+		if( ColorMode.value==0 )
+		{
+			// Write out the level-set
+			if( Out.set ) WritePly( Out.value , vStream.size() , vCoordinates.data() , (Real*)nullptr , polygons );
+		}
+		else
+		{
+			// A stream generating random points on the sphere with color
+			SphereSampleWithColorStream< Real , Dim > sampleStream( SampleNum.value );
+
+			// Parameters for performing the extrapolation
+			typename Extrapolator::Implicit< Real , Dim , RGBColor< Real > >::Parameters eParams;
+			eParams.verbose = Verbose.set;
+			eParams.depth = Depth.value+1;
+
+			// The extrapolated color field
+			Extrapolator::Implicit< Real , Dim , RGBColor< Real > > extrapolator( sampleStream , eParams , RGBColor< Real >() );
+
+			// The sampled colors
+			std::vector< Real > rgbCoordinates( vCoordinates.size()/Dim*3 );
+
+			// Iterate over the vertices and evaluate the extrapolate to get the color values
+			for( unsigned int i=0 ; i<vCoordinates.size()/Dim ; i++ )
+			{
+				Point< Real , Dim > p;
+				for( unsigned int d=0 ; d<Dim ; d++ ) p[d] = vCoordinates[ i*Dim+d ];
+				RGBColor< Real > c = extrapolator( p );
+				rgbCoordinates[i*3+0] = c.r , rgbCoordinates[i*3+1] = c.g , rgbCoordinates[i*3+2] = c.b;
+			}
+
+			// Write out the level-set with sampled colors
+			if( Out.set ) WritePly( Out.value , vStream.size() , vCoordinates.data() , rgbCoordinates.data() , polygons );
+		}
 
 		// Evaluate the implicit function
 		if( EvaluateImplicit.set ) Evaluate(implicit);
@@ -367,11 +449,11 @@ int main( int argc , char* argv[] )
 	
 	// Solve using single float precision, in dimension 3, w/ finite-elements of degree 2 for SSD and degree 1 for Poisson, and using Neumann boundaries
 	if( SSDReconstruction.set )
-		if( UseColor.set ) Execute< float , 3 , Reconstructor::   SSD  , true  >();
-		else               Execute< float , 3 , Reconstructor::   SSD  , false >();
+		if( ColorMode.value==1 ) Execute< float , 3 , Reconstructor::SSD     , true  >();
+		else                     Execute< float , 3 , Reconstructor::SSD     , false >();
 	else
-		if( UseColor.set ) Execute< float , 3 , Reconstructor::Poisson , true  >();
-		else               Execute< float , 3 , Reconstructor::Poisson , false >();
+		if( ColorMode.value==1 ) Execute< float , 3 , Reconstructor::Poisson , true  >();
+		else                     Execute< float , 3 , Reconstructor::Poisson , false >();
 
 	if( Verbose.set )
 	{

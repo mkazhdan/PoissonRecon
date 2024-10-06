@@ -31,6 +31,7 @@ DAMAGE.
 
 #include <ostream>
 #include "Geometry.h"
+#include "DataStream.h"
 
 namespace PoissonRecon
 {
@@ -69,12 +70,17 @@ namespace PoissonRecon
 		template< typename Real , unsigned int Dim , bool ExtendedAxes >
 		const Frame< Real , Dim , ExtendedAxes > Extent< Real , Dim , ExtendedAxes >::_Frame;
 
+		template< class Real , unsigned int Dim , bool ExtendedAxes , typename ... Data >
+		Extent< Real , Dim , ExtendedAxes > GetExtent( InputDataStream< Point< Real , Dim > , Data ... > &stream , Data ... data );
+
 		template< class Real , unsigned int Dim >
-		XForm< Real , Dim+1 > GetBoundingBoxXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor , bool rotate=true );
+		XForm< Real , Dim+1 > GetXForm( Point< Real , Dim > min , Point< Real , Dim > max , Real scaleFactor , bool rotate=true );
 
 		template< class Real , unsigned int Dim , bool ExtendedAxes >
-		XForm< Real , Dim+1 > GetBoundingBoxXForm( const Extent< Real , Dim , ExtendedAxes > &extent , Real scaleFactor , unsigned int dir );
+		XForm< Real , Dim+1 > GetXForm( const Extent< Real , Dim , ExtendedAxes > &extent , Real scaleFactor , unsigned int dir );
 
+		template< class Real , unsigned int Dim , bool ExtendedAxes , typename ... Data >
+		XForm< Real , Dim+1 > GetXForm( InputDataStream< Point< Real , Dim > , Data ... > &stream , Data ... data , Real scaleFactor , unsigned int dir );
 
 #include "PointExtent.inl"
 	}

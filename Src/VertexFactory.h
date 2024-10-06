@@ -503,12 +503,12 @@ namespace PoissonRecon
 
 		// A factory for building the union of multiple components
 		template< typename Real , typename ... Factories >
-		struct Factory :  public _Factory< VectorTypeUnion< Real , typename Factories::VertexType ... > , Factory< Real , Factories ... > >
+		struct Factory :  public _Factory< DirectSum< Real , typename Factories::VertexType ... > , Factory< Real , Factories ... > >
 		{
 		protected:
 			typedef std::tuple< Factories ... > _FactoryTuple;
 		public:
-			typedef typename _Factory< VectorTypeUnion< Real , typename Factories::VertexType ... > , Factory< Real , Factories ... > >::VertexType VertexType;
+			typedef typename _Factory< DirectSum< Real , typename Factories::VertexType ... > , Factory< Real , Factories ... > >::VertexType VertexType;
 			template< unsigned int I > using FactoryType = typename std::tuple_element< I , _FactoryTuple >::type;
 			template< unsigned int I >       FactoryType< I >& get( void )       { return std::get< I >( _factoryTuple ); }
 			template< unsigned int I > const FactoryType< I >& get( void ) const { return std::get< I >( _factoryTuple ); }

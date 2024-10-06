@@ -47,7 +47,7 @@ template< typename Factory >
 void ASCIIInputDataStream< Factory >::reset( void ) { fseek( _fp , 0 , SEEK_SET ); }
 
 template< typename Factory >
-bool ASCIIInputDataStream< Factory >::base_read( Data &d ){ return _factory.readASCII( _fp , d ); }
+bool ASCIIInputDataStream< Factory >::read( Data &d ){ return _factory.readASCII( _fp , d ); }
 
 ///////////////////////////
 // ASCIIOutputDataStream //
@@ -67,7 +67,7 @@ ASCIIOutputDataStream< Factory >::~ASCIIOutputDataStream( void )
 }
 
 template< typename Factory >
-void ASCIIOutputDataStream< Factory >::base_write( const Data &d ){ _factory.writeASCII( _fp , d ); }
+size_t ASCIIOutputDataStream< Factory >::write( const Data &d ){ _factory.writeASCII( _fp , d ) ; return _sz++; }
 
 ///////////////////////////
 // BinaryInputDataStream //
@@ -83,7 +83,7 @@ template< typename Factory >
 void BinaryInputDataStream< Factory >::reset( void ) { fseek( _fp , 0 , SEEK_SET ); }
 
 template< typename Factory >
-bool BinaryInputDataStream< Factory >::base_read( Data &d ){ return _factory.readBinary( _fp , d ); }
+bool BinaryInputDataStream< Factory >::read( Data &d ){ return _factory.readBinary( _fp , d ); }
 
 ////////////////////////////
 // BinaryOutputDataStream //
@@ -96,7 +96,7 @@ BinaryOutputDataStream< Factory >::BinaryOutputDataStream( const char* fileName 
 }
 
 template< typename Factory >
-void BinaryOutputDataStream< Factory >::base_write( const Data &d ){ return _factory.writeBinary( _fp , d ); }
+size_t BinaryOutputDataStream< Factory >::write( const Data &d ){ _factory.writeBinary( _fp , d ); return _sz++; }
 
 ////////////////////////
 // PLYInputDataStream //
@@ -174,7 +174,7 @@ PLYInputDataStream< Factory >::~PLYInputDataStream( void )
 }
 
 template< typename Factory >
-bool PLYInputDataStream< Factory >::base_read( Data &d )
+bool PLYInputDataStream< Factory >::read( Data &d )
 {
 	if( _pIdx<_pCount )
 	{
@@ -224,7 +224,7 @@ PLYOutputDataStream< Factory >::~PLYOutputDataStream( void )
 }
 
 template< typename Factory >
-void PLYOutputDataStream< Factory >::base_write( const Data &d )
+size_t PLYOutputDataStream< Factory >::write( const Data &d )
 {
 	if( _pIdx==_pCount ) ERROR_OUT( "Trying to add more points than total: " , _pIdx , " < " , _pCount );
 	if( _factory.isStaticallyAllocated() ) _ply->put_element( (void *)&d );
@@ -233,6 +233,6 @@ void PLYOutputDataStream< Factory >::base_write( const Data &d )
 		_factory.toBuffer( d , _buffer );
 		_ply->put_element( PointerAddress( _buffer ) );
 	}
-	_pIdx++;
+	return _pIdx++;
 }
 

@@ -173,7 +173,7 @@ protected:
 };
 
 template< typename Real , unsigned int Dim , typename ... AuxData >
-using ValuedPointData = VectorTypeUnion< Real , Point< Real , Dim > , Real , AuxData ... >;
+using ValuedPointData = DirectSum< Real , Point< Real , Dim > , Real , AuxData ... >;
 
 template< typename Index >
 size_t BoostHash( Index i1 , Index i2 )

@@ -104,7 +104,7 @@ namespace PoissonRecon
 			BufferedBinaryInputDataStream( const char *fileName , const InputFactory &factory , size_t bufferSize );
 			~BufferedBinaryInputDataStream( void );
 			void reset( void );
-			bool base_read( Data &d );
+			bool read( Data &d );
 		protected:
 			size_t _bufferSize , _current , _inBuffer , _elementSize;
 			Pointer( char ) _buffer;
@@ -120,7 +120,8 @@ namespace PoissonRecon
 			BufferedBinaryOutputDataStream( const char *fileName , const OutputFactory &factory , size_t bufferSize );
 			~BufferedBinaryOutputDataStream( void );
 			void reset( void );
-			void base_write( const Data &d );
+			size_t write( const Data &d );
+			size_t size( void ) const;
 		protected:
 			size_t _bufferSize , _current , _elementSize;
 			Pointer( char ) _buffer;

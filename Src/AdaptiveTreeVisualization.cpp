@@ -398,25 +398,19 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 		double t = Time();
 
 		// A description of the output vertex information
-		using VInfo = Reconstructor::OutputLevelSetVertexInfo< Real , Dim , false , false >;
+		using VInfo = Reconstructor::OutputVertexInfo< Real , Dim , false , false >;
 
 		// A factory generating the output vertices
 		using Factory = typename VInfo::Factory;
 		Factory factory = VInfo::GetFactory();
 
 		// A backing stream for the vertices
-		Reconstructor::OutputInputFactoryTypeStream< Factory , false > vertexStream( factory , false );
-		Reconstructor::OutputInputFaceStream< Dim-1 > faceStream( false , true );
+		Reconstructor::OutputInputFactoryTypeStream< Real , Dim , Factory , false , true > vertexStream( factory , VInfo::Convert );
+		Reconstructor::OutputInputFaceStream< Dim-1 , false , true > faceStream;
 
-		{
-			// The wrapper converting native to output types
-			typename VInfo::StreamWrapper _vertexStream( vertexStream );
-			Reconstructor::TransformedOutputLevelSetVertexStream< Real , Dim > __vertexStream( modelToUnitCube.inverse() , _vertexStream );
-
-			// Extract the mesh
-			if      constexpr( Dim==3 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , __vertexStream , faceStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
-			else if constexpr( Dim==2 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value ,                                                              __vertexStream , faceStream , NonLinearFit.set , false , FlipOrientation.set );
-		}
+		// Extract the mesh
+		if      constexpr( Dim==3 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , vertexStream , faceStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		else if constexpr( Dim==2 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value ,                                                              vertexStream , faceStream , NonLinearFit.set , false , FlipOrientation.set );
 
 		if( Verbose.set ) printf( "Got level-set: %.2f(s)\n" , Time()-t );
 		if( Verbose.set ) printf( "Vertices / Faces: %llu / %llu\n" , (unsigned long long)vertexStream.size() , (unsigned long long)faceStream.size() );
