@@ -198,13 +198,13 @@ namespace PoissonRecon
 			}
 
 			// Need to write the union to ensure that the counter gets set
-			size_t write( const size_t &idx , const Position< Real , Dim > &p , const Gradient< Real , Dim > &g , const Data& ... d )
+			size_t write( const size_t &idx , const Position< Real , Dim > &p , const Gradient< Real , Dim > &g , const Weight< Real > &w , const Data& ... d )
 			{
-				return _stream.write( idx , _positionXForm * p , _gradientXForm * g , d... );
+				return _stream.write( idx , _positionXForm * p , _gradientXForm * g , w , d... );
 			}
-			size_t write( unsigned int thread , const size_t &idx , const Position< Real , Dim > &p , const Gradient< Real , Dim > &g , const Data& ... d )
+			size_t write( unsigned int thread , const size_t &idx , const Position< Real , Dim > &p , const Gradient< Real , Dim > &g , const Weight< Real > &w , const Data& ... d )
 			{
-				return _stream.write( thread , idx , _positionXForm * p , _gradientXForm * g , d... );
+				return _stream.write( thread , idx , _positionXForm * p , _gradientXForm * g , w , d... );
 			}
 			size_t size( void ) const { return _stream.size(); }
 		protected:
