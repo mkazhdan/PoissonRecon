@@ -301,9 +301,6 @@ namespace PoissonRecon
 
 	protected:
 
-#ifdef DEBUG_STREAM
-		size_t _current = 0;
-#endif // DEBUG_STREAM
 		struct _NextValue
 		{
 			std::tuple< size_t , Data ... > data;

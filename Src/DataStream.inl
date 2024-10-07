@@ -404,27 +404,10 @@ bool InterleavedMultiInputIndexedDataStream< Data ... >::read( Data& ... d )
 {
 	if( _firstTime ) _init(d...) , _firstTime = false;
 	std::pop_heap( _nextValues.begin() , _nextValues.end() , _NextValue::Compare );
-#ifdef DEBUG_STREAM
-#if 0
-	static unsigned int count = 0;
-	if( count<10 )
-	{
-		std::vector< _NextValue > foo = _nextValues;
-		std::sort( foo.begin() , foo.end() , []( const _NextValue &v1 , const _NextValue &v2 ){ return v1.streamIndex<v2.streamIndex; } );
-		for( unsigned int i=0 ; i<foo.size() ; i++ ) std::cout << " (" << foo[i].data.first << "," << foo[i].streamIndex << ")";
-		std::cout << std::endl;
-		count++;
-	}
-#endif
-#endif // DEBUG_STREAM
 	_NextValue &next = _nextValues.back();
 	if( !next.validData ) return false;
 	size_t sz;
 	TupleConverter< size_t , Data ... >::FromTuple( next.data , sz , d... );
-#ifdef DEBUG_STREAM
-	if( next.data.idx!=_current ) ERROR_OUT( "out of order: Expected = " , _current , ", Found = " , next.data.idx );
-	_current++;
-#endif // DEBUG_STREAM
 
 	next.validData = _multiStream.read( next.streamIndex , next.data );
 

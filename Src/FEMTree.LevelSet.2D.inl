@@ -688,7 +688,7 @@ public:
 									GetIsoVertex< WeightDegree , DataSig >( tree , nonLinearFit , outputGradients , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , e , sValues , vertex , zeroData );
 									bool stillOwner = false;
 									std::pair< node_index_type , Vertex > hashed_vertex;
-									if constexpr( std::is_base_of_v< OutputIndexedVertexStream , VertexStream > )
+
 									{
 										char desired = 1 , expected = 0;
 #ifdef SANITIZED_PR
@@ -701,17 +701,6 @@ public:
 											stillOwner = true;
 										}
 									}
-									else if constexpr( std::is_base_of_v< OutputVertexStream , VertexStream > )
-									{
-										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
-										if( !edgeSet )
-										{
-											hashed_vertex = std::pair< node_index_type , Vertex >( (node_index_type)vertexStream.write( thread , vertex ) , vertex );
-											edgeSet = 1;
-											stillOwner = true;
-										}
-									}
-									else ERROR_OUT( "Bad stream type: " , typeid(VertexStream).name() );
 
 									if( stillOwner )	// If this edge is the one generating the iso-vertex
 									{

@@ -65,9 +65,6 @@ namespace PoissonRecon
 		template< typename Real , unsigned int Dim , typename ... Data > using OutputLevelSetVertexStream = OutputDataStream< Position< Real , Dim > , Gradient< Real , Dim > , Weight< Real > , Data ... >;
 		template< typename Real , unsigned int Dim , typename ... Data > struct TransformedOutputLevelSetVertexStream;
 
-		template< typename Real , unsigned int Dim , typename ... Data > using OutputIndexedLevelSetVertexStream = OutputDataStream< size_t , Position< Real , Dim > , Gradient< Real , Dim > , Weight< Real > , Data ... >;
-		template< typename Real , unsigned int Dim , typename ... Data > struct TransformedOutputIndexedLevelSetVertexStream;
-
 		//////////////////
 		// Face streams //
 		//////////////////
@@ -176,40 +173,6 @@ namespace PoissonRecon
 		protected:
 			// A reference to the underlying stream
 			OutputLevelSetVertexStream< Real , Dim , Data ... > &_stream;
-
-			// The affine transformation to be applied to the positions
-			XForm< Real , Dim+1 > _positionXForm;
-
-			// The linear transformation to be applied to the normals
-			XForm< Real , Dim > _gradientXForm;
-		};
-
-
-		//////////////////////////////////////////////
-		// Transformed Output Indexed Vertex Stream //
-		//////////////////////////////////////////////
-		template< typename Real , unsigned int Dim , typename ... Data >
-		struct TransformedOutputIndexedLevelSetVertexStream : public OutputIndexedLevelSetVertexStream< Real , Dim , Data ...  >
-		{
-			// A constructor initialized with the transformation to be applied to the samples, and a sample stream
-			TransformedOutputIndexedLevelSetVertexStream( XForm< Real , Dim+1 > xForm , OutputIndexedLevelSetVertexStream< Real , Dim , Data ... > &stream ) : _stream(stream) , _positionXForm(xForm)
-			{
-				_gradientXForm = XForm< Real , Dim > ( xForm ).inverse().transpose() * (Real)pow( xForm.determinant() , 1./Dim );
-			}
-
-			// Need to write the union to ensure that the counter gets set
-			size_t write( const size_t &idx , const Position< Real , Dim > &p , const Gradient< Real , Dim > &g , const Weight< Real > &w , const Data& ... d )
-			{
-				return _stream.write( idx , _positionXForm * p , _gradientXForm * g , w , d... );
-			}
-			size_t write( unsigned int thread , const size_t &idx , const Position< Real , Dim > &p , const Gradient< Real , Dim > &g , const Weight< Real > &w , const Data& ... d )
-			{
-				return _stream.write( thread , idx , _positionXForm * p , _gradientXForm * g , w , d... );
-			}
-			size_t size( void ) const { return _stream.size(); }
-		protected:
-			// A reference to the underlying stream
-			OutputIndexedLevelSetVertexStream< Real , Dim , Data ... > &_stream;
 
 			// The affine transformation to be applied to the positions
 			XForm< Real , Dim+1 > _positionXForm;

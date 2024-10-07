@@ -758,9 +758,7 @@ public:
 				vertices[i].template get<1>() = Point< Real , Dim >();
 				vertices[i].template get<2>() = depth;
 				if constexpr( HasData ) vertices[i].template get<3>() = dataValue;
-				if      constexpr( std::is_base_of_v< OutputIndexedVertexStream , VertexStream > ) vertexIndices[i] = (node_index_type)vertexStream.write( 0 , vertices[i] );
-				else if constexpr( std::is_base_of_v< OutputVertexStream        , VertexStream > ) vertexIndices[i] = (node_index_type)vertexStream.write(     vertices[i] );
-				else ERROR_OUT( "Bad stream type: " , typeid(VertexStream).name() );
+				vertexIndices[i] = (node_index_type)vertexStream.write( 0 , vertices[i] );
 			}
 		}
 
@@ -1066,7 +1064,7 @@ public:
 									GetIsoVertex< WeightDegree , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _e , zDir , sValues , vertex , zeroData );
 									bool stillOwner = false;
 									std::pair< node_index_type , Vertex > hashed_vertex;
-									if constexpr( std::is_base_of_v< OutputIndexedVertexStream , VertexStream > )
+
 									{
 										char desired = 1 , expected = 0;
 #ifdef SANITIZED_PR
@@ -1079,17 +1077,6 @@ public:
 											stillOwner = true;
 										}
 									}
-									else if constexpr( std::is_base_of_v< OutputVertexStream , VertexStream > )
-									{
-										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
-										if( !edgeSet )
-										{
-											hashed_vertex = std::pair< node_index_type , Vertex >( (node_index_type)vertexStream.write( vertex ) , vertex );
-											edgeSet = 1;
-											stillOwner = true;
-										}
-									}
-									else ERROR_OUT( "Bad stream type: " , typeid(VertexStream).name() );
 
 									if( stillOwner )
 									{
@@ -1218,7 +1205,7 @@ public:
 									GetIsoVertex< WeightDegree , DataSig >( tree , nonLinearFit , gradientNormals , pointEvaluator , densityWeights , data , isoValue , weightKey , dataKey , leaf , _c , bCoordinate , fCoordinate , bValues , fValues , vertex , zeroData );
 									bool stillOwner = false;
 									std::pair< node_index_type , Vertex > hashed_vertex;
-									if constexpr( std::is_base_of_v< OutputIndexedVertexStream , VertexStream > )
+
 									{
 										char desired = 1 , expected = 0;
 #ifdef SANITIZED_PR
@@ -1231,17 +1218,6 @@ public:
 											stillOwner = true;
 										}
 									}
-									else if constexpr( std::is_base_of_v< OutputVertexStream , VertexStream > )
-									{
-										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
-										if( !edgeSet )
-										{
-											hashed_vertex = std::pair< node_index_type , Vertex >( (node_index_type)vertexStream.write( vertex ) , vertex );
-											edgeSet = 1;
-											stillOwner = true;
-										}
-									}
-									else ERROR_OUT( "Bad stream type: " , typeid(VertexStream).name() );
 
 									if( stillOwner )
 									{
@@ -1961,14 +1937,7 @@ public:
 				for( unsigned int i=0 ; i<polygon.size() ; i++ ) c += polygon[i].second;
 				c /= ( typename Vertex::Real )polygon.size();
 
-				node_index_type cIdx;
-				if      constexpr( std::is_base_of_v< OutputIndexedVertexStream , VertexStream > ) cIdx = (node_index_type)vertexStream.write( thread , c );
-				else if constexpr( std::is_base_of_v< OutputVertexStream        , VertexStream > )
-				{
-					std::lock_guard< std::mutex > lock( _pointInsertionMutex );
-					cIdx = (node_index_type)vertexStream.write( c );
-				}
-				else ERROR_OUT( "Bad stream type: " , typeid(VertexStream).name() );
+				node_index_type cIdx = (node_index_type)vertexStream.write( thread , c );
 
 				for( unsigned i=0 ; i<polygon.size() ; i++ )
 				{
