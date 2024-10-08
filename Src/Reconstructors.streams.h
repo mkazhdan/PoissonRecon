@@ -29,7 +29,6 @@ DAMAGE.
 #ifndef RECONSTRUCTORS_STREAMS_INCLUDED
 #define RECONSTRUCTORS_STREAMS_INCLUDED
 
-#include <mutex>
 #include "FEMTree.h"
 #include "MyExceptions.h"
 #include "Array.h"

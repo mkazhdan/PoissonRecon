@@ -54,7 +54,6 @@ struct _LevelSetExtractor< HasData , Real , 2 , Data >
 		>;
 
 protected:
-	static std::mutex _pointInsertionMutex;
 	static std::atomic< size_t > _BadRootCount;
 public:
 
@@ -1146,7 +1145,6 @@ public:
 	}
 };
 
-template< bool HasData , typename Real , typename Data > std::mutex            _LevelSetExtractor< HasData , Real , 2 , Data >::_pointInsertionMutex;
 template< bool HasData , typename Real , typename Data > std::atomic< size_t > _LevelSetExtractor< HasData , Real , 2 , Data >::_BadRootCount;
 
 template< typename Real >

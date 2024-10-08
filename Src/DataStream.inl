@@ -223,19 +223,6 @@ bool MultiInputDataStream< Data ... >::read(                  Data& ... d )
 	return false;
 }
 
-template< typename ...Data >
-MultiInputDataStream< Data ... >::MultiInputDataStream( void ) {}
-
-template< typename ...Data >
-void MultiInputDataStream< Data ... >::_init( InputDataStream< Data ... > **streams , size_t N )
-{
-	_streams.resize( N );
-	for( unsigned int i=0 ; i<N ; i++ ) _streams[i] = streams[i];
-}
-
-template< typename ...Data >
-void MultiInputDataStream< Data ... >::_init( const std::vector< InputDataStream< Data ... > * > &streams ){ _streams = streams; }
-
 /////////////////////////////////
 // Multiple output data stream //
 /////////////////////////////////
@@ -258,19 +245,6 @@ size_t MultiOutputDataStream< Data ... >::write( unsigned int t , const Data& ..
 template< typename ... Data >
 MultiOutputDataStream< Data ... >::MultiOutputDataStream( void ) {}
 
-#if 0
-template< typename ... Data >
-void MultiOutputDataStream< Data ... >::_init( OutputDataStream< Data ... > **streams , size_t N )
-{
-	_size = 0;
-	_streams.resize( N );
-	for( unsigned int i=0 ; i<N ; i++ ) _streams[i] = streams[i];
-}
-#endif
-
-template< typename ... Data >
-void MultiOutputDataStream< Data ... >::_init( const std::vector< OutputDataStream< Data ... > * > &streams ){ _streams = streams; }
-
 ////////////////////////////////////////////////
 // De-interleaved multiple output data stream //
 ////////////////////////////////////////////////
@@ -289,15 +263,6 @@ size_t DeInterleavedMultiOutputIndexedDataStream< Data ... >::write(            
 
 template< typename ... Data >
 size_t DeInterleavedMultiOutputIndexedDataStream< Data ... >::write( unsigned int thread , const Data& ... d ){ size_t idx = _size++ ; _multiStream.write( thread , idx , d... ) ; return idx; }
-
-template< typename ... Data >
-DeInterleavedMultiOutputIndexedDataStream< Data ... >::DeInterleavedMultiOutputIndexedDataStream( void ) {}
-
-template< typename ... Data >
-void DeInterleavedMultiOutputIndexedDataStream< Data ... >::_init( OutputIndexedDataStream< Data ... > **streams , size_t N ){ _multiStream._init( streams , N ); }
-
-template< typename ... Data >
-void DeInterleavedMultiOutputIndexedDataStream< Data ... >::_init( const std::vector< OutputIndexedDataStream< Data ... > * > &streams ){ _multiStream.init( streams ); }
 
 /////////////////////////////////
 // Input data stream converter //

@@ -184,10 +184,6 @@ namespace PoissonRecon
 	protected:
 		std::vector< InputDataStream< Data ... > * > _streams;
 		unsigned int _current;
-
-		MultiInputDataStream( void );
-		void _init( InputDataStream< Data ... > **streams , size_t N );
-		void _init( const std::vector< InputDataStream< Data ... > * > &streams );
 	};
 
 
@@ -212,10 +208,6 @@ namespace PoissonRecon
 	protected:
 		std::vector< OutputDataStream< Data ... > * > _streams;
 		std::atomic< size_t > _size;
-
-		MultiOutputDataStream( void );
-		void _init( OutputDataStream< Data ... > **streams , size_t N );
-		void _init( const std::vector< OutputDataStream< Data ... > * > &streams );
 	};
 
 	/////////////////////////////////
@@ -278,10 +270,6 @@ namespace PoissonRecon
 	protected:
 		MultiOutputIndexedDataStream< Data ... > _multiStream;
 		std::atomic< size_t > _size;
-
-		DeInterleavedMultiOutputIndexedDataStream( void );
-		void _init( OutputIndexedDataStream< Data ... > **streams , size_t N );
-		void _init( const std::vector< OutputIndexedDataStream< Data ... > * > &streams );
 	};
 
 
