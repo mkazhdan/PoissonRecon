@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.30)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.31)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.30/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.30/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.30/">V18.30</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.20/">V18.20</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.10/">V18.10</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.05/">V18.05</a>,
@@ -707,10 +708,6 @@ The file is read in <a href="https://www.cc.gatech.edu/projects/large_models/ply
 </dd><dt>[<b>--out</b> &lt;<i>output triangle mesh</i>&gt;]
 </dt><dd> This string is the name of the file to which the triangle mesh will be written. 
 The file is written in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.
-
-</dd><dt>[<b>--smooth</b> &lt;<i>smoothing iterations</i>&gt;]
-</dt><dd> This integer values the number of umbrella smoothing operations to perform on the signal before trimming.<br>
-The default value is 5.
 
 </dd><dt>[<b>--aRatio</b> &lt;<i>island area ratio</i>&gt;]
 </dt><dd> This floating point value specifies the area ratio that defines a disconnected component as an "island". Connected components whose area, relative to the total area of the mesh, are smaller than this value will be merged into the output surface to close small holes.<br>
@@ -1643,6 +1640,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <OL>
 <LI> Added an interface for evaluating the implicit data (e.g. color) field extrapolated from the samples.
 <LI> Modified the <CODE>--color</CODE> flag of the <CODE>Reconstruction.example</CODE> executable to support evaluation of colors from the extrapolated field.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">Version 18.31</a>:
+<OL>
+<LI> Removed the smoothing option in the <CODE>SufaceTrimmer</CODE> executable.
 </OL>
 
 </DETAILS>

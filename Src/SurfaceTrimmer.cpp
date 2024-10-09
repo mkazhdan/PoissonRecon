@@ -49,8 +49,6 @@ using namespace PoissonRecon;
 CmdLineParameter< char* >
 	In( "in" ) ,
 	Out( "out" );
-CmdLineParameter< int >
-	Smooth( "smooth" , 5 );
 CmdLineParameter< float >
 	Trim( "trim" ) ,
 	IslandAreaRatio( "aRatio" , 0.001f );
@@ -65,7 +63,7 @@ CmdLineReadable
 
 CmdLineReadable* params[] =
 {
-	&In , &Out , &Trim , &PolygonMesh , &Smooth , &IslandAreaRatio , &Verbose , &Long , &ASCII , &RemoveIslands , &Debug ,
+	&In , &Out , &Trim , &PolygonMesh , &IslandAreaRatio , &Verbose , &Long , &ASCII , &RemoveIslands , &Debug ,
 	NULL
 };
 
@@ -75,7 +73,6 @@ void ShowUsage( char* ex )
 	printf( "\t --%s <input polygon mesh>\n" , In.name );
 	printf( "\t --%s <trimming value>\n" , Trim.name );
 	printf( "\t[--%s <ouput polygon mesh>]\n" , Out.name );
-	printf( "\t[--%s <smoothing iterations>=%d]\n" , Smooth.name , Smooth.value );
 	printf( "\t[--%s <relative area of islands>=%f]\n" , IslandAreaRatio.name , IslandAreaRatio.value );
 	printf( "\t[--%s]\n" , RemoveIslands.name );
 	printf( "\t[--%s]\n" , Debug.name );
@@ -212,25 +209,6 @@ ValuedPointData< Real , Dim , AuxData ... > InterpolateVertices( const ValuedPoi
 	if( v1.template get<1>()==v2.template get<1>() ) return (v1+v2)/Real(2.);
 	Real dx = ( v1.template get<1>()-value ) / ( v1.template get<1>()-v2.template get<1>() );
 	return v1 * (Real)(1.-dx) + v2*dx;
-}
-
-template< typename Real , unsigned int Dim , typename Index , typename ... AuxData >
-void SmoothValues( std::vector< ValuedPointData< Real , Dim , AuxData ... > >& vertices , const std::vector< std::vector< Index > >& polygons )
-{
-	std::vector< int > count( vertices.size() );
-	std::vector< Real > sums( vertices.size() , 0 );
-	for( size_t i=0 ; i<polygons.size() ; i++ )
-	{
-		int sz = int(polygons[i].size());
-		for( int j=0 ; j<sz ; j++ )
-		{
-			int j1 = j , j2 = (j+1)%sz;
-			Index v1 = polygons[i][j1] , v2 = polygons[i][j2];
-			count[v1]++ , count[v2]++;
-			sums[v1] += vertices[v2].template get<1>() , sums[v2] += vertices[v1].template get<1>();
-		}
-	}
-	for( size_t i=0 ; i<vertices.size() ; i++ ) vertices[i].template get<1>() = ( sums[i] + vertices[i].template get<1>() ) / ( count[i] + 1 );
 }
 
 template< typename Real , unsigned int Dim , typename Index , typename ... AuxData >
@@ -431,7 +409,6 @@ int Execute( AuxDataFactories ... auxDataFactories )
 	std::vector< std::string > comments;
 	PLY::ReadPolygons< Factory , Index >( In.value , factory , vertices , polygons , ft , comments );
 
-	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< Real , Dim , Index >( vertices , polygons );
 	min = max = vertices[0].template get<1>();
 	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< Real >( min , vertices[i].template get<1>() ) , max = std::max< Real >( max , vertices[i].template get<1>() );
 
