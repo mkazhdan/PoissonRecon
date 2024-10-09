@@ -242,9 +242,6 @@ size_t MultiOutputDataStream< Data ... >::write(                  const Data& ..
 template< typename ... Data >
 size_t MultiOutputDataStream< Data ... >::write( unsigned int t , const Data& ... d ){ size_t idx = _size++ ; _streams[t]->write(d...) ; return idx; }
 
-template< typename ... Data >
-MultiOutputDataStream< Data ... >::MultiOutputDataStream( void ) {}
-
 ////////////////////////////////////////////////
 // De-interleaved multiple output data stream //
 ////////////////////////////////////////////////

@@ -712,26 +712,18 @@ namespace PoissonRecon
 					typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
 					{
 						using ExternalType = std::tuple< Point< Real , Dim > , NormalAndAuxData >;
-						if constexpr( HasAuxData )
-						{
-							using InternalType = std::tuple< Point< Real , Dim > , Point< Real , Dim > , AuxData >;
-							auto converter = []( const InternalType &iType )
-								{
-									ExternalType xType;
-									std::get< 0 >( xType ) = std::get< 0 >( iType );
-									std::get< 1 >( xType ).template get<0>() = std::get< 1 >( iType );
-									std::get< 1 >( xType ).template get<1>() = std::get< 2 >( iType );
-									return xType;
-								};
-							InputDataStreamConverter< InternalType , ExternalType > __pointStream( _pointStream , converter , Point< Real , Dim >() , Point< Real , Dim >() , implicit.zeroAuxData );
-							if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
-							else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
-						}
-						else
-						{
-							if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
-							else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
-						}
+						using InternalType = std::tuple< Point< Real , Dim > , Point< Real , Dim > , AuxData >;
+						auto converter = []( const InternalType &iType )
+							{
+								ExternalType xType;
+								std::get< 0 >( xType ) = std::get< 0 >( iType );
+								std::get< 1 >( xType ).template get<0>() = std::get< 1 >( iType );
+								std::get< 1 >( xType ).template get<1>() = std::get< 2 >( iType );
+								return xType;
+							};
+						InputDataStreamConverter< InternalType , ExternalType > __pointStream( _pointStream , converter , Point< Real , Dim >() , Point< Real , Dim >() , implicit.zeroAuxData );
+						if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+						else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData               );
 					}
 				}
 				else
@@ -753,7 +745,7 @@ namespace PoissonRecon
 
 					typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
 					if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
-					else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
+					else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData               );
 				}
 
 				implicit.unitCubeToModel = modelToUnitCube.inverse();
@@ -1183,27 +1175,20 @@ namespace PoissonRecon
 					typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
 					{
 						using ExternalType = std::tuple< Point< Real , Dim > , NormalAndAuxData >;
-						if constexpr( HasAuxData )
-						{
-							using InternalType = std::tuple< Point< Real , Dim > , Point< Real , Dim > , AuxData >;
-							auto converter = []( const InternalType &iType )
-								{
-									ExternalType xType;
-									std::get< 0 >( xType ) = std::get< 0 >( iType );
-									std::get< 1 >( xType ).template get<0>() = std::get< 1 >( iType );
-									std::get< 1 >( xType ).template get<1>() = std::get< 2 >( iType );
-									return xType;
-								};
-							InputDataStreamConverter< InternalType , ExternalType > __pointStream( _pointStream , converter , Point< Real , Dim >() , Point< Real , Dim >() , implicit.zeroAuxData );
-							if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
-							else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
-						}
-						else
-						{
-							if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
-							else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
-						}
-					}				}
+						using InternalType = std::tuple< Point< Real , Dim > , Point< Real , Dim > , AuxData >;
+						auto converter = []( const InternalType &iType )
+							{
+								ExternalType xType;
+								std::get< 0 >( xType ) = std::get< 0 >( iType );
+								std::get< 1 >( xType ).template get<0>() = std::get< 1 >( iType );
+								std::get< 1 >( xType ).template get<1>() = std::get< 2 >( iType );
+								return xType;
+							};
+						InputDataStreamConverter< InternalType , ExternalType > __pointStream( _pointStream , converter , Point< Real , Dim >() , Point< Real , Dim >() , implicit.zeroAuxData );
+						if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
+						else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , __pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData               );
+					}
+				}
 				else
 				{
 					TransformedInputOrientedSampleStream< Real , Dim > _pointStream( modelToUnitCube , pointStream );
@@ -1223,7 +1208,7 @@ namespace PoissonRecon
 
 					typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
 					if( params.confidence>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessDataWithConfidence );
-					else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData );
+					else                      pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< NormalAndAuxData >( sid , implicit.tree.spaceRoot() , _pointStream , zeroNormalAndAuxData , params.depth , *samples , *sampleNormalAndAuxData , true , implicit.tree.nodeAllocators.size() ? implicit.tree.nodeAllocators[0] : NULL , implicit.tree.initializer() , ProcessData               );
 				}
 
 				implicit.unitCubeToModel = modelToUnitCube.inverse();
