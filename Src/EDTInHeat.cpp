@@ -260,7 +260,7 @@ void _Execute( int argc , char* argv[] )
 		XForm< Real , Dim+1 > _modelToUnitCube = GetPointXForm< Real , Dim >( vertices , (Real)Scale.value );
 		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = _modelToUnitCube * vertices[i];
 		modelToUnitCube = _modelToUnitCube * modelToUnitCube;
-		FEMTreeInitializer< Dim , Real >::Initialize( tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , true , tree.nodeAllocators , tree.initializer() );
+		FEMTreeInitializer< Dim , Real >::Initialize( tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , tree.nodeAllocators , tree.initializer() );
 		unitCubeToModel = modelToUnitCube.inverse();
 		if( OutXForm.set )
 		{

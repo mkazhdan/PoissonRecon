@@ -160,8 +160,7 @@ namespace PoissonRecon
 				{
 					Reconstructor::TransformedInputSampleStream< Real , Dim , AuxData > _pointStream( modelToUnitCube , pointStream );
 					auto ProcessData = []( const Point< Real , Dim > &p , AuxData &d ){ return (Real)1.; };
-					typename FEMTreeInitializer< Dim , Real >::StreamInitializationData sid;
-					pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< AuxData >( sid , tree.spaceRoot() , _pointStream , zeroAuxData , params.depth , *samples , *sampleAuxData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : nullptr , tree.initializer() , ProcessData );
+					pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< AuxData >( tree.spaceRoot() , _pointStream , zeroAuxData , params.depth , *samples , *sampleAuxData , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : nullptr , tree.initializer() , ProcessData );
 				}
 
 				if( params.fullDepth>params.depth )

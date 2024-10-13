@@ -52,14 +52,30 @@ size_t FEMTreeInitializer< Dim , Real >::_Initialize( FEMTreeNode &node , int ma
 
 template< unsigned int Dim , class Real >
 template< typename AuxData >
-size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
 {
-	return Initialize< AuxData >( sid , root , pointStream , zeroData , maxDepth , [&]( Point< Real , Dim > ){ return maxDepth; } , samplePoints , sampleData , mergeNodeSamples , nodeAllocator , NodeInitializer , ProcessData );
+	struct StreamInitializationData sid;
+	return Initialize< AuxData >( sid , root , pointStream , zeroData , maxDepth , samplePoints , sampleData , nodeAllocator , NodeInitializer , ProcessData );
 }
 
 template< unsigned int Dim , class Real >
 template< typename AuxData >
-size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
+{
+	struct StreamInitializationData sid;
+	return Initialize< AuxData >( sid , root , pointStream , zeroData , maxDepth , pointDepthFunctor , samplePoints , sampleData , nodeAllocator , NodeInitializer , ProcessData );
+}
+
+template< unsigned int Dim , class Real >
+template< typename AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
+{
+	return Initialize< AuxData >( sid , root , pointStream , zeroData , maxDepth , [&]( Point< Real , Dim > ){ return maxDepth; } , samplePoints , sampleData , nodeAllocator , NodeInitializer , ProcessData );
+}
+
+template< unsigned int Dim , class Real >
+template< typename AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
 {
 	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
 
@@ -103,32 +119,21 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitialization
 			FEMTreeNode *temp = Leaf( root , p , pointDepthFunctor(p) );
 			if( !temp ){ outOfBoundPoints++ ; continue; }
 			node_index_type nodeIndex = temp->nodeData.nodeIndex;
-			if( mergeNodeSamples )
+			if( nodeIndex>=(node_index_type)nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
+			node_index_type idx = nodeToIndexMap[ nodeIndex ];
+			if( idx==-1 )
 			{
-				if( nodeIndex>=(node_index_type)nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
-				node_index_type idx = nodeToIndexMap[ nodeIndex ];
-				if( idx==-1 )
-				{
-					idx = (node_index_type)samplePoints.size();
-					nodeToIndexMap[ nodeIndex ] = idx;
-					samplePoints.resize( idx+1 ) , samplePoints[idx].node = temp;
-					sampleData.resize( idx+1 );
-					samplePoints[idx].sample = ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
-					sampleData[idx] = d*weight;
-				}
-				else
-				{
-					samplePoints[idx].sample += ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
-					sampleData[ idx ] += d*weight;
-				}
+				idx = (node_index_type)samplePoints.size();
+				nodeToIndexMap[ nodeIndex ] = idx;
+				samplePoints.resize( idx+1 ) , samplePoints[idx].node = temp;
+				sampleData.resize( idx+1 );
+				samplePoints[idx].sample = ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
+				sampleData[idx] = d*weight;
 			}
 			else
 			{
-				node_index_type idx = (node_index_type)samplePoints.size();
-				samplePoints.resize( idx+1 ) , sampleData.resize( idx+1 );
-				samplePoints[idx].node = temp;
-				samplePoints[idx].sample = ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
-				sampleData[ idx ] = d*weight;
+				samplePoints[idx].sample += ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
+				sampleData[ idx ] += d*weight;
 			}
 			pointCount++;
 		}
@@ -138,7 +143,7 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitialization
 }
 
 template< unsigned int Dim , class Real >
-void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
 	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
 
@@ -147,33 +152,31 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std
 	{
 		Simplex< Real , Dim , Dim-1 > s;
 		for( int k=0 ; k<Dim ; k++ ) s[k] = vertices[ simplices[i][k] ];
-		if( mergeNodeSamples ) _AddSimplex< true >( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
-		else                   _AddSimplex< true >( root , s , maxDepth , samples , NULL ,            nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
-	}
-	);
-}
-
-template< unsigned int Dim , class Real >
-void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , const std::vector< ProjectiveData< Point< Real , Dim > , Real > > &points , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
-{
-	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
-
-	std::vector< node_index_type > nodeToIndexMap;
-	ThreadPool::ParallelFor( 0 , points.size() , [&]( unsigned int t , size_t  i )
-	{
-		_AddSample< true >( root , points[i] , maxDepth , samples , mergeNodeSamples ? &nodeToIndexMap :NULL , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
+		_AddSimplex< true >( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
 	} );
 }
 
 template< unsigned int Dim , class Real >
-void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , const std::vector< ProjectiveData< Point< Real , Dim > , Real > > &points , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples )
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , const std::vector< ProjectiveData< Point< Real , Dim > , Real > > &points , int maxDepth , std::vector< PointSample >& samples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
 	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
 
 	std::vector< node_index_type > nodeToIndexMap;
 	ThreadPool::ParallelFor( 0 , points.size() , [&]( unsigned int t , size_t  i )
 	{
-		_AddSample( root , points[i] , maxDepth , samples , mergeNodeSamples ? &nodeToIndexMap : NULL );
+		_AddSample< true >( root , points[i] , maxDepth , samples , &nodeToIndexMap , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
+	} );
+}
+
+template< unsigned int Dim , class Real >
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , const std::vector< ProjectiveData< Point< Real , Dim > , Real > > &points , int maxDepth , std::vector< PointSample >& samples )
+{
+	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
+
+	std::vector< node_index_type > nodeToIndexMap;
+	ThreadPool::ParallelFor( 0 , points.size() , [&]( unsigned int t , size_t  i )
+	{
+		_AddSample( root , points[i] , maxDepth , samples , &nodeToIndexMap );
 	} );
 }
 

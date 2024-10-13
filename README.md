@@ -161,9 +161,24 @@ The file is written in <a href="https://www.cc.gatech.edu/projects/large_models/
 
 </dd><dt>[<b>--grid</b> &lt;<i>output grid</i>&gt;]
 </dt><dd> This string is the name of the file to which the sampled implicit function will be written.
-The file is written out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
-and the next 4 x 2^<i>d</i> x 2^<i>d</i> x ... bytes corresponding to the (single precision) floating point values
+The file consistes of seven header lines in ASCII describing the contents, following by the grid values in binary.<BR>
+<UL>
+<LI>The header looks like:<PRE><CODE>G3
+1 FLOAT
+&lt;RES_X&gt; &lt;RES_Y&gt; &lt;RES_Z&gt;
+&lt;M_00&gt; &lt;M_01&gt; &lt;M_02&gt; &lt;M_03&gt;
+&lt;M_10&gt; &lt;M_11&gt; &lt;M_12&gt; &lt;M_13&gt;
+&lt;M_20&gt; &lt;M_21&gt; &lt;M_22&gt; &lt;M_23&gt;
+&lt;M_30&gt; &lt;M_31&gt; &lt;M_22&gt; &lt;M_33&gt;
+</CODE></PRE>
+The first two lines describe the contents of the file -- a 3D grid with a single floating point value per cell.<br>
+The next line gives the resolution of the grid in <code>x</code>-, <code>y</code>-, and <code>z</code>-directions.<br>
+The following four lines give the 4x4 coefficients of the homogenous transformation <CODE>&lt;M&gt;</CODE> taking grid-space coordinates to world-coordinates.
+<LI>
+The next 4 x <code>&lt;RES_X&gt;</code> x <code>&lt;RES_Y&gt;</code> x <code>&lt;RES_Z&gt;</code> bytes correspond to the (single precision) floating point values
 of the implicit function.
+
+</UL>
 
 </dd><dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]
 </dt><dd> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.

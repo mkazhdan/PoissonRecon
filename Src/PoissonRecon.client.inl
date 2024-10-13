@@ -535,8 +535,8 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 			MultiPointStream pointStream( &pointStreams[start-beginPaddedIndex] , end - start );
 			typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
 			InputDataStreamConverter< InternalType , ExternalType > _pointStream( pointStream , converter , inputSampleFactory() );
-			if( clientReconInfo.confidence>0 ) pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-			else                               pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+			if( clientReconInfo.confidence>0 ) pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+			else                               pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 			profiler.update();
 		};
 		auto ProcessPadPointSlabs = [&]( typename FEMTreeInitializer< Dim , Real >::StreamInitializationData &sid , unsigned int start , unsigned int end )
@@ -546,11 +546,11 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 			typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
 			InputDataStreamConverter< InternalType , ExternalType > _pointStream( pointStream , converter , inputSampleFactory() );
 #ifdef ADAPTIVE_PADDING
-			if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-			else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+			if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+			else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 #else // !ADAPTIVE_PADDING
-			if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-			else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+			if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+			else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 #endif // ADAPTIVE_PADDING
 			profiler.update();
 		};
@@ -563,19 +563,19 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 			{
 				typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
 				InputDataStreamConverter< InternalType , ExternalType > _pointStream( pointStream , converter , inputSampleFactory() );
-				if( clientReconInfo.confidence>0 ) pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-				else                               pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+				if( clientReconInfo.confidence>0 ) pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+				else                               pointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _samples , _sampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 			}
 			else
 			{
 				typename InputSampleDataFactory::VertexType zeroData = inputSampleDataFactory();
 				InputDataStreamConverter< InternalType , ExternalType > _pointStream( pointStream , converter , inputSampleFactory() );
 #ifdef ADAPTIVE_PADDING
-				if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-				else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+				if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+				else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , pointDepthFunctor , _paddedSamples , _paddedSampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 #else // !ADAPTIVE_PADDING
-				if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
-				else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , true , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
+				if( clientReconInfo.confidence>0 ) paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessDataWithConfidence );
+				else                               paddedPointCount += FEMTreeInitializer< Dim , Real >::template Initialize< InputSampleDataType >( sid , _tree.spaceRoot() , _pointStream , zeroData , clientReconInfo.reconstructionDepth , _paddedSamples , _paddedSampleData , _tree.nodeAllocators[0] , _tree.initializer() , ProcessData );
 #endif // ADAPTIVE_PADDING
 			}
 			profiler.update();

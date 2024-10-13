@@ -708,7 +708,7 @@ void Execute( UIntPack< FEMSigs ... > )
 						return xType;
 					};
 				InputDataStreamConverter< InternalType , ExternalType > __pointStream( _pointStream , converter , InputSampleValueType( Point< Real , Dim >() , zeroValue ) );
-				pointValueCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionValueType >( sid , tree.spaceRoot() , __pointStream , zeroValue , Depth.value , *valueSamples , *valueSampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
+				pointValueCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionValueType >( sid , tree.spaceRoot() , __pointStream , zeroValue , Depth.value , *valueSamples , *valueSampleData , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
 			}
 			delete pointValueStream;
 		}
@@ -732,7 +732,7 @@ void Execute( UIntPack< FEMSigs ... > )
 						return xType;
 					};
 				InputDataStreamConverter< InternalType , ExternalType > __pointGradientStream( _pointStream , converter , InputSampleGradientType( Point< Real , Dim >() , zeroGradient ) );
-				pointGradientCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionGradientType >( sid , tree.spaceRoot() , __pointGradientStream , zeroGradient , Depth.value , *gradientSamples , *gradientSampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
+				pointGradientCount = FEMTreeInitializer< Dim , Real >::template Initialize< FunctionGradientType >( sid , tree.spaceRoot() , __pointGradientStream , zeroGradient , Depth.value , *gradientSamples , *gradientSampleData , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
 			}
 			delete pointGradientStream;
 		}
