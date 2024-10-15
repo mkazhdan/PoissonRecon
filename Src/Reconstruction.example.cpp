@@ -304,8 +304,11 @@ template
 >
 void Execute( void )
 {
-	// Finite-elements signature
+	// The 1D finite-elements signature
 	static const unsigned int FEMSig = FEMDegreeAndBType< ReconType::DefaultFEMDegree , ReconType::DefaultFEMBoundary >::Signature;
+
+	// The tensor-product finite-elements signatures
+	using FEMSigs = IsotropicUIntPack< Dim , FEMSig >;
 
 	// Parameters for performing the reconstruction
 	typename ReconType::template SolutionParameters< Real > solverParams;
@@ -319,7 +322,10 @@ void Execute( void )
 	extractionParams.verbose = Verbose.set;
 
 	// The type of the reconstructor
-	using Implicit = std::conditional_t< UseColor , typename ReconType::template Implicit< Real , Dim , FEMSig , RGBColor< Real > > , typename ReconType::template Implicit< Real , Dim , FEMSig > >;
+	using Implicit = std::conditional_t< UseColor , typename Reconstructor::template Implicit< Real , Dim , FEMSigs , RGBColor< Real > > , typename Reconstructor::template Implicit< Real , Dim , FEMSigs > >;
+
+	// The solver type
+	using Solver = std::conditional_t< UseColor , typename ReconType::template Solver  < Real , Dim , FEMSigs , RGBColor< Real > > , typename     ReconType::template Solver  < Real , Dim , FEMSigs > >;
 
 	// Functionality for evaluating at a single point
 	auto _Evaluate = []( typename Implicit::Evaluator &evaluator , Point< double , Dim > p )
@@ -346,10 +352,7 @@ void Execute( void )
 		SphereOrientedSampleWithColorStream< Real , Dim > sampleStream( SampleNum.value );
 
 		// Construct the implicit representation
-		Implicit implicit( sampleStream , solverParams , RGBColor< Real >() );
-
-		// Scale the color information to give extrapolation preference to data at finer depths
-		implicit.weightAuxDataByDepth( (Real)32. );
+		Implicit *implicit = Solver::Solve( sampleStream , solverParams , RGBColor< Real >() );
 
 		// vectors for storing the polygons (specifically, triangles), the coordinates of the vertices, and the colors at the vertices
 		std::vector< std::vector< int > > polygons;
@@ -360,13 +363,15 @@ void Execute( void )
 		PolygonStream< int > pStream( polygons );
 
 		// Extract the iso-surface
-		implicit.extractLevelSet( vStream , pStream , extractionParams );
+		implicit->extractLevelSet( vStream , pStream , extractionParams );
 
 		// Write out the level-set
 		if( Out.set ) WritePly( Out.value , vStream.size() , vCoordinates.data() , rgbCoordinates.data() , polygons );
 
 		// Evaluate the implicit function
-		if( EvaluateImplicit.set ) Evaluate(implicit);
+		if( EvaluateImplicit.set ) Evaluate(*implicit);
+
+		delete implicit;
 	}
 	else
 	{
@@ -374,7 +379,7 @@ void Execute( void )
 		SphereOrientedSampleStream< Real , Dim > sampleStream( SampleNum.value );
 
 		// Construct the implicit representation
-		Implicit implicit( sampleStream , solverParams );
+		Implicit *implicit = Solver::Solve( sampleStream , solverParams );
 
 		// vectors for storing the polygons (specifically, triangles) and the coordinates of the vertices
 		std::vector< std::vector< int > > polygons;
@@ -385,7 +390,7 @@ void Execute( void )
 		VertexStream< Real , Dim > vStream( vCoordinates );
 
 		// Extract the iso-surface
-		implicit.extractLevelSet( vStream , pStream , extractionParams );
+		implicit->extractLevelSet( vStream , pStream , extractionParams );
 
 		if( ColorMode.value==0 )
 		{
@@ -422,7 +427,9 @@ void Execute( void )
 		}
 
 		// Evaluate the implicit function
-		if( EvaluateImplicit.set ) Evaluate(implicit);
+		if( EvaluateImplicit.set ) Evaluate(*implicit);
+
+		delete implicit;
 	}
 }
 

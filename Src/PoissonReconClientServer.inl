@@ -280,7 +280,7 @@ struct ClientServerStream : BinaryStream
 	}
 
 protected:
-	typename std::conditional< ReadFromFile , std::ifstream , std::ofstream >::type _fs;
+	std::conditional_t< ReadFromFile , std::ifstream , std::ofstream > _fs;
 	SocketStream &_socket;
 	std::string _fileName;
 
@@ -323,7 +323,6 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( void )
 	baseDepth = 5;
 	iters = 8;
 	confidence = (Real)0.;
-	confidenceBias = (Real)0.;
 	samplesPerNode = (Real)1.5;
 	dataX = (Real)32.;
 	density = false;
@@ -363,7 +362,6 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( BinaryStream &
 	if( !stream.read( targetValue ) ) ERROR_OUT( "Failed to read target-value" );
 	if( !stream.read( pointWeight ) ) ERROR_OUT( "Failed to read point-weight" );
 	if( !stream.read( confidence ) ) ERROR_OUT( "Failed to read confidence" );
-	if( !stream.read( confidenceBias ) ) ERROR_OUT( "Failed to read confidence-bias" );
 	if( !stream.read( samplesPerNode ) ) ERROR_OUT( "Failed to read samples-per-node" );
 	if( !stream.read( dataX ) ) ERROR_OUT( "Failed to read data-multiplier" );
 	if( !stream.read( padSize ) ) ERROR_OUT( "Failed to read padSize" );
@@ -407,7 +405,6 @@ void ClientReconstructionInfo< Real , Dim >::write( BinaryStream &stream ) const
 	stream.write( targetValue );
 	stream.write( pointWeight );
 	stream.write( confidence );
-	stream.write( confidenceBias );
 	stream.write( samplesPerNode );
 	stream.write( dataX );
 	stream.write( padSize );

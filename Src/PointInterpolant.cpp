@@ -876,7 +876,8 @@ void Execute( UIntPack< FEMSigs ... > )
 		FileStream fs( fp );
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
-		tree.write( fs , modelToUnitCube , false );
+		tree.write( fs , false );
+		fs.write( modelToUnitCube );
 		solution.write( fs );
 		fclose( fp );
 	}

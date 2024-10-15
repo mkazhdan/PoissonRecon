@@ -527,7 +527,8 @@ void _Execute( int argc , char* argv[] )
 			FileStream fs(fp);
 			FEMTree< Dim , Real >::WriteParameter( fs );
 			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fs );
-			tree.write( fs , modelToUnitCube , false );
+			tree.write( fs , false );
+			fs.write( modelToUnitCube );
 			edtSolution.write( fs );
 			fclose( fp );
 		}

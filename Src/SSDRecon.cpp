@@ -97,7 +97,6 @@ CmdLineParameter< float >
 	Scale( "scale" , 1.1f ) ,
 	Width( "width" , 0.f ) ,
 	Confidence( "confidence" , 0.f ) ,
-	ConfidenceBias( "confidenceBias" , 0.f ) ,
 	LowDepthCutOff( "lowDepthCutOff" , 0.f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
 	ValueWeight   (    "valueWeight" , 1.f ) ,
@@ -115,7 +114,6 @@ CmdLineReadable* params[] =
 	&Width ,
 	&Scale , &Verbose , &CGSolverAccuracy ,
 	&KernelDepth , &SamplesPerNode , &Confidence , &NonManifold , &PolygonMesh , &ASCII , &ShowResidual ,
-	&ConfidenceBias ,
 	&ValueWeight , &GradientWeight , &BiLapWeight ,
 	&Grid ,
 	&Tree ,
@@ -176,7 +174,6 @@ void ShowUsage(char* ex)
 	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
 	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
 	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
-	printf( "\t[--%s <normal confidence bias exponent>=%f]\n" , ConfidenceBias.name , ConfidenceBias.value );
 	printf( "\t[--%s <low depth cut-off>=%f]\n" , LowDepthCutOff.name , LowDepthCutOff.value );
 	printf( "\t[--%s <slice direction>=%d]\n" , AlignmentDir.name , AlignmentDir.value );
 	printf( "\t[--%s]\n" , NonManifold.name );
@@ -197,7 +194,7 @@ void ShowUsage(char* ex)
 template< typename Real , unsigned int Dim , unsigned int FEMSig , bool HasGradients , bool HasDensity , bool InCore , typename ... AuxDataFactories >
 void WriteMesh
 (
-	Reconstructor::Implicit< Real , Dim , FEMSig , typename AuxDataFactories::VertexType ... > &implicit ,
+	Reconstructor::Implicit< Real , Dim , IsotropicUIntPack< Dim , FEMSig > , typename AuxDataFactories::VertexType ... > &implicit ,
 	const Reconstructor::LevelSetExtractionParameters &meParams ,
 	std::string fileName ,
 	bool ascii ,
@@ -226,7 +223,7 @@ template< typename Real , unsigned int Dim , unsigned int FEMSig , bool HasDensi
 void WriteMesh
 (
 	bool hasGradients ,
-	Reconstructor::Implicit< Real , Dim , FEMSig , typename AuxDataFactories::VertexType ... > &implicit ,
+	Reconstructor::Implicit< Real , Dim , IsotropicUIntPack< Dim , FEMSig > , typename AuxDataFactories::VertexType ... > &implicit ,
 	const Reconstructor::LevelSetExtractionParameters &meParams ,
 	std::string fileName ,
 	bool ascii ,
@@ -241,7 +238,7 @@ template< typename Real , unsigned int Dim , unsigned int FEMSig , bool InCore ,
 void WriteMesh
 (
 	bool hasGradients , bool hasDensity ,
-	Reconstructor::Implicit< Real , Dim , FEMSig , typename AuxDataFactories::VertexType ... > &implicit ,
+	Reconstructor::Implicit< Real , Dim , IsotropicUIntPack< Dim , FEMSig > , typename AuxDataFactories::VertexType ... > &implicit ,
 	const Reconstructor::LevelSetExtractionParameters &meParams ,
 	std::string fileName ,
 	bool ascii ,
@@ -256,7 +253,7 @@ template< typename Real , unsigned int Dim , unsigned int FEMSig , typename ... 
 void WriteMesh
 (
 	bool hasGradients , bool hasDensity , bool inCore ,
-	Reconstructor::Implicit< Real , Dim , FEMSig , typename AuxDataFactories::VertexType ... > &implicit ,
+	Reconstructor::Implicit< Real , Dim , IsotropicUIntPack< Dim , FEMSig > , typename AuxDataFactories::VertexType ... > &implicit ,
 	const Reconstructor::LevelSetExtractionParameters &meParams ,
 	std::string fileName ,
 	bool ascii ,
@@ -278,7 +275,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	using namespace VertexFactory;
 
 	// The factory for constructing an input sample's data
-	typedef typename std::conditional< HasAuxData , Factory< Real , NormalFactory< Real , Dim > , AuxDataFactory > , NormalFactory< Real , Dim > >::type InputSampleDataFactory;
+	typedef std::conditional_t< HasAuxData , Factory< Real , NormalFactory< Real , Dim > , AuxDataFactory > , NormalFactory< Real , Dim > > InputSampleDataFactory;
 
 	// The factory for constructing an input sample
 	typedef Factory< Real , PositionFactory< Real , Dim > , InputSampleDataFactory >  InputSampleFactory;
@@ -286,7 +283,8 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	typedef InputDataStream< typename InputSampleFactory::VertexType > InputPointStream;
 
 	// The type storing the reconstruction solution (depending on whether auxiliary data is provided or not)
-	using Implicit = typename std::conditional< HasAuxData , Reconstructor::SSD::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType > , Reconstructor::SSD::Implicit< Real , Dim , FEMSig > >::type;
+	using Implicit = std::conditional_t< HasAuxData , Reconstructor::Implicit< Real , Dim , IsotropicUIntPack< Dim , FEMSig > , typename AuxDataFactory::VertexType > , Reconstructor::Implicit< Real , Dim , IsotropicUIntPack< Dim , FEMSig > > >;
+	using Solver = std::conditional_t< HasAuxData , Reconstructor::SSD::Solver< Real , Dim , IsotropicUIntPack< Dim , FEMSig > , typename AuxDataFactory::VertexType > , Reconstructor::SSD::Solver< Real , Dim , IsotropicUIntPack< Dim , FEMSig > > >;
 	// <-- Types //
 	///////////////
 
@@ -313,12 +311,10 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	Reconstructor::LevelSetExtractionParameters meParams;
 
 	sParams.verbose = Verbose.set;
-	sParams.outputDensity = Density.set;
 	sParams.exactInterpolation = ExactInterpolation.set;
 	sParams.showResidual = ShowResidual.set;
 	sParams.scale = (Real)Scale.value;
 	sParams.confidence = (Real)Confidence.value;
-	sParams.confidenceBias = (Real)ConfidenceBias.value;
 	sParams.lowDepthCutOff = (Real)LowDepthCutOff.value;
 	sParams.width = (Real)Width.value;
 	sParams.pointWeight = (Real)ValueWeight.value;
@@ -326,6 +322,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	sParams.biLapWeight = (Real)BiLapWeight.value;
 	sParams.samplesPerNode = (Real)SamplesPerNode.value;
 	sParams.cgSolverAccuracy = (Real)CGSolverAccuracy.value;
+	sParams.perLevelDataScaleFactor = (Real)DataX.value;
 	sParams.depth = (unsigned int)Depth.value;
 	sParams.baseDepth = (unsigned int)BaseDepth.value;
 	sParams.solveDepth = (unsigned int)SolveDepth.value;
@@ -340,6 +337,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	meParams.forceManifold = !NonManifold.set;
 	meParams.polygonMesh = PolygonMesh.set;
 	meParams.gridCoordinates = GridCoordinates.set;
+	meParams.outputDensity = Density.set;
 	meParams.verbose = Verbose.set;
 
 	double startTime = Time();
@@ -456,10 +454,10 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		if( Transform.set )
 		{
 			Reconstructor::TransformedInputOrientedSampleStream< Real , Dim , typename AuxDataFactory::VertexType > _sampleStream( toModel , sampleStream );
-			implicit = new Reconstructor::SSD::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( _sampleStream , sParams , auxDataFactory() );
+			implicit = Solver::Solve( _sampleStream , sParams , auxDataFactory() );
 			implicit->unitCubeToModel = toModel.inverse() * implicit->unitCubeToModel;
 		}
-		else implicit = new Reconstructor::SSD::Implicit< Real , Dim , FEMSig , typename AuxDataFactory::VertexType >( sampleStream , sParams , auxDataFactory() );
+		else implicit = Solver::Solve( sampleStream , sParams , auxDataFactory() );
 	}
 	else
 	{
@@ -468,16 +466,14 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		if( Transform.set )
 		{
 			Reconstructor::TransformedInputOrientedSampleStream< Real , Dim > _sampleStream( toModel , sampleStream );
-			implicit = new Reconstructor::SSD::Implicit< Real , Dim , FEMSig >( _sampleStream , sParams );
+			implicit = Solver::Solve( _sampleStream , sParams );
 			implicit->unitCubeToModel = toModel.inverse() * implicit->unitCubeToModel;
 		}
-		else implicit = new Reconstructor::SSD::Implicit< Real , Dim , FEMSig >( sampleStream , sParams );
+		else implicit = Solver::Solve( sampleStream , sParams );
 	}
 
 	delete pointStream;
 	delete _inputSampleFactory;
-
-	if constexpr( HasAuxData ) if( implicit->auxData ) implicit->weightAuxDataByDepth( (Real)DataX.value );
 
 	if( Tree.set )
 	{
@@ -486,10 +482,9 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		FileStream fs(fp);
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
-		implicit->tree.write( fs , implicit->unitCubeToModel.inverse() , false );
+		implicit->tree.write( fs , false );
+		fs.write( implicit->unitCubeToModel.inverse() );
 		implicit->solution.write( fs );
-		if constexpr( HasAuxData ) if( implicit->auxData ) implicit->auxData->write( fs );
-		if( implicit->density ) implicit->density->write( fs );
 		fclose( fp );
 	}
 

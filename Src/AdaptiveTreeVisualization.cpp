@@ -385,7 +385,8 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 		FileStream fs(fp);
 		FEMTree< Dim-1 , Real >::WriteParameter( fs );
 		DenseNodeData< Real , IsotropicUIntPack< Dim-1 , FEMSig > >::WriteSignatures( fs );
-		sliceTree->write( fs , sliceModelToUnitCube , false );
+		sliceTree->write( fs , false );
+		fs.write( sliceModelToUnitCube );
 		sliceCoefficients.write( fs );
 		fclose( fp );
 
@@ -409,8 +410,9 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 		Reconstructor::OutputInputFaceStream< Dim-1 , false , true > faceStream;
 
 		// Extract the mesh
-		if      constexpr( Dim==3 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , vertexStream , faceStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
-		else if constexpr( Dim==2 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value ,                                                              vertexStream , faceStream , NonLinearFit.set , false , FlipOrientation.set );
+		Reconstructor::TransformedOutputLevelSetVertexStream< Real , Dim > _vertexStream( modelToUnitCube.inverse() , vertexStream );
+		if      constexpr( Dim==3 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value , IsoSlabDepth.value , IsoSlabStart.value , IsoSlabEnd.value , _vertexStream , faceStream , NonLinearFit.set , false , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+		else if constexpr( Dim==2 ) LevelSetExtractor< Real , Dim >::Extract( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , coefficients , IsoValue.value ,                                                              _vertexStream , faceStream , NonLinearFit.set , false , FlipOrientation.set );
 
 		if( Verbose.set ) printf( "Got level-set: %.2f(s)\n" , Time()-t );
 		if( Verbose.set ) printf( "Vertices / Faces: %llu / %llu\n" , (unsigned long long)vertexStream.size() , (unsigned long long)faceStream.size() );
@@ -438,7 +440,8 @@ template< unsigned int Dim , class Real >
 void Execute( BinaryStream &stream , int degree , BoundaryType bType )
 {
 	XForm< Real , Dim+1 > modelToUnitCube;
-	FEMTree< Dim , Real > tree( stream , modelToUnitCube , MEMORY_ALLOCATOR_BLOCK_SIZE );
+	FEMTree< Dim , Real > tree( stream , MEMORY_ALLOCATOR_BLOCK_SIZE );
+	stream.read( modelToUnitCube );
 
 	if( Verbose.set ) printf( "All Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.allNodes() , (unsigned long long)tree.activeNodes() , (unsigned long long)tree.ghostNodes() );
 

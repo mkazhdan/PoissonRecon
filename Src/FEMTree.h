@@ -2538,7 +2538,7 @@ namespace PoissonRecon
 	public:
 
 		FEMTree( size_t blockSize );
-		FEMTree( BinaryStream &stream , XForm< Real , Dim+1 > &xForm , size_t blockSize );
+		FEMTree( BinaryStream &stream , size_t blockSize );
 		template< unsigned int CrossDegree , unsigned int Pad >
 		static FEMTree< Dim , Real > *Slice( const FEMTree< Dim+1 , Real > &tree , unsigned int sliceDepth , unsigned int sliceIndex , bool includeBounds , size_t blockSize );
 
@@ -2548,7 +2548,7 @@ namespace PoissonRecon
 			_tree.cleanChildren( !nodeAllocators.size() );
 			for( size_t i=0 ; i<nodeAllocators.size() ; i++ ) delete nodeAllocators[i];
 		}
-		void write( BinaryStream &stream , XForm< Real , Dim+1 > xForm , bool serialize ) const;
+		void write( BinaryStream &stream , bool serialize ) const;
 		static void WriteParameter( BinaryStream &stream )
 		{
 			FEMTreeRealType realType;
@@ -3033,6 +3033,11 @@ namespace PoissonRecon
 		protected:
 			std::vector< node_index_type > _nodeToIndexMap;
 		};
+
+		template< typename IsValidFunctor/*=std::function< bool ( const Point< Real , Dim > & , AuxData &... ) >*/ , typename ProcessFunctor/*=std::function< bool ( FEMTreeNode & , const Point< Real , Dim > & , AuxData &... ) >*/ , typename ... AuxData >
+		static size_t Initialize( FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData ... > &pointStream , AuxData ... zeroData , int maxDepth ,                                                                  Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , IsValidFunctor IsValid , ProcessFunctor Process );
+		template< typename IsValidFunctor/*=std::function< bool ( const Point< Real , Dim > & , AuxData &... ) >*/ , typename ProcessFunctor/*=std::function< bool ( FEMTreeNode & , const Point< Real , Dim > & , AuxData &... ) >*/ , typename ... AuxData >
+		static size_t Initialize( FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData ... > &pointStream , AuxData ... zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , IsValidFunctor IsValid , ProcessFunctor Process );
 
 		template< typename AuxData >
 		static size_t Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth ,                                                                  std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData = []( const Point< Real , Dim > & , AuxData & ){ return (Real)1.; } );

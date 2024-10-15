@@ -354,10 +354,9 @@ FEMTree< Dim , Real >::FEMTree( size_t blockSize ) : _nodeInitializer( *this ) ,
 }
 
 template< unsigned int Dim , class Real >
-FEMTree< Dim , Real >::FEMTree( BinaryStream &stream , XForm< Real , Dim+1 > &xForm , size_t blockSize ) : FEMTree( blockSize )
+FEMTree< Dim , Real >::FEMTree( BinaryStream &stream , size_t blockSize ) : FEMTree( blockSize )
 {
 	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
-	if( !stream.read( xForm.coords ) ) ERROR_OUT( "Failed to read transform" );
 	node_index_type nodeCount;
 	if( !stream.read( nodeCount ) ) ERROR_OUT( "Failed to read nodeCount" );
 	_nodeCount = nodeCount;
@@ -369,9 +368,8 @@ FEMTree< Dim , Real >::FEMTree( BinaryStream &stream , XForm< Real , Dim+1 > &xF
 	_sNodes.read( stream , _tree );
 }
 
-template< unsigned int Dim , class Real > void FEMTree< Dim , Real >::write( BinaryStream &stream , XForm< Real , Dim+1 > xForm , bool serialize ) const
+template< unsigned int Dim , class Real > void FEMTree< Dim , Real >::write( BinaryStream &stream , bool serialize ) const
 {
-	stream.write( xForm );
 	node_index_type nodeCount = _nodeCount;
 	stream.write( nodeCount );
 	stream.write( _maxDepth );

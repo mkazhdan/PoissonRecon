@@ -575,7 +575,8 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
 		XForm< Real , Dim+1 > voxelToUnitCube = XForm< Real , Dim+1 >::Identity();
-		state4.tree.write( fs , voxelToUnitCube , false );
+		state4.tree.write( fs , false );
+		fs.write( voxelToUnitCube );
 		state4.solution.write( fs );
 		fclose( fp );
 	}
@@ -598,7 +599,8 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 
 		auto ReadSlice = [&]( BinaryStream &clientStream , DenseNodeData< Real , SliceSigs > &solution , DenseNodeData< Real , SliceSigs > &dSolution , XForm< Real , Dim > &modelToUnitCube )
 		{
-			FEMTree< Dim-1 , Real > *sliceTree = new FEMTree< Dim-1 , Real >( clientStream , modelToUnitCube , MEMORY_ALLOCATOR_BLOCK_SIZE );
+			FEMTree< Dim-1 , Real > *sliceTree = new FEMTree< Dim-1 , Real >( clientStream , MEMORY_ALLOCATOR_BLOCK_SIZE );
+			clientStream.read( modelToUnitCube );
 			solution.read( clientStream );
 			if( !clientReconInfo.linearFit ) dSolution.read( clientStream );
 			return sliceTree;
@@ -675,7 +677,8 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 					FileStream fs(fp);
 					FEMTree< Dim-1 , Real >::WriteParameter( fs );
 					DenseNodeData< Real , SliceSigs >::WriteSignatures( fs );
-					sliceTree->write( fs , state6.xForm , false );
+					sliceTree->write( fs , false );
+					fs.write( state6.xForm );
 					solution.write( fs );
 					fclose( fp );
 				};

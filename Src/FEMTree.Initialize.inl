@@ -51,6 +51,64 @@ size_t FEMTreeInitializer< Dim , Real >::_Initialize( FEMTreeNode &node , int ma
 }
 
 template< unsigned int Dim , class Real >
+template< typename IsValidFunctor /*=std::function< bool ( const Point< Real , Dim > & , const AuxData &... ) >*/ , typename ProcessFunctor/*=std::function< bool ( FEMTreeNode & , const Point< Real , Dim > & , const AuxData &... ) >*/ , typename ... AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData ... > &pointStream , AuxData ... d , int maxDepth ,                                                                  Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , IsValidFunctor IsValid , ProcessFunctor Process )
+{
+	return Initialize< IsValidFunctor , ProcessFunctor , AuxData ... >( root , pointStream , d... , maxDepth , [&]( Point< Real , Dim > ){ return maxDepth; } , nodeAllocator , NodeInitializer , IsValid , Process );
+}
+
+template< unsigned int Dim , class Real >
+template< typename IsValidFunctor/*=std::function< bool ( const Point< Real , Dim > & , const AuxData &... ) >*/ , typename ProcessFunctor/*=std::function< bool ( FEMTreeNode & , const Point< Real , Dim > & , const AuxData &... ) >*/ , typename ... AuxData >
+size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData ... > &pointStream , AuxData ... d , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , IsValidFunctor IsValid , ProcessFunctor Process )
+{
+	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
+	auto Leaf = [&]( FEMTreeNode& root , Point< Real , Dim > p , unsigned int maxDepth )
+		{
+			for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return (FEMTreeNode*)NULL;
+			Point< Real , Dim > center;
+			Real width;
+			typename FEMTree< Dim , Real >::LocalDepth depth;
+			typename FEMTree< Dim , Real >::LocalOffset offset;
+			root.centerAndWidth( center , width );
+			root.depthAndOffset( depth , offset );
+
+			FEMTreeNode* node = &root;
+
+			while( depth<(int)maxDepth )
+			{
+				if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
+				int cIndex = FEMTreeNode::ChildIndex( center , p );
+				node = node->children + cIndex;
+				width /= 2;
+
+				depth++;
+				for( int dd=0 ; dd<Dim ; dd++ )
+					if( (cIndex>>dd) & 1 ) center[dd] += width/2 , offset[dd] = (offset[dd]<<1) | 1;
+					else                   center[dd] -= width/2 , offset[dd] = (offset[dd]<<1) | 0;
+			}
+			return node;
+		};
+
+	// Add the point data
+	size_t outOfBoundPoints = 0 , badDataCount = 0 , pointCount = 0;
+	Point< Real , Dim > p;
+	while( pointStream.read( p , d... ) )
+	{
+		// Check if the data is good
+		if( !IsValid( p , d... ) ){ badDataCount++ ; continue; }
+
+		// Check that the position is in-range
+		FEMTreeNode *leaf = Leaf( root , p , pointDepthFunctor(p) );
+		if( !leaf ){ outOfBoundPoints++ ; continue; }
+
+		// Process the data
+		if( Process( *leaf , p , d ... ) ) pointCount++;
+	}
+	pointStream.reset();
+	return pointCount;
+}
+
+template< unsigned int Dim , class Real >
 template< typename AuxData >
 size_t FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
 {
@@ -77,55 +135,26 @@ template< unsigned int Dim , class Real >
 template< typename AuxData >
 size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitializationData &sid , FEMTreeNode &root , InputDataStream< Point< Real , Dim > , AuxData > &pointStream , AuxData zeroData , int maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , std::vector< PointSample >& samplePoints , std::vector< AuxData > &sampleData , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim > & , AuxData & ) > ProcessData )
 {
-	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( root );
+	Real weight;
+	std::vector< node_index_type > &nodeToIndexMap = sid._nodeToIndexMap;
 
-	auto Leaf = [&]( FEMTreeNode& root , Point< Real , Dim > p , unsigned int maxDepth )
-	{
-		for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return (FEMTreeNode*)NULL;
-		Point< Real , Dim > center;
-		Real width;
-		typename FEMTree< Dim , Real >::LocalDepth depth;
-		typename FEMTree< Dim , Real >::LocalOffset offset;
-		root.centerAndWidth( center , width );
-		root.depthAndOffset( depth , offset );
-
-		FEMTreeNode* node = &root;
-		while( depth<(int)maxDepth )
+	auto IsValid = [&]( const Point< Real , Dim > &p , AuxData & d )
 		{
-			if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
-			int cIndex = FEMTreeNode::ChildIndex( center , p );
-			node = node->children + cIndex;
-			width /= 2;
-
-			depth++;
-			for( int dd=0 ; dd<Dim ; dd++ )
-				if( (cIndex>>dd) & 1 ) center[dd] += width/2 , offset[dd] = (offset[dd]<<1) | 1;
-				else                   center[dd] -= width/2 , offset[dd] = (offset[dd]<<1) | 0;
-		}
-		return node;
-	};
-
-	// Add the point data
-	size_t outOfBoundPoints = 0 , badData = 0 , pointCount = 0;
-	{
-		std::vector< node_index_type > &nodeToIndexMap = sid._nodeToIndexMap;
-
-		Point< Real , Dim > p;
-		AuxData d = zeroData;
-		while( pointStream.read( p , d ) )
+			weight = ProcessData( p , d );
+			return weight>0;
+		};
+	auto Process = [&]( FEMTreeNode &node , const Point< Real , Dim > &p , AuxData &d )
 		{
-			Real weight = ProcessData( p , d );
-			if( weight<=0 ){ badData++ ; continue; }
-			FEMTreeNode *temp = Leaf( root , p , pointDepthFunctor(p) );
-			if( !temp ){ outOfBoundPoints++ ; continue; }
-			node_index_type nodeIndex = temp->nodeData.nodeIndex;
+			node_index_type nodeIndex = node.nodeData.nodeIndex;
+			// If the node's index exceeds what's stored in the node-to-index map, grow the node-to-index map
 			if( nodeIndex>=(node_index_type)nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
+
 			node_index_type idx = nodeToIndexMap[ nodeIndex ];
 			if( idx==-1 )
 			{
 				idx = (node_index_type)samplePoints.size();
 				nodeToIndexMap[ nodeIndex ] = idx;
-				samplePoints.resize( idx+1 ) , samplePoints[idx].node = temp;
+				samplePoints.resize( idx+1 ) , samplePoints[idx].node = &node;
 				sampleData.resize( idx+1 );
 				samplePoints[idx].sample = ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
 				sampleData[idx] = d*weight;
@@ -135,11 +164,9 @@ size_t FEMTreeInitializer< Dim , Real >::Initialize( struct StreamInitialization
 				samplePoints[idx].sample += ProjectiveData< Point< Real , Dim > , Real >( p*weight , weight );
 				sampleData[ idx ] += d*weight;
 			}
-			pointCount++;
-		}
-		pointStream.reset();
-	}
-	return pointCount;
+			return true;
+		};
+	return Initialize< decltype(IsValid) , decltype(Process) , AuxData >( root , pointStream , zeroData , maxDepth , pointDepthFunctor , nodeAllocator , NodeInitializer , IsValid , Process );
 }
 
 template< unsigned int Dim , class Real >

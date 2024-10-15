@@ -81,8 +81,19 @@ namespace PoissonRecon
 		DirectSum  operator *  ( Real s )                   const { DirectSum _p = *this ; _p *= s ; return _p; }
 		DirectSum  operator /  ( Real s )                   const { DirectSum _p = *this ; _p /= s ; return _p; }
 
-		DirectSum( void ){}
-		DirectSum( const VectorTypes & ... vectors ){ _set< 0 >( vectors ... ); }
+		template< typename ... _VectorTypes >
+		DirectSum( const _VectorTypes & ... vectors )
+		{
+			if constexpr( sizeof...(_VectorTypes)==0 ) ;
+			else if constexpr( sizeof...(_VectorTypes)==sizeof...(VectorTypes) ) _set<0>( vectors... );
+			else ERROR_OUT( "Invalid number of arguments" );
+		}
+
+		template< typename ComponentFunctor /*=std::function< void (VectorTypes&...)>*/ >
+		void process( ComponentFunctor f ){ _process( f ); }
+
+		template< typename ComponentFunctor /*=std::function< void (const VectorTypes&...)>*/ >
+		void process( ComponentFunctor f ) const { _process( f ); }
 
 		friend std::ostream &operator << ( std::ostream &os , const DirectSum &v )
 		{
@@ -105,6 +116,19 @@ namespace PoissonRecon
 		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _div( Real s ){ }
 		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _streamOut( std::ostream &os ) const { os << get<I>() ; if( I!=sizeof...(VectorTypes)-1 ) os << " , "; _streamOut< I+1 >( os ); }
 		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _streamOut( std::ostream &os ) const { }
+
+		template< typename ComponentFunctor /*=std::function< void (VectorTypes&...)>*/ , typename ... Components >
+		void _process( ComponentFunctor &f , Components ... c )
+		{
+			if constexpr( sizeof...(Components)==sizeof...(VectorTypes) ) f( c... );
+			else _process( f , c... , this->template get< sizeof...(Components) >() );
+		}
+		template< typename ComponentFunctor /*=std::function< void (const VectorTypes&...)>*/ , typename ... Components >
+		void _process( ComponentFunctor &f , Components ... c ) const
+		{
+			if constexpr( sizeof...(Components)==sizeof...(VectorTypes) ) f( c... );
+			else _process( f , c... , this->template get< sizeof...(Components) >() );
+		}
 	};
 	template< typename Real , typename ... Vectors >
 	DirectSum< Real , Vectors ... > operator * ( Real s , DirectSum< Real , Vectors ... > vu ){ return vu * s; }

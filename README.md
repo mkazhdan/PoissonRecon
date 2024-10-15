@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.31)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.35)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.35/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.35/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">V18.31</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.30/">V18.30</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.20/">V18.20</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.10/">V18.10</a>,
@@ -501,8 +502,21 @@ The file is written in <a href="https://www.cc.gatech.edu/projects/large_models/
 
 </dd><dt>[<b>--grid</b> &lt;<i>output grid</i>&gt;]
 </dt><dd> This string is the name of the file to which the sampled implicit function will be written.
-The file is wrtten out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
-and the next 4 x 2^<i>d</i> x 2^<i>d</i> x ... bytes corresponding to the (single precision) floating point values
+The file consistes of seven header lines in ASCII describing the contents, following by the grid values in binary.<BR>
+<UL>
+<LI>The header looks like:<PRE><CODE>G3
+1 FLOAT
+&lt;RES_X&gt; &lt;RES_Y&gt; &lt;RES_Z&gt;
+&lt;M_00&gt; &lt;M_01&gt; &lt;M_02&gt; &lt;M_03&gt;
+&lt;M_10&gt; &lt;M_11&gt; &lt;M_12&gt; &lt;M_13&gt;
+&lt;M_20&gt; &lt;M_21&gt; &lt;M_22&gt; &lt;M_23&gt;
+&lt;M_30&gt; &lt;M_31&gt; &lt;M_22&gt; &lt;M_33&gt;
+</CODE></PRE>
+The first two lines describe the contents of the file -- a 3D grid with a single floating point value per cell.<br>
+The next line gives the resolution of the grid in <code>x</code>-, <code>y</code>-, and <code>z</code>-directions.<br>
+The following four lines give the 4x4 coefficients of the homogenous transformation <CODE>&lt;M&gt;</CODE> taking grid-space coordinates to world-coordinates.
+<LI>
+The next 4 x <code>&lt;RES_X&gt;</code> x <code>&lt;RES_Y&gt;</code> x <code>&lt;RES_Z&gt;</code> bytes correspond to the (single precision) floating point values
 of the implicit function.
 
 </dd><dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]
@@ -634,10 +648,23 @@ The default value is 2.<br></dd>
 <dd> This string is the name of the file to which the the octree and function coefficients are to be written.</dd>
 
 <dt>[<b>--grid</b> &lt;<i>output grid</i>&gt;]</dt>
-<dd> This string is the name of the file to which the sampled implicit function will be written.
-The file is wrtten out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, 2^<i>d</i>,
-and the next 4 x 2^<i>d</i> x 2^<i>d</i> x ... bytes corresponding to the (single precision) floating point values
-of the implicit function.</dd>
+</dt><dd> This string is the name of the file to which the sampled implicit function will be written.
+The file consistes of seven header lines in ASCII describing the contents, following by the grid values in binary.<BR>
+<UL>
+<LI>The header looks like:<PRE><CODE>G3
+1 FLOAT
+&lt;RES_X&gt; &lt;RES_Y&gt; &lt;RES_Z&gt;
+&lt;M_00&gt; &lt;M_01&gt; &lt;M_02&gt; &lt;M_03&gt;
+&lt;M_10&gt; &lt;M_11&gt; &lt;M_12&gt; &lt;M_13&gt;
+&lt;M_20&gt; &lt;M_21&gt; &lt;M_22&gt; &lt;M_23&gt;
+&lt;M_30&gt; &lt;M_31&gt; &lt;M_22&gt; &lt;M_33&gt;
+</CODE></PRE>
+The first two lines describe the contents of the file -- a 3D grid with a single floating point value per cell.<br>
+The next line gives the resolution of the grid in <code>x</code>-, <code>y</code>-, and <code>z</code>-directions.<br>
+The following four lines give the 4x4 coefficients of the homogenous transformation <CODE>&lt;M&gt;</CODE> taking grid-space coordinates to world-coordinates.
+<LI>
+The next 4 x <code>&lt;RES_X&gt;</code> x <code>&lt;RES_Y&gt;</code> x <code>&lt;RES_Z&gt;</code> bytes correspond to the (single precision) floating point values
+of the implicit function.
 
 <dt>[<b>--degree</b> &lt;<i>B-spline degree</i>&gt;]</dt>
 <dd> This integer specifies the degree of the B-spline that is to be used to define the finite elements system.
@@ -882,9 +909,23 @@ No information about the number of samples should be specified.</dd>
 </dd>
 
 <dt>[<b>--grid</b> &lt;<i>output value grid</i>&gt;]
-</dt><dd> This string is the name of the file to which the sampling of the implicit along a regular grid will be written.<BR>
-The file is written out in binary, with the first 4 bytes corresponding to the (integer) sampling resolution, <i>R</i>,
-and the next 4 x <I>R</I>^<i>D</i> bytes corresponding to the (single precision) floating point values of the implicit function. (Here, <i>D</I> is the dimension.)
+</dt><dd> This string is the name of the file to which the sampled implicit function will be written.
+The file consistes of seven header lines in ASCII describing the contents, following by the grid values in binary.<BR>
+<UL>
+<LI>The header looks like:<PRE><CODE>G3
+1 FLOAT
+&lt;RES_X&gt; &lt;RES_Y&gt; &lt;RES_Z&gt;
+&lt;M_00&gt; &lt;M_01&gt; &lt;M_02&gt; &lt;M_03&gt;
+&lt;M_10&gt; &lt;M_11&gt; &lt;M_12&gt; &lt;M_13&gt;
+&lt;M_20&gt; &lt;M_21&gt; &lt;M_22&gt; &lt;M_23&gt;
+&lt;M_30&gt; &lt;M_31&gt; &lt;M_22&gt; &lt;M_33&gt;
+</CODE></PRE>
+The first two lines describe the contents of the file -- a 3D grid with a single floating point value per cell.<br>
+The next line gives the resolution of the grid in <code>x</code>-, <code>y</code>-, and <code>z</code>-directions.<br>
+The following four lines give the 4x4 coefficients of the homogenous transformation <CODE>&lt;M&gt;</CODE> taking grid-space coordinates to world-coordinates.
+<LI>
+The next 4 x <code>&lt;RES_X&gt;</code> x <code>&lt;RES_Y&gt;</code> x <code>&lt;RES_Z&gt;</code> bytes correspond to the (single precision) floating point values
+of the implicit function.
 
 </dd><dt>[<b>--primalGrid</b>]
 </dt><dd> Enabling this flag when outputing a grid file samples the implicit function at the corners of the grid, rather than the centers of the cells.
@@ -1011,14 +1052,18 @@ If both the <b>--keep</b> flag and the <b>--fraction</b> flag are set, the <b>--
 <font size="+1"><b>Reconstruction.example.cpp</b></font>
 </SUMMARY>
 In addition to executables, the reconstruction code can be interfaced into through the functionality implemented in <CODE>Reconstructors.h</CODE> and <CODE>Extrapolator.h</CODE>
-Using the functionality requires requires choosing a finite element type, <CODE>FEMSig</CODE> and defining one input stream and two output streams.
+Using the functionality requires requires choosing a finite element type and defining input oriented-point stream and output vertex and face streams. In the descriptions below, the template parameter <CODE>Real</CODE> is the floating point type used to represent data (typically <code>float</code>) and <CODE>Dim</CODE> is the integer dimension of the space (fixed at <CODE>Dim</CODE>=3).
 <UL>
-<LI>The template parameter <CODE>FEMSig</CODE> describes the finite element type, which is a composite of the degree of the finite element and the boundary conditions it satisfies. Given an integer valued <CODE>Degree</CODE> and boundary type <CODE>BType</CODE> (one of <CODE>BOUNDARY_FREE</CODE>, <CODE>BOUNDARY_DIRICHLET</CODE>, and <CODE>BOUNDARY_NEUMANN</CODE> defined in <CODE>BSplineData.h</CODE>), the signature is defined by setting:
+<LI>The template parameter <CODE>FEMSig</CODE> describes the 1D finite element type, which is a composite of the degree of the finite element and the boundary conditions it satisfies. Given an integer valued <CODE>Degree</CODE> and boundary type <CODE>BType</CODE> (one of <CODE>BOUNDARY_FREE</CODE>, <CODE>BOUNDARY_DIRICHLET</CODE>, and <CODE>BOUNDARY_NEUMANN</CODE> defined in <CODE>BSplineData.h</CODE>), the signature is defined as (<CODE>Reconstruction.example.cppy</CODE> line 308):
 <PRE>
 <CODE>static const unsigned int FEMSig = FEMDegreeAndBType&lt; Degree , BoundaryType &gt;::Signature;</CODE>
 </PRE>
+<LI>The template parameter <CODE>FEMSIgs</CODE> describes the tensor-product finite element type, typically defined as an "isotropic" element with the same 1D finite element type across all <CODE>Dim</CODE> dimensions. It is defined as (<CODE>Reconstruction.example.cppy</CODE> line 314):
+<PRE>
+<CODE>using FEMSigs = IsotropicUIntPack&lt; Dim , FEMSig &gt;;</CODE>
+</PRE>
 </UL>
-The three streams are defined by overriding virtual stream classes. In the descriptions below, the template parameter <CODE>Real</CODE> is the floating point type used to represent data (typically <code>float</code>) and <CODE>Dim</CODE> is the integer dimension of the space (fixed at <CODE>Dim</CODE>=3). The namespace <CODE>Reconstructor</CODE> is omitted for brevity.
+The three streams are defined by overriding virtual stream classes. The namespace <CODE>PoissonRecon::Reconstructor</CODE> is omitted for brevity.
 <UL>
 <LI><B>Input sample stream</B>: This class derives from the <CODE>InputSampleStream&lt; Real , Dim &gt;</CODE> class.
 The base class has two pure virtual methods that need to be over-ridden:
@@ -1045,21 +1090,21 @@ This method returns the number of vertices written.
 This method writes the information for the next vertx into the stream. The data includes the position of the vertex, <CODE>p</CODE>, as well as the gradient, <code>g</code>, and density weight, <code>w</code> if the extraction code is asked to compute those. The function returns the index of the written vertex.
 </UL>
 </UL>
-The reconstructed surface is then computed in two steps:
+The reconstructed surface is then computed in two steps. First, an <CODE>Implict&lt; Real , Dim , FEMSigs &gt;</CODE> object is created, encoding the implicit function describing the geometry, as well as a density function describing the distribution of points in space and (possibly) a function extrapolating per-sample information into a volumetric function. Then, the implicit function is iso-surfaced, (possibly) with auxialiary density and color information evaluated at the vertex positions.
 <UL>
-<LI><CODE>Poisson::Implicit&lt; Real , Dim , FEMSig &gt;::Implicit( InputOrientedSampleStream&lt; Real , Dim &gt; &#38;sStream , SolutionParameters&lt; Real &gt; sParams )</CODE>:<BR>
-This constructor creates a Poisson reconstruction object from an input sample stream (<code>sStream</code>) and a description of the reconstruction parameters (<code>sParams</code>) desribing the depth, number of samples per node, etc. (<code>Reconstructors.h</code>, line 340). This object derives from <CODE>Implicit&lt; Real , Dim , FEMSig &gt;</CODE>.
-<LI><CODE>void Implicit&lt; Real , Dim , FEMSig &gt::extractLevelSet( OutputVertexStream&lt; Real , Dim &gt; &#38;vStream , &#38;pStream , LevelSetExtractionParameters meParams )</CODE>:<BR>
-This member function takes references to the output vertex and polygon streams (<code>vStream</code> and <code>pStream</code>) and parameters for level-set extraction (<code>meParams</code>) and computes the extracted triangle/polygon mesh, writing its vertices and faces into the corresponding output streams as they are generated (<code>Reconstructors.h</code>, line 99).
+<LI><CODE>Implict&lt; Real , Dim , FEMSigs &gt; *Poisson::Solver&lt; Real , Dim , FEMSigs &gt;::Solve( InputOrientedSampleStream&lt; Real , Dim &gt; &amp;pointStream , SolutionParameters&lt; Real &gt params )</CODE>:<BR>
+This function takes in an input oriented sample stream (<code>pointStream</code>) and a description of the reconstruction parameters (<code>params</code>) desribing the depth, number of samples per node, etc., and returns a pointer to the (dynamically allocated) implicit represetation (<code>Reconstructors.h</code>, line 622).
+<LI><CODE>void Implicit&lt; Real , Dim , FEMSigs &gt::extractLevelSet( OutputVertexStream&lt; Real , Dim &gt; &#38;vStream , OutputFaceStream&lt; Dim-1 &gt; &#38;pStream , LevelSetExtractionParameters meParams )</CODE>:<BR>
+This member function takes references to the output vertex (<code>vStream</code>) and polygon (<code>pStream</code>) streams and parameters for level-set extraction (<code>meParams</code>) and computes the extracted mesh, writing its vertices and faces into the corresponding output streams as they are generated (<code>Reconstructors.h</code>, line 548).
 </UL>
 In Addition, the code supports evaluation of the implicit function at points within the bounding cube:
 <UL>
-<LI><CODE>Poisson::Implicit::evaluator( void )</CODE>:<BR>
-This member function returns an object of type <CODE>Implicit::Evaluator</CODE>. (Note that as the <CODE>Implicit::Evaluator</CODE> object stores <CODE>const</CODE> references to the state in the <CODE>Poisson::Implicit</CODE> object, it will not be valid once the defining <CODE>Poisson::Implicit</CODE> object goes out of scope.)
-<LI><CODE>Real Implicit::Evaluator::operator()( Point&lt; Real , Dim &gt; )</CODE>:<BR>
-This member function returns the value of the implicit function at the prescribed point. The point is assumed to be given in world coordinates, and a <CODE>Implicit::Evaluator::OutOfUnitCubeException</CODE> is thrown if it is outside of the unit-cube containing the input samples.
-<LI><CODE>Point&lt; Real , Dim &gt; Implicit::Evaluator::grad( Point&lt; Real , Dim &gt; )</CODE>:<BR>
-This member function returns the gradient of the implicit function at the prescribed point. The point is assumed to be given in world coordinates, and a <CODE>Implicit::Evaluator::OutOfUnitCubeException</CODE> is thrown if it is outside of the unit-cube containing the input samples.
+<LI><CODE>Implicit&lt; Real , Dim , FEMSigs &gt;::evaluator( void )</CODE>:<BR>
+This member function returns an object of type <CODE>Implicit&lt; Real , Dim , FEMSigs &gt;::Evaluator</CODE>. (Note that as the <CODE>Implicit&lt; Real , Dim , FEMSigs &gt;::Evaluator</CODE> object stores <CODE>const</CODE> references to the state in the <CODE>Implicit&lt; Real , Dim , FEMSigs &gt;</CODE> object, it will not be valid once the defining <CODE>Implicit&lt; Real , Dim , FEMSigs &gt;</CODE> object goes out of scope.)
+<LI><CODE>Real Implicit&lt; Real , Dim , FEMSigs &gt;::Evaluator::operator()( Point&lt; Real , Dim &gt; )</CODE>:<BR>
+This member function returns the value of the implicit function at the prescribed point. The point is assumed to be given in world coordinates, and a <CODE>Implicit&lt; Real , Dim , FEMSigs &gt;::Evaluator::OutOfUnitCubeException</CODE> is thrown if it is outside of the unit-cube containing the input samples.
+<LI><CODE>Point&lt; Real , Dim &gt; Implicit&lt; Real , Dim , FEMSigs &gt;::Evaluator::grad( Point&lt; Real , Dim &gt; )</CODE>:<BR>
+This member function returns the gradient of the implicit function at the prescribed point. The point is assumed to be given in world coordinates, and a <CODE>Implicit&lt; Real , Dim , FEMSigs &gt;::Evaluator::OutOfUnitCubeException</CODE> is thrown if it is outside of the unit-cube containing the input samples.
 </UL>
 And, for samples with auxiliary data, the code supports construction of an extrapolating auxiliary data field that can be queried within the bounding cube:
 <UL>
@@ -1660,6 +1705,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">Version 18.31</a>:
 <OL>
 <LI> Removed the smoothing option in the <CODE>SufaceTrimmer</CODE> executable.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">Version 18.35</a>:
+<OL>
+<LI> Removed the confidence bias option.
 </OL>
 
 </DETAILS>
