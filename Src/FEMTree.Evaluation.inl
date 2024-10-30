@@ -551,14 +551,42 @@ void FEMTree< Dim , Real >::MultiThreadedSparseEvaluator< UIntPack< FEMSigs ... 
 }
 
 template< unsigned int Dim , class Real >
+template< unsigned int ... FEMSigs , typename T >
+template< typename AccumulationFunctor/*=std::function< void ( const T & , Real s ) > */ >
+void FEMTree< Dim , Real >::MultiThreadedSparseEvaluator< UIntPack< FEMSigs ... > , T >::accumulate( Point< Real , Dim > p , AccumulationFunctor &Accumulate , int thread , const FEMTreeNode *node )
+{
+	if( !node ) node = _tree->leaf( p );
+	ConstPointSupportKey< FEMDegrees >& nKey = _pointNeighborKeys[thread];
+	nKey.getNeighbors( node );
+	_tree->template _accumulate< T , SparseNodeData< T , FEMSignatures > , 0 , AccumulationFunctor >( _coefficients , p , _tree->_globalToLocal( node->depth() ) , *_pointEvaluator , nKey , Accumulate );
+}
+
+template< unsigned int Dim , class Real >
 template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
 void FEMTree< Dim , Real >::_addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const
 {
-	_addEvaluation< V , Coefficients , D , DataSigs ... >( coefficients , p , _globalToLocal( dataKey.depth() ) , pointEvaluator , dataKey , value );
+	auto AF = [&value]( const V &w , Real s ){ value += w * s; };
+	_accumulate< V , Coefficients , D , decltype(AF) , DataSigs ... >( coefficients , p , pointEvaluator , dataKey , AF );
 }
+
 template< unsigned int Dim , class Real >
 template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
 void FEMTree< Dim , Real >::_addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const
+{
+	auto AF = [&value]( const V &w , Real s ){ value += w * s; };
+	_accumulate< V , Coefficients , D , decltype(AF) , DataSigs... >( coefficients , p , pointDepth , pointEvaluator , dataKey , AF );
+}
+
+template< unsigned int Dim , class Real >
+template< typename V , typename Coefficients , unsigned int D , typename AccumulationFunctor , unsigned int ... DataSigs >
+void FEMTree< Dim , Real >::_accumulate( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , AccumulationFunctor &Accumulate ) const
+{
+	_accumulate< V , Coefficients , D , AccumulationFunctor , DataSigs ... >( coefficients , p , _globalToLocal( dataKey.depth() ) , pointEvaluator , dataKey , Accumulate );
+}
+
+template< unsigned int Dim , class Real >
+template< typename V , typename Coefficients , unsigned int D , typename AccumulationFunctor , unsigned int ... DataSigs >
+void FEMTree< Dim , Real >::_accumulate( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , AccumulationFunctor &Accumulate ) const
 {
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	PointEvaluatorState< UIntPack< DataSigs ... > , ZeroUIntPack< Dim > > state;
@@ -582,7 +610,7 @@ void FEMTree< Dim , Real >::_addEvaluation( const Coefficients& coefficients , P
 			if( v )
 			{
 				LocalDepth d ; LocalOffset off ; _localDepthAndOffset( nodes[i] , d , off );
-				value += (*v) * (Real)state.value( off , derivatives );
+				Accumulate( *v , (Real)state.value( off , derivatives ) );
 			}
 		}
 	}

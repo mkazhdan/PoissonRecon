@@ -98,8 +98,10 @@ namespace PoissonRecon
 			XForm< Real , Dim+1 > worldToUnitCubeTransform( void ) const { return _worldToUnitCube; }
 
 			AuxData operator()( unsigned int t , Point< Real , Dim > p ){ return _value(t,p); }
+			AuxData operator()(                  Point< Real , Dim > p ){ return _value(0,p); }
 
-			AuxData operator()( Point< Real , Dim > p ){ return operator()( 0 , p ); }
+			void evaluate( unsigned int t , Point< Real , Dim > p , AuxData &data ){ return _evaluate( t , p , data ); }
+			void evaluate(                  Point< Real , Dim > p , AuxData &data ){ return _evaluate( 0 , p , data ); }
 
 		protected:
 			typename FEMTree< Dim , Real >::template MultiThreadedSparseEvaluator< IsotropicUIntPack< Dim , DataSig > , ProjectiveData< AuxData , Real > > *_auxEvaluator = nullptr;
@@ -112,6 +114,23 @@ namespace PoissonRecon
 				ProjectiveData< AuxData , Real > pData( zeroAuxData );
 				_auxEvaluator->addValue( q , pData );
 				return pData.value();
+			}
+
+			void _evaluate( unsigned int t , Point< Real , Dim > p , AuxData &data )
+			{
+				Point< Real , Dim > q = _worldToUnitCube * p;
+				for( unsigned int d=0 ; d<Dim ; d++ ) if( q[d]<0 || q[d]>1 ) throw OutOfUnitCubeException(p,q);
+
+				Real weight = (Real)0.;
+				data *= 0;
+
+				auto Accumulation = [&weight,&data]( const ProjectiveData< AuxData , Real > &pData , Real scale )
+					{
+						weight += pData.weight * scale;
+						data += pData.data * scale;
+					};
+				_auxEvaluator->accumulate( q , Accumulation );
+				if( weight ) data /= weight;
 			}
 		};
 

@@ -102,7 +102,6 @@ CmdLineParameter< float >
 	Confidence( "confidence" , 0.f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
 	LowDepthCutOff( "lowDepthCutOff" , 0.f ) ,
-	TargetValue( "targetValue" , 0.5f ) ,
 	PointWeight( "pointWeight" );
 
 CmdLineReadable* params[] =
@@ -140,7 +139,6 @@ CmdLineReadable* params[] =
 	&ThreadChunkSize ,
 	&LowDepthCutOff ,
 	&AlignmentDir ,
-	&TargetValue ,
 	&GridCoordinates ,
 	NULL
 };
@@ -168,7 +166,6 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <scale factor>=%f]\n" , Scale.name , Scale.value );
 	printf( "\t[--%s <minimum number of samples per node>=%f]\n" , SamplesPerNode.name, SamplesPerNode.value );
 	printf( "\t[--%s <interpolation weight>=%.3e * <b-spline degree>]\n" , PointWeight.name , Reconstructor::Poisson::WeightMultiplier * Reconstructor::Poisson::DefaultFEMDegree );
-	printf( "\t[--%s <target value>=%f]\n" , TargetValue.name , TargetValue.value );
 	printf( "\t[--%s <iterations>=%d]\n" , Iters.name , Iters.value );
 	printf( "\t[--%s]\n" , ExactInterpolation.name );
 	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
@@ -327,7 +324,6 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	sParams.pointWeight = (Real)PointWeight.value;
 	sParams.samplesPerNode = (Real)SamplesPerNode.value;
 	sParams.cgSolverAccuracy = (Real)CGSolverAccuracy.value;
-	sParams.targetValue = (Real)TargetValue.value;
 	sParams.perLevelDataScaleFactor = (Real)DataX.value;
 	sParams.depth = (unsigned int)Depth.value;
 	sParams.baseDepth = (unsigned int)BaseDepth.value;

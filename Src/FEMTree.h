@@ -2302,8 +2302,14 @@ namespace PoissonRecon
 		template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Point< Real , 2 >      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , std::function< int ( Point< Real , Dim > ) > &pointDepthFunctor , int dim , Real depthBias );
 		template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Point< Real , 2 > _multiSplatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , int dim );
 		template< unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _nearestMultiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim=Dim );
-		template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > void _addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const;
-		template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > void _addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const;
+		template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
+		void _addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p ,                         const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const;
+		template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
+		void _addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const;
+		template< typename V , typename Coefficients , unsigned int D , typename AccumulationFunctor /*=std::function< void ( const V & , Real s ) > */ , unsigned int ... DataSigs >
+		void _accumulate( const Coefficients& coefficients , Point< Real , Dim > p ,                         const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , AccumulationFunctor &AF ) const;
+		template< typename V , typename Coefficients , unsigned int D , typename AccumulationFunctor /*=std::function< void ( const V & , Real s ) > */ , unsigned int ... DataSigs >
+		void _accumulate( const Coefficients& coefficients , Point< Real , Dim > p , LocalDepth pointDepth , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , AccumulationFunctor &AF ) const;
 
 	public:
 
@@ -2513,6 +2519,8 @@ namespace PoissonRecon
 			MultiThreadedSparseEvaluator( const FEMTree* tree , const SparseNodeData< T , FEMSignatures >& coefficients , int threads=std::thread::hardware_concurrency() );
 			~MultiThreadedSparseEvaluator( void ){ if( _pointEvaluator ) delete _pointEvaluator; }
 			void addValue( Point< Real , Dim > p , T &t , int thread=0 , const FEMTreeNode* node=NULL );
+			template< typename AccumulationFunctor/*=std::function< void ( const T & , Real s ) > */ >
+			void accumulate( Point< Real , Dim > p , AccumulationFunctor &Accumulate , int thread=0 , const FEMTreeNode* node=NULL );
 		};
 
 	protected:

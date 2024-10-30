@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.35)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.40)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.35/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.40/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.35/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.40/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.35/">V18.35</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">V18.31</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.30/">V18.30</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.20/">V18.20</a>,
@@ -1054,11 +1055,11 @@ If both the <b>--keep</b> flag and the <b>--fraction</b> flag are set, the <b>--
 In addition to executables, the reconstruction code can be interfaced into through the functionality implemented in <CODE>Reconstructors.h</CODE> and <CODE>Extrapolator.h</CODE>
 Using the functionality requires requires choosing a finite element type and defining input oriented-point stream and output vertex and face streams. In the descriptions below, the template parameter <CODE>Real</CODE> is the floating point type used to represent data (typically <code>float</code>) and <CODE>Dim</CODE> is the integer dimension of the space (fixed at <CODE>Dim</CODE>=3).
 <UL>
-<LI>The template parameter <CODE>FEMSig</CODE> describes the 1D finite element type, which is a composite of the degree of the finite element and the boundary conditions it satisfies. Given an integer valued <CODE>Degree</CODE> and boundary type <CODE>BType</CODE> (one of <CODE>BOUNDARY_FREE</CODE>, <CODE>BOUNDARY_DIRICHLET</CODE>, and <CODE>BOUNDARY_NEUMANN</CODE> defined in <CODE>BSplineData.h</CODE>), the signature is defined as (<CODE>Reconstruction.example.cppy</CODE> line 308):
+<LI>The template parameter <CODE>FEMSig</CODE> describes the 1D finite element type, which is a composite of the degree of the finite element and the boundary conditions it satisfies. Given an integer valued <CODE>Degree</CODE> and boundary type <CODE>BType</CODE> (one of <CODE>BOUNDARY_FREE</CODE>, <CODE>BOUNDARY_DIRICHLET</CODE>, and <CODE>BOUNDARY_NEUMANN</CODE> defined in <CODE>BSplineData.h</CODE>), the signature is defined as:
 <PRE>
 <CODE>static const unsigned int FEMSig = FEMDegreeAndBType&lt; Degree , BoundaryType &gt;::Signature;</CODE>
 </PRE>
-<LI>The template parameter <CODE>FEMSIgs</CODE> describes the tensor-product finite element type, typically defined as an "isotropic" element with the same 1D finite element type across all <CODE>Dim</CODE> dimensions. It is defined as (<CODE>Reconstruction.example.cppy</CODE> line 314):
+<LI>The template parameter <CODE>FEMSIgs</CODE> describes the tensor-product finite element type, typically defined as an "isotropic" element with the same 1D finite element type across all <CODE>Dim</CODE> dimensions. It is defined as:
 <PRE>
 <CODE>using FEMSigs = IsotropicUIntPack&lt; Dim , FEMSig &gt;;</CODE>
 </PRE>
@@ -1117,22 +1118,22 @@ This method returns the extrapolated value at the prescribed position.
 <UL>
 These steps can be found in the <code>Reconstruction.example.cpp</code> code.
 <UL>
-<LI>The finite-elements signature is created in line 308.
-<LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 85-122 and constructed in line 374.
-<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 213-230 and constructed in line 384.
-<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is desfined in lines 223-244 and constructed in line 385.
-<LI>The reconstructor is constructed in line 377.
-<LI>The level-set extraction is performed on line 388.
-<LI>The evaluator is created on line 334.
-<LI>The evaluator is used to query the values and gradients of the implicit function in line 327.
-<LI>The extrapolator is constructed on line 406.
-<LI>The extrapolator is evaluated at the vertex positions at line 416.
+<LI>The finite-elements signatures are created in lines 308 and 311.
+<LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 85-122 and constructed in line 379.
+<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 213-230 and constructed in line 389.
+<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is desfined in lines 223-244 and constructed in line 390.
+<LI>The implicit representation is computed in line 382.
+<LI>The level-set extraction is performed on line 393.
+<LI>The evaluator is created on line 340.
+<LI>The evaluator is used to query the values and gradients of the implicit function in line 333.
+<LI>The extrapolator is constructed on line 411.
+<LI>The extrapolator is evaluated at the vertex positions at line 421.
 </UL>
-Note that a similar approach can be used to perform the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance</A> reconstruction (lines 452 and 453).<BR>
+Note that a similar approach can be used to perform the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance</A> reconstruction (lines 459 and 460).<BR>
 The approach also supports reconstruction of meshes with auxiliary information like color, with the only constraint that the auxiliary data type supports the computation affine combinations (e.g. the <CODE>RGBColor</CODE> type defined in lines 67-82). The auxiliary inform is derived in one of two ways:
 <OL>
-<LI> As part of the reconstruction process, so that the level-set extraction phase also sets the auxiliary information. (Lines 343-470)
-<LI> Independently by constructing the extrapolation field from the samples and then evaluating at the positions of the level-set vertices. (Lines 397-418)
+<LI> As part of the reconstruction process, so that the level-set extraction phase also sets the auxiliary information. (Lines 349-375)
+<LI> Independently by constructing the extrapolation field from the samples and then evaluating at the positions of the level-set vertices. (Lines 400-427)
 </OL>
 </UL>
 </DL>
@@ -1710,6 +1711,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">Version 18.35</a>:
 <OL>
 <LI> Removed the confidence bias option.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">Version 18.40</a>:
+<OL>
+<LI> Added support for extrapolator accumulation.
 </OL>
 
 </DETAILS>

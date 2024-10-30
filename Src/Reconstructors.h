@@ -558,7 +558,7 @@ namespace PoissonRecon
 
 			DensityEstimator *density = params.outputDensity ? this->density : nullptr;
 
-			if constexpr( Dim==3 )
+			if constexpr( Dim==2 || Dim==3 )
 			{
 				Profiler profiler( ProfilerMS );
 
@@ -579,6 +579,7 @@ namespace PoissonRecon
 					typename LevelSetExtractor< Real , Dim >::Stats stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , tree , density , solution , isoValue , _vertexStream , faceStream , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
 					statsString = stats.toString();
 				}
+
 				if( params.verbose )
 				{
 					std::cout << "Vertices / Faces: " << vertexStream.size() << " / " << faceStream.size() << std::endl;
@@ -586,36 +587,8 @@ namespace PoissonRecon
 					std::cout << "#            Got Faces: " << profiler << std::endl;
 				}
 			}
-			else if constexpr( Dim==2 )
-			{
-				Profiler profiler( ProfilerMS );
-
-				std::string statsString;
-
-				TransformedOutputLevelSetVertexStream< Real , Dim , InternalAuxData > _vertexStream( unitCubeToModel , vertexStream );
-				if constexpr( sizeof...(AuxData) )
-				{
-					// Convert stream:
-					// OutputDataStream< Position< Real , Dim > , Gradient< Real , Dim > , Weight< Real > , AuxData... >
-					// -> OutputDataStream< Position< Real , Dim > , Gradient< Real , Dim > , Weight< Real > , InternalAuxData >
-					OutputDataStreamConverter< typename _VertexTypeConverter::InternalVertexType , typename _VertexTypeConverter::ExternalVertexType > __vertexStream( _vertexStream , _VertexTypeConverter::ConvertX2I );
-					typename LevelSetExtractor< Real , Dim , InternalAuxData >::Stats stats = LevelSetExtractor< Real , Dim , InternalAuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , tree , density , _auxData , solution , isoValue , __vertexStream , faceStream , _zeroAuxData , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
-					statsString = stats.toString();
-				}
-				else
-				{
-					typename LevelSetExtractor< Real , Dim >::Stats stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , tree , density , solution , isoValue , _vertexStream , faceStream , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
-					statsString = stats.toString();
-				}
-
-				if( params.verbose )
-				{
-					std::cout << "Vertices / Faces: " << vertexStream.size() << " / " << faceStream.size() << std::endl;
-					std::cout << statsString << std::endl;
-					std::cout << "#            Got faces: " << profiler << std::endl;
-				}
-			}
-			else WARN( "Extraction only supported for dimensions 2 and 3" );	}
+			else WARN( "Extraction only supported for dimensions 2 and 3" );
+		}
 
 		// Implementation of the derived Poisson::Implicit's constructor
 		template< typename Real , unsigned int Dim , unsigned int ... FEMSigs , typename ... AuxData >
