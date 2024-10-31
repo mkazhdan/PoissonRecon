@@ -224,34 +224,34 @@ namespace VertexFactory
 	PlyProperty PositionFactory< Real , Dim >::plyReadProperty( unsigned int idx ) const
 	{
 		if( idx>= plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 	template< typename Real , unsigned int Dim >
 	PlyProperty PositionFactory< Real , Dim >::plyWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 
 	template< typename Real , unsigned int Dim >
 	PlyProperty PositionFactory< Real , Dim >::plyStaticReadProperty( unsigned int idx ) const
 	{
 		if( idx>=plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
 	}
 	template< typename Real , unsigned int Dim >
 	PlyProperty PositionFactory< Real , Dim >::plyStaticWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
 	}
 
-	template<> const std::string PositionFactory<  float , 1 >::_PlyNames[] = { "x" };
-	template<> const std::string PositionFactory< double , 1 >::_PlyNames[] = { "x" };
-	template<> const std::string PositionFactory<  float , 2 >::_PlyNames[] = { "x" , "y" };
-	template<> const std::string PositionFactory< double , 2 >::_PlyNames[] = { "x" , "y" };
-	template<> const std::string PositionFactory<  float , 3 >::_PlyNames[] = { "x" , "y" , "z" };
-	template<> const std::string PositionFactory< double , 3 >::_PlyNames[] = { "x" , "y" , "z" };
+	template< typename Real , unsigned int Dim >
+	std::string PositionFactory< Real , Dim >::_PlyName( unsigned int idx )
+	{
+		static const std::string names[] = { "x" , "y" , "z" };
+		return names[idx];
+	}
 
 	///////////////////
 	// NormalFactory //
@@ -260,34 +260,34 @@ namespace VertexFactory
 	PlyProperty NormalFactory< Real , Dim >::plyReadProperty( unsigned int idx ) const
 	{
 		if( idx>= plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 	template< typename Real , unsigned int Dim >
 	PlyProperty NormalFactory< Real , Dim >::plyWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 
 	template< typename Real , unsigned int Dim >
 	PlyProperty NormalFactory< Real , Dim >::plyStaticReadProperty( unsigned int idx ) const
 	{
 		if( idx>=plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
 	}
 	template< typename Real , unsigned int Dim >
 	PlyProperty NormalFactory< Real , Dim >::plyStaticWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
 	}
 
-	template<> const std::string NormalFactory<  float , 1 >::_PlyNames[] = { "nx" };
-	template<> const std::string NormalFactory< double , 1 >::_PlyNames[] = { "nx" };
-	template<> const std::string NormalFactory<  float , 2 >::_PlyNames[] = { "nx" , "ny" };
-	template<> const std::string NormalFactory< double , 2 >::_PlyNames[] = { "nx" , "ny" };
-	template<> const std::string NormalFactory<  float , 3 >::_PlyNames[] = { "nx" , "ny" , "nz" };
-	template<> const std::string NormalFactory< double , 3 >::_PlyNames[] = { "nx" , "ny" , "nz" };
+	template< typename Real , unsigned int Dim >
+	std::string NormalFactory< Real , Dim >::_PlyName( unsigned int idx )
+	{
+		static const std::string names[] = { "nx" , "ny" , "nz" };
+		return names[idx];
+	}
 
 	////////////////////
 	// TextureFactory //
@@ -296,34 +296,34 @@ namespace VertexFactory
 	PlyProperty TextureFactory< Real , Dim >::plyReadProperty( unsigned int idx ) const
 	{
 		if( idx>= plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 	template< typename Real , unsigned int Dim >
 	PlyProperty TextureFactory< Real , Dim >::plyWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 
 	template< typename Real , unsigned int Dim >
 	PlyProperty TextureFactory< Real , Dim >::plyStaticReadProperty( unsigned int idx ) const
 	{
 		if( idx>=plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
 	}
 	template< typename Real , unsigned int Dim >
 	PlyProperty TextureFactory< Real , Dim >::plyStaticWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
 	}
 
-	template<> const std::string TextureFactory<  float , 1 >::_PlyNames[] = { "u" };
-	template<> const std::string TextureFactory< double , 1 >::_PlyNames[] = { "u" };
-	template<> const std::string TextureFactory<  float , 2 >::_PlyNames[] = { "u" , "v" };
-	template<> const std::string TextureFactory< double , 2 >::_PlyNames[] = { "u" , "v" };
-	template<> const std::string TextureFactory<  float , 3 >::_PlyNames[] = { "u" , "v" , "w" };
-	template<> const std::string TextureFactory< double , 3 >::_PlyNames[] = { "u" , "v" , "w" };
+	template< typename Real , unsigned int Dim >
+	std::string TextureFactory< Real , Dim >::_PlyName( unsigned int idx )
+	{
+		static const std::string names[] = { "u" , "v" , "w" };
+		return names[idx];
+	}
 
 	/////////////////////
 	// RGBColorFactory //
@@ -332,29 +332,34 @@ namespace VertexFactory
 	PlyProperty RGBColorFactory< Real >::plyReadProperty( unsigned int idx ) const
 	{
 		if( idx>= plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 	template< typename Real >
 	PlyProperty RGBColorFactory< Real >::plyWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 
 	template< typename Real >
 	PlyProperty RGBColorFactory< Real >::plyStaticReadProperty( unsigned int idx ) const
 	{
 		if( idx>=plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + (idx%3)*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + (idx%3)*sizeof(Real) ) );
 	}
 	template< typename Real >
 	PlyProperty RGBColorFactory< Real >::plyStaticWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
 	}
 
-	template< typename Real > const std::string RGBColorFactory< Real >::_PlyNames[] = { "red" , "green" , "blue" , "r" , "g" , "b" };
+	template< typename Real >
+	std::string RGBColorFactory< Real >::_PlyName( unsigned int idx )
+	{
+		static const std::string names[] = { "red" , "green" , "blue" , "r" , "g" , "b" };
+		return names[idx];
+	}
 
 	//////////////////////
 	// RGBAColorFactory //
@@ -363,29 +368,36 @@ namespace VertexFactory
 	PlyProperty RGBAColorFactory< Real >::plyReadProperty( unsigned int idx ) const
 	{
 		if( idx>= plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
+
 	template< typename Real >
 	PlyProperty RGBAColorFactory< Real >::plyWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 
 	template< typename Real >
 	PlyProperty RGBAColorFactory< Real >::plyStaticReadProperty( unsigned int idx ) const
 	{
 		if( idx>=plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + (idx%4)*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + (idx%4)*sizeof(Real) ) );
 	}
+
 	template< typename Real >
 	PlyProperty RGBAColorFactory< Real >::plyStaticWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , (int)( offsetof( VertexType , coords ) + idx*sizeof(Real) ) );
 	}
 
-	template< typename Real > const std::string RGBAColorFactory< Real >::_PlyNames[] = { "red" , "green" , "blue" , "alpha" , "r" , "g" , "b" , "a" };
+	template< typename Real >
+	std::string RGBAColorFactory< Real >::_PlyName( unsigned int idx )
+	{
+		static const std::string names[] = { "red" , "green" , "blue" , "alpha" , "r" , "g" , "b" , "a" };
+		return names[idx];
+	}
 
 	//////////////////
 	// ValueFactory //
@@ -394,29 +406,36 @@ namespace VertexFactory
 	PlyProperty ValueFactory< Real >::plyReadProperty( unsigned int idx ) const
 	{
 		if( idx>= plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
+
 	template< typename Real >
 	PlyProperty ValueFactory< Real >::plyWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , sizeof(Real)*idx );
 	}
 
 	template< typename Real >
 	PlyProperty ValueFactory< Real >::plyStaticReadProperty( unsigned int idx ) const
 	{
 		if( idx>=plyReadNum() ) ERROR_OUT( "read property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , 0 );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , 0 );
 	}
+
 	template< typename Real >
 	PlyProperty ValueFactory< Real >::plyStaticWriteProperty( unsigned int idx ) const
 	{
 		if( idx>=plyWriteNum() ) ERROR_OUT( "write property out of bounds" );
-		return PlyProperty( _PlyNames[idx] , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , 0 );
+		return PlyProperty( _PlyName(idx) , ToPlyType( _typeOnDisk ) , PLY::Type< Real >() , 0 );
 	}
 
-	template< typename Real > const std::string ValueFactory< Real >::_PlyNames[] = { "value" };
+	template< typename Real >
+	std::string ValueFactory< Real >::_PlyName( unsigned int idx )
+	{
+		static const std::string names[] = { "value" };
+		return names[idx];
+	}
 
 	////////////////////
 	// DynamicFactory //

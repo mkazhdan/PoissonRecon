@@ -61,6 +61,77 @@ namespace PoissonRecon
 			LevelSetExtractionParameters( void ) : linearFit(false) , outputGradients(false) , forceManifold(true) , polygonMesh(false) , gridCoordinates(false) , verbose(false) , outputDensity(false) {}
 		};
 
+		// General solver parameters
+		template< typename Real >
+		struct SolutionParameters
+		{
+			bool verbose;
+			bool exactInterpolation;
+			bool showResidual;
+			Real scale;
+			Real confidence;
+			Real lowDepthCutOff;
+			Real width;
+			Real samplesPerNode;
+			Real cgSolverAccuracy;
+			Real perLevelDataScaleFactor;
+			unsigned int depth;
+			unsigned int solveDepth;
+			unsigned int baseDepth;
+			unsigned int fullDepth;
+			unsigned int kernelDepth;
+			unsigned int baseVCycles;
+			unsigned int iters;
+			unsigned int alignDir;
+
+			SolutionParameters( void ) :
+				verbose(false) , exactInterpolation(false) , showResidual(false) ,
+				scale((Real)1.1) ,confidence((Real)0.) ,
+				lowDepthCutOff((Real)0.) , width((Real)0.) ,
+				samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) , perLevelDataScaleFactor((Real)32.) ,
+				depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) ,
+				baseVCycles((unsigned int)1) , iters((unsigned int)8) , alignDir(0)
+			{}
+
+			template< unsigned int Dim >
+			void testAndSet( XForm< Real , Dim > unitCubeToModel )
+			{
+				if( width>0 )
+				{
+					Real maxScale = 0;
+					for( unsigned int i=0 ; i<Dim ; i++ )
+					{
+						Real l2 = 0;
+						for( unsigned int j=0 ; j<Dim ; j++ ) l2 += unitCubeToModel(i,j) * unitCubeToModel(i,j);
+						if( l2>maxScale ) maxScale = l2;
+					}
+					maxScale = sqrt( maxScale );
+					depth = (unsigned int)ceil( std::max< double >( 0. , log( maxScale/width )/log(2.) ) );
+				}
+
+				if( solveDepth>depth )
+				{
+					if( solveDepth!=-1 ) WARN( "Solution depth cannot exceed system depth: " , solveDepth , " <= " , depth );
+					solveDepth = depth;
+				}
+				if( fullDepth>solveDepth )
+				{
+					if( fullDepth!=-1 ) WARN( "Full depth cannot exceed system depth: " , fullDepth , " <= " , solveDepth );
+					fullDepth = solveDepth;
+				}
+				if( baseDepth>fullDepth )
+				{
+					if( baseDepth!=-1 ) WARN( "Base depth must be smaller than full depth: " , baseDepth , " <= " , fullDepth );
+					baseDepth = fullDepth;
+				}
+				if( kernelDepth==-1 ) kernelDepth = depth>2 ? depth-2 : 0;
+				if( kernelDepth>depth )
+				{
+					if( kernelDepth!=-1 ) WARN( "Kernel depth cannot exceed system depth: " , kernelDepth , " <= " , depth );
+					kernelDepth = depth;
+				}
+			}
+		};
 		struct Poisson;
 		struct SSD;
 
@@ -392,39 +463,35 @@ namespace PoissonRecon
 			};
 
 			template< typename Real >
-			struct SolutionParameters
+			struct SolutionParameters : public Reconstructor::SolutionParameters< Real >
 			{
-				bool verbose;
 				bool dirichletErode;
-				bool exactInterpolation;
-				bool showResidual;
-				Real scale;
-				Real confidence;
-				Real lowDepthCutOff;
-				Real width;
 				Real pointWeight;
 				Real valueInterpolationWeight;
-				Real samplesPerNode;
-				Real cgSolverAccuracy;
-				Real targetValue;
-				Real perLevelDataScaleFactor;
-				unsigned int depth;
-				unsigned int solveDepth;
-				unsigned int baseDepth;
-				unsigned int fullDepth;
-				unsigned int kernelDepth;
 				unsigned int envelopeDepth;
-				unsigned int baseVCycles;
-				unsigned int iters;
-				unsigned int alignDir;
 
 				SolutionParameters( void ) :
-					verbose(false) , dirichletErode(false) , exactInterpolation(false) , showResidual(false) ,
-					scale((Real)1.1) , confidence((Real)0.) , lowDepthCutOff((Real)0.) , width((Real)0.) ,
-					pointWeight((Real)( WeightMultiplier * DefaultFEMDegree ) ) , valueInterpolationWeight((Real)0.) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) , targetValue((Real)0.5) , perLevelDataScaleFactor((Real)32.) ,
-					depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) ,
-					envelopeDepth((unsigned int)-1) , baseVCycles((unsigned int)1) , iters((unsigned int)8) , alignDir(0)
+					dirichletErode(false) ,
+					pointWeight((Real)( WeightMultiplier * DefaultFEMDegree ) ) , valueInterpolationWeight((Real)0.) ,
+					envelopeDepth((unsigned int)-1)
 				{}
+
+				template< unsigned int Dim >
+				void testAndSet( XForm< Real , Dim > unitCubeToModel )
+				{
+					Reconstructor::SolutionParameters< Real >::testAndSet( unitCubeToModel );
+					if( envelopeDepth==-1 ) envelopeDepth = Reconstructor::SolutionParameters< Real >::baseDepth;
+					if( envelopeDepth>Reconstructor::SolutionParameters< Real >::depth )
+					{
+						if( envelopeDepth!=-1 ) WARN( "Envelope depth cannot exceed system depth:  " , envelopeDepth , " <= " , Reconstructor::SolutionParameters< Real >::depth );
+						envelopeDepth = Reconstructor::SolutionParameters< Real >::depth;
+					}
+					if( envelopeDepth<Reconstructor::SolutionParameters< Real >::baseDepth )
+					{
+						WARN( "Envelope depth cannot be less than base depth: " , envelopeDepth , " >= " , Reconstructor::SolutionParameters< Real >::baseDepth );
+						envelopeDepth = Reconstructor::SolutionParameters< Real >::baseDepth;
+					}
+				}
 			};
 
 			template< typename Real , unsigned int Dim >
@@ -500,38 +567,15 @@ namespace PoissonRecon
 			};
 
 			template< typename Real >
-			struct SolutionParameters
+			struct SolutionParameters : public Reconstructor::SolutionParameters< Real >
 			{
-				bool verbose;
-				bool exactInterpolation;
-				bool showResidual;
-				Real scale;
-				Real confidence;
-				Real lowDepthCutOff;
-				Real width;
 				Real pointWeight;
 				Real gradientWeight;
 				Real biLapWeight;
-				Real samplesPerNode;
-				Real cgSolverAccuracy;
-				Real perLevelDataScaleFactor;
-				unsigned int depth;
-				unsigned int solveDepth;
-				unsigned int baseDepth;
-				unsigned int fullDepth;
-				unsigned int kernelDepth;
-				unsigned int baseVCycles;
-				unsigned int iters;
-				unsigned int alignDir;
 
 				SolutionParameters( void ) :
-					verbose(false) , exactInterpolation(false) , showResidual(false) ,
-					scale((Real)1.1) , confidence((Real)0.) , lowDepthCutOff((Real)0.) , width((Real)0.) ,
-					pointWeight((Real)WeightMultipliers[0]) , gradientWeight((Real)WeightMultipliers[1]) , biLapWeight((Real)WeightMultipliers[2]) , samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) , perLevelDataScaleFactor((Real)32.) ,
-					depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) , alignDir(0) ,
-					baseVCycles((unsigned int)1) , iters((unsigned int)8)
+					pointWeight((Real)WeightMultipliers[0]) , gradientWeight((Real)WeightMultipliers[1]) , biLapWeight((Real)WeightMultipliers[2])
 				{}
-
 			};
 
 			template< typename Real , unsigned int Dim , typename FEMSigPack , typename ... AuxData > struct Solver;
@@ -642,65 +686,20 @@ namespace PoissonRecon
 			DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > geometryNodeDesignators;
 			SparseNodeData< Point< Real , Dim > , NormalSigs > *normalInfo = NULL;
 			std::vector< typename FEMTree< Dim , Real >::PointSample > *samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
-			std::vector< InternalNormalAndAuxData > *sampleNormalAndAuxData = nullptr;
+			std::vector< InternalNormalAndAuxData > *sampleNormalAndAuxData = new std::vector< InternalNormalAndAuxData >();
 
-			Real targetValue = params.targetValue;
+			Real targetValue = (Real)0.5;
 
 			// Read in the samples (and auxiliary data)
 			{
 				profiler.reset();
 
 				pointStream.reset();
-				sampleNormalAndAuxData = new std::vector< InternalNormalAndAuxData >();
 				modelToUnitCube = params.scale>0 ? PointExtent::GetXForm< Real , Dim , true , Normal< Real , Dim > , AuxData... >( pointStream , Normal< Real , Dim >() , zero... , params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
+				implicit.unitCubeToModel = modelToUnitCube.inverse();
 				pointStream.reset();
 
-				if( params.width>0 )
-				{
-					XForm< Real , Dim > unitCubeToModel = modelToUnitCube.inverse();
-
-					Real maxScale = 0;
-					for( unsigned int i=0 ; i<Dim ; i++ )
-					{
-						Real l2 = 0;
-						for( unsigned int j=0 ; j<Dim ; j++ ) l2 += unitCubeToModel(i,j) * unitCubeToModel(i,j);
-						if( l2>maxScale ) maxScale = l2;
-					}
-					maxScale = sqrt( maxScale );
-					params.depth = (unsigned int)ceil( std::max< double >( 0. , log( maxScale/params.width )/log(2.) ) );
-				}
-				if( params.solveDepth>params.depth )
-				{
-					if( params.solveDepth!=-1 ) WARN( "Solution depth cannot exceed system depth: " , params.solveDepth , " <= " , params.depth );
-					params.solveDepth = params.depth;
-				}
-				if( params.fullDepth>params.solveDepth )
-				{
-					if( params.fullDepth!=-1 ) WARN( "Full depth cannot exceed system depth: " , params.fullDepth , " <= " , params.solveDepth );
-					params.fullDepth = params.solveDepth;
-				}
-				if( params.baseDepth>params.fullDepth )
-				{
-					if( params.baseDepth!=-1 ) WARN( "Base depth must be smaller than full depth: " , params.baseDepth , " <= " , params.fullDepth );
-					params.baseDepth = params.fullDepth;
-				}
-				if( params.kernelDepth==-1 ) params.kernelDepth = params.depth>2 ? params.depth-2 : 0;
-				if( params.kernelDepth>params.depth )
-				{
-					if( params.kernelDepth!=-1 ) WARN( "Kernel depth cannot exceed system depth: " , params.kernelDepth , " <= " , params.depth );
-					params.kernelDepth = params.depth;
-				}
-				if( params.envelopeDepth==-1 ) params.envelopeDepth = params.baseDepth;
-				if( params.envelopeDepth>params.depth )
-				{
-					if( params.envelopeDepth!=-1 ) WARN( "Envelope dpeth cannot exceed system depth:  " , params.envelopeDepth , " <= " , params.depth );
-					params.envelopeDepth = params.depth;
-				}
-				if( params.envelopeDepth<params.baseDepth )
-				{
-					WARN( "Envelope dpeth cannot be less than base depth: " , params.envelopeDepth , " >= " , params.baseDepth );
-					params.envelopeDepth = params.baseDepth;
-				}
+				params.testAndSet( implicit.unitCubeToModel );
 
 				{
 					// Apply the transformation
@@ -749,7 +748,6 @@ namespace PoissonRecon
 					implicit._zeroAuxData.process( F );
 				}
 
-				implicit.unitCubeToModel = modelToUnitCube.inverse();
 
 				if( params.verbose )
 				{
@@ -1090,7 +1088,7 @@ namespace PoissonRecon
 			ProjectiveData< Point< Real , 2 > , Real > pointDepthAndWeight;
 			SparseNodeData< Point< Real , Dim > , NormalSigs > *normalInfo = NULL;
 			std::vector< typename FEMTree< Dim , Real >::PointSample > *samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
-			std::vector< InternalNormalAndAuxData > *sampleNormalAndAuxData = nullptr;
+			std::vector< InternalNormalAndAuxData > *sampleNormalAndAuxData = new std::vector< InternalNormalAndAuxData >();;
 
 			Real targetValue = (Real)0.0;
 
@@ -1099,39 +1097,11 @@ namespace PoissonRecon
 				profiler.reset();
 
 				pointStream.reset();
-				sampleNormalAndAuxData = new std::vector< InternalNormalAndAuxData >();
 				modelToUnitCube = params.scale>0 ? PointExtent::GetXForm< Real , Dim , true , Normal< Real , Dim > , AuxData... >( pointStream , Normal< Real , Dim >() , zero... , params.scale , params.alignDir ) * modelToUnitCube : modelToUnitCube;
+				implicit.unitCubeToModel = modelToUnitCube.inverse();
 				pointStream.reset();
 
-				if( params.width>0 )
-				{
-					// Assuming the transformation is rigid so that the (max) scale can be pulled from the Frobenius norm
-					Real maxScale = 0;
-					for( unsigned int i=0 ; i<Dim ; i++ ) for( unsigned int j=0 ; j<Dim ; j++ ) maxScale += modelToUnitCube(i,j) * modelToUnitCube(i,j);
-					maxScale = (Real)( 1. / sqrt( maxScale / Dim ) );
-					params.depth = (unsigned int)ceil( std::max< double >( 0. , log( maxScale/params.width )/log(2.) ) );
-				}
-				if( params.solveDepth>params.depth )
-				{
-					if( params.solveDepth!=-1 ) WARN( "Solution depth cannot exceed system depth: " , params.solveDepth , " <= " , params.depth );
-					params.solveDepth = params.depth;
-				}
-				if( params.fullDepth>params.solveDepth )
-				{
-					if( params.fullDepth!=-1 ) WARN( "Full depth cannot exceed system depth: " , params.fullDepth , " <= " , params.solveDepth );
-					params.fullDepth = params.solveDepth;
-				}
-				if( params.baseDepth>params.fullDepth )
-				{
-					if( params.baseDepth!=-1 ) WARN( "Base depth must be smaller than full depth: " , params.baseDepth , " <= " , params.fullDepth );
-					params.baseDepth = params.fullDepth;
-				}
-				if( params.kernelDepth==-1 ) params.kernelDepth = params.depth>2 ? params.depth-2 : 0;
-				if( params.kernelDepth>params.depth )
-				{
-					if( params.kernelDepth!=-1 ) WARN( "Kernel depth cannot exceed system depth: " , params.kernelDepth , " <= " , params.depth );
-					params.kernelDepth = params.depth;
-				}
+				params.testAndSet( implicit.unitCubeToModel );
 
 				{
 					// Apply the transformation
@@ -1183,8 +1153,6 @@ namespace PoissonRecon
 						};
 					implicit._zeroAuxData.process( F );
 				}
-
-				implicit.unitCubeToModel = modelToUnitCube.inverse();
 
 				if( params.verbose )
 				{

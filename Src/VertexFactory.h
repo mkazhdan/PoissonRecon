@@ -198,7 +198,7 @@ namespace PoissonRecon
 		protected:
 			TypeOnDisk _typeOnDisk;
 			bool _realTypeOnDisk;
-			static const std::string _PlyNames[];
+			static std::string _PlyName( unsigned int idx );
 		};
 
 		// The vertex factory
@@ -255,7 +255,7 @@ namespace PoissonRecon
 		protected:
 			TypeOnDisk _typeOnDisk;
 			bool _realTypeOnDisk;
-			static const std::string _PlyNames[];
+				static std::string _PlyName( unsigned int idx );
 		};
 
 		// The texture factory
@@ -306,7 +306,7 @@ namespace PoissonRecon
 		protected:
 			TypeOnDisk _typeOnDisk;
 			bool _realTypeOnDisk;
-			static const std::string _PlyNames[];
+			static std::string _PlyName( unsigned int idx );
 		};
 
 		// The rgb color factory
@@ -356,7 +356,7 @@ namespace PoissonRecon
 		protected:
 			TypeOnDisk _typeOnDisk;
 			bool _realTypeOnDisk;
-			static const std::string _PlyNames[];
+			static std::string _PlyName( unsigned int idx );
 		};
 
 		// The rgba color factory
@@ -405,7 +405,7 @@ namespace PoissonRecon
 		protected:
 			TypeOnDisk _typeOnDisk;
 			bool _realTypeOnDisk;
-			static const std::string _PlyNames[];
+			static std::string _PlyName( unsigned int idx );
 		};
 
 		// The value factory
@@ -455,7 +455,7 @@ namespace PoissonRecon
 		protected:
 			TypeOnDisk _typeOnDisk;
 			bool _realTypeOnDisk;
-			static const std::string _PlyNames[];
+			static std::string _PlyName( unsigned int idx );
 		};
 
 		// The named array factory
