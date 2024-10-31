@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.40)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.41)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.40/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.41/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.40/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.41/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.40/">V18.40</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.35/">V18.35</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">V18.31</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.30/">V18.30</a>,
@@ -1708,14 +1709,19 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <LI> Removed the smoothing option in the <CODE>SufaceTrimmer</CODE> executable.
 </OL>
 
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">Version 18.35</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.35/">Version 18.35</a>:
 <OL>
 <LI> Removed the confidence bias option.
 </OL>
 
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.31/">Version 18.40</a>:
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.40/">Version 18.40</a>:
 <OL>
 <LI> Added support for extrapolator accumulation.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.41/">Version 18.41</a>:
+<OL>
+<LI> Removed explicitly instantiated static variables.
 </OL>
 
 </DETAILS>
