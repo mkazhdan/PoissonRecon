@@ -233,9 +233,6 @@ The default value for this parameter is 8.
 </dd><dt>[<b>--density</b>]
 </dt><dd> Enabling this flag tells the reconstructor to output the estimated depth values of the iso-surface vertices.
 
-</dd><dt>[<b>--normals</b>]
-</dt><dd> Enabling this flag tells the reconstructor to output vertex normals, computed from the gradients of the implicit function.
-
 </dd><dt>[<b>--colors</b>]
 </dt><dd> If the input points are in ASCII/binary format and contain color values, this flag lets the reconstruction code know that (1) each sample is represented by nine floating point values instead of the expected six, and that (2) color values should be output with the vertices of the reconstructed surface. (For input samples in the .ply format, the presence of color information, as well as any other additional per-sample data, is automatically determined from the file header.)
 
@@ -570,9 +567,6 @@ The default value for this parameter is 8.
 
 </dd><dt>[<b>--density</b>]
 </dt><dd> Enabling this flag tells the reconstructor to output the estimated depth values of the iso-surface vertices.
-
-</dd><dt>[<b>--normals</b>]
-</dt><dd> Enabling this flag tells the reconstructor to output vertex normals, computed from the gradients of the implicit function.
 
 </dd><dt>[<b>--colors</b>]
 </dt><dd> If the input points are in ASCII/binary format and contain color values, this flag lets the reconstruction code know that (1) each sample is represented by nine floating point values instead of the expected six, and that (2) color values should be output with the vertices of the reconstructed surface. (For input samples in the .ply format, the presence of color information, as well as any other additional per-sample data, is automatically determined from the file header.)
