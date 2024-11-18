@@ -414,13 +414,13 @@ void Execute( void )
 			std::vector< Real > rgbCoordinates( vCoordinates.size()/Dim*3 );
 
 			// Iterate over the vertices and evaluate the extrapolate to get the color values
-			for( unsigned int i=0 ; i<vCoordinates.size()/Dim ; i++ )
-			{
-				Point< Real , Dim > p;
-				for( unsigned int d=0 ; d<Dim ; d++ ) p[d] = vCoordinates[ i*Dim+d ];
-				RGBColor< Real > c = extrapolator( p );
-				rgbCoordinates[i*3+0] = c.r , rgbCoordinates[i*3+1] = c.g , rgbCoordinates[i*3+2] = c.b;
-			}
+			ThreadPool::ParallelFor( 0 , vCoordinates.size()/Dim , [&]( unsigned int thread , size_t i )
+				{
+					Point< Real , Dim > p;
+					for( unsigned int d=0 ; d<Dim ; d++ ) p[d] = vCoordinates[ i*Dim+d ];
+					RGBColor< Real > c = extrapolator( thread , p );
+					rgbCoordinates[i*3+0] = c.r , rgbCoordinates[i*3+1] = c.g , rgbCoordinates[i*3+2] = c.b;
+				} );
 
 			// Write out the level-set with sampled colors
 			if( Out.set ) WritePly( Out.value , vStream.size() , vCoordinates.data() , rgbCoordinates.data() , polygons );

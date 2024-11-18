@@ -76,6 +76,19 @@ namespace PoissonRecon
 			for( unsigned int i=0 ; i<futures.size() ; i++ ) futures[i].get();
 		}
 
+		template< typename Function , typename ... Functions >
+		static void ParallelSections( const Function &&function , const Functions && ... functions )
+		{
+			std::vector< std::future< void > > futures;
+			if constexpr( sizeof ... (Functions) )
+			{
+				futures.reserve( sizeof...(Functions) );
+				_ParallelSections( futures , std::move(functions)... );
+			}
+			function();
+			for( unsigned int i=0 ; i<futures.size() ; i++ ) futures[i].get();
+		}
+
 		static void ParallelFor( size_t begin , size_t end , const std::function< void ( unsigned int , size_t ) > &iterationFunction , unsigned int numThreads=_NumThreads , ParallelType pType=ParallelizationType , ScheduleType schedule=Schedule , size_t chunkSize=ChunkSize )
 		{
 			if( begin>=end ) return;
@@ -149,6 +162,13 @@ namespace PoissonRecon
 		{
 			futures.push_back( std::async( std::launch::async , function ) );
 			if constexpr( sizeof...(Functions) ) _ParallelSections( futures , functions... );
+		}
+
+		template< typename Function , typename ... Functions >
+		static void _ParallelSections( std::vector< std::future< void > > &futures , const Function &&function , const Functions && ... functions )
+		{
+			futures.push_back( std::async( std::launch::async , function ) );
+			if constexpr( sizeof...(Functions) ) _ParallelSections( futures , std::move(functions)... );
 		}
 	};
 

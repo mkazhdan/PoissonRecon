@@ -112,7 +112,7 @@ namespace PoissonRecon
 				Point< Real , Dim > q = _worldToUnitCube * p;
 				for( unsigned int d=0 ; d<Dim ; d++ ) if( q[d]<0 || q[d]>1 ) throw OutOfUnitCubeException(p,q);
 				ProjectiveData< AuxData , Real > pData( zeroAuxData );
-				_auxEvaluator->addValue( q , pData );
+				_auxEvaluator->addValue( q , pData , t );
 				return pData.value();
 			}
 
@@ -129,7 +129,7 @@ namespace PoissonRecon
 						weight += pData.weight * scale;
 						data += pData.data * scale;
 					};
-				_auxEvaluator->accumulate( q , Accumulation );
+				_auxEvaluator->accumulate( q , Accumulation , t );
 				if( weight ) data /= weight;
 			}
 		};
