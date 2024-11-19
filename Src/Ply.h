@@ -73,7 +73,7 @@ namespace PoissonRecon
 		struct Edge
 		{
 			Index v1 , v2;
-			static PlyProperty Properties[];
+			static const PlyProperty Properties[];
 		};
 
 		// A structure representing a face
@@ -83,15 +83,15 @@ namespace PoissonRecon
 			unsigned int nr_vertices;
 			Index *vertices;
 
-			static PlyProperty Properties[];
+			static const PlyProperty Properties[];
 		};
 
-		int DefaultFileType( void );
+		inline int DefaultFileType( void );
 
 		// PLY read header functionality
 
 		// Get the properties (and return the file type)
-		int ReadVertexHeader( std::string fileName , std::vector< PlyProperty > &properties );
+		inline int ReadVertexHeader( std::string fileName , std::vector< PlyProperty > &properties );
 
 		// Test which properties are represented by elements of the vertex factory (and return the file type)
 		template< typename VertexFactory >

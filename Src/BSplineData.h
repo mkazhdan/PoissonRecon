@@ -44,7 +44,7 @@ namespace PoissonRecon
 		BOUNDARY_NEUMANN ,
 		BOUNDARY_COUNT
 	};
-	const char* BoundaryNames[] = { "free" , "Dirichlet" , "Neumann" };
+	static const char* BoundaryNames[] = { "free" , "Dirichlet" , "Neumann" };
 	template< BoundaryType BType > inline bool HasPartitionOfUnity( void ){ return BType!=BOUNDARY_DIRICHLET; }
 	inline bool HasPartitionOfUnity( BoundaryType bType ){ return bType!=BOUNDARY_DIRICHLET; }
 	template< BoundaryType BType , unsigned int D > struct DerivativeBoundary{};
@@ -68,8 +68,8 @@ namespace PoissonRecon
 		static constexpr typename std::enable_if< (Degree>=D) , unsigned int >::type DSignature( void ){ return FEMDegreeAndBType< Degree-D , DerivativeBoundary< BType , D >::BType >::Signature; }
 	};
 
-	unsigned int FEMSignatureDegree( unsigned int signature ){ return signature / BOUNDARY_COUNT; }
-	BoundaryType FEMSignatureBType ( unsigned int signature ){ return (BoundaryType)( signature % BOUNDARY_COUNT ); }
+	inline unsigned int FEMSignatureDegree( unsigned int signature ){ return signature / BOUNDARY_COUNT; }
+	inline BoundaryType FEMSignatureBType ( unsigned int signature ){ return (BoundaryType)( signature % BOUNDARY_COUNT ); }
 
 	static const unsigned int FEMTrivialSignature = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
 

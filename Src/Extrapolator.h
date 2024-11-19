@@ -39,7 +39,7 @@ namespace PoissonRecon
 {
 	namespace Extrapolator
 	{
-		unsigned int ProfilerMS = 20;				// The number of ms at which to poll the performance (set to zero for no polling)
+		static unsigned int ProfilerMS = 20;		// The number of ms at which to poll the performance (set to zero for no polling)
 
 		template< typename Real , unsigned int Dim , typename AuxData >
 		using InputStream = Reconstructor::InputSampleStream< Real , Dim , AuxData >;

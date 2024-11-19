@@ -99,7 +99,7 @@ namespace PoissonRecon
 		SHOW_GLOBAL_RESIDUAL_ALL  ,
 		SHOW_GLOBAL_RESIDUAL_COUNT
 	};
-	const char* ShowGlobalResidualNames[] = { "show none" , "show last" , "show all" };
+	static const char* ShowGlobalResidualNames[] = { "show none" , "show last" , "show all" };
 
 	class FEMTreeNodeData
 	{
@@ -129,10 +129,10 @@ namespace PoissonRecon
 		bool getDirichletElementFlag( void ) const { return ( flags & DIRICHLET_ELEMENT_FLAG )!=0; }
 		void setScratchFlag( bool f ) const { if( f ) flags |= SCRATCH_FLAG ; else flags &= (unsigned char)~SCRATCH_FLAG; }
 		bool getScratchFlag( void ) const { return ( flags & SCRATCH_FLAG )!=0; }
-		FEMTreeNodeData( void );
-		~FEMTreeNodeData( void );
+		inline FEMTreeNodeData( void );
+		inline ~FEMTreeNodeData( void );
 #ifdef SANITIZED_PR
-		FEMTreeNodeData &operator = ( const FEMTreeNodeData &data );
+		inline FEMTreeNodeData &operator = ( const FEMTreeNodeData &data );
 #endif // SANITIZED_PR
 	};
 
@@ -569,15 +569,15 @@ namespace PoissonRecon
 		FEM_TREE_REAL_DOUBLE ,
 		FEM_TREE_REAL_COUNT
 	};
-	const char* FEMTreeRealNames[] = { "float" , "double" };
+	static const char *FEMTreeRealNames[] = { "float" , "double" };
 
-	void ReadFEMTreeParameter( BinaryStream &stream , FEMTreeRealType& realType , unsigned int &dimension )
+	inline void ReadFEMTreeParameter( BinaryStream &stream , FEMTreeRealType& realType , unsigned int &dimension )
 	{
 		if( !stream.read( realType ) ) ERROR_OUT( "Failed to read real type" );
 		if( !stream.read( dimension ) ) ERROR_OUT( "Failed to read dimension" );
 	}
 
-	unsigned int* ReadDenseNodeDataSignatures( BinaryStream &stream , unsigned int &dim )
+	inline unsigned int* ReadDenseNodeDataSignatures( BinaryStream &stream , unsigned int &dim )
 	{
 		if( !stream.read( dim ) ) ERROR_OUT( "Failed to read dimension" );
 		unsigned int* femSigs = new unsigned int[dim];
@@ -1448,8 +1448,8 @@ namespace PoissonRecon
 		for( int i=0 ; i<Dim ; i++ ) zero &= (d[i]==0); 
 		return zero;
 	}
-	bool IsZero( const float& f ){ return f==0.f; }
-	bool IsZero( const double& f ){ return f==0.; }
+	inline bool IsZero( const float& f ){ return f==0.f; }
+	inline bool IsZero( const double& f ){ return f==0.; }
 
 	template< unsigned int Dim , class Real >
 	class FEMTree

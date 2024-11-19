@@ -57,8 +57,8 @@ namespace PoissonRecon
 			UNKNOWN
 		};
 
-		int ToPlyType( TypeOnDisk typeOnDisk );
-		TypeOnDisk FromPlyType( int plyType );
+		inline int ToPlyType( TypeOnDisk typeOnDisk );
+		inline TypeOnDisk FromPlyType( int plyType );
 		template< typename Real > TypeOnDisk GetTypeOnDisk( void );
 
 		template< typename Real >

@@ -172,12 +172,12 @@ namespace PoissonRecon
 		}
 	};
 
-	unsigned int ThreadPool::_NumThreads = std::thread::hardware_concurrency();
-	ThreadPool::ParallelType ThreadPool::ParallelizationType = ThreadPool::ParallelType::NONE;
-	ThreadPool::ScheduleType ThreadPool::Schedule = ThreadPool::DYNAMIC;
-	size_t ThreadPool::ChunkSize = 128;
+	inline ThreadPool::ParallelType ThreadPool::ParallelizationType = ThreadPool::ParallelType::NONE;
+	inline unsigned int ThreadPool::_NumThreads = std::thread::hardware_concurrency();
+	inline ThreadPool::ScheduleType ThreadPool::Schedule = ThreadPool::DYNAMIC;
+	inline size_t ThreadPool::ChunkSize = 128;
 
-	const std::vector< std::string > ThreadPool::ParallelNames =
+	const inline std::vector< std::string > ThreadPool::ParallelNames =
 	{
 #ifdef _OPENMP
 		"open mp" ,
@@ -185,6 +185,6 @@ namespace PoissonRecon
 		"async" ,
 		"none"
 	};
-	const std::vector< std::string > ThreadPool::ScheduleNames = { "static" , "dynamic" };
+	const inline std::vector< std::string > ThreadPool::ScheduleNames = { "static" , "dynamic" };
 }
 #endif // MULTI_THREADING_INCLUDED

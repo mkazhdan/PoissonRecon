@@ -55,9 +55,10 @@ Polynomial<Degree+1> Polynomial<Degree>::integral(void) const{
 	for(int i=0;i<=Degree;i++){p.coefficients[i+1]=coefficients[i]/(i+1);}
 	return p;
 }
-template< > double Polynomial< 0 >::operator() ( double t ) const { return coefficients[0]; }
-template< > double Polynomial< 1 >::operator() ( double t ) const { return coefficients[0]+coefficients[1]*t; }
-template< > double Polynomial< 2 >::operator() ( double t ) const { return coefficients[0]+(coefficients[1]+coefficients[2]*t)*t; }
+
+template< > inline double Polynomial< 0 >::operator() ( double t ) const { return coefficients[0]; }
+template< > inline double Polynomial< 1 >::operator() ( double t ) const { return coefficients[0]+coefficients[1]*t; }
+template< > inline double Polynomial< 2 >::operator() ( double t ) const { return coefficients[0]+(coefficients[1]+coefficients[2]*t)*t; }
 template< int Degree >
 double Polynomial<Degree>::operator() ( double t ) const{
 	double v=coefficients[Degree];
@@ -250,8 +251,8 @@ void Polynomial<Degree>::printnl(void) const{
 	printf("\n");
 }
 
-template<>
-int Polynomial< 1 >::getSolutions( double c , double* roots , double EPS ) const
+template< >
+inline int Polynomial< 1 >::getSolutions( double c , double* roots , double EPS ) const
 {
 	std::complex< double > _roots[4];
 	int _rCount = Factor( coefficients[1] , coefficients[0]-c , _roots , EPS );
@@ -260,8 +261,8 @@ int Polynomial< 1 >::getSolutions( double c , double* roots , double EPS ) const
 	return rCount;
 }
 
-template<>
-int Polynomial< 2 >::getSolutions( double c , double* roots , double EPS ) const
+template< >
+inline int Polynomial< 2 >::getSolutions( double c , double* roots , double EPS ) const
 {
 	std::complex< double > _roots[4];
 	int _rCount = Factor( coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS );
@@ -270,8 +271,8 @@ int Polynomial< 2 >::getSolutions( double c , double* roots , double EPS ) const
 	return rCount;
 }
 
-template<>
-int Polynomial< 3 >::getSolutions( double c , double* roots , double EPS ) const
+template< >
+inline int Polynomial< 3 >::getSolutions( double c , double* roots , double EPS ) const
 {
 	std::complex< double > _roots[4];
 	int _rCount = Factor( coefficients[3] , coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS );
@@ -281,8 +282,8 @@ int Polynomial< 3 >::getSolutions( double c , double* roots , double EPS ) const
 }
 
 #if 0
-template<>
-int Polynomial< 4 >::getSolutions( double c , double* roots , double EPS ) const
+template< >
+inline int Polynomial< 4 >::getSolutions( double c , double* roots , double EPS ) const
 {
 	std::complex< double > _roots[4];
 	int _rCount = Factor( coefficients[4] , coefficients[3] , coefficients[2] , coefficients[1] , coefficients[0]-c , _roots , EPS );
@@ -301,7 +302,7 @@ int Polynomial<Degree>::getSolutions( double c , double* roots , double EPS ) co
 
 // The 0-th order B-spline
 template< >
-Polynomial< 0 > Polynomial< 0 >::BSplineComponent( int i )
+inline Polynomial< 0 > Polynomial< 0 >::BSplineComponent( int i )
 {
 	Polynomial p;
 	p.coefficients[0] = 1.;
@@ -331,7 +332,7 @@ Polynomial< Degree > Polynomial< Degree >::BSplineComponent( int i )
 
 
 // The 0-th order B-spline values
-template< > void Polynomial< 0 >::BSplineComponentValues( double x , double* values ){ values[0] = 1.; }
+template< > inline void Polynomial< 0 >::BSplineComponentValues( double x , double* values ){ values[0] = 1.; }
 // The Degree-th order B-spline
 template< int Degree > void Polynomial< Degree >::BSplineComponentValues( double x , double* values )
 {
@@ -347,7 +348,8 @@ template< int Degree > void Polynomial< Degree >::BSplineComponentValues( double
 }
 
 // Using the recurrence formulation for Pascal's triangle
-template< > void Polynomial< 0 >::BinomialCoefficients( int bCoefficients[1] ){ bCoefficients[0] = 1; }
+template< > inline void Polynomial< 0 >::BinomialCoefficients( int bCoefficients[1] ){ bCoefficients[0] = 1; }
+
 template< int Degree > void Polynomial< Degree >::BinomialCoefficients( int bCoefficients[Degree+1] )
 {
 	Polynomial< Degree-1 >::BinomialCoefficients( bCoefficients );

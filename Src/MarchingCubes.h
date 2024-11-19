@@ -41,7 +41,7 @@ namespace PoissonRecon
 	{
 		enum Direction{ BACK , CROSS , FRONT };
 		inline Direction Opposite( Direction dir ){ return dir==BACK ? FRONT : ( dir==FRONT ? BACK : CROSS ); }
-		std::string DirectionName( Direction dir )
+		inline std::string DirectionName( Direction dir )
 		{
 			if( dir==BACK ) return std::string( "back" );
 			else if( dir==CROSS ) return std::string( "cross" );
@@ -252,7 +252,7 @@ namespace PoissonRecon
 		{
 			const static unsigned int MAX_EDGES=2;
 			static const int edges[1<<HyperCube::Cube< 2 >::ElementNum< 0 >()][2*MAX_EDGES+1];
-			static int AddEdgeIndices( unsigned char mcIndex , int* edges);
+			static inline int AddEdgeIndices( unsigned char mcIndex , int* edges);
 		};
 
 		///////////////////
@@ -719,7 +719,7 @@ namespace PoissonRecon
 		/////////////////////
 		// MarchingSquares //
 		/////////////////////
-		const int MarchingSquares::edges[][MAX_EDGES*2+1] =
+		const inline int MarchingSquares::edges[][MAX_EDGES*2+1] =
 		{
 			// Positive to the right
 			// Positive in center

@@ -41,7 +41,7 @@ namespace PoissonRecon
 
 	namespace Reconstructor
 	{
-		unsigned int ProfilerMS = 20;				// The number of ms at which to poll the performance (set to zero for no polling)
+		static unsigned int ProfilerMS = 20;		// The number of ms at which to poll the performance (set to zero for no polling)
 		static const unsigned int DataDegree = 0;	// The order of the B-Spline used to splat in data for auxiliary data interpolation
 		static const unsigned int WeightDegree = 2;	// The order of the B-Spline used to splat in the weights for density estimation
 

@@ -165,7 +165,7 @@ namespace PoissonRecon
 		}
 	};
 
-	std::ostream &operator << ( std::ostream &os , PlyProperty p )
+	inline std::ostream &operator << ( std::ostream &os , PlyProperty p )
 	{
 		if( p.is_list ) return os << "{ " << p.name << " , " << PlyTypes[ p.count_external ] << " -> " << PlyTypes[ p.count_internal ] << " , " << PlyTypes[ p.external_type ] << " -> " << PlyTypes[ p.internal_type ] << " , " << p.offset << " }";
 		else            return os << "{ " << p.name << " , " <<                                                                                    PlyTypes[ p.external_type ] << " -> " << PlyTypes[ p.internal_type ] << " , " << p.offset << " }";

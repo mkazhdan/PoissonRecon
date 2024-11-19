@@ -47,7 +47,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-const char *type_names[] =
+static const char *type_names[] =
 {
 	"invalid",
 	"char",
@@ -60,7 +60,6 @@ const char *type_names[] =
 	"ulonglong",
 	"float",
 	"double",
-
 	"int8",       // character                 1
 	"uint8",      // unsigned character        1
 	"int16",      // short integer             2
@@ -73,7 +72,7 @@ const char *type_names[] =
 	"float64",    // double-precision float    8
 };
 
-int ply_type_size[] =
+static const int ply_type_size[] =
 {
 	0,
 	1,
@@ -118,36 +117,39 @@ static const int named_prop = 1;
 
 
 /* write to a file the word describing a PLY file data type */
-void write_scalar_type( FILE * , int );
+inline void write_scalar_type( FILE * , int );
 
 /* read a line from a file and break it up into separate words */
-std::vector< std::string > get_words( FILE * , char ** );
+inline std::vector< std::string > get_words( FILE * , char ** );
 
 /* write to a file the word describing a PLY file data type */
-void write_scalar_type( FILE * , int );
+inline void write_scalar_type( FILE * , int );
 
 /* write an item to a file */
-void write_binary_item( FILE * , int , int , unsigned int , long long , unsigned long long , double , int );
-void write_ascii_item ( FILE * ,       int , unsigned int , long long , unsigned long long , double , int );
+inline void write_binary_item( FILE * , int , int , unsigned int , long long , unsigned long long , double , int );
+inline void write_ascii_item ( FILE * ,       int , unsigned int , long long , unsigned long long , double , int );
 
 /* store a value into where a pointer and a type specify */
-void store_item( void * , int , int , unsigned int , long long , unsigned long long , double );
+inline void store_item( void * , int , int , unsigned int , long long , unsigned long long , double );
 
 /* return the value of a stored item */
-void get_stored_item( void * , int , int & , unsigned int & , long long & , unsigned long long & , double & );
+inline void get_stored_item( void * , int , int & , unsigned int & , long long & , unsigned long long & , double & );
 
 /* return the value stored in an item, given ptr to it and its type */
-double get_item_value( const void * , int );
+inline double get_item_value( const void * , int );
 
 /* get binary or ascii item and store it according to ptr and type */
-void get_ascii_item( const std::string & , int , int & , unsigned int & , long long & , unsigned long long & , double & );
-void get_binary_item( FILE * , int       , int , int & , unsigned int & , long long & , unsigned long long & , double & );
+inline void get_ascii_item( const std::string & , int , int & , unsigned int & , long long & , unsigned long long & , double & );
+inline void get_binary_item( FILE * , int       , int , int & , unsigned int & , long long & , unsigned long long & , double & );
 
 /* byte ordering */
-void get_native_binary_type();
-void swap_bytes( void * , int );
+inline void get_native_binary_type();
+inline void swap_bytes( void * , int );
 
-void check_types();
+inline void check_types( void );
+
+inline int get_prop_type( const std::string &type_name );
+inline void setup_other_props( PlyElement *elem );
 
 /*************/
 /*  Writing  */
@@ -1673,7 +1675,7 @@ void get_binary_item( FILE *fp , int file_type , int type , int &int_val , unsig
 
 	ptr = ( void * )c;
 
-	if( fread( ptr , ply_type_size[type] , 1 , fp )!=1 ) ERROR_OUT( "fread() failed -- aborting: " , std::string( type_names[type] )  );
+	if( fread( ptr , ply_type_size[type] , 1 , fp )!=1 ) ERROR_OUT( "fread() failed -- aborting: " , std::string( type_names[type] ) );
 	if( ( file_type!=native_binary_type ) && ( ply_type_size[type]>1 ) ) swap_bytes( (char *)ptr , ply_type_size[type] );
 
 	switch( type )

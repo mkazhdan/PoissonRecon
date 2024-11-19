@@ -42,26 +42,26 @@ namespace PLY
 		return -1;
 	}
 
-	template<> const std::string Traits<          int >::name="int";
-	template<> const std::string Traits< unsigned int >::name="unsigned int";
-	template<> const std::string Traits<          long >::name="long";
-	template<> const std::string Traits< unsigned long >::name="unsigned long";
-	template<> const std::string Traits<          long long >::name="long long";
-	template<> const std::string Traits< unsigned long long >::name="unsigned long long";
+	template<> const inline std::string Traits<          int >::name="int";
+	template<> const inline std::string Traits< unsigned int >::name="unsigned int";
+	template<> const inline std::string Traits<          long >::name="long";
+	template<> const inline std::string Traits< unsigned long >::name="unsigned long";
+	template<> const inline std::string Traits<          long long >::name="long long";
+	template<> const inline std::string Traits< unsigned long long >::name="unsigned long long";
 
-	template<> PlyProperty Edge<          int       >::Properties[] = { PlyProperty( "v1" , PLY_INT       , PLY_INT       , offsetof( Edge , v1 ) ) , PlyProperty( "v2" , PLY_INT       , PLY_INT       , offsetof( Edge , v2 ) ) };
-	template<> PlyProperty Edge< unsigned int       >::Properties[] = { PlyProperty( "v1" , PLY_UINT      , PLY_UINT      , offsetof( Edge , v1 ) ) , PlyProperty( "v2" , PLY_UINT      , PLY_UINT      , offsetof( Edge , v2 ) ) };
-	template<> PlyProperty Edge<          long long >::Properties[] = { PlyProperty( "v1" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Edge , v1 ) ) , PlyProperty( "v2" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Edge , v2 ) ) };
-	template<> PlyProperty Edge< unsigned long long >::Properties[] = { PlyProperty( "v1" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Edge , v1 ) ) , PlyProperty( "v2" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Edge , v2 ) ) };
+	template<> const inline PlyProperty Edge<          int       >::Properties[] = { PlyProperty( "v1" , PLY_INT       , PLY_INT       , offsetof( Edge , v1 ) ) , PlyProperty( "v2" , PLY_INT       , PLY_INT       , offsetof( Edge , v2 ) ) };
+	template<> const inline PlyProperty Edge< unsigned int       >::Properties[] = { PlyProperty( "v1" , PLY_UINT      , PLY_UINT      , offsetof( Edge , v1 ) ) , PlyProperty( "v2" , PLY_UINT      , PLY_UINT      , offsetof( Edge , v2 ) ) };
+	template<> const inline PlyProperty Edge<          long long >::Properties[] = { PlyProperty( "v1" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Edge , v1 ) ) , PlyProperty( "v2" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Edge , v2 ) ) };
+	template<> const inline PlyProperty Edge< unsigned long long >::Properties[] = { PlyProperty( "v1" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Edge , v1 ) ) , PlyProperty( "v2" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Edge , v2 ) ) };
 
-	template<> PlyProperty Face<          int       , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
-	template<> PlyProperty Face< unsigned int       , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
-	template<> PlyProperty Face<          long long , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
-	template<> PlyProperty Face< unsigned long long , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
-	template<> PlyProperty Face<          int       , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
-	template<> PlyProperty Face< unsigned int       , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
-	template<> PlyProperty Face<          long long , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
-	template<> PlyProperty Face< unsigned long long , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
+	template<> const inline PlyProperty Face<          int       , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
+	template<> const inline PlyProperty Face< unsigned int       , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
+	template<> const inline PlyProperty Face<          long long , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
+	template<> const inline PlyProperty Face< unsigned long long , false >::Properties[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Face , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( Face , nr_vertices ) ) };
+	template<> const inline PlyProperty Face<          int       , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
+	template<> const inline PlyProperty Face< unsigned int       , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
+	template<> const inline PlyProperty Face<          long long , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
+	template<> const inline PlyProperty Face< unsigned long long , true  >::Properties[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( Face , vertices ) , 1 , PLY_CHAR , PLY_CHAR , offsetof( Face , nr_vertices ) ) };
 
 	// Read
 	inline PlyFile *ReadHeader( std::string fileName , int &fileType , std::vector< std::tuple< std::string , size_t , std::vector< PlyProperty > > > &elems , std::vector< std::string > &comments )
