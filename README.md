@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.42)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.50)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.42</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.41/">V18.41</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.40/">V18.40</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.35/">V18.35</a>,
@@ -1114,23 +1115,24 @@ This method returns the extrapolated value at the prescribed position.
 <UL>
 These steps can be found in the <code>Reconstruction.example.cpp</code> code.
 <UL>
-<LI>The finite-elements signatures are created in lines 308 and 311.
-<LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 85-122 and constructed in line 379.
-<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 213-230 and constructed in line 389.
-<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is desfined in lines 223-244 and constructed in line 390.
-<LI>The implicit representation is computed in line 382.
-<LI>The level-set extraction is performed on line 393.
-<LI>The evaluator is created on line 340.
-<LI>The evaluator is used to query the values and gradients of the implicit function in line 333.
-<LI>The extrapolator is constructed on line 411.
-<LI>The extrapolator is evaluated at the vertex positions at line 421.
+<LI>The finite-elements signatures are created in lines 322 and 325.
+<LI>An input sample stream generating a specified number of random points on the surface of the sphere is defined in lines 99-136 and constructed in line 393.
+<LI>An output polygon stream that pushes the polygon to an <code>std::vector</code> of <code>std::vector&lt; int &gt;</code>s is defined in lines 227-244 and constructed in line 403.
+<LI>An output vertex stream that pushes just the position information to an <code>std::vector</code> of <code>Real</code>s is desfined in lines 247-258 and constructed in line 404.
+<LI>The implicit representation is computed in line 396.
+<LI>The level-set extraction is performed on line 407.
+<LI>The evaluator is created on line 354.
+<LI>The evaluator is used to query the values and gradients of the implicit function in line 347.
+<LI>The extrapolator is constructed on line 425.
+<LI>The extrapolator is evaluated at the vertex positions at line 435.
 </UL>
-Note that a similar approach can be used to perform the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance</A> reconstruction (lines 459 and 460).<BR>
+Note that a similar approach can be used to perform the <A HREF="http://mesh.brown.edu/ssd/">Smoothed Signed Distance</A> reconstruction (lines 473 and 474).<BR>
 The approach also supports reconstruction of meshes with auxiliary information like color, with the only constraint that the auxiliary data type supports the computation affine combinations (e.g. the <CODE>RGBColor</CODE> type defined in lines 67-82). The auxiliary inform is derived in one of two ways:
 <OL>
-<LI> As part of the reconstruction process, so that the level-set extraction phase also sets the auxiliary information. (Lines 349-375)
-<LI> Independently by constructing the extrapolation field from the samples and then evaluating at the positions of the level-set vertices. (Lines 400-427)
+<LI> As part of the reconstruction process, so that the level-set extraction phase also sets the auxiliary information. (Lines 363-389)
+<LI> Independently by constructing the extrapolation field from the samples and then evaluating at the positions of the level-set vertices. (Lines 414-441)
 </OL>
+To avoid inefficient locking in a multi-threaded application, the <CODE>Add</CODE> method of the type trait <CODE>PoissonRecon::Atomic&lt;RGBColor&gt;</CODE> is specialized (lines 84-96) to define the atomic operation <CODE> a += b</CODE>.
 </UL>
 </DL>
 </UL>
@@ -1721,8 +1723,13 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">Version 18.42</a>:
 <OL>
-<LI> Fixed parallelization bugy in <CODE>Extrapolator</CODE>.
+<LI> Fixed parallelization bugs in <CODE>Extrapolator</CODE>.
 <LI> Moified <CODE>Reconstruction.example</CODE> to use parallelized extrapolation.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/">Version 18.50</a>:
+<OL>
+<LI> Cleaned-up multi-threading code.
 </OL>
 
 </DETAILS>
