@@ -61,33 +61,41 @@ namespace PoissonRecon
 	};
 	template< typename Real > EmptyVectorType< Real > operator * ( Real s , EmptyVectorType< Real > v ){ return v*s; }
 
-	template< typename _Real , typename ... VectorTypes >
-	struct DirectSum
-	{
-	protected:
-		typedef std::tuple< VectorTypes ... > _VectorTuple;
-	public:
-		typedef _Real Real;
-		template< unsigned int I > using VectorType = typename std::tuple_element< I , _VectorTuple >::type;
-		template< unsigned int I >       VectorType< I >& get( void )       { return std::get< I >( _vectorTypeTuple ); }
-		template< unsigned int I > const VectorType< I >& get( void ) const { return std::get< I >( _vectorTypeTuple ); }
+	template< typename _Real , typename ... VectorTypes > struct DirectSum;
 
-		DirectSum& operator += ( const DirectSum& p ){ _add<0>( p ) ; return *this; }
-		DirectSum& operator -= ( const DirectSum& p ){ _sub<0>( p ) ; return *this; }
-		DirectSum& operator *= ( Real s )                  { _mul<0>( s ) ; return *this; }
-		DirectSum& operator /= ( Real s )                  { _div<0>( s ) ; return *this; }
+	template< typename _Real , typename FirstType , typename ... RestTypes >
+	struct DirectSum< _Real , FirstType , RestTypes... >
+	{
+		friend Atomic< DirectSum< _Real , FirstType , RestTypes... > >;
+
+		using Real = _Real;
+
+		template< unsigned int I > using VectorType = std::tuple_element_t< I , std::tuple< FirstType , RestTypes ... > >;
+
+		template< unsigned int I > VectorType< I >& get( void )
+		{
+			if constexpr( I==0 ) return _first;
+			else return _rest.template get< I-1 >();
+		}
+		template< unsigned int I > const VectorType< I >& get( void ) const
+		{
+			if constexpr( I==0 ) return _first;
+			else return _rest.template get< I-1 >();
+		}
+
+		DirectSum& operator += ( const DirectSum& p ){ _first += p._first ; _rest += p._rest ; return *this; }
+		DirectSum& operator -= ( const DirectSum& p ){ _first -= p._first ; _rest -= p._rest ; return *this; }
+		DirectSum& operator *= ( Real s )            { _first *= s ; _rest *= s ; return *this; }
+		DirectSum& operator /= ( Real s )            { _first /= s ; _rest /= s ; return *this; }
 		DirectSum  operator +  ( const DirectSum& p ) const { DirectSum _p = *this ; _p += p ; return _p; }
 		DirectSum  operator -  ( const DirectSum& p ) const { DirectSum _p = *this ; _p -= p ; return _p; }
-		DirectSum  operator *  ( Real s )                   const { DirectSum _p = *this ; _p *= s ; return _p; }
-		DirectSum  operator /  ( Real s )                   const { DirectSum _p = *this ; _p /= s ; return _p; }
+		DirectSum  operator *  ( Real s )             const { DirectSum _p = *this ; _p *= s ; return _p; }
+		DirectSum  operator /  ( Real s )             const { DirectSum _p = *this ; _p /= s ; return _p; }
 
-		template< typename ... _VectorTypes >
-		DirectSum( const _VectorTypes & ... vectors )
-		{
-			if constexpr( sizeof...(_VectorTypes)==0 ) ;
-			else if constexpr( sizeof...(_VectorTypes)==sizeof...(VectorTypes) ) _set<0>( vectors... );
-			else ERROR_OUT( "Invalid number of arguments" );
-		}
+		DirectSum( void ){}
+
+		template< typename _FirstType , typename ... _RestTypes >
+		DirectSum( const _FirstType &first , const _RestTypes & ... rest ) : _first(first) , _rest(rest...){}
 
 		template< typename ComponentFunctor /*=std::function< void (VectorTypes&...)>*/ >
 		void process( ComponentFunctor f ){ _process( f ); }
@@ -98,38 +106,64 @@ namespace PoissonRecon
 		friend std::ostream &operator << ( std::ostream &os , const DirectSum &v )
 		{
 			os << "{ ";
-			v._streamOut< 0 >( os );
+			v._write( os );
 			os << " }";
 			return os;
 		}
-	protected:
-		std::tuple< VectorTypes ... > _vectorTypeTuple;
-		template< unsigned int I , typename _Vector , typename ... _Vectors > void _set( const _Vector &vector , const _Vectors & ... vectors ){ get< I >() = vector ; _set< I+1 >( vectors ... ); }
-		template< unsigned int I , typename _Vector                         > void _set( const _Vector &vector                                ){ get< I >() = vector ;                             }
-		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _add( const DirectSum& p ){ get<I>() += p.get<I>() ; _add< I+1 >( p ); }
-		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _add( const DirectSum& p ){ }
-		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _sub( const DirectSum& p ){ get<I>() -= p.get<I>() ; _sub< I+1 >( p ); }
-		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _sub( const DirectSum& p ){ }
-		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _mul( Real s ){ get<I>() *= s ; _mul< I+1 >( s ); }
-		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _mul( Real s ){ }
-		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _div( Real s ){ get<I>() /= s ; _div< I+1 >( s ); }
-		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _div( Real s ){ }
-		template< unsigned int I > typename std::enable_if< I!=sizeof...(VectorTypes) >::type _streamOut( std::ostream &os ) const { os << get<I>() ; if( I!=sizeof...(VectorTypes)-1 ) os << " , "; _streamOut< I+1 >( os ); }
-		template< unsigned int I > typename std::enable_if< I==sizeof...(VectorTypes) >::type _streamOut( std::ostream &os ) const { }
 
-		template< typename ComponentFunctor /*=std::function< void (VectorTypes&...)>*/ , typename ... Components >
+	protected:
+		FirstType _first;
+		DirectSum< Real , RestTypes... > _rest;
+
+		void _write( std::ostream &os ) const
+		{
+			os << _first;
+			if constexpr( sizeof...(RestTypes) )
+			{
+				os << " , ";
+				_rest._write( os );
+			}
+		}
+
+		template< typename ComponentFunctor /*=std::function< void ( FirstType& , RestTypes&... )>*/ , typename ... Components >
 		void _process( ComponentFunctor &f , Components ... c )
 		{
-			if constexpr( sizeof...(Components)==sizeof...(VectorTypes) ) f( c... );
+			if constexpr( sizeof...(Components)==sizeof...(RestTypes)+1 ) f( c... );
 			else _process( f , c... , this->template get< sizeof...(Components) >() );
 		}
-		template< typename ComponentFunctor /*=std::function< void (const VectorTypes&...)>*/ , typename ... Components >
+		template< typename ComponentFunctor /*=std::function< void ( const FirstType& , const RestTypes&... )>*/ , typename ... Components >
 		void _process( ComponentFunctor &f , Components ... c ) const
 		{
-			if constexpr( sizeof...(Components)==sizeof...(VectorTypes) ) f( c... );
+			if constexpr( sizeof...(Components)==sizeof...(RestTypes)+1 ) f( c... );
 			else _process( f , c... , this->template get< sizeof...(Components) >() );
 		}
 	};
+
+	template< typename _Real >
+	struct DirectSum< _Real >
+	{
+		using Real = _Real;
+
+		DirectSum& operator += ( const DirectSum& p ){ return *this; }
+		DirectSum& operator -= ( const DirectSum& p ){ return *this; }
+		DirectSum& operator *= ( Real s )            { return *this; }
+		DirectSum& operator /= ( Real s )            { return *this; }
+		DirectSum  operator +  ( const DirectSum& p ) const { return DirectSum(); }
+		DirectSum  operator -  ( const DirectSum& p ) const { return DirectSum(); }
+		DirectSum  operator *  ( Real s )             const { return DirectSum(); }
+		DirectSum  operator /  ( Real s )             const { return DirectSum(); }
+
+		DirectSum( void ){}
+
+		template< typename ComponentFunctor /*=std::function< void (VectorTypes&...)>*/ >
+		void process( ComponentFunctor f ){ f(); }
+
+		template< typename ComponentFunctor /*=std::function< void (const VectorTypes&...)>*/ >
+		void process( ComponentFunctor f ) const { f(); }
+
+		friend std::ostream &operator << ( std::ostream &os , const DirectSum &v ){ return os << "{ }"; }
+	};
+
 	template< typename Real , typename ... Vectors >
 	DirectSum< Real , Vectors ... > operator * ( Real s , DirectSum< Real , Vectors ... > vu ){ return vu * s; }
 
@@ -231,6 +265,8 @@ namespace PoissonRecon
 	template< class Real >
 	struct Point< Real >
 	{
+		friend struct Atomic< Point< Real > >;
+
 		Point( void ) : _coords( NullPointer(Real) ) , _dim(0){}
 		Point( size_t dim ) : _coords( NullPointer(Real) ) , _dim(0) { if( dim ){ _resize( (unsigned int)dim ) ; memset( _coords , 0 , sizeof(Real)*_dim ); } }
 		Point( const Point &p ) : _coords( NullPointer(Real) ) , _dim(0) { if( p._dim ){ _resize( p._dim ) ; memcpy( _coords , p._coords , sizeof(Real)*_dim ); } }

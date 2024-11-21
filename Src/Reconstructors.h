@@ -681,10 +681,10 @@ namespace PoissonRecon
 			size_t pointCount;
 
 			ProjectiveData< Point< Real , 2 > , Real > pointDepthAndWeight;
-			std::vector< typename FEMTree< Dim , Real >::PointSample > *valueInterpolationSamples = NULL;
-			std::vector< Real > *valueInterpolationSampleData = NULL;
+			std::vector< typename FEMTree< Dim , Real >::PointSample > *valueInterpolationSamples = nullptr;
+			std::vector< Real > *valueInterpolationSampleData = nullptr;
 			DenseNodeData< GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > geometryNodeDesignators;
-			SparseNodeData< Point< Real , Dim > , NormalSigs > *normalInfo = NULL;
+			SparseNodeData< Point< Real , Dim > , NormalSigs > *normalInfo = nullptr;
 			std::vector< typename FEMTree< Dim , Real >::PointSample > *samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
 			std::vector< InternalNormalAndAuxData > *sampleNormalAndAuxData = new std::vector< InternalNormalAndAuxData >();
 
@@ -801,7 +801,7 @@ namespace PoissonRecon
 							out = n / l;
 							return true;
 						};
-					*normalInfo = implicit.tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionFunction );
+					*normalInfo = implicit.tree.setInterpolatedDataField( Point< Real , Dim >() , NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionFunction );
 
 					ThreadPool::ParallelFor( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
 					if( params.verbose )
@@ -914,6 +914,7 @@ namespace PoissonRecon
 						(
 							implicit.tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , InternalAuxData >
 							(
+								InternalAuxData( zero... ) ,
 								samples->size() ,
 								PointSampleFunctor ,
 								AuxDataSampleFunctor ,
@@ -1086,7 +1087,7 @@ namespace PoissonRecon
 			size_t pointCount;
 
 			ProjectiveData< Point< Real , 2 > , Real > pointDepthAndWeight;
-			SparseNodeData< Point< Real , Dim > , NormalSigs > *normalInfo = NULL;
+			SparseNodeData< Point< Real , Dim > , NormalSigs > *normalInfo = nullptr;
 			std::vector< typename FEMTree< Dim , Real >::PointSample > *samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
 			std::vector< InternalNormalAndAuxData > *sampleNormalAndAuxData = new std::vector< InternalNormalAndAuxData >();;
 
@@ -1190,7 +1191,7 @@ namespace PoissonRecon
 							out = n / l;
 							return true;
 						};
-					*normalInfo = implicit.tree.setInterpolatedDataField( NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionFunction );
+					*normalInfo = implicit.tree.setInterpolatedDataField( Point< Real , Dim >() , NormalSigs() , *samples , *sampleNormalAndAuxData , implicit.density , params.baseDepth , params.depth , params.lowDepthCutOff , pointDepthAndWeight , ConversionFunction );
 
 					if( params.verbose )
 					{
@@ -1208,6 +1209,7 @@ namespace PoissonRecon
 						(
 							implicit.tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , InternalAuxData >
 							(
+								InternalAuxData( zero... ) ,
 								samples->size() ,
 								PointSampleFunctor ,
 								AuxDataSampleFunctor ,

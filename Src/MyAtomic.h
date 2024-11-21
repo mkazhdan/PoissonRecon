@@ -120,6 +120,61 @@ namespace PoissonRecon
 		}
 	}
 
+	template< typename Value >
+	struct Atomic
+	{
+		static void Add( volatile Value &a , const Value &b )
+		{
+			if constexpr( std::is_pod_v< Value > ) AddAtomic( a , b );
+			else
+			{
+				WARN_ONCE( "should not use this function: " , typeid(Value).name() );
+				static std::mutex addAtomicMutex;
+				std::lock_guard< std::mutex > lock( addAtomicMutex );
+				*(Value*)&a += b;
+			}
+		}
+
+		static Value Set( volatile Value & value , Value newValue )
+		{
+			if constexpr( std::is_pod_v< Value > ) return SetAtomic( value , newValue );
+			else
+			{
+				WARN_ONCE( "should not use this function: " , typeid(Value).name() );
+				static std::mutex setAtomicMutex;
+				std::lock_guard< std::mutex > lock( setAtomicMutex );
+				Value oldValue = *(Value*)&value;
+				*(Value*)&value = newValue;
+				return oldValue;
+			}
+		}
+
+		static bool Set( volatile Value & value , Value newValue , Value oldValue )
+		{
+			if constexpr( std::is_pod_v< Value > ) return SetAtomic( value , newValue , oldValue );
+			else
+			{
+				WARN_ONCE( "should not use this function: " , typeid(Value).name() , " , " , sizeof(Value) );
+				static std::mutex setAtomicMutex;
+				std::lock_guard< std::mutex > lock( setAtomicMutex );
+				if( value==oldValue ){ value = newValue ; return true; }
+				else return false;
+			}
+		}
+
+		static Value Read( const volatile Value & value )
+		{
+			if constexpr( std::is_pod_v< Value > ) return ReadAtomic( value );
+			else
+			{
+				WARN_ONCE( "should not use this function: " , typeid(Value).name() , " , " , sizeof(Value) );
+				static std::mutex readAtomicMutex;
+				std::lock_guard< std::mutex > lock( readAtomicMutex );
+				return *(Value*)&value;
+			}
+		}
+	};
+
 	///////////////////////////////////////////////
 	///////////////////////////////////////////////
 	///////////////////////////////////////////////

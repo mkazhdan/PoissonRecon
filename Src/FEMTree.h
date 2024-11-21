@@ -334,7 +334,9 @@ namespace PoissonRecon
 		size_t reserved( void ) const { return _indices.size(); } 
 		Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 		const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
-		Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node )
+
+		Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return at( node ); }
+		Data &at( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node , Data zero=Data() )
 		{
 			_indices.resize( node->nodeData.nodeIndex+1 , -1 );
 
@@ -354,7 +356,7 @@ namespace PoissonRecon
 				if( _index==-1 )
 				{
 					size_t sz = _data.size();
-					_data.resize( sz + 1 );
+					_data.resize( sz+1 , zero );
 #ifdef SANITIZED_PR
 					_index = (node_index_type)sz;
 					SetAtomic( *indexPtr , _index );
@@ -1418,10 +1420,47 @@ namespace PoissonRecon
 	};
 
 	template< class Real , unsigned int Dim >
-	void AddAtomic( volatile Point< Real , Dim > & a , const Point< Real , Dim >& b )
+	struct Atomic< Point< Real , Dim > >
 	{
-		for( int d=0 ; d<Dim ; d++ ) AddAtomic( a.coords[d] , b[d] );
-	}
+		using Value = Point< Real , Dim >;
+		static void Add( volatile Value &a , const Value &b ){ for( unsigned int d=0 ; d<Dim ; d++ ) AddAtomic( a.coords[d] , b[d] ); }
+	};
+
+	template< class Real >
+	struct Atomic< Point< Real > >
+	{
+		using Value = Point< Real >;
+		static void Add( volatile Value &a , const Value &b )
+		{
+			if( a._dim !=b._dim ) ERROR_OUT( "Sizes don't match: " , a._dim , " != " , b._dim );
+			for( unsigned int d=0 ; d<a._dim && d<b.dim() ; d++ ) AddAtomic( a._coords[d] , b[d] );
+		}
+	};
+
+	template< typename Data , typename Real >
+	struct Atomic< ProjectiveData< Data , Real > >
+	{
+		using Value = ProjectiveData< Data , Real >;
+		static void Add( volatile Value &a , const Value &b ){ Atomic< Real >::Add( a.weight , b.weight ) ; Atomic< Data >::Add( a.data , b.data ); }
+	};
+
+	template< typename Real , typename FirstType , typename ... RestTypes >
+	struct Atomic< DirectSum< Real , FirstType , RestTypes... > > 
+	{
+		using Value = DirectSum< Real , FirstType , RestTypes... >;
+		static void Add( volatile Value &a , const Value &b )
+		{
+			Atomic< FirstType >::Add( a._first , b._first );
+			Atomic< DirectSum< Real , RestTypes... > >::Add( a._rest , b._rest );
+		}
+	};
+
+	template< typename Real >
+	struct Atomic< DirectSum< Real > > 
+	{
+		using Value = DirectSum< Real >;
+		static void Add( volatile Value &a , const Value &b ){}
+	};
 
 	template< class Real , unsigned int Dim >
 	Point< Real , Dim > ReadAtomic( const volatile Point< Real , Dim > & a )
@@ -2297,11 +2336,11 @@ namespace PoissonRecon
 		template< unsigned int WeightDegree , class WeightKey >
 		void _getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights ,                           Point< Real , Dim > position , WeightKey& weightKey , Real& depth , Real& weight ) const;
 
-		template< bool CreateNodes , bool ThreadSafe ,                             class V , unsigned int ... DataSigs > void      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey );
-		template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Point< Real , 2 >      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
-		template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Point< Real , 2 >      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , std::function< int ( Point< Real , Dim > ) > &pointDepthFunctor , int dim , Real depthBias );
-		template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Point< Real , 2 > _multiSplatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , int dim );
-		template< unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _nearestMultiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim=Dim );
+		template< bool CreateNodes , bool ThreadSafe ,                             class V , unsigned int ... DataSigs > void                   _splatPointData( V zero , Allocator< FEMTreeNode > *nodeAllocator ,                                                          FEMTreeNode* node   , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data ,                                                                         PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey );
+		template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Point< Real , 2 >      _splatPointData( V zero , Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
+		template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Point< Real , 2 >      _splatPointData( V zero , Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , std::function< int ( Point< Real , Dim > ) > &pointDepthFunctor , int dim , Real depthBias );
+		template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Point< Real , 2 > _multiSplatPointData( V zero , Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node   , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , int dim );
+		template<                                      unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real       _nearestMultiSplatPointData( V zero ,                                           const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node   , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim=Dim );
 		template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
 		void _addEvaluation( const Coefficients& coefficients , Point< Real , Dim > p ,                         const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , V &value ) const;
 		template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs >
@@ -2593,33 +2632,32 @@ namespace PoissonRecon
 		void updateDensityEstimator( typename FEMTree::template DensityEstimator< DensityDegree > &density , const std::vector< PointSample >& samples , LocalDepth minSplatDepth , LocalDepth maxSplatDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real samplesPerNode );
 
 		template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
-		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction );
+		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( OutData zero , UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction );
 #if defined(_WIN32) || defined(_WIN64)
 		template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
-		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return 0.f; } );
+		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( OutData zero , UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return 0.f; } );
 #else // !_WIN32 && !_WIN64
 		template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
-		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return (Real)0; } );
+		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( OutData zero , UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return (Real)0; } );
 #endif // _WIN32 || _WIN64
 		template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
-		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction );
+		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( OutData zero , UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction );
 #if defined(_WIN32) || defined(_WIN64)
 		template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
-		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return 0.f; } );
+		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( OutData zero , UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return 0.f; } );
 #else // !_WIN32 && !_WIN64
 		template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
-		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return (Real)0; } );
+		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( OutData zero , UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & ) > ConversionFunction , std::function< Real ( InData ) > BiasFunction = []( InData ){ return (Real)0; } );
 #endif // _WIN32 || _WIN64
 
 		template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
-		SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setExtrapolatedDataField( const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
+		SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setExtrapolatedDataField( Data zero , const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
 		template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
-		void updateExtrapolatedDataField( SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > &dataField , const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
-
+		void updateExtrapolatedDataField( Data zero , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > &dataField , const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
 		template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data , class SampleFunctor /* = std::function< const PointSample & (size_t) >*/ , class SampleDataFunctor /* = std::function< const Data & (size_t) > */ >
-		SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setExtrapolatedDataField( size_t sampleNum , SampleFunctor sampleFunctor , SampleDataFunctor sampleDataFunctor , const DensityEstimator< DensityDegree >* density , bool nearest=false );
+		SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setExtrapolatedDataField( Data zero , size_t sampleNum , SampleFunctor sampleFunctor , SampleDataFunctor sampleDataFunctor , const DensityEstimator< DensityDegree >* density , bool nearest=false );
 		template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data , class SampleFunctor /* = std::function< const PointSample & (size_t) >*/ , class SampleDataFunctor /* = std::function< const Data & (size_t) > */ >
-		void updateExtrapolatedDataField( SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > &dataField , size_t sampleNum , SampleFunctor sampleFunctor , SampleDataFunctor sampleDataFunctor , const DensityEstimator< DensityDegree >* density , bool nearest=false );
+		void updateExtrapolatedDataField( Data zero , SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > &dataField , size_t sampleNum , SampleFunctor sampleFunctor , SampleDataFunctor sampleDataFunctor , const DensityEstimator< DensityDegree >* density , bool nearest=false );
 
 		template< unsigned int MaxDegree , unsigned int SystemDegree , typename AddNodeFunctor , typename HasDataFunctor , typename IsDirichletLeafFunctor , typename ... InterpolationInfos , typename ... DenseOrSparseNodeData > std::vector< node_index_type > finalizeForMultigridWithDirichlet( LocalDepth baseDepth , const AddNodeFunctor addNodeFunctor , const HasDataFunctor hasDataFunctor , const IsDirichletLeafFunctor isDirichletLeafFunctor , std::tuple< InterpolationInfos *... > interpolationInfos , std::tuple< DenseOrSparseNodeData *... > data );
 		template< unsigned int MaxDegree , unsigned int SystemDegree , typename AddNodeFunctor , typename HasDataFunctor , typename IsDirichletLeafFunctor , typename ... InterpolationInfos                                      > std::vector< node_index_type > finalizeForMultigridWithDirichlet( LocalDepth baseDepth , const AddNodeFunctor addNodeFunctor , const HasDataFunctor hasDataFunctor , const IsDirichletLeafFunctor isDirichletLeafFunctor , std::tuple< InterpolationInfos *... > interpolationInfos ){ return finalizeForMultigridWithDirichlet< MaxDegree , SystemDegree , AddNodeFunctor , HasDataFunctor >( baseDepth , addNodeFunctor , hasDataFunctor , isDirichletLeafFunctor , interpolationInfos , std::make_tuple() ); }

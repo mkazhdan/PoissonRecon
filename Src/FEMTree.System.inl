@@ -1338,7 +1338,7 @@ void FEMTree< Dim , Real >::_updateRestrictedIntegralConstraints( UIntPack< FEMS
 				{
 					for( int i=0 ; i<WindowSize< OverlapSizes >::Size ; i++ ) if( _isValidFEM1Node( nodes[i] ) )
 					{
-						AddAtomic( restrictedConstraints[ nodes[i]->nodeData.nodeIndex ] , solution * (Real)stencilValues[i] );
+						Atomic< T >::Add( restrictedConstraints[ nodes[i]->nodeData.nodeIndex ] , solution * (Real)stencilValues[i] );
 					}
 				}
 				else
@@ -1347,13 +1347,12 @@ void FEMTree< Dim , Real >::_updateRestrictedIntegralConstraints( UIntPack< FEMS
 					{
 						LocalDepth _d ; LocalOffset _off;
 						_localDepthAndOffset( nodes[i] , _d , _off );
-						AddAtomic( restrictedConstraints[ nodes[i]->nodeData.nodeIndex ] , solution * (Real)F.pcIntegrate( _off , off ) );
+						Atomic< T >::Add( restrictedConstraints[ nodes[i]->nodeData.nodeIndex ] , solution * (Real)F.pcIntegrate( _off , off ) );
 					}
 				}
 			}
 		}
-	}
-	);
+	} );
 }
 
 template< unsigned int Dim , class Real >
@@ -1444,19 +1443,19 @@ void FEMTree< Dim , Real >::_updateRestrictedInterpolationConstraints( const Poi
 					ZeroUIntPack< Dim >() , SupportSizes() ,
 					[&]( int d , int i ){ s[d] = i; } ,
 					[&]( const FEMTreeNode* node )
-				{
-					if( _isValidFEM1Node( node ) )
 					{
-						LocalDepth d ; LocalOffset off;
-						_localDepthAndOffset( node , d , off );
-						CumulativeDerivativeValues< Real , Dim , PointD > values = peState.template dValues< Real , CumulativeDerivatives< Dim , PointD > >( off );
-						T temp = {};
-						for( int d=0 ; d<CumulativeDerivatives< Dim , PointD >::Size ; d++ ) temp += dualValues[d] * values[d];
-						AddAtomic( restrictedConstraints[ node->nodeData.nodeIndex ] , temp );
-					}
-				} ,
+						if( _isValidFEM1Node( node ) )
+						{
+							LocalDepth d ; LocalOffset off;
+							_localDepthAndOffset( node , d , off );
+							CumulativeDerivativeValues< Real , Dim , PointD > values = peState.template dValues< Real , CumulativeDerivatives< Dim , PointD > >( off );
+							T temp = {};
+							for( int d=0 ; d<CumulativeDerivatives< Dim , PointD >::Size ; d++ ) temp += dualValues[d] * values[d];
+							Atomic< T >::Add( restrictedConstraints[ node->nodeData.nodeIndex ] , temp );
+						}
+					} ,
 					neighbors.neighbors()
-					);
+				);
 			}
 		}
 	}
@@ -3033,7 +3032,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 						unsigned int idx = indices[i];
 						if( nodes[idx] )
 						{
-							AddAtomic( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot< double , T , CDim >( stencilValues[idx] , data ) );
+							Atomic< T >::Add( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot< double , T , CDim >( stencilValues[idx] , data ) );
 						}
 					}
 				}
@@ -3045,7 +3044,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 						if( nodes[idx] )
 						{
 							LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset( nodes[idx] , _d , _off );
-							AddAtomic( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot< double , T , CDim >( F.pcIntegrate( _off , off ) , data ) );
+							Atomic< T >::Add( _constraints[ nodes[idx]->nodeData.nodeIndex ] , _StencilDot< double , T , CDim >( F.pcIntegrate( _off , off ) , data ) );
 						}
 					}
 				}
@@ -3198,14 +3197,14 @@ void FEMTree< Dim , Real >::_addInterpolationConstraints( DenseNodeData< T , UIn
 							[&]( int d , int i ){ s[d] = i; } ,
 							[&]( const FEMTreeNode* _node )
 							{
-							if( _isValidFEM1Node( _node ) && !_node->nodeData.getDirichletElementFlag() )
-							{
+								if( _isValidFEM1Node( _node ) && !_node->nodeData.getDirichletElementFlag() )
+								{
 									LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset( _node , _d , _off );
 									CumulativeDerivativeValues< Real , Dim , PointD > values = WrapperLambda( eState , _off );
 									T dot = {};
 									for( int s=0 ; s<CumulativeDerivatives< Dim , PointD >::Size ; s++ ) dot += pData.dualValues[s] * values[s];
-									AddAtomic( constraints[ _node->nodeData.nodeIndex ] , dot );
-							}
+									Atomic< T >::Add( constraints[ _node->nodeData.nodeIndex ] , dot );
+								}
 							} ,
 							neighbors.neighbors()
 						);
@@ -3456,7 +3455,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 									LocalDepth _d ; LocalOffset _off ; _localDepthAndOffset( node , _d , _off );
 									_dot = (*_data1) * F.cpIntegrate( off , _off )[0];
 								}
-								AddAtomic( cumulative2[ node->nodeData.nodeIndex ] , _dot );
+								Atomic< T >::Add( cumulative2[ node->nodeData.nodeIndex ] , _dot );
 							}
 						} ,
 						neighbors.neighbors() , _stencil()

@@ -81,6 +81,20 @@ struct RGBColor
 	RGBColor operator / ( Real s ) const { return operator * (1/s); }
 };
 
+namespace PoissonRecon
+{
+	template< typename Real >
+	struct Atomic< RGBColor< Real > >
+	{
+		static void Add( volatile RGBColor< Real > &a , const RGBColor< Real > & b )
+		{
+			Atomic< Real >::Add( a.r , b.r );
+			Atomic< Real >::Add( a.g , b.g );
+			Atomic< Real >::Add( a.b , b.b );
+		}
+	};
+}
+
 // A stream for generating random oriented samples on the sphere
 template< typename Real , unsigned int Dim >
 struct SphereOrientedSampleStream : public Reconstructor::InputOrientedSampleStream< Real , Dim >

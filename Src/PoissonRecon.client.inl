@@ -624,12 +624,12 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 		};
 
 		{
-			*_normalInfo = _tree.setInterpolatedDataField( NormalSigs() , _samples , _sampleData , _density , clientReconInfo.sharedDepth , clientReconInfo.reconstructionDepth , (Real)0 , pointDepthAndWeight , ConversionFunction );
+			*_normalInfo = _tree.setInterpolatedDataField( Point< Real , Dim >() , NormalSigs() , _samples , _sampleData , _density , clientReconInfo.sharedDepth , clientReconInfo.reconstructionDepth , (Real)0 , pointDepthAndWeight , ConversionFunction );
 			if( clientReconInfo.verbose>1 ) std::cout << "Nodes [Interior Data Field " << _normalInfo->size() << " / " << _normalInfo->reserved() << "]: " << _tree.allNodes() << std::endl;
 #ifdef ADAPTIVE_PADDING
-			*_paddedNormalInfo = _tree.setInterpolatedDataField( NormalSigs() , _paddedSamples , _paddedSampleData , _density , clientReconInfo.sharedDepth , clientReconInfo.reconstructionDepth , pointDepthFunctor , (Real)0 , paddedPointDepthAndWeight , ConversionFunction );
+			*_paddedNormalInfo = _tree.setInterpolatedDataField( Point< Real , Dim >() , NormalSigs() , _paddedSamples , _paddedSampleData , _density , clientReconInfo.sharedDepth , clientReconInfo.reconstructionDepth , pointDepthFunctor , (Real)0 , paddedPointDepthAndWeight , ConversionFunction );
 #else // !ADAPTIVE_PADDING
-			*_paddedNormalInfo = _tree.setInterpolatedDataField( NormalSigs() , _paddedSamples , _paddedSampleData , _density , clientReconInfo.sharedDepth , clientReconInfo.reconstructionDepth , (Real)0 , paddedPointDepthAndWeight , ConversionFunction );
+			*_paddedNormalInfo = _tree.setInterpolatedDataField( Point< Real , Dim >() , NormalSigs() , _paddedSamples , _paddedSampleData , _density , clientReconInfo.sharedDepth , clientReconInfo.reconstructionDepth , (Real)0 , paddedPointDepthAndWeight , ConversionFunction );
 #endif // ADAPTIVE_PADDING
 		}
 
@@ -819,7 +819,7 @@ void Client< Real , Dim , BType , Degree >::_process3( const ClientReconstructio
 			if( clientReconInfo.verbose>1 ) std::cout << "#Set interior point constraints: " << timer << std::endl;
 		}
 	}
-	if( needAuxData ) _auxDataField = _tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( _samples.size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return _samples[i]; } , [&]( size_t i ) -> const AuxData & { return _sampleData[i].template get<1>(); } , (DensityEstimator*)NULL );
+	if( needAuxData ) _auxDataField = _tree.template setExtrapolatedDataField< DataSig , false , Reconstructor::WeightDegree , AuxData >( auxDataFactory() , _samples.size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return _samples[i]; } , [&]( size_t i ) -> const AuxData & { return _sampleData[i].template get<1>(); } , (DensityEstimator*)NULL );
 
 	// Get the shared tree, constraints, interpolation info, and data-field
 	{
@@ -838,7 +838,7 @@ void Client< Real , Dim , BType , Degree >::_process3( const ClientReconstructio
 
 	if( needAuxData )
 	{
-		_tree.template updateExtrapolatedDataField< DataSig , false >( _auxDataField , _paddedSamples.size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return _paddedSamples[i]; } , [&]( size_t i ) -> const AuxData & { return _paddedSampleData[i].template get<1>(); } , (DensityEstimator*)NULL );
+		_tree.template updateExtrapolatedDataField< DataSig , false >( auxDataFactory() , _auxDataField , _paddedSamples.size() , [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return _paddedSamples[i]; } , [&]( size_t i ) -> const AuxData & { return _paddedSampleData[i].template get<1>(); } , (DensityEstimator*)NULL );
 		auto nodeFunctor = [&]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *n )
 		{
 			ProjectiveData< AuxData , Real >* clr = _auxDataField( n );

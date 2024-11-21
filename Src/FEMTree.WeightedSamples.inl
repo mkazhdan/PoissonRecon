@@ -280,7 +280,7 @@ void FEMTree< Dim , Real >::_getSampleDepthAndWeight( const DensityEstimator< We
 
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , bool ThreadSafe , class V , unsigned int ... DataSigs >
-void FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey )
+void FEMTree< Dim , Real >::_splatPointData( V zero , Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey )
 {
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	double values[ Dim ][ SupportSizes::Max() ];
@@ -295,13 +295,13 @@ void FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAlloc
 	(
 		ZeroUIntPack< Dim >() , UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... >() ,
 		[&]( int d , int i ){ scratch[d+1] = scratch[d] * values[d][i]; } ,
-		[&]( FEMTreeNode* node ){ if( IsActiveNode< Dim >( node ) ) AddAtomic( dataInfo[ node ] , v * (Real)scratch[Dim] ); } ,
+		[&]( FEMTreeNode* node ){ if( IsActiveNode< Dim >( node ) ) Atomic< V >::Add( dataInfo.at( node , zero ) , v * (Real)scratch[Dim] ); } ,
 		neighbors.neighbors()
 	);
 }
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs >
-Point< Real , 2 > FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias )
+Point< Real , 2 > FEMTree< Dim , Real >::_splatPointData( V zero , Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias )
 {
 	// Get the depth and weight at position
 	Real weight , depth;
@@ -361,9 +361,9 @@ Point< Real , 2 > FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode
 #ifdef SHOW_WARNINGS
 #warning "you've got me gcc version<5"
 #endif // SHOW_WARNINGS
-		_splatPointData< CreateNodes , ThreadSafe , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
+		_splatPointData< CreateNodes , ThreadSafe , V >( zero , nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
-		_splatPointData< CreateNodes , ThreadSafe , V ,  DataSigs ... >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
+		_splatPointData< CreateNodes , ThreadSafe , V ,  DataSigs ... >( zero , nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #endif // __GNUC__ || __GNUC__ < 4
 	};
 	Splat( temp , (Real)dx );
@@ -373,7 +373,7 @@ Point< Real , 2 > FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode
 
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs >
-Point< Real , 2 > FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , std::function< int ( Point< Real , Dim > ) > &pointDepthFunctor , int dim , Real depthBias )
+Point< Real , 2 > FEMTree< Dim , Real >::_splatPointData( V zero , Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Real minDepthCutoff , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , std::function< int ( Point< Real , Dim > ) > &pointDepthFunctor , int dim , Real depthBias )
 {
 	// Get the depth and weight at position
 	Real sampleWeight , sampleDepth;
@@ -437,9 +437,9 @@ Point< Real , 2 > FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode
 #ifdef SHOW_WARNINGS
 		#warning "you've got me gcc version<5"
 #endif // SHOW_WARNINGS
-			_splatPointData< CreateNodes , ThreadSafe , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
+		_splatPointData< CreateNodes , ThreadSafe , V >( zero , nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
-		_splatPointData< CreateNodes , ThreadSafe , V ,  DataSigs ... >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
+		_splatPointData< CreateNodes , ThreadSafe , V ,  DataSigs ... >( zero , nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #endif // __GNUC__ || __GNUC__ < 4
 	};
 	Splat( temp , (Real)dx );
@@ -449,7 +449,7 @@ Point< Real , 2 > FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode
 
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs >
-Point< Real , 2 > FEMTree< Dim , Real >::_multiSplatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , int dim )
+Point< Real , 2 > FEMTree< Dim , Real >::_multiSplatPointData( V zero , Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , int dim )
 {
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	Real _depth , weight;
@@ -474,7 +474,7 @@ Point< Real , 2 > FEMTree< Dim , Real >::_multiSplatPointData( Allocator< FEMTre
 		(
 			ZeroUIntPack< Dim >() , UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... >() ,
 			[&]( int d , int i ){ scratch[d+1] = scratch[d] * values[d][i]; } ,
-			[&]( FEMTreeNode* node ){ if( IsActiveNode< Dim >( node ) ) dataInfo[ node ] += __v * (Real)scratch[Dim];	} ,
+			[&]( FEMTreeNode* node ){ if( IsActiveNode< Dim >( node ) ) Atomic< V >::Add( dataInfo.at( node , zero ) , __v * (Real)scratch[Dim] ) ; } ,
 			neighbors.neighbors()
 		);
 	}
@@ -483,14 +483,14 @@ Point< Real , 2 > FEMTree< Dim , Real >::_multiSplatPointData( Allocator< FEMTre
 
 template< unsigned int Dim , class Real >
 template< unsigned int WeightDegree , class V , unsigned int ... DataSigs >
-Real FEMTree< Dim , Real >::_nearestMultiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim )
+Real FEMTree< Dim , Real >::_nearestMultiSplatPointData( V zero , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim )
 {
 	Real _depth , weight;
 	if( densityWeights ) _getSampleDepthAndWeight( *densityWeights , position , weightKey , _depth , weight );
 	else weight = (Real)1.;
 	V _v = v * weight;
 
-	for( FEMTreeNode* _node=node ; _localDepth( _node )>=0 ; _node=_node->parent ) if( IsActiveNode< Dim >( _node ) )  dataInfo[ _node ] += _v * (Real)pow( 1<<_localDepth( _node ) , dim );
+	for( FEMTreeNode* _node=node ; _localDepth( _node )>=0 ; _node=_node->parent ) if( IsActiveNode< Dim >( _node ) ) Atomic< V >::Add( dataInfo.at( _node , zero ) , _v * (Real)pow( 1<<_localDepth( _node ) , dim ) );
 	return weight;
 }
 //////////////////////////////////

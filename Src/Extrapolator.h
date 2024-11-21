@@ -207,7 +207,7 @@ namespace PoissonRecon
 				profiler.reset();
 				auto SampleFunctor = [&]( size_t i ) -> const typename FEMTree< Dim , Real >::PointSample & { return (*samples)[i]; };
 				auto SampleDataFunctor = [&]( size_t i ) -> const AuxData & { return (*sampleAuxData)[i]; };
-				auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( tree.template setExtrapolatedDataField< DataSig , false , 0 , AuxData >( samples->size() , SampleFunctor , SampleDataFunctor , (DensityEstimator*)nullptr ) );
+				auxData = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( tree.template setExtrapolatedDataField< DataSig , false , 0 , AuxData >( zeroAuxData , samples->size() , SampleFunctor , SampleDataFunctor , (DensityEstimator*)nullptr ) );
 				delete sampleAuxData;
 				if( params.verbose ) std::cout << "#         Got aux data: " << profiler << std::endl;
 			}
