@@ -2625,11 +2625,11 @@ namespace PoissonRecon
 		template< unsigned int CoDim , unsigned int DensityDegree >
 		typename FEMTree::template DensityEstimator< DensityDegree > *setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode );
 		template< unsigned int CoDim , unsigned int DensityDegree >
-		void updateDensityEstimator( typename FEMTree::template DensityEstimator< DensityDegree > &density , const std::vector< PointSample >& samples , LocalDepth minSplatDepth , LocalDepth maxSplatDepth , Real samplesPerNode );
+		void updateDensityEstimator( typename FEMTree::template DensityEstimator< DensityDegree > &density , const std::vector< PointSample >& samples , LocalDepth minSplatDepth , LocalDepth maxSplatDepth );
 		template< unsigned int CoDim , unsigned int DensityDegree >
 		typename FEMTree::template DensityEstimator< DensityDegree > *setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real samplesPerNode );
 		template< unsigned int CoDim , unsigned int DensityDegree >
-		void updateDensityEstimator( typename FEMTree::template DensityEstimator< DensityDegree > &density , const std::vector< PointSample >& samples , LocalDepth minSplatDepth , LocalDepth maxSplatDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real samplesPerNode );
+		void updateDensityEstimator( typename FEMTree::template DensityEstimator< DensityDegree > &density , const std::vector< PointSample >& samples , LocalDepth minSplatDepth , LocalDepth maxSplatDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor );
 
 		template< unsigned int ... DataSigs , unsigned int DensityDegree , class InData , class OutData >
 		SparseNodeData< OutData , UIntPack< DataSigs ... > > setInterpolatedDataField( OutData zero , UIntPack< DataSigs ... > , const std::vector< PointSample >& samples , const std::vector< InData >& data , const DensityEstimator< DensityDegree >* density , LocalDepth minDepth , LocalDepth maxDepth , Real minDepthCutoff , ProjectiveData< Point< Real , 2 > , Real > &pointDepthAndWeight , std::function< bool ( InData , OutData & , Real & ) > ConversionAndBiasFunction );

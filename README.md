@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.50)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.55)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.55/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.55/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.50</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.42</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.41/">V18.41</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.40/">V18.40</a>,
@@ -1040,6 +1041,37 @@ If both the <b>--keep</b> flag and the <b>--fraction</b> flag are set, the <b>--
 </dl>
 </ul>
 
+<ul>
+<dl>
+<DETAILS>
+<SUMMARY>
+<font size="+1"><b>ScaleNormals</b></font>:
+Scales the normal magnitudes using auxiliary confidence attributes encoded with the samples.
+</SUMMARY>
+<dt><b>--in</b> &lt;<i>input points</i>&gt;
+</dt><dd> This string is the name of the file from which the point set will be read.<br>
+The file is assumed to be in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.<br>
+
+</dd><dt><b>--out</b> &lt;<i>output ply file name</i>&gt;
+</dt><dd> This string is the name of the file to which the point set should be written.<br>
+The file will be written out in <a href="https://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.<br>
+
+</dd><dt><b>--cNames</b> &lt;<i>confidence attribute count, confidence attribute name 1, confidence attribute name 2, ...</i>&gt;]
+</dt><dd> These strings give the names of the attributes encoding confidence information.<BR>
+
+</dd><dt><b>--cExps</b> &lt;<i>confidence attribute count, confidence attribute value 1, confidence attribute value 2, ...</i>&gt;]
+</dt><dd> These floating point values encode the exponents applied to the confidence attributes when scaling the normal magnitude.<BR>
+Note that the count of confidence attributes for the <B>--cNames</B> and <B>--cExps</B> need to match.
+
+</dd><dt>[<b>--verbose</b>]
+</dt><dd> Enabling this flag provides a description of running state.
+
+</dd>
+</DETAILS>
+</dl>
+</ul>
+
+
 
 <hr>
 <a name="LIBRARY"><b>HEADER-ONLY LIBRARY</b></a><br>
@@ -1730,6 +1762,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/">Version 18.50</a>:
 <OL>
 <LI> Cleaned-up multi-threading code.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/">Version 18.55</a>:
+<OL>
+<LI> Added the <b>ScaleNormals</B> executable.
 </OL>
 
 </DETAILS>

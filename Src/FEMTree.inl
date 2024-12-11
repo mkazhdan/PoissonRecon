@@ -788,7 +788,7 @@ typename FEMTree< Dim , Real >::template ApproximatePointAndDataInterpolationInf
 
 template< unsigned int Dim , class Real >
 template< unsigned int CoDim , unsigned int DensityDegree >
-void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree > &density , const std::vector< PointSample >& samples , LocalDepth minSplatDepth , LocalDepth maxSplatDepth , Real samplesPerNode )
+void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree > &density , const std::vector< PointSample >& samples , LocalDepth minSplatDepth , LocalDepth maxSplatDepth )
 {
 	//	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( _spaceRoot );
 	SubTreeExtractor subtreeExtractor( _spaceRoot , _depthOffset );
@@ -820,7 +820,7 @@ void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real
 
 template< unsigned int Dim , class Real >
 template< unsigned int CoDim , unsigned int DensityDegree >
-void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree > &density , const std::vector< PointSample >& samples , LocalDepth minSplatDepth , LocalDepth maxSplatDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor , Real samplesPerNode )
+void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree > &density , const std::vector< PointSample >& samples , LocalDepth minSplatDepth , LocalDepth maxSplatDepth , std::function< int ( Point< Real , Dim > ) > pointDepthFunctor )
 {
 	//	typename FEMTreeNode::SubTreeExtractor subtreeExtractor( _spaceRoot );
 	SubTreeExtractor subtreeExtractor( _spaceRoot , _depthOffset );
@@ -863,7 +863,7 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	splatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( splatDepth , maxDepth ) );
 	DensityEstimator< DensityDegree > *density = new DensityEstimator< DensityDegree >( splatDepth , CoDim , samplesPerNode );
-	this->template updateDensityEstimator< CoDim , DensityDegree >( *density , samples , 0 , splatDepth , samplesPerNode );
+	this->template updateDensityEstimator< CoDim , DensityDegree >( *density , samples , 0 , splatDepth );
 
 	return density;
 }
@@ -875,7 +875,7 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	splatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( splatDepth , maxDepth ) );
 	DensityEstimator< DensityDegree > *density = new DensityEstimator< DensityDegree >( splatDepth , CoDim , samplesPerNode );
-	this->template updateDensityEstimator< CoDim , DensityDegree >( *density , samples , 0 , splatDepth , pointDepthFunctor , samplesPerNode );
+	this->template updateDensityEstimator< CoDim , DensityDegree >( *density , samples , 0 , splatDepth , pointDepthFunctor );
 
 	return density;
 }

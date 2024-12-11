@@ -597,9 +597,9 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 		Timer timer;
 		_density = _tree.template setDensityEstimator< 1 , Reconstructor::WeightDegree >( _samples , clientReconInfo.kernelDepth , clientReconInfo.samplesPerNode );
 #ifdef ADAPTIVE_PADDING
-		_tree.template updateDensityEstimator< 1 , Reconstructor::WeightDegree >( *_density , _paddedSamples , 0 , clientReconInfo.kernelDepth , pointDepthFunctor , clientReconInfo.samplesPerNode );
+		_tree.template updateDensityEstimator< 1 , Reconstructor::WeightDegree >( *_density , _paddedSamples , 0 , clientReconInfo.kernelDepth , pointDepthFunctor );
 #else // !ADAPTIVE_PADDING
-		_tree.template updateDensityEstimator< 1 , Reconstructor::WeightDegree >( *_density , _paddedSamples , 0 , clientReconInfo.kernelDepth , clientReconInfo.samplesPerNode );
+		_tree.template updateDensityEstimator< 1 , Reconstructor::WeightDegree >( *_density , _paddedSamples , 0 , clientReconInfo.kernelDepth );
 #endif // ADAPTIVE_PADDING
 		profiler.update();
 		if( clientReconInfo.verbose>1 ) std::cout << "#            Got kernel density: " << timer << std::endl;
