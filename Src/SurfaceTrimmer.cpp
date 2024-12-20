@@ -584,8 +584,8 @@ int main( int argc , char* argv[] )
 		if( !Long.set ) WARN( "Number of vertices not supported by 32-bit indexing. Switching to 64-bit indexing" );
 		Long.set = true;
 	}
-	if( !factory.plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
-	if( !factory.plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain values" );
+	if( !factory.template plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
+	if( !factory.template plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain values" );
 	delete[] readFlags;
 
 	if( Long.set ) return Execute< Real , Dim , long long >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );

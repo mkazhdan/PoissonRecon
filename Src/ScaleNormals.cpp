@@ -124,9 +124,9 @@ void Execute( void )
 	std::vector< PlyProperty > unprocessedProperties;
 
 	PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties );
-	if( !factory.plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
-	if( !factory.plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain normals" );
-	if( !factory.plyValidReadProperties<2>( readFlags ) ) ERROR_OUT( "Ply file does not contain scales" );
+	if( !factory.template plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
+	if( !factory.template plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain normals" );
+	if( !factory.template plyValidReadProperties<2>( readFlags ) ) ERROR_OUT( "Ply file does not contain scales" );
 	delete[] readFlags;
 
 	if( Verbose.set && unprocessedProperties.size() )

@@ -605,8 +605,8 @@ int main( int argc , char* argv[] )
 		bool *readFlags = new bool[ factory.plyReadNum() ];
 		std::vector< PlyProperty > unprocessedProperties;
 		PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties );
-		if( !factory.plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
-		if( !factory.plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain normals" );
+		if( !factory.template plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
+		if( !factory.template plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain normals" );
 		delete[] readFlags;
 
 		if( unprocessedProperties.size() ) Execute< Real , Dim , FEMSig >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );
@@ -627,8 +627,8 @@ int main( int argc , char* argv[] )
 		bool *readFlags = new bool[ factory.plyReadNum() ];
 		std::vector< PlyProperty > unprocessedProperties;
 		PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties );
-		if( !factory.plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
-		if( !factory.plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain normals" );
+		if( !factory.template plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
+		if( !factory.template plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain normals" );
 		delete[] readFlags;
 
 		if( unprocessedProperties.size() ) Execute< DEFAULT_DIMENSION , Real >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );
