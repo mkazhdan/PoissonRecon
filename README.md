@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.55)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.60)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.55/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.60/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.55/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.60/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.55</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.50</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.42</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.41/">V18.41</a>,
@@ -244,13 +245,8 @@ The default value for this parameter is 8.
 of finer data over lower data in performing the extrapolation.<BR>
 The default value for this parameter is 32.
 
-</dd><dt>[<b>--confidence</b> &lt;<i>normal confidence exponent</i>&gt;]
-</dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to adjust its weight. (A point's confidence is defined by the magnitude of its normal.)<BR>
-The default value for this parameter is 0.
-
-</dd><dt>[<b>--confidenceBias</b> &lt;<i>normal confidence bias exponent</i>&gt;]
-</dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to bias the resolution at which the sample contributes to the linear system. (Points with lower confidence are biased to contribute at coarser resolutions.)<BR>
-The default value for this parameter is 0.
+</dd><dt>[<b>--confidence</b>]
+</dt><dd> Enabling this flag specifies that the normal lengths should be used as weights when considering the contribution of a sample.
 
 </dd><dt>[<b>--primalGrid</b>]
 </dt><dd> Enabling this flag when outputing to a grid file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
@@ -388,16 +384,12 @@ The results of the original (unscreened) Poisson Reconstruction can be obtained 
 of finer data over lower data in performing the extrapolation.<BR>
 </dd>
 
-<dt>[<b>--confidence</b> &lt;<i>normal confidence exponent</i>&gt;=0]
-</dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to adjust its weight. (A point's confidence is defined by the magnitude of its normal.)<BR>
-</dd>
-
-<dt>[<b>--confidenceBias</b> &lt;<i>normal confidence bias exponent</i>&gt;=0]
-</dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to bias the resolution at which the sample contributes to the linear system. (Points with lower confidence are biased to contribute at coarser resolutions.)<BR>
-</dd>
-
 <dt>[<b>--verbose</b> &lt;<i>verbosity</i>&gt;=0]
 </dt><dd> This integer value specifies the level of verbosity of output provided by the client and server, with "0" corresponding to no output and "4" giving the most.<BR>
+</dd>
+
+<dt>[<b>--confidence</b>]
+</dt><dd> Enabling this flag specifies that the normal lengths should be used as weights when considering the contribution of a sample.
 </dd>
 
 <dt>[<b>--linearFit</b>]
@@ -579,13 +571,8 @@ The default value for this parameter is 8.
 of finer data over lower data in performing the extrapolation.<BR>
 The default value for this parameter is 32.
 
-</dd><dt>[<b>--confidence</b> &lt;<i>normal confidence exponent</i>&gt;]
-</dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to adjust its weight. (A point's confidence is defined by the magnitude of its normal.)<BR>
-The default value for this parameter is 0.
-
-</dd><dt>[<b>--confidenceBias</b> &lt;<i>normal confidence bias exponent</i>&gt;]
-</dt><dd> This floating point value specifies the exponent to be applied to a point's confidence to bias the resolution at which the sample contributes to the linear system. (Points with lower confidence are biased to contribute at coarser resolutions.)<BR>
-The default value for this parameter is 0.
+</dd><dt>[<b>--confidence</b>]
+</dt><dd> Enabling this flag specifies that the normal lengths should be used as weights when considering the contribution of a sample.
 
 </dd><dt>[<b>--primalGrid</b>]
 </dt><dd> Enabling this flag when outputing to a grid file has the reconstructor sample the implicit function at the corners of the grid, rather than the centers of the cells.
@@ -1767,6 +1754,13 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/">Version 18.55</a>:
 <OL>
 <LI> Added the <b>ScaleNormals</B> executable.
+<LI> Removed the <b>--confidenceBias</B> flag.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/">Version 18.60</a>:
+<OL>
+<LI> Changed the <B>--confidence</b> flag to be a bool (enabling is equivalent to having set to 1.0).
+<LI> Resolved clang compilation issues.
 </OL>
 
 </DETAILS>

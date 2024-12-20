@@ -492,7 +492,7 @@ void Client< Real , Dim , BType , Degree >::_process1( const ClientReconstructio
 				Real l = (Real)Length( d.template get<0>() );
 				if( !l || !std::isfinite( l ) ) return (Real)-1.;
 				d.template get<0>() /= l;
-				return clientReconInfo.confidence>0 ? (Real)pow( l , clientReconInfo.confidence ) : (Real)1.;
+				return clientReconInfo.confidence ? l : (Real)1.;
 			};
 
 		std::vector< InputDataStream< typename InputSampleFactory::VertexType > * > pointStreams( endPaddedIndex - beginPaddedIndex , NULL );

@@ -68,8 +68,8 @@ namespace PoissonRecon
 			bool verbose;
 			bool exactInterpolation;
 			bool showResidual;
+			bool confidence;
 			Real scale;
-			Real confidence;
 			Real lowDepthCutOff;
 			Real width;
 			Real samplesPerNode;
@@ -85,8 +85,8 @@ namespace PoissonRecon
 			unsigned int alignDir;
 
 			SolutionParameters( void ) :
-				verbose(false) , exactInterpolation(false) , showResidual(false) ,
-				scale((Real)1.1) ,confidence((Real)0.) ,
+				verbose(false) , exactInterpolation(false) , showResidual(false) , confidence(false) ,
+				scale((Real)1.1) ,
 				lowDepthCutOff((Real)0.) , width((Real)0.) ,
 				samplesPerNode((Real)1.5) , cgSolverAccuracy((Real)1e-3 ) , perLevelDataScaleFactor((Real)32.) ,
 				depth((unsigned int)8) , solveDepth((unsigned int)-1) , baseDepth((unsigned int)-1) , fullDepth((unsigned int)5) , kernelDepth((unsigned int)-1) ,
@@ -716,7 +716,7 @@ namespace PoissonRecon
 					auto Process = [&]( FEMTreeNode &node , const Point< Real , Dim > &p , Normal< Real , Dim > &n , AuxData ... d )
 						{
 							Real l = (Real)Length( n );
-							Real weight = params.confidence>0 ? pow( l , params.confidence ) : (Real)1.;
+							Real weight = params.confidence ? l : (Real)1.;
 							n /= l;
 
 							node_index_type nodeIndex = node.nodeData.nodeIndex;
@@ -1124,7 +1124,7 @@ namespace PoissonRecon
 					auto Process = [&]( FEMTreeNode &node , const Point< Real , Dim > &p , Normal< Real , Dim > &n , AuxData ... d )
 						{
 							Real l = (Real)Length( n );
-							Real weight = params.confidence>0 ? pow( l , params.confidence ) : (Real)1.;
+							Real weight = params.confidence ? l : (Real)1.;
 							n /= l;
 
 							node_index_type nodeIndex = node.nodeData.nodeIndex;

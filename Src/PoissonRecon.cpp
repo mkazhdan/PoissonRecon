@@ -71,6 +71,7 @@ CmdLineReadable
 	NoDirichletErode( "noErode" ) ,
 	Gradients( "gradients" ) ,
 	GridCoordinates( "gridCoordinates" ) ,
+	Confidence( "confidence" ) ,
 	Verbose( "verbose" );
 
 CmdLineParameter< int >
@@ -99,7 +100,6 @@ CmdLineParameter< float >
 	SamplesPerNode( "samplesPerNode" , 1.5f ) ,
 	Scale( "scale" , 1.1f ) ,
 	Width( "width" , 0.f ) ,
-	Confidence( "confidence" , 0.f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
 	LowDepthCutOff( "lowDepthCutOff" , 0.f ) ,
 	PointWeight( "pointWeight" );
@@ -177,8 +177,8 @@ void ShowUsage(char* ex)
 	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
 	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
 	printf( "\t[--%s <low depth cut-off>=%f]\n" , LowDepthCutOff.name , LowDepthCutOff.value );
-	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
 	printf( "\t[--%s <alignment direction>=%d]\n" , AlignmentDir.name , AlignmentDir.value );
+	printf( "\t[--%s]\n" , Confidence.name );
 	printf( "\t[--%s]\n" , NonManifold.name );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
 	printf( "\t[--%s <cg solver accuracy>=%g]\n" , CGSolverAccuracy.name , CGSolverAccuracy.value );
@@ -317,8 +317,8 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	sParams.dirichletErode = !NoDirichletErode.set;
 	sParams.exactInterpolation = ExactInterpolation.set;
 	sParams.showResidual = ShowResidual.set;
+	sParams.confidence = Confidence.set;
 	sParams.scale = (Real)Scale.value;
-	sParams.confidence = (Real)Confidence.value;
 	sParams.lowDepthCutOff = (Real)LowDepthCutOff.value;
 	sParams.width = (Real)Width.value;
 	sParams.pointWeight = (Real)PointWeight.value;

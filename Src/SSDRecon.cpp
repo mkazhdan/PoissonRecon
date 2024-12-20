@@ -69,6 +69,7 @@ CmdLineReadable
 	InCore( "inCore" ) ,
 	Gradients( "gradients" ) ,
 	GridCoordinates( "gridCoordinates" ) ,
+	Confidence( "confidence" ) ,
 	Verbose( "verbose" );
 
 CmdLineParameter< int >
@@ -96,7 +97,6 @@ CmdLineParameter< float >
 	SamplesPerNode( "samplesPerNode" , 1.5f ) ,
 	Scale( "scale" , 1.1f ) ,
 	Width( "width" , 0.f ) ,
-	Confidence( "confidence" , 0.f ) ,
 	LowDepthCutOff( "lowDepthCutOff" , 0.f ) ,
 	CGSolverAccuracy( "cgAccuracy" , 1e-3f ) ,
 	ValueWeight   (    "valueWeight" , 1.f ) ,
@@ -173,13 +173,13 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
 	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
 	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
-	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
 	printf( "\t[--%s <low depth cut-off>=%f]\n" , LowDepthCutOff.name , LowDepthCutOff.value );
 	printf( "\t[--%s <slice direction>=%d]\n" , AlignmentDir.name , AlignmentDir.value );
 	printf( "\t[--%s]\n" , NonManifold.name );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
 	printf( "\t[--%s <cg solver accuracy>=%g]\n" , CGSolverAccuracy.name , CGSolverAccuracy.value );
 	printf( "\t[--%s <maximum memory (in GB)>=%d]\n" , MaxMemoryGB.name , MaxMemoryGB.value );
+	printf( "\t[--%s]\n" , Confidence.name );
 	printf( "\t[--%s]\n" , GridCoordinates.name );
 	printf( "\t[--%s]\n" , Performance.name );
 	printf( "\t[--%s]\n" , Density.name );
@@ -313,8 +313,8 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	sParams.verbose = Verbose.set;
 	sParams.exactInterpolation = ExactInterpolation.set;
 	sParams.showResidual = ShowResidual.set;
+	sParams.confidence = Confidence.set;
 	sParams.scale = (Real)Scale.value;
-	sParams.confidence = (Real)Confidence.value;
 	sParams.lowDepthCutOff = (Real)LowDepthCutOff.value;
 	sParams.width = (Real)Width.value;
 	sParams.pointWeight = (Real)ValueWeight.value;

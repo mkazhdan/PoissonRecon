@@ -99,12 +99,12 @@ CmdLineReadable
 	GridCoordinates( "gridCoordinates" ) ,
 	KeepSeparate( "keepSeparate" ) ,
 	OutputSolution( "solution" ) ,
+	Confidence( "confidence" ) ,
 	ShowDiscontinuity( "showDiscontinuity" );
 
 CmdLineParameter< float >
 	Scale( "scale" , 1.1f ) ,
 	Width( "width" , 0.f ) ,
-	Confidence( "confidence" , 0.f ) ,
 	SamplesPerNode( "samplesPerNode" , 1.5f ) ,
 	DataX( "data" , 32.f ) ,
 	PointWeight( "pointWeight" ) ,
@@ -172,7 +172,6 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <cg solver accuracy>=%g]\n" , CGSolverAccuracy.name , CGSolverAccuracy.value );
 	printf( "\t[--%s <target value>=%f]\n" , TargetValue.name , TargetValue.value );
 	printf( "\t[--%s <interpolation weight>=%.3e * <b-spline degree>]\n" , PointWeight.name , Reconstructor::Poisson::WeightMultiplier );
-	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
 	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
 	printf( "\t[--%s <pad size>=%d]\n" , PadSize.name , PadSize.value );
 	printf( "\t[--%s <buffer size>=%d]\n" , BufferSize.name , BufferSize.value );
@@ -188,6 +187,7 @@ void ShowUsage( char* ex )
 	for( unsigned int i=0 ; i<MergeSlabType::COUNT ; i++ )  printf( "\t\t%d] %s\n" , (int)i , MergeSlabNames[i].c_str() );
 	printf( "\t[--%s <alignment direction>=%d]\n" , AlignmentDir.name , AlignmentDir.value );
 	printf( "\t[--%s <verbosity>=%d]\n" , Verbose.name , Verbose.value );
+	printf( "\t[--%s]\n" , Confidence.name );
 	printf( "\t[--%s]\n" , NoLoadBalance.name );
 	printf( "\t[--%s]\n" , Density.name );
 	printf( "\t[--%s]\n" , LinearFit.name );
@@ -488,12 +488,12 @@ int main( int argc , char* argv[] )
 		clientReconInfo.bufferSize = BufferSize.value;
 		clientReconInfo.iters = Iters.value;
 		clientReconInfo.pointWeight = PointWeight.value;
-		clientReconInfo.confidence = Confidence.value;
 		clientReconInfo.kernelDepth = KernelDepth.value;
 		clientReconInfo.samplesPerNode = SamplesPerNode.value;
 		clientReconInfo.dataX = DataX.value;
 		clientReconInfo.density = Density.set;
 		clientReconInfo.linearFit = LinearFit.set;
+		clientReconInfo.confidence = Confidence.set;
 		switch( MergeSlabs.value )
 		{
 			case MergeSlabType::NONE: clientReconInfo.mergeType = PoissonReconClientServer::ClientReconstructionInfo< Real , Dim >::MergeType::NONE ; break;

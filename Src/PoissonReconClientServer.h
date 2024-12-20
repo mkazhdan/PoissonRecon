@@ -63,9 +63,9 @@ namespace PoissonRecon
 
 			std::string header , inDir , tempDir , outDir;
 			unsigned int solveDepth , reconstructionDepth , sharedDepth , distributionDepth , baseDepth , kernelDepth , iters , bufferSize , filesPerDir , padSize , verbose;
-			Real pointWeight , confidence , samplesPerNode , dataX , cgSolverAccuracy , targetValue;
+			Real pointWeight , samplesPerNode , dataX , cgSolverAccuracy , targetValue;
 			MergeType mergeType;
-			bool density , linearFit , ouputVoxelGrid , outputSolution , gridCoordinates;
+			bool density , linearFit , ouputVoxelGrid , outputSolution , gridCoordinates , confidence;
 			std::vector< PlyProperty > auxProperties;
 
 			ClientReconstructionInfo( void );

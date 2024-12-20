@@ -322,7 +322,7 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( void )
 	distributionDepth = 0;
 	baseDepth = 5;
 	iters = 8;
-	confidence = (Real)0.;
+	confidence = false;
 	samplesPerNode = (Real)1.5;
 	dataX = (Real)32.;
 	density = false;
@@ -361,7 +361,6 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( BinaryStream &
 	if( !stream.read( cgSolverAccuracy ) ) ERROR_OUT( "Failed to read CG-solver-accuracy" );
 	if( !stream.read( targetValue ) ) ERROR_OUT( "Failed to read target-value" );
 	if( !stream.read( pointWeight ) ) ERROR_OUT( "Failed to read point-weight" );
-	if( !stream.read( confidence ) ) ERROR_OUT( "Failed to read confidence" );
 	if( !stream.read( samplesPerNode ) ) ERROR_OUT( "Failed to read samples-per-node" );
 	if( !stream.read( dataX ) ) ERROR_OUT( "Failed to read data-multiplier" );
 	if( !stream.read( padSize ) ) ERROR_OUT( "Failed to read padSize" );
@@ -372,6 +371,7 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( BinaryStream &
 	if( !ReadBool( outputSolution ) ) ERROR_OUT( "Failed to read output-solution flag" );
 	if( !ReadBool( gridCoordinates ) ) ERROR_OUT( "Failed to read grid-coordinates flag" );
 	if( !ReadBool( ouputVoxelGrid ) ) ERROR_OUT( "Failed to read output-voxel-grid flag" );
+	if( !ReadBool( confidence ) ) ERROR_OUT( "Failed to read confidence flag" );
 	{
 		size_t sz;
 		if( !stream.read( sz ) ) ERROR_OUT( "Failed to read number of auxiliary properties" );
@@ -404,7 +404,6 @@ void ClientReconstructionInfo< Real , Dim >::write( BinaryStream &stream ) const
 	stream.write( cgSolverAccuracy );
 	stream.write( targetValue );
 	stream.write( pointWeight );
-	stream.write( confidence );
 	stream.write( samplesPerNode );
 	stream.write( dataX );
 	stream.write( padSize );
@@ -415,6 +414,7 @@ void ClientReconstructionInfo< Real , Dim >::write( BinaryStream &stream ) const
 	WriteBool( outputSolution );
 	WriteBool( gridCoordinates );
 	WriteBool( ouputVoxelGrid );
+	WriteBool( confidence );
 	{
 		size_t sz = auxProperties.size();
 		stream.write( sz );
