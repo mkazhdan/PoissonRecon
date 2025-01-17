@@ -33,8 +33,8 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <b>Source Code:</b>
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.60/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.55</a>,
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.50</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.55/">V18.55</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/">V18.50</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.42</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.41/">V18.41</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.40/">V18.40</a>,
