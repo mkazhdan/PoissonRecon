@@ -51,6 +51,10 @@ DAMAGE.
 
 #define ADAPTIVE_PADDING						// Only pushes padding points deep enough so that they are "close" to the slab in terms of units at that depth
 
+#ifdef BIG_DATA
+#define NESTED_VECTOR_LEVELS 2					// The number of nesting levels for the nested-vector
+#else // !BIG_DATA
 #define NESTED_VECTOR_LEVELS 1					// The number of nesting levels for the nested-vector
+#endif // BIG_DATA
 
 #endif // PRE_PROCESSOR_INCLUDED
