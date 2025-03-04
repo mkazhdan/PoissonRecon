@@ -50,6 +50,6 @@ DAMAGE.
 #define MEMORY_ALLOCATOR_BLOCK_SIZE 1<<12		// The chunk size for memory allocation
 
 #define ADAPTIVE_PADDING						// Only pushes padding points deep enough so that they are "close" to the slab in terms of units at that depth
-#define NESTED_VECTOR_LEVELS 2					// The number of nesting levels for the nested-vector
+#define NESTED_VECTOR_LEVELS 1					// The number of nesting levels for the nested-vector
 
 #endif // PRE_PROCESSOR_INCLUDED
