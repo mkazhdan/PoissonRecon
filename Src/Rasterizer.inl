@@ -56,7 +56,7 @@ Rasterizer< Real , Dim >::_RegularGridIndex::_RegularGridIndex( unsigned int max
 		for( int k=1 ; k<=K && !done ; k++ ) if( _RegularGridIndex( depth , simplex[k] )!=idx ) done = true;
 		if( done ) break;
 	}
-	if( depth==0 ) ERROR_OUT( "Simplex is not in unit cube: " , simplex );
+	if( depth==0 ) MK_ERROR_OUT( "Simplex is not in unit cube: " , simplex );
 	else *this = _RegularGridIndex( depth-1 , simplex[0] );
 }
 
@@ -166,7 +166,7 @@ typename Rasterizer< Real , Dim >::template SimplexRasterizationGrid< IndexType 
 
 	if( threadSafety.type==ThreadSafety::MUTEXES )
 	{
-		if( threadSafety.lockDepth>depth ) ERROR_OUT( "Lock depth cannot excceed depth: " , threadSafety.lockDepth , " <= " , depth );
+		if( threadSafety.lockDepth>depth ) MK_ERROR_OUT( "Lock depth cannot excceed depth: " , threadSafety.lockDepth , " <= " , depth );
 		_RegularGridMutexes mutexes( threadSafety.lockDepth , depth );
 
 		ThreadPool::ParallelFor( 0 , simplicialComplex.size() , [&]( unsigned int t , size_t  i )
@@ -269,6 +269,6 @@ typename Rasterizer< Real , Dim >::template SimplexRasterizationGrid< IndexType 
 			for( int t=0 ; t<rasters.size() ; t++ ) for( int j=0 ; j<rasters[t][i].size() ; j++ ) raster[i].push_back( rasters[t][i][j] );
 		} );
 	}
-	else ERROR_OUT( "Unrecognized thread safety type: " , threadSafety.type );
+	else MK_ERROR_OUT( "Unrecognized thread safety type: " , threadSafety.type );
 	return raster;
 }

@@ -91,12 +91,12 @@ Point< Real , Dim > CmdLineType< Point< Real , Dim > >::StringToType( const char
 	{
 		if( d==0 )
 		{
-			if( temp[0]!='{' ) ERROR_OUT( "Expected opening brace: " , std::string( str ) );
+			if( temp[0]!='{' ) MK_ERROR_OUT( "Expected opening brace: " , std::string( str ) );
 			t[d++] = CmdLineType< Real >::StringToType( temp+1 );
 		}
 		else if( d==Dim-1 )
 		{
-			if( temp[ strlen(temp)-1 ]!='}' )  ERROR_OUT( "Expected closing brace: " , std::string( str ) );
+			if( temp[ strlen(temp)-1 ]!='}' )  MK_ERROR_OUT( "Expected closing brace: " , std::string( str ) );
 			temp[ strlen(temp)-1 ] = 0;
 			t[d++] = CmdLineType< Real >::StringToType( temp );
 			break;
@@ -104,7 +104,7 @@ Point< Real , Dim > CmdLineType< Point< Real , Dim > >::StringToType( const char
 		else t[d++] = CmdLineType< Real >::StringToType( temp );
 		temp = strtok( NULL ,"," );
 	}
-	if( d<Dim ) ERROR_OUT( "Could not parse all coordinates: " , std::string( str ) , " (" , Dim , ")" );
+	if( d<Dim ) MK_ERROR_OUT( "Could not parse all coordinates: " , std::string( str ) , " (" , Dim , ")" );
 	delete[] _str;
 	return t;
 }
@@ -307,11 +307,11 @@ inline void CmdLineParse( int argc , char **argv , CmdLineReadable** params )
 			}
 			else
 			{
-				WARN( "Invalid option: " , argv[0] );
+				MK_WARN( "Invalid option: " , argv[0] );
 				for( int i=0 ; params[i]!=NULL ; i++ ) fprintf( stderr , "\t--%s\n" , params[i]->name );
 			}
 		}
-		else WARN( "Parameter name should be of the form --<name>: " , argv[0] );
+		else MK_WARN( "Parameter name should be of the form --<name>: " , argv[0] );
 		++argv , --argc;
 	}
 }

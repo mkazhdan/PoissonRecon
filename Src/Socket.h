@@ -59,7 +59,7 @@ namespace PoissonRecon
 	{
 		boost::system::error_code ec;
 		int ret = (int)( boost::asio::read( *s , boost::asio::buffer( destination , len ) , ec ) );
-		if( ec ) ERROR_OUT( "Failed to read from socket" );
+		if( ec ) MK_ERROR_OUT( "Failed to read from socket" );
 		return ret;
 	}
 
@@ -67,7 +67,7 @@ namespace PoissonRecon
 	{
 		boost::system::error_code ec;
 		int ret = (int)( boost::asio::write( *s , boost::asio::buffer( source , len ) , ec ) );
-		if( ec ) ERROR_OUT( "Failed to write to socket" );
+		if( ec ) MK_ERROR_OUT( "Failed to write to socket" );
 		return ret;
 	}
 
@@ -91,14 +91,14 @@ namespace PoissonRecon
 	int socket_receive( Socket& s , Array< C > destination , size_t len )
 	{
 		if( len>destination.maximum()*sizeof( C ) )
-			ERROR_OUT( "Size of socket_receive exceeds destination maximum: " , len , " > " , destination.maximum()*sizeof( C ) );
+			MK_ERROR_OUT( "Size of socket_receive exceeds destination maximum: " , len , " > " , destination.maximum()*sizeof( C ) );
 		return socket_receive( s , (char*)&destination[0] , len );
 	}
 	template< class C >
 	int socket_send( Socket s , ConstArray< C > source , size_t len )
 	{
 		if( len>source.maximum()*sizeof( C ) )
-			ERROR_OUT( "Size of socket_send exceeds source maximum: " , len , " > " , source.maximum()*sizeof( C ) );
+			MK_ERROR_OUT( "Size of socket_send exceeds source maximum: " , len , " > " , source.maximum()*sizeof( C ) );
 		return socket_send( s , (char*)&source[0] , len );
 	}
 #endif // ARRAY_DEBUG

@@ -186,8 +186,8 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DEFAULT_DIMENS
 			_labelRows[i] = new RGBPixel[ _resolution[0] ];
 			_maskRows [i] = new      int[ _resolution[0] ];
 		}
-		if( pixels->channels()!=3 && pixels->channels()!=1 ) ERROR_OUT( "Pixel input must have 1 or 3 channels: " , pixels->channels() );
-		if( labels->channels()!=3 && labels->channels()!=1 ) ERROR_OUT( "Label input must have 1 or 3 channels: " , labels->channels() );
+		if( pixels->channels()!=3 && pixels->channels()!=1 ) MK_ERROR_OUT( "Pixel input must have 1 or 3 channels: " , pixels->channels() );
+		if( labels->channels()!=3 && labels->channels()!=1 ) MK_ERROR_OUT( "Label input must have 1 or 3 channels: " , labels->channels() );
 		__pixelRow = pixels->channels()==3 ? NULL : new unsigned char[ _resolution[0] ];
 		__labelRow = labels->channels()==3 ? NULL : new unsigned char[ _resolution[0] ];
 		_r = -2 ; prefetch();
@@ -281,7 +281,7 @@ void _Execute( void )
 		ImageReader::GetInfo( In.values[0] , _w , _h , _c );
 		w = _w , h = _h;
 		ImageReader::GetInfo( In.values[1] , _w , _h , _c );
-		if( w!=_w || h!=_h ) ERROR_OUT( "Pixel and label dimensions don't match: " , _w , " x " , _h , " != " , w , " x " , h );
+		if( w!=_w || h!=_h ) MK_ERROR_OUT( "Pixel and label dimensions don't match: " , _w , " x " , _h , " != " , w , " x " , h );
 	}
 	if( Verbose.set ) printf( "Resolution: %d x %d\n" , w , h );
 
@@ -495,7 +495,7 @@ void _Execute( void )
 	case 2: _Execute< Real , 2 >() ; break;
 //	case 3: _Execute< Real , 3 >() ; break;
 //	case 4: _Execute< Real , 4 >() ; break;
-	default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
+	default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
 	}
 }
 #endif // FAST_COMPILE
@@ -504,7 +504,7 @@ int main( int argc , char* argv[] )
 {
 	Timer timer;
 #ifdef ARRAY_DEBUG
-	WARN( "Array debugging enabled" );
+	MK_WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	CmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
@@ -527,7 +527,7 @@ int main( int argc , char* argv[] )
 	if( !BaseDepth.set ) BaseDepth.value = FullDepth.value;
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
+		if( BaseDepth.set ) MK_WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 
@@ -539,7 +539,7 @@ int main( int argc , char* argv[] )
 
 #ifdef FAST_COMPILE
 	static const int Degree = DEFAULT_FEM_DEGREE;
-	WARN( "Compiled for degree-" , Degree , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
+	MK_WARN( "Compiled for degree-" , Degree , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 	_Execute< Real , Degree >();
 #else // !FAST_COMPILE
 	_Execute< Real >();

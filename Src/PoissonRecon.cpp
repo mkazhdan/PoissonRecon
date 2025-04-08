@@ -355,13 +355,13 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	if( Transform.set )
 	{
 		FILE* fp = fopen( Transform.value , "r" );
-		if( !fp ) WARN( "Could not read x-form from: " , Transform.value );
+		if( !fp ) MK_WARN( "Could not read x-form from: " , Transform.value );
 		else
 		{
 			for( int i=0 ; i<Dim+1 ; i++ ) for( int j=0 ; j<Dim+1 ; j++ )
 			{
 				float f;
-				if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read xform" );
+				if( fscanf( fp , " %f " , &f )!=1 ) MK_ERROR_OUT( "Failed to read xform" );
 				toModel(i,j) = (Real)f;
 			}
 			fclose( fp );
@@ -407,7 +407,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 			PLY::ReadPolygons( Envelope.value , PositionFactory< Real , Dim >() , envelopeMesh->vertices , polygons , file_type , comments );
 			envelopeMesh->simplices.resize( polygons.size() );
 			for( int i=0 ; i<polygons.size() ; i++ )
-				if( polygons[i].size()!=Dim ) ERROR_OUT( "Not a simplex" );
+				if( polygons[i].size()!=Dim ) MK_ERROR_OUT( "Not a simplex" );
 				else for( int j=0 ; j<Dim ; j++ ) envelopeMesh->simplices[i][j] = polygons[i][j];
 		}
 	}
@@ -499,7 +499,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Tree.value );
+		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , Tree.value );
 		FileStream fs(fp);
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
@@ -548,7 +548,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 			if constexpr( HasAuxData ) WriteMesh< Real , Dim , FEMSig >( Gradients.set , Density.set , InCore.set , *implicit , meParams , Out.value , ASCII.set , auxDataFactory );
 			else                       WriteMesh< Real , Dim , FEMSig >( Gradients.set , Density.set , InCore.set , *implicit , meParams , Out.value , ASCII.set );
 		}
-		else WARN( "Mesh extraction is only supported in dimensions 2 and 3" );
+		else MK_WARN( "Mesh extraction is only supported in dimensions 2 and 3" );
 
 	if( Verbose.set ) std::cout << "#          Total Solve: " << Time()-startTime << " (s), " << MemoryInfo::PeakMemoryUsageMB() << " (MB)" << std::endl;
 	delete implicit;
@@ -564,7 +564,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		case 2: return Execute< Real , Dim , FEMDegreeAndBType< 2 , BType >::Signature >( auxDataFactory );
 //		case 3: return Execute< Real , Dim , FEMDegreeAndBType< 3 , BType >::Signature >( auxDataFactory );
 //		case 4: return Execute< Real , Dim , FEMDegreeAndBType< 4 , BType >::Signature >( auxDataFactory );
-		default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
+		default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
 	}
 }
 
@@ -576,7 +576,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		case BOUNDARY_FREE+1:      return Execute< Dim , Real , BOUNDARY_FREE      >( auxDataFactory );
 		case BOUNDARY_NEUMANN+1:   return Execute< Dim , Real , BOUNDARY_NEUMANN   >( auxDataFactory );
 		case BOUNDARY_DIRICHLET+1: return Execute< Dim , Real , BOUNDARY_DIRICHLET >( auxDataFactory );
-		default: ERROR_OUT( "Not a valid boundary type: " , BType.value );
+		default: MK_ERROR_OUT( "Not a valid boundary type: " , BType.value );
 	}
 }
 #endif // !FAST_COMPILE
@@ -585,7 +585,7 @@ int main( int argc , char* argv[] )
 {
 	Timer timer;
 #ifdef ARRAY_DEBUG
-	WARN( "Array debugging enabled" );
+	MK_WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	CmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
@@ -610,7 +610,7 @@ int main( int argc , char* argv[] )
 	static const BoundaryType BType = Reconstructor::Poisson::DefaultFEMBoundary;
 	static const unsigned int Dim = DEFAULT_DIMENSION;
 	static const unsigned int FEMSig = FEMDegreeAndBType< Degree , BType >::Signature;
-	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
+	MK_WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 	if( !PointWeight.set ) PointWeight.value = Reconstructor::Poisson::WeightMultiplier*Degree;
 	char *ext = GetFileExtension( In.value );
 	if( !strcasecmp( ext , "ply" ) )
@@ -620,8 +620,8 @@ int main( int argc , char* argv[] )
 		bool *readFlags = new bool[ factory.plyReadNum() ];
 		std::vector< PlyProperty > unprocessedProperties;
 		PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties );
-		if( !factory.template plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
-		if( !factory.template plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain normals" );
+		if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain positions" );
+		if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain normals" );
 		delete[] readFlags;
 
 		if( unprocessedProperties.size() ) Execute< Real , Dim , FEMSig >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );
@@ -643,8 +643,8 @@ int main( int argc , char* argv[] )
 		bool *readFlags = new bool[ factory.plyReadNum() ];
 		std::vector< PlyProperty > unprocessedProperties;
 		PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties );
-		if( !factory.template plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
-		if( !factory.template plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain normals" );
+		if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain positions" );
+		if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain normals" );
 		delete[] readFlags;
 
 		if( unprocessedProperties.size() ) Execute< DEFAULT_DIMENSION , Real >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );

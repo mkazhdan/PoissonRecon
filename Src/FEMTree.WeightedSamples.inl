@@ -205,7 +205,7 @@ Real FEMTree< Dim , Real >::_getSamplesPerNode( const DensityEstimator< WeightDe
 	(
 		IsotropicUIntPack< Dim , 0 >() , IsotropicUIntPack< Dim , BSplineSupportSizes< WeightDegree >::SupportSize >() ,
 		[&]( int d , int i ){ scratch[d+1] = scratch[d] * values[d][i]; } ,
-		[&]( typename Neighbors::Window::data_type node ){ if( node ){ const Real* w = densityWeights( node ) ; if( w ) weight += (Real)( scratch[Dim] * (*w) ); } } ,
+		[&]( typename Neighbors::StaticWindow::data_type node ){ if( node ){ const Real *w = densityWeights( node ) ; if( w ) weight += (Real)( scratch[Dim] * (*w) ); } } ,
 		neighbors.neighbors()
 	);
 	return weight;
@@ -267,7 +267,7 @@ void FEMTree< Dim , Real >::_getSampleDepthAndWeight( const DensityEstimator< We
 	temp = _spaceRoot;
 	while( _localDepth( temp )<densityWeights.kernelDepth() )
 	{
-		if( !IsActiveNode< Dim >( temp->children ) ) break; // ERROR_OUT( "" );
+		if( !IsActiveNode< Dim >( temp->children ) ) break; // MK_ERROR_OUT( "" );
 		int cIndex = FEMTreeNode::ChildIndex( myCenter , position );
 		temp = temp->children + cIndex;
 		myWidth /= 2;

@@ -61,7 +61,7 @@ protected:
 	};
 	struct _State6
 	{
-		using SliceSigs = typename Sigs::Reverse::Rest::Reverse;
+		using SliceSigs = typename Sigs::Transpose::Rest::Transpose;
 		using Vertex = typename VertexFactory::PositionFactory< Real , Dim-1 >::VertexType;
 		FEMTree< Dim-1 , Real > *sliceTree;
 		XForm< Real , Dim > xForm;
@@ -384,7 +384,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 
 			timer = Timer();
 			for( unsigned int i=0 ; i<_constraints.size() ; i++ )
-				if( clientToServer[i]==-1 || clientToServer[i]>=(node_index_type)state4.constraints.size() ){ WARN_ONCE( "Unmatched client node(s): " , clientToServer[i] ); }
+				if( clientToServer[i]==-1 || clientToServer[i]>=(node_index_type)state4.constraints.size() ){ MK_WARN_ONCE( "Unmatched client node(s): " , clientToServer[i] ); }
 				else state4.constraints[ clientToServer[i] ] += _constraints[i];
 			phaseInfo.processTime += timer.wallTime();
 		}
@@ -481,7 +481,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 			if( d<0 ) return true;
 			else if( d>(int)clientReconInfo.sharedDepth )
 			{
-				WARN( "Why does the client have fine nodes?" );
+				MK_WARN( "Why does the client have fine nodes?" );
 				return false;
 			}
 			else
@@ -570,7 +570,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 		if( clientReconInfo.outDir.length() ) outFileName = PointPartition::FileDir( clientReconInfo.outDir , outFileName );
 
 		FILE* fp = fopen( outFileName.c_str() , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , outFileName );
+		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , outFileName );
 		FileStream fs(fp);
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
@@ -630,7 +630,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 				int res1 = 0 , res2 = 0;
 				Pointer( Real ) values1 =  backSliceTree->template regularGridEvaluate< true >(  backSolution , res1 , -1 , false );
 				Pointer( Real ) values2 = frontSliceTree->template regularGridEvaluate< true >( frontSolution , res2 , -1 , false );
-				if( res1!=res2 ) ERROR_OUT( "Different resolutions: " , res1 , " != " , res2 );
+				if( res1!=res2 ) MK_ERROR_OUT( "Different resolutions: " , res1 , " != " , res2 );
 				size_t count = 1;
 				for( unsigned int d=0 ; d<(Dim-1) ; d++ ) count *= (unsigned int)res1;
 				discontinuityCount += count;
@@ -673,7 +673,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase6( const ClientReconstruc
 				auto WriteBoundary = [&]( std::string fileName , const FEMTree< Dim-1 , Real > *sliceTree , const DenseNodeData< Real , SliceSigs > &solution )
 				{
 					FILE* fp = fopen( fileName.c_str() , "wb" );
-					if( !fp ) ERROR_OUT( "Failed to open file for writing: " , fileName );
+					if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , fileName );
 					FileStream fs(fp);
 					FEMTree< Dim-1 , Real >::WriteParameter( fs );
 					DenseNodeData< Real , SliceSigs >::WriteSignatures( fs );

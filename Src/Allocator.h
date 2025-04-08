@@ -88,13 +88,13 @@ namespace PoissonRecon
 		{
 			Pointer( T ) mem;
 			if( !elements ) return NullPointer( T );
-			if( elements>_blockSize ) ERROR_OUT( "elements bigger than block-size: " , elements , " > " , _blockSize );
+			if( elements>_blockSize ) MK_ERROR_OUT( "elements bigger than block-size: " , elements , " > " , _blockSize );
 			if( _state.remains<elements )
 			{
 				if( _state.index==_memory.size()-1 )
 				{
 					mem = NewPointer< T >( _blockSize );
-					if( !mem ) ERROR_OUT( "Failed to allocate memory" );
+					if( !mem ) MK_ERROR_OUT( "Failed to allocate memory" );
 					_memory.push_back( mem );
 				}
 				_state.index++;

@@ -453,7 +453,7 @@ size_t FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simple
 template< unsigned int Dim , class Real >
 void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
-	if( regularGridDepth>maxDepth ) ERROR_OUT( "Regular grid depth cannot excceed maximum depth: " , regularGridDepth , " <= " , maxDepth );
+	if( regularGridDepth>maxDepth ) MK_ERROR_OUT( "Regular grid depth cannot excceed maximum depth: " , regularGridDepth , " <= " , maxDepth );
 
 	// Allocate the tree up to the prescribed depth
 	const Real RegularGridWidth = (Real)( 1./(1<<regularGridDepth) );
@@ -790,7 +790,7 @@ template< unsigned int _Dim >
 typename std::enable_if< _Dim==1 , DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , IsotropicUIntPack< Dim , FEMTrivialSignature > > >::type FEMTreeInitializer< Dim , Real >::GetGeometryNodeDesignators( FEMTreeNode *root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , unsigned int regularGridDepth , unsigned int maxDepth , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 {
 	static_assert( Dim==_Dim , "[ERROR] Dimensions don't match" );
-	if( simplices.size()%2 ) ERROR_OUT( "Expected even number of hull points: " , simplices.size() );
+	if( simplices.size()%2 ) MK_ERROR_OUT( "Expected even number of hull points: " , simplices.size() );
 	struct HullPoint
 	{
 		Real x;
@@ -905,7 +905,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 		interiorNodes.reserve( interiorCount ) , exteriorNodes.reserve( exteriorCount );
 		for( int i=0 ; i<_interiorNodes.size() ; i++ ) for( int j=0 ; j<_interiorNodes[i].size() ; j++ )
 		{
-			if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) ERROR_OUT( "Interior node has geometry" );
+			if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) MK_ERROR_OUT( "Interior node has geometry" );
 			else if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::UNKNOWN )
 			{
 				geometryNodeDesignators[ _interiorNodes[i][j] ] = GeometryNodeType::INTERIOR;
@@ -914,7 +914,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 		}
 		for( int i=0 ; i<_exteriorNodes.size() ; i++ ) for( int j=0 ; j<_exteriorNodes[i].size() ; j++ )
 		{
-			if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) ERROR_OUT( "Exterior node has geometry" );
+			if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) MK_ERROR_OUT( "Exterior node has geometry" );
 			else if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::UNKNOWN )
 			{
 				geometryNodeDesignators[ _exteriorNodes[i][j] ] = GeometryNodeType::EXTERIOR;
@@ -990,7 +990,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 
 			for( int i=0 ; i<_interiorNodes.size() ; i++ ) for( int j=0 ; j<_interiorNodes[i].size() ; j++ )
 			{
-				if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) ERROR_OUT( "Interior node has geometry" );
+				if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) MK_ERROR_OUT( "Interior node has geometry" );
 				else if( geometryNodeDesignators[ _interiorNodes[i][j] ]==GeometryNodeType::UNKNOWN )
 				{
 					geometryNodeDesignators[ _interiorNodes[i][j] ] = GeometryNodeType::INTERIOR;
@@ -999,7 +999,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 			}
 			for( int i=0 ; i<_exteriorNodes.size() ; i++ ) for( int j=0 ; j<_exteriorNodes[i].size() ; j++ )
 			{
-				if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) ERROR_OUT( "Exterior node has geometry" );
+				if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::BOUNDARY ) MK_ERROR_OUT( "Exterior node has geometry" );
 				else if( geometryNodeDesignators[ _exteriorNodes[i][j] ]==GeometryNodeType::UNKNOWN )
 				{
 					geometryNodeDesignators[ _exteriorNodes[i][j] ] = GeometryNodeType::EXTERIOR;
@@ -1050,7 +1050,7 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 		}
 	};
 	CorrectDesignatorsFromChildren( root );
-	if( correctionCount ) WARN( "Adjusted designator inconsistencies: " , correctionCount );
+	if( correctionCount ) MK_WARN( "Adjusted designator inconsistencies: " , correctionCount );
 
 	std::function< void ( FEMTreeNode * ) > SetUnknownDesignatorsFromParents = [&]( FEMTreeNode *node )
 	{
@@ -1070,13 +1070,13 @@ DenseNodeData< typename FEMTreeInitializer< Dim , Real >::GeometryNodeType , Iso
 					else if( geometryNodeDesignators[node->children+c]==GeometryNodeType::EXTERIOR ) exteriorCount++;
 					else if( geometryNodeDesignators[node->children+c]==GeometryNodeType::BOUNDARY ) boundaryCount++;
 				}
-				if( interiorCount+exteriorCount+boundaryCount!=(1<<Dim) ) ERROR_OUT( "Children are unknown" );
-				else if( boundaryCount==0 && interiorCount!=0 && exteriorCount!=0 ) ERROR_OUT( "Expected boundary between interior/exterior" );
+				if( interiorCount+exteriorCount+boundaryCount!=(1<<Dim) ) MK_ERROR_OUT( "Children are unknown" );
+				else if( boundaryCount==0 && interiorCount!=0 && exteriorCount!=0 ) MK_ERROR_OUT( "Expected boundary between interior/exterior" );
 				else if( boundaryCount!=0 ) geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY;
 				else if( interiorCount!=0 ) geometryNodeDesignators[node] = GeometryNodeType::INTERIOR;
 				else if( exteriorCount!=0 ) geometryNodeDesignators[node] = GeometryNodeType::INTERIOR;
 			}
-			else if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN ) ERROR_OUT( "Leaf node is unknown" );
+			else if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN ) MK_ERROR_OUT( "Leaf node is unknown" );
 	};
 	SetUnknownDesignatorsFromParents( root );
 	SetUnknownDesignatorsFromChildren( root );
@@ -1107,23 +1107,23 @@ void FEMTreeInitializer< Dim , Real >::TestGeometryNodeDesignators( const FEMTre
 				}
 				if( boundaryCount || ( interiorCount && exteriorCount ) )
 				{
-					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::BOUNDARY ) ERROR_OUT( "Expected unknown or boundary, got: " , type , " | " , node->depthAndOffset() );
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::BOUNDARY ) MK_ERROR_OUT( "Expected unknown or boundary, got: " , type , " | " , node->depthAndOffset() );
 				}
 				else if( interiorCount==(1<<Dim) )
 				{
-					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::INTERIOR ) ERROR_OUT( "Expected unknown or interior, got: " , type , " | " , node->depthAndOffset() );
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::INTERIOR ) MK_ERROR_OUT( "Expected unknown or interior, got: " , type , " | " , node->depthAndOffset() );
 				}
 				else if( exteriorCount==(1<<Dim) )
 				{
-					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::EXTERIOR ) ERROR_OUT( "Expected unknown or exterior, got: " , type , " | " , node->depthAndOffset() );
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::EXTERIOR ) MK_ERROR_OUT( "Expected unknown or exterior, got: " , type , " | " , node->depthAndOffset() );
 				}
 				else if( interiorCount )
 				{
-					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::INTERIOR && type!=GeometryNodeType::BOUNDARY ) ERROR_OUT( "Expected unknown, interior , or boundary, got: " , type , " | " , node->depthAndOffset() );
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::INTERIOR && type!=GeometryNodeType::BOUNDARY ) MK_ERROR_OUT( "Expected unknown, interior , or boundary, got: " , type , " | " , node->depthAndOffset() );
 				}
 				else if( exteriorCount==(1<<Dim) )
 				{
-					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::EXTERIOR && type!=GeometryNodeType::BOUNDARY ) ERROR_OUT( "Expected unknown, exterior, or boundary, got: " , type , " | " , node->depthAndOffset() );
+					if( type!=GeometryNodeType::UNKNOWN && type!=GeometryNodeType::EXTERIOR && type!=GeometryNodeType::BOUNDARY ) MK_ERROR_OUT( "Expected unknown, exterior, or boundary, got: " , type , " | " , node->depthAndOffset() );
 				}
 			}
 
@@ -1143,12 +1143,12 @@ void FEMTreeInitializer< Dim , Real >::PushGeometryNodeDesignatorsToFiner( const
 		{
 			if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN )
 				if( node!=root ) geometryNodeDesignators[node] = geometryNodeDesignators[node->parent];
-				else ERROR_OUT( "Root node should not be unknown" );
+				else MK_ERROR_OUT( "Root node should not be unknown" );
 			else if( node!=root && geometryNodeDesignators[node]!=geometryNodeDesignators[node->parent] && geometryNodeDesignators[node->parent]!=GeometryNodeType::BOUNDARY )
 			{
 				int d , off[Dim];
 				node->depthAndOffset( d , off );
-				ERROR_OUT( "Child designator does not match parent: " , geometryNodeDesignators[node] , " != " , geometryNodeDesignators[node->parent] , " | " , d , " @ ( " , off[0] , " , " , off[1] , " , " , off[2] , " ) " );
+				MK_ERROR_OUT( "Child designator does not match parent: " , geometryNodeDesignators[node] , " != " , geometryNodeDesignators[node->parent] , " | " , d , " @ ( " , off[0] , " , " , off[1] , " , " , off[2] , " ) " );
 			}
 			if( node->depth()<(long long)maxDepth && node->children ) for( int c=0 ; c<(1<<Dim) ; c++ ) Push( node->children+c );
 		}
@@ -1177,7 +1177,7 @@ void FEMTreeInitializer< Dim , Real >::PullGeometryNodeDesignatorsFromFiner( con
 				else if( exteriorCount==(1<<Dim) ) geometryNodeDesignators[node] = GeometryNodeType::EXTERIOR;
 				else                               geometryNodeDesignators[node] = GeometryNodeType::BOUNDARY;
 			}
-			else if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN ) ERROR_OUT( "Should not have unknown nodes" );
+			else if( geometryNodeDesignators[node]==GeometryNodeType::UNKNOWN ) MK_ERROR_OUT( "Should not have unknown nodes" );
 		}
 	};
 	Pull( root );

@@ -91,30 +91,17 @@ namespace PoissonRecon
 		exit( EXIT_FAILURE );
 	}
 }
-#ifndef WARN
-#define WARN( ... ) Warn( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
-#endif // WARN
-#ifndef WARN_ONCE
-#define WARN_ONCE( ... ) { static bool firstTime = true ; if( firstTime ) Warn( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ ) ; firstTime = false; }
-#endif // WARN_ONCE
-#ifndef THROW
-#define THROW( ... ) Throw( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
-#endif // THROW
-#ifndef ERROR_OUT
-#define ERROR_OUT( ... ) ErrorOut( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
-#endif // ERROR_OUT
-
-#ifndef PR_WARN
-#define PR_WARN( ... ) PoissonRecon::Warn( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
-#endif // PR_WARN
-#ifndef PR_WARN_ONCE
-#define PR_WARN_ONCE( ... ) { static bool firstTime = true ; if( firstTime ) PoissonRecon::Warn( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ ) ; firstTime = false; }
-#endif // PR_WARN_ONCE
-#ifndef PR_THROW
-#define PR_THROW( ... ) PoissonRecon::Throw( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
-#endif // PR_THROW
-#ifndef PR_ERROR_OUT
-#define PR_ERROR_OUT( ... ) PoissonRecon::ErrorOut( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
-#endif // PR_ERROR_OUT
+#ifndef MK_WARN
+#define MK_WARN( ... ) Warn( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
+#endif // MK_WARN
+#ifndef MK_WARN_ONCE
+#define MK_WARN_ONCE( ... ) { static bool firstTime = true ; if( firstTime ) Warn( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ ) ; firstTime = false; }
+#endif // MK_WARN_ONCE
+#ifndef MK_THROW
+#define MK_THROW( ... ) Throw( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
+#endif // MK_THROW
+#ifndef MK_ERROR_OUT
+#define MK_ERROR_OUT( ... ) ErrorOut( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
+#endif // MK_ERROR_OUT
 
 #endif // MY_EXCEPTIONS_INCLUDED

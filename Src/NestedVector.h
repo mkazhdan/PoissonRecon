@@ -90,7 +90,7 @@ namespace PoissonRecon
 
 		size_t resize( size_t sz , const T &defaultValue )
 		{
-			if( sz>_MaxSize ) ERROR_OUT( "Resize size exceeds max size, considering increasing nesting: " , sz , " > " , _MaxSize );
+			if( sz>_MaxSize ) MK_ERROR_OUT( "Resize size exceeds max size, considering increasing nesting: " , sz , " > " , _MaxSize );
 
 			// Quick check to see if anything needs doing
 			if( sz<_size ) return size();
@@ -117,9 +117,9 @@ namespace PoissonRecon
 		void read( BinaryStream &stream )
 		{
 			size_t sz;
-			if( !stream.read( sz ) ) ERROR_OUT( "Failed to read _size" );
+			if( !stream.read( sz ) ) MK_ERROR_OUT( "Failed to read _size" );
 			resize( sz );
-			if( !stream.read( GetPointer( _data , _Size ) , _size ) ) ERROR_OUT( "Failed to read _data" );
+			if( !stream.read( GetPointer( _data , _Size ) , _size ) ) MK_ERROR_OUT( "Failed to read _data" );
 		}
 
 		void write( BinaryStream &stream , const Serializer< T > &serializer ) const
@@ -141,12 +141,12 @@ namespace PoissonRecon
 			const size_t serializedSize = serializer.size();
 
 			size_t sz;
-			if( !stream.read( sz ) ) ERROR_OUT( "Failed to read _size" );
+			if( !stream.read( sz ) ) MK_ERROR_OUT( "Failed to read _size" );
 			if( _size )
 			{
 				resize( sz );
 				char *buffer = new char[ _size * serializedSize ];
-				if( !stream.read( buffer , serializedSize*_size ) ) ERROR_OUT( "Failed tor read in data" );
+				if( !stream.read( buffer , serializedSize*_size ) ) MK_ERROR_OUT( "Failed tor read in data" );
 				for( size_t i=0 ; i<_size ; i++ ) serializer.deserialize( buffer+i*serializedSize , operator[]( i ) );
 				delete[] buffer;
 			}
@@ -226,7 +226,7 @@ namespace PoissonRecon
 
 		size_t resize( size_t sz , const T &defaultValue )
 		{
-			if( sz>_MaxSize ) ERROR_OUT( "Resize size exceeds max size, considering increasing nesting: " , sz , " > " , _MaxSize );
+			if( sz>_MaxSize ) MK_ERROR_OUT( "Resize size exceeds max size, considering increasing nesting: " , sz , " > " , _MaxSize );
 
 			size_t _sz = (sz+NestedVector< T , Depth-1 , LogSize >::_Mask)>>(LogSize*Depth);
 
@@ -272,7 +272,7 @@ namespace PoissonRecon
 		void read( BinaryStream &stream )
 		{
 			size_t sz;
-			if( !stream.read( sz ) ) ERROR_OUT( "Failed to read _size" );
+			if( !stream.read( sz ) ) MK_ERROR_OUT( "Failed to read _size" );
 			resize( sz );
 			for( size_t i=0 ; i<_size ; i++ ) _data[i]->read(stream);
 		}
@@ -289,7 +289,7 @@ namespace PoissonRecon
 			const size_t serializedSize = serializer.size();
 
 			size_t sz;
-			if( !stream.read( sz ) ) ERROR_OUT( "Failed to read _size" );
+			if( !stream.read( sz ) ) MK_ERROR_OUT( "Failed to read _size" );
 			resize( sz );
 			for( size_t i=0 ; i<_size ; i++ ) _data[i]->read( stream , serializer );
 		}

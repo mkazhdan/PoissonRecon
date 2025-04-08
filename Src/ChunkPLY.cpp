@@ -164,13 +164,13 @@ void WriteMesh( const char *fileName , int ft , VertexDataFactory vertexDataFact
 	FullVertexFactory< Real , Dim , VertexDataFactory > vertexFactory( VertexFactory::PositionFactory< Real , Dim >() , vertexDataFactory );
 
 	char *ext = GetFileExtension( fileName );
-	if( strcasecmp( ext , "ply" ) ) ERROR_OUT( "Can only output mesh to .ply file" );
+	if( strcasecmp( ext , "ply" ) ) MK_ERROR_OUT( "Can only output mesh to .ply file" );
 	delete[] ext;
 
 	if( vertices.size()>std::numeric_limits< int >::max() )
 	{
-		if( vertices.size()>std::numeric_limits< unsigned int >::max() ) ERROR_OUT( "more vertices than can be indexed by an unsigned int: %llu" , (unsigned long long)vertices.size() );
-		WARN( "more vertices than can be indexed by an int, using unsigned int instead: %llu" , (unsigned long long)vertices.size() );
+		if( vertices.size()>std::numeric_limits< unsigned int >::max() ) MK_ERROR_OUT( "more vertices than can be indexed by an unsigned int: %llu" , (unsigned long long)vertices.size() );
+		MK_WARN( "more vertices than can be indexed by an int, using unsigned int instead: %llu" , (unsigned long long)vertices.size() );
 		std::vector< std::vector< unsigned int > > outPolygons;
 		outPolygons.resize( polygons.size() );
 		for( size_t i=0 ; i<polygons.size() ; i++ )
@@ -347,7 +347,7 @@ void Execute( VertexDataFactory vertexDataFactory )
 
 					WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertexDataFactory , _vertices , _polygons , comments );
 				}
-				else WARN( "no polygons in bounding box" );
+				else MK_WARN( "no polygons in bounding box" );
 		}
 		else
 		{
@@ -378,7 +378,7 @@ void Execute( VertexDataFactory vertexDataFactory )
 
 					WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertexDataFactory , _vertices , comments );
 				}
-				else WARN( "no vertices in bounding box" );
+				else MK_WARN( "no vertices in bounding box" );
 		}
 	}
 	else if( width>0 )
@@ -545,11 +545,11 @@ void Execute( VertexDataFactory vertexDataFactory )
 		{
 			if( polygons.size() )
 			{
-				if( pCount!=polygons.size() ) WARN( "polygon counts don't match: " , polygons.size() , " != " , pCount );
+				if( pCount!=polygons.size() ) MK_WARN( "polygon counts don't match: " , polygons.size() , " != " , pCount );
 			}
 			else
 			{
-				if( vCount!=vertices.size() ) WARN( "vertex counts don't match:" , vertices.size() , " != " , vCount );
+				if( vCount!=vertices.size() ) MK_WARN( "vertex counts don't match:" , vertices.size() , " != " , vCount );
 			}
 		}
 	}
@@ -569,7 +569,7 @@ int main( int argc , char* argv[] )
 
 	CmdLineParse( argc-1 , &argv[1] , params );
 #ifdef ARRAY_DEBUG
-	WARN( "Array debugging enabled" );
+	MK_WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 
 	if( !In.set )
@@ -585,7 +585,7 @@ int main( int argc , char* argv[] )
 		char *ext = GetFileExtension( In.values[i] );
 		bool _isPly = strcasecmp( ext , "ply" )==0;
 		if( !i ) isPly = _isPly;
-		else if( isPly!=_isPly ) ERROR_OUT( "All files must be of the same type" );
+		else if( isPly!=_isPly ) MK_ERROR_OUT( "All files must be of the same type" );
 		delete[] ext;
 	}
 	if( isPly )
@@ -597,10 +597,10 @@ int main( int argc , char* argv[] )
 		{
 			std::vector< PlyProperty > unprocessedProperties;
 			PLY::ReadVertexHeader( In.values[i] , factory , readFlags , unprocessedProperties );
-			if( !factory.plyValidReadProperties( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
+			if( !factory.plyValidReadProperties( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain positions" );
 			VertexFactory::DynamicFactory< Real > _remainingProperties( unprocessedProperties );
 			if( !i ) remainingProperties = new VertexFactory::DynamicFactory< Real >( _remainingProperties );
-			else if( (*remainingProperties)!=(_remainingProperties) ) ERROR_OUT( "Remaining properties differ" );
+			else if( (*remainingProperties)!=(_remainingProperties) ) MK_ERROR_OUT( "Remaining properties differ" );
 		}
 		delete[] readFlags;
 		if( !remainingProperties || !remainingProperties->size() ) Execute( VertexFactory::EmptyFactory< Real >() );

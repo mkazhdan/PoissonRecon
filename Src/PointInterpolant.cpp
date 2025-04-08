@@ -432,7 +432,7 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 	else if( !strcasecmp( ext , "iso" ) )
 	{
 		FILE *fp = fopen( fileName , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , fileName );
+		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , fileName );
 		int r = (int)res;
 		fwrite( &r , sizeof(int) , 1 , fp );
 		size_t count = 1;
@@ -549,7 +549,7 @@ void Execute( UIntPack< FEMSigs ... > )
 		FILE* fp = fopen( Transform.value , "r" );
 		if( !fp )
 		{
-			WARN( "Could not read x-form from: " , Transform.value );
+			MK_WARN( "Could not read x-form from: " , Transform.value );
 			modelToUnitCube = XForm< Real , Dim+1 >::Identity();
 		}
 		else
@@ -557,7 +557,7 @@ void Execute( UIntPack< FEMSigs ... > )
 			for( int i=0 ; i<Dim+1 ; i++ ) for( int j=0 ; j<Dim+1 ; j++ )
 			{
 				float f;
-				if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read xform" );
+				if( fscanf( fp , " %f " , &f )!=1 ) MK_ERROR_OUT( "Failed to read xform" );
 				modelToUnitCube(i,j) = (Real)f;
 			}
 			fclose( fp );
@@ -584,7 +584,7 @@ void Execute( UIntPack< FEMSigs ... > )
 
 	if( Depth.set && Width.value>0 )
 	{
-		WARN( "Both --" , Depth.name , " and --" , Width.name , " set, ignoring --" , Width.name );
+		MK_WARN( "Both --" , Depth.name , " and --" , Width.name , " set, ignoring --" , Width.name );
 		Width.value = 0;
 	}
 
@@ -673,17 +673,17 @@ void Execute( UIntPack< FEMSigs ... > )
 				if( !SolveDepth.set || SolveDepth.value==-1 ) SolveDepth.value = Depth.value;
 				if( SolveDepth.value>Depth.value )
 				{
-					WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
+					MK_WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
 					SolveDepth.value = Depth.value;
 				}
 				if( FullDepth.value>Depth.value )
 				{
-					WARN( "Full depth cannot exceed system depth: " , FullDepth.value , " <= " , Depth.value );
+					MK_WARN( "Full depth cannot exceed system depth: " , FullDepth.value , " <= " , Depth.value );
 					FullDepth.value = Depth.value;
 				}
 				if( BaseDepth.value>FullDepth.value )
 				{
-					if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
+					if( BaseDepth.set ) MK_WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 					BaseDepth.value = FullDepth.value;
 				}
 			}
@@ -872,7 +872,7 @@ void Execute( UIntPack< FEMSigs ... > )
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Tree.value );
+		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , Tree.value );
 		FileStream fs( fp );
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
@@ -949,7 +949,7 @@ void Execute( void )
 		case 2: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BType >::Signature >() );
 		case 3: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BType >::Signature >() );
 			//		case 4: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BType >::Signature >() );
-		default: ERROR_OUT( "Only B-Splines of degree 1 - 3 are supported" );
+		default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 3 are supported" );
 	}
 }
 
@@ -961,7 +961,7 @@ void Execute( void )
 		case BOUNDARY_FREE+1:      return Execute< Dim , Real , BOUNDARY_FREE      >();
 		case BOUNDARY_NEUMANN+1:   return Execute< Dim , Real , BOUNDARY_NEUMANN   >();
 		case BOUNDARY_DIRICHLET+1: return Execute< Dim , Real , BOUNDARY_DIRICHLET >();
-		default: ERROR_OUT( "Not a valid boundary type: " , BType.value );
+		default: MK_ERROR_OUT( "Not a valid boundary type: " , BType.value );
 	}
 }
 #endif // !FAST_COMPILE
@@ -970,7 +970,7 @@ int main( int argc , char* argv[] )
 {
 	Timer timer;
 #ifdef ARRAY_DEBUG
-	WARN( "Array debugging enabled" );
+	MK_WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 
 	CmdLineParse( argc-1 , &argv[1] , params );
@@ -982,30 +982,30 @@ int main( int argc , char* argv[] )
 	if( !InValues.set && !InGradients.set )
 	{
 		ShowUsage( argv[0] );
-		ERROR_OUT( "Either values or gradients need to be specified" );
+		MK_ERROR_OUT( "Either values or gradients need to be specified" );
 		return 0;
 	}
 	if( !InValues.set ) ValueWeight.value = 0;
 	if( !InGradients.set ) GradientWeight.value = 0;
 
-	if( ValueWeight.value<0 ) ERROR_OUT( "Value weight must be non-negative: " , ValueWeight.value , "> 0" );
-	if( GradientWeight.value<0 ) ERROR_OUT( "Gradient weight must be non-negative: " , GradientWeight.value , "> 0" );
-	if( !ValueWeight.value && !GradientWeight.value ) ERROR_OUT( "Either value or gradient weight must be positive" );
+	if( ValueWeight.value<0 ) MK_ERROR_OUT( "Value weight must be non-negative: " , ValueWeight.value , "> 0" );
+	if( GradientWeight.value<0 ) MK_ERROR_OUT( "Gradient weight must be non-negative: " , GradientWeight.value , "> 0" );
+	if( !ValueWeight.value && !GradientWeight.value ) MK_ERROR_OUT( "Either value or gradient weight must be positive" );
 
-	if( LapWeight.value<0 ) ERROR_OUT( "Laplacian weight must be non-negative: " , LapWeight.value , " > 0" );
-	if( BiLapWeight.value<0 ) ERROR_OUT( "Bi-Laplacian weight must be non-negative: " , BiLapWeight.value , " > 0" );
-	if( !LapWeight.value && !BiLapWeight.value ) ERROR_OUT( "Eiter Laplacian or bi-Laplacian weight must be positive" );
+	if( LapWeight.value<0 ) MK_ERROR_OUT( "Laplacian weight must be non-negative: " , LapWeight.value , " > 0" );
+	if( BiLapWeight.value<0 ) MK_ERROR_OUT( "Bi-Laplacian weight must be non-negative: " , BiLapWeight.value , " > 0" );
+	if( !LapWeight.value && !BiLapWeight.value ) MK_ERROR_OUT( "Eiter Laplacian or bi-Laplacian weight must be positive" );
 
 	if( !BaseDepth.set ) BaseDepth.value = FullDepth.value;
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
+		if( BaseDepth.set ) MK_WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 	if( !SolveDepth.set || SolveDepth.value==-1 ) SolveDepth.value = Depth.value;
 	if( SolveDepth.value>Depth.value )
 	{
-		WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
+		MK_WARN( "Solution depth cannot exceed system depth: " , SolveDepth.value , " <= " , Depth.value );
 		SolveDepth.value = Depth.value;
 	}
 
@@ -1020,12 +1020,12 @@ int main( int argc , char* argv[] )
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
 	typedef IsotropicUIntPack< Dimension , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
-	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
+	MK_WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 	Execute< Real >( FEMSigs() );
 #else // !FAST_COMPILE
 	if     ( Dimension.value==2 ) Execute< 2 , Real >();
 	else if( Dimension.value==3 ) Execute< 3 , Real >();
-	else ERROR_OUT( "Only Degrees 2 and 3 are supported" );
+	else MK_ERROR_OUT( "Only Degrees 2 and 3 are supported" );
 #endif // FAST_COMPILE
 	if( Performance.set )
 	{

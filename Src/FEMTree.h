@@ -154,7 +154,7 @@ namespace PoissonRecon
 		size_t size( void ) const { return _levels ? _sliceStart[_levels-1][(size_t)1<<(_levels-1)] : 0; }
 		size_t size( int depth ) const
 		{
-			if( depth<0 || depth>=_levels ) ERROR_OUT( "bad depth: 0 <= " , depth , " < " , _levels );
+			if( depth<0 || depth>=_levels ) MK_ERROR_OUT( "bad depth: 0 <= " , depth , " < " , _levels );
 			return _sliceStart[depth][(size_t)1<<depth] - _sliceStart[depth][0];
 		}
 		size_t size( int depth , int slice ) const { return end( depth , slice ) - begin( depth , slice ); }
@@ -523,9 +523,9 @@ namespace PoissonRecon
 		}
 		void read( BinaryStream &stream )
 		{
-			if( !stream.read( _sz ) ) ERROR_OUT( "Failed to read size" );
+			if( !stream.read( _sz ) ) MK_ERROR_OUT( "Failed to read size" );
 			_data = NewPointer< Data >( _sz );
-			if( !stream.read( _data , _sz ) ) ERROR_OUT( "failed to read data" );
+			if( !stream.read( _data , _sz ) ) MK_ERROR_OUT( "failed to read data" );
 		}
 
 		Data& operator[] ( size_t idx ) { return _data[idx]; }
@@ -575,15 +575,15 @@ namespace PoissonRecon
 
 	inline void ReadFEMTreeParameter( BinaryStream &stream , FEMTreeRealType& realType , unsigned int &dimension )
 	{
-		if( !stream.read( realType ) ) ERROR_OUT( "Failed to read real type" );
-		if( !stream.read( dimension ) ) ERROR_OUT( "Failed to read dimension" );
+		if( !stream.read( realType ) ) MK_ERROR_OUT( "Failed to read real type" );
+		if( !stream.read( dimension ) ) MK_ERROR_OUT( "Failed to read dimension" );
 	}
 
 	inline unsigned int* ReadDenseNodeDataSignatures( BinaryStream &stream , unsigned int &dim )
 	{
-		if( !stream.read( dim ) ) ERROR_OUT( "Failed to read dimension" );
+		if( !stream.read( dim ) ) MK_ERROR_OUT( "Failed to read dimension" );
 		unsigned int* femSigs = new unsigned int[dim];
-		if( !stream.read( GetPointer( femSigs , dim ) , dim ) ) ERROR_OUT( "Failed to read signatures" );
+		if( !stream.read( GetPointer( femSigs , dim ) , dim ) ) MK_ERROR_OUT( "Failed to read signatures" );
 		return femSigs;
 	}
 
@@ -635,7 +635,7 @@ namespace PoissonRecon
 		{
 			unsigned int dCount = 0;
 			for( unsigned int d=0 ; d<Dim ; d++ ) dCount += derivatives[d];
-			if( dCount>=D ) ERROR_OUT( "More derivatives than allowed" );
+			if( dCount>=D ) MK_ERROR_OUT( "More derivatives than allowed" );
 			else if( dCount<D ) return _CumulativeDerivatives::Index( derivatives );
 			else                return _CumulativeDerivatives::Size + _Index( derivatives );
 		}
@@ -655,7 +655,7 @@ namespace PoissonRecon
 				_d[i]--;
 				return _CumulativeDerivatives::Index( _d ) * Dim + i;
 			}
-			ERROR_OUT( "No derivatives specified" );
+			MK_ERROR_OUT( "No derivatives specified" );
 			return -1;
 		}
 		friend CumulativeDerivatives< Dim , D+1 >;
@@ -1114,7 +1114,7 @@ namespace PoissonRecon
 		struct PointEvaluatorState< UIntPack< TSignatures ... > , UIntPack< TDs ... > > : public BaseFEMIntegrator::template PointEvaluatorState< sizeof ... ( TSignatures ) >
 		{
 			static_assert( sizeof...(TSignatures)==sizeof...(TDs) , "[ERROR] Degree and derivative dimensions don't match" );
-			static_assert( UIntPack< FEMSignature< TSignatures >::Degree ... >::template Compare< UIntPack< TDs ... > >::GreaterThanOrEqual , "[ERROR] PointEvaluatorState: More derivatives than degrees" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMSignature< TSignatures >::Degree ... > , UIntPack< TDs ... > >::GreaterThanOrEqual , "[ERROR] PointEvaluatorState: More derivatives than degrees" );
 
 			static const unsigned int Dim = sizeof...(TSignatures);
 
@@ -1145,7 +1145,7 @@ namespace PoissonRecon
 		struct PointEvaluator< UIntPack< TSignatures ... > , UIntPack< TDs ... > > : public BaseFEMIntegrator::template PointEvaluator< UIntPack< FEMSignature< TSignatures >::Degree ... > >
 		{
 			static_assert( sizeof...(TSignatures)==sizeof...(TDs) , "[ERROR] PointEvaluator: Degree and derivative dimensions don't match" );
-			static_assert( UIntPack< FEMSignature< TSignatures >::Degree ... >::template Compare< UIntPack< TDs ... > >::GreaterThanOrEqual , "[ERROR] PointEvaluator: More derivatives than degrees" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMSignature< TSignatures >::Degree ... > , UIntPack< TDs ... > >::GreaterThanOrEqual , "[ERROR] PointEvaluator: More derivatives than degrees" );
 
 			static const unsigned int Dim = sizeof ... ( TSignatures );
 
@@ -1162,7 +1162,7 @@ namespace PoissonRecon
 			template< unsigned int ... EDs >
 			void initEvaluationState( Point< double , Dim > p , unsigned int depth , const int* offset , PointEvaluatorState< UIntPack< TSignatures ... > , UIntPack< EDs ... > >& state ) const
 			{
-				static_assert( UIntPack< TDs ... >::template Compare< UIntPack< EDs ... > >::GreaterThanOrEqual , "[ERROR] PointEvaluator::init: More evaluation derivatives than stored derivatives" );
+				static_assert( ParameterPack::Comparison< UIntPack< TDs ... > , UIntPack< EDs ... > >::GreaterThanOrEqual , "[ERROR] PointEvaluator::init: More evaluation derivatives than stored derivatives" );
 				for( int d=0 ; d<Dim ; d++ ) state._pointOffset[d] = (int)offset[d];
 				_initEvaluationState( UIntPack< TSignatures ... >() , UIntPack< EDs ... >() , &p[0] , depth , state );
 			}
@@ -1226,8 +1226,8 @@ namespace PoissonRecon
 			static_assert( sizeof ... ( TSignatures ) == sizeof ... ( CSignatures ) , "[ERROR] Test signatures and contraint signatures must have the same dimension" );
 			static_assert( sizeof ... ( TSignatures ) == sizeof ... ( TDerivatives ) , "[ERROR] Test signatures and derivatives must have the same dimension" );
 			static_assert( sizeof ... ( CSignatures ) == sizeof ... ( CDerivatives ) , "[ERROR] Constraint signatures and derivatives must have the same dimension" );
-			static_assert( UIntPack< FEMSignature< TSignatures >::Degree ... >::template Compare< UIntPack< TDerivatives ... > >::GreaterThanOrEqual , "[ERROR] Test functions cannot have more derivatives than the degree" );
-			static_assert( UIntPack< FEMSignature< CSignatures >::Degree ... >::template Compare< UIntPack< CDerivatives ... > >::GreaterThanOrEqual , "[ERROR] Test functions cannot have more derivatives than the degree" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMSignature< TSignatures >::Degree ... > , UIntPack< TDerivatives ... > >::GreaterThanOrEqual , "[ERROR] Test functions cannot have more derivatives than the degree" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMSignature< CSignatures >::Degree ... > , UIntPack< CDerivatives ... > >::GreaterThanOrEqual , "[ERROR] Test functions cannot have more derivatives than the degree" );
 
 			static const unsigned int Dim = sizeof ... ( TSignatures );
 			typedef typename BaseFEMIntegrator::template Constraint< UIntPack< FEMSignature< TSignatures >::Degree ... > , UIntPack< FEMSignature< CSignatures >::Degree ... > , CDim > Base;
@@ -1305,7 +1305,7 @@ namespace PoissonRecon
 				case INTEGRATE_CHILD_CHILD:  return std::get< D >( _integrators ).ccIntegrator.dot( off1[D] , off2[D] , d1[D] , d2[D] ) * remainingIntegral;
 				case INTEGRATE_PARENT_CHILD: return std::get< D >( _integrators ).pcIntegrator.dot( off1[D] , off2[D] , d1[D] , d2[D] ) * remainingIntegral;
 				case INTEGRATE_CHILD_PARENT: return std::get< D >( _integrators ).cpIntegrator.dot( off2[D] , off1[D] , d2[D] , d1[D] ) * remainingIntegral;
-				default: ERROR_OUT( "Undefined integration type" );
+				default: MK_ERROR_OUT( "Undefined integration type" );
 				}
 				return 0;
 			}
@@ -1413,7 +1413,7 @@ namespace PoissonRecon
 				(
 					start , end ,
 					[&]( int d , int i ){ idx[d] = i; } ,
-					[&]( void ){ indices[c][ size[c]++ ] = GetWindowIndex( UIntPack< Sizes ... >() , idx ); }
+					[&]( void ){ indices[c][ size[c]++ ] = Window::GetIndex< Sizes ... >( idx ); }
 				);
 			}
 		}
@@ -1432,7 +1432,7 @@ namespace PoissonRecon
 		using Value = Point< Real >;
 		static void Add( volatile Value &a , const Value &b )
 		{
-			if( a._dim !=b._dim ) ERROR_OUT( "Sizes don't match: " , a._dim , " != " , b._dim );
+			if( a._dim !=b._dim ) MK_ERROR_OUT( "Sizes don't match: " , a._dim , " != " , b._dim );
 			for( unsigned int d=0 ; d<a._dim && d<b.dim() ; d++ ) AddAtomic( a._coords[d] , b[d] );
 		}
 	};
@@ -1615,10 +1615,10 @@ namespace PoissonRecon
 			void read( BinaryStream &stream )
 			{
 				unsigned char constrainsDCTerm;
-				if( !stream.read( constrainsDCTerm ) ) ERROR_OUT( "Failed to read constrainsDCTerm" );
+				if( !stream.read( constrainsDCTerm ) ) MK_ERROR_OUT( "Failed to read constrainsDCTerm" );
 				_constrainsDCTerm = constrainsDCTerm!=0;
-				if( !stream.read( _constraintDual ) ) ERROR_OUT( "Failed to read _constraintDual" );
-				if( !stream.read( _systemDual ) ) ERROR_OUT( "Failed to read _systemDual" );
+				if( !stream.read( _constraintDual ) ) MK_ERROR_OUT( "Failed to read _constraintDual" );
+				if( !stream.read( _systemDual ) ) MK_ERROR_OUT( "Failed to read _systemDual" );
 				iData.read( stream );
 			}
 			ApproximatePointInterpolationInfo( BinaryStream &stream ){ read(stream); }
@@ -1666,10 +1666,10 @@ namespace PoissonRecon
 			void read( BinaryStream &stream )
 			{
 				unsigned char constrainsDCTerm;
-				if( !stream.read( constrainsDCTerm ) ) ERROR_OUT( "Failed to read constrainsDCTerm" );
+				if( !stream.read( constrainsDCTerm ) ) MK_ERROR_OUT( "Failed to read constrainsDCTerm" );
 				_constrainsDCTerm = constrainsDCTerm!=0;
-				if( !stream.read( _constraintDual ) ) ERROR_OUT( "Failed to read _constraintDual" );
-				if( !stream.read( _systemDual ) ) ERROR_OUT( "Failed to read _systemDual" );
+				if( !stream.read( _constraintDual ) ) MK_ERROR_OUT( "Failed to read _constraintDual" );
+				if( !stream.read( _systemDual ) ) MK_ERROR_OUT( "Failed to read _systemDual" );
 				iData.read( stream );
 			}
 			ApproximatePointInterpolationInfo( BinaryStream &stream ){ read(stream); }
@@ -1716,10 +1716,10 @@ namespace PoissonRecon
 			void read( BinaryStream &stream )
 			{
 				unsigned char constrainsDCTerm;
-				if( !stream.read( constrainsDCTerm ) ) ERROR_OUT( "Failed to read constrainsDCTerm" );
+				if( !stream.read( constrainsDCTerm ) ) MK_ERROR_OUT( "Failed to read constrainsDCTerm" );
 				_constrainsDCTerm = constrainsDCTerm!=0;
-				if( !stream.read( _constraintDual ) ) ERROR_OUT( "Failed to read _constraintDual" );
-				if( !stream.read( _systemDual ) ) ERROR_OUT( "Failed to read _systemDual" );
+				if( !stream.read( _constraintDual ) ) MK_ERROR_OUT( "Failed to read _constraintDual" );
+				if( !stream.read( _systemDual ) ) MK_ERROR_OUT( "Failed to read _systemDual" );
 				iData.read( stream );
 			}
 			ApproximatePointAndDataInterpolationInfo( BinaryStream &stream ){ read(stream); }
@@ -1766,10 +1766,10 @@ namespace PoissonRecon
 			void read( BinaryStream &stream )
 			{
 				unsigned char constrainsDCTerm;
-				if( !stream.read( constrainsDCTerm ) ) ERROR_OUT( "Failed to read constrainsDCTerm" );
+				if( !stream.read( constrainsDCTerm ) ) MK_ERROR_OUT( "Failed to read constrainsDCTerm" );
 				_constrainsDCTerm = constrainsDCTerm!=0;
-				if( !stream.read( _constraintDual ) ) ERROR_OUT( "Failed to read _constraintDual" );
-				if( !stream.read( _systemDual ) ) ERROR_OUT( "Failed to read _systemDual" );
+				if( !stream.read( _constraintDual ) ) MK_ERROR_OUT( "Failed to read _constraintDual" );
+				if( !stream.read( _systemDual ) ) MK_ERROR_OUT( "Failed to read _systemDual" );
 				iData.read( stream );
 			}
 
@@ -1973,9 +1973,9 @@ namespace PoissonRecon
 			}
 			void read( BinaryStream &stream )
 			{
-				if( !stream.read( _kernelDepth ) ) ERROR_OUT( "Failed to read _kernelDepth" );
-				if( !stream.read( _coDimension ) ) ERROR_OUT( "Failed to read _coDimension" );
-				if( !stream.read( _samplesPerNode ) ) ERROR_OUT( "Failed to read _samplesPerNode" );
+				if( !stream.read( _kernelDepth ) ) MK_ERROR_OUT( "Failed to read _kernelDepth" );
+				if( !stream.read( _coDimension ) ) MK_ERROR_OUT( "Failed to read _coDimension" );
+				if( !stream.read( _samplesPerNode ) ) MK_ERROR_OUT( "Failed to read _samplesPerNode" );
 				SparseNodeData< Real , IsotropicUIntPack< Dim , FEMDegreeAndBType< DensityDegree >::Signature > >::read( stream );
 			}
 			DensityEstimator( BinaryStream &stream ){ read(stream); }
@@ -2601,7 +2601,7 @@ namespace PoissonRecon
 			FEMTreeRealType realType;
 			if     ( typeid( Real )==typeid( float  ) ) realType=FEM_TREE_REAL_FLOAT;
 			else if( typeid( Real )==typeid( double ) ) realType=FEM_TREE_REAL_DOUBLE;
-			else ERROR_OUT( "Unrecognized real type" );
+			else MK_ERROR_OUT( "Unrecognized real type" );
 			stream.write( realType );
 			int dim = Dim;
 			stream.write( dim );
@@ -2693,8 +2693,8 @@ namespace PoissonRecon
 			typedef SparseNodeData< Point< T , CDim > , UIntPack< CSigs ... > > SparseType;
 			typedef  DenseNodeData< Point< T , CDim > , UIntPack< CSigs ... > >  DenseType;
 			static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim && sizeof...( CDegrees )==Dim && sizeof...( CSigs )==Dim , "[ERROR] Dimensions don't match" );
-			static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
-			static_assert( UIntPack<   CDegrees ... >::template Compare< UIntPack< FEMSignature<   CSigs >::Degree ... > >::Equal , "[ERROR] Constraint signature and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMDegrees ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack<   CDegrees ... > , UIntPack< FEMSignature<   CSigs >::Degree ... > >::Equal , "[ERROR] Constraint signature and degrees don't match" );
 			if     ( typeid(coefficients)==typeid(SparseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , F , static_cast< const SparseType& >( coefficients ) , constraints() , maxDepth );
 			else if( typeid(coefficients)==typeid( DenseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , F , static_cast< const  DenseType& >( coefficients ) , constraints() , maxDepth );
 			else                                                return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , F ,                                   coefficients   , constraints() , maxDepth );
@@ -2706,8 +2706,8 @@ namespace PoissonRecon
 			typedef SparseNodeData< T , UIntPack< CSigs ... > > SparseType;
 			typedef  DenseNodeData< T , UIntPack< CSigs ... > >  DenseType;
 			static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim && sizeof...( CDegrees )==Dim && sizeof...( CSigs )==Dim  , "[ERROR] Dimensions don't match" );
-			static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
-			static_assert( UIntPack<   CDegrees ... >::template Compare< UIntPack< FEMSignature<   CSigs >::Degree ... > >::Equal , "[ERROR] Constaint signature and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMDegrees ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack<   CDegrees ... > , UIntPack< FEMSignature<   CSigs >::Degree ... > >::Equal , "[ERROR] Constaint signature and degrees don't match" );
 			if     ( typeid(coefficients)==typeid(SparseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , F , static_cast< const SparseType& >( coefficients ) , constraints() , maxDepth );
 			else if( typeid(coefficients)==typeid( DenseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , F , static_cast< const  DenseType& >( coefficients ) , constraints() , maxDepth );
 			else                                                return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , F ,                                   coefficients   , constraints() , maxDepth );
@@ -2719,7 +2719,7 @@ namespace PoissonRecon
 			typedef SparseNodeData< T , UIntPack< FEMSigs ... > > SparseType;
 			typedef  DenseNodeData< T , UIntPack< FEMSigs ... > >  DenseType;
 			static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
-			static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signatures and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMDegrees ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signatures and degrees don't match" );
 			typename BaseFEMIntegrator::template SystemConstraint< UIntPack< FEMDegrees ... > > _F( F );
 			if     ( typeid(coefficients)==typeid(SparseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const SparseType& >( coefficients ) , constraints() , maxDepth );
 			else if( typeid(coefficients)==typeid( DenseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const  DenseType& >( coefficients ) , constraints() , maxDepth );
@@ -2756,8 +2756,8 @@ namespace PoissonRecon
 			typedef SparseNodeData< Real , UIntPack< FEMSigs2 ... > > SparseType2;
 			typedef  DenseNodeData< Real , UIntPack< FEMSigs2 ... > >  DenseType2;
 			static_assert( sizeof...( FEMDegrees1 )==Dim && sizeof...( FEMSigs1 )==Dim && sizeof...( FEMDegrees2 )==Dim && sizeof...( FEMSigs2 )==Dim  , "[ERROR] Dimensions don't match" );
-			static_assert( UIntPack< FEMDegrees1 ... >::template Compare< UIntPack< FEMSignature< FEMSigs1 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
-			static_assert( UIntPack< FEMDegrees2 ... >::template Compare< UIntPack< FEMSignature< FEMSigs2 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMDegrees1 ... > , UIntPack< FEMSignature< FEMSigs1 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMDegrees2 ... > , UIntPack< FEMSignature< FEMSigs2 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
 			if     ( typeid(coefficients1)==typeid(SparseType1) && typeid(coefficients2)==typeid(SparseType2) ) return _dot< Real >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , F , static_cast< const SparseType1& >( coefficients1 ) , static_cast< const SparseType2& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
 			else if( typeid(coefficients1)==typeid(SparseType1) && typeid(coefficients2)==typeid( DenseType2) ) return _dot< Real >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , F , static_cast< const SparseType1& >( coefficients1 ) , static_cast< const  DenseType2& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
 			else if( typeid(coefficients1)==typeid( DenseType1) && typeid(coefficients2)==typeid( DenseType2) ) return _dot< Real >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , F , static_cast< const  DenseType1& >( coefficients1 ) , static_cast< const  DenseType2& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
@@ -2770,7 +2770,7 @@ namespace PoissonRecon
 			typedef SparseNodeData< Real , UIntPack< FEMSigs ... > > SparseType;
 			typedef  DenseNodeData< Real , UIntPack< FEMSigs ... > >  DenseType;
 			static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
-			static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signatures and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMDegrees ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signatures and degrees don't match" );
 			typename BaseFEMIntegrator::template SystemConstraint< UIntPack< FEMDegrees ... > > _F( F );
 			if     ( typeid(coefficients1)==typeid(SparseType) && typeid(coefficients2)==typeid(SparseType) ) return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const SparseType& >( coefficients1 ) , static_cast< const SparseType& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
 			else if( typeid(coefficients1)==typeid(SparseType) && typeid(coefficients2)==typeid( DenseType) ) return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const SparseType& >( coefficients1 ) , static_cast< const  DenseType& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
@@ -2811,8 +2811,8 @@ namespace PoissonRecon
 			typedef SparseNodeData< T , UIntPack< FEMSigs2 ... > > SparseType2;
 			typedef  DenseNodeData< T , UIntPack< FEMSigs2 ... > >  DenseType2;
 			static_assert( sizeof...( FEMDegrees1 )==Dim && sizeof...( FEMSigs1 )==Dim && sizeof...( FEMDegrees2 )==Dim && sizeof...( FEMSigs2 )==Dim  , "[ERROR] Dimensions don't match" );
-			static_assert( UIntPack< FEMDegrees1 ... >::template Compare< UIntPack< FEMSignature< FEMSigs1 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
-			static_assert( UIntPack< FEMDegrees2 ... >::template Compare< UIntPack< FEMSignature< FEMSigs2 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMDegrees1 ... > , UIntPack< FEMSignature< FEMSigs1 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMDegrees2 ... > , UIntPack< FEMSignature< FEMSigs2 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
 			if     ( typeid(coefficients1)==typeid(SparseType1) && typeid(coefficients2)==typeid(SparseType2) ) return _dot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , F , static_cast< const SparseType1& >( coefficients1 ) , static_cast< const SparseType2& >( coefficients2 ) , Dot );
 			else if( typeid(coefficients1)==typeid(SparseType1) && typeid(coefficients2)==typeid( DenseType2) ) return _dot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , F , static_cast< const SparseType1& >( coefficients1 ) , static_cast< const  DenseType2& >( coefficients2 ) , Dot );
 			else if( typeid(coefficients1)==typeid( DenseType1) && typeid(coefficients2)==typeid( DenseType2) ) return _dot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , F , static_cast< const  DenseType1& >( coefficients1 ) , static_cast< const  DenseType2& >( coefficients2 ) , Dot );
@@ -2825,7 +2825,7 @@ namespace PoissonRecon
 			typedef SparseNodeData< T , UIntPack< FEMSigs ... > > SparseType;
 			typedef  DenseNodeData< T , UIntPack< FEMSigs ... > >  DenseType;
 			static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
-			static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signatures and degrees don't match" );
+			static_assert( ParameterPack::Comparison< UIntPack< FEMDegrees ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signatures and degrees don't match" );
 			typename BaseFEMIntegrator::template SystemConstraint< UIntPack< FEMDegrees ... > > _F( F );
 			if     ( typeid(coefficients1)==typeid(SparseType) && typeid(coefficients2)==typeid(SparseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const SparseType& >( coefficients1 ) , static_cast< const SparseType& >( coefficients2 ) , Dot );
 			else if( typeid(coefficients1)==typeid(SparseType) && typeid(coefficients2)==typeid( DenseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const SparseType& >( coefficients1 ) , static_cast< const  DenseType& >( coefficients2 ) , Dot );

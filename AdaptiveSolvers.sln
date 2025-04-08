@@ -65,6 +65,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Header Files", "Header File
 		Src\MyExceptions.h = Src\MyExceptions.h
 		Src\MyMiscellany.h = Src\MyMiscellany.h
 		Src\NestedVector.h = Src\NestedVector.h
+		Src\ParameterPack.h = Src\ParameterPack.h
 		Src\Ply.h = Src\Ply.h
 		Src\PlyFile.h = Src\PlyFile.h
 		Src\PNG.h = Src\PNG.h

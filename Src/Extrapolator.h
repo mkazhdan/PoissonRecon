@@ -184,12 +184,12 @@ namespace PoissonRecon
 
 				if( params.fullDepth>params.depth )
 				{
-					if( params.fullDepth!=-1 ) WARN( "Full depth cannot exceed depth: " , params.fullDepth , " <= " , params.depth );
+					if( params.fullDepth!=-1 ) MK_WARN( "Full depth cannot exceed depth: " , params.fullDepth , " <= " , params.depth );
 					params.fullDepth = params.depth;
 				}
 				if( params.baseDepth>params.fullDepth )
 				{
-					if( params.baseDepth!=-1 ) WARN( "Base depth must be smaller than full depth: " , params.baseDepth , " <= " , params.fullDepth );
+					if( params.baseDepth!=-1 ) MK_WARN( "Base depth must be smaller than full depth: " , params.baseDepth , " <= " , params.fullDepth );
 					params.baseDepth = params.fullDepth;
 				}
 

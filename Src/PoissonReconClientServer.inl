@@ -249,7 +249,7 @@ struct ClientServerStream : BinaryStream
 				tries++;
 			}
 			_fs.open( _fileName , std::ios::in | std::ios::binary );
-			if( !_fs.is_open() ) ERROR_OUT( "Failed to open file for reading: " , _fileName );
+			if( !_fs.is_open() ) MK_ERROR_OUT( "Failed to open file for reading: " , _fileName );
 		}
 		else
 		{
@@ -266,10 +266,10 @@ struct ClientServerStream : BinaryStream
 				std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
 				tries++;
 			}
-			if( !validFile( _fileName ) ) ERROR_OUT( "File exists: " , _fileName , " , " , tries , " / " , maxTries );
+			if( !validFile( _fileName ) ) MK_ERROR_OUT( "File exists: " , _fileName , " , " , tries , " / " , maxTries );
 
 			_fs.open( _fileName , std::ios::out | std::ios::binary );
-			if( !_fs.is_open() ) ERROR_OUT( "Failed to open file for writing: " , _fileName );
+			if( !_fs.is_open() ) MK_ERROR_OUT( "Failed to open file for writing: " , _fileName );
 		}
 	}
 	~ClientServerStream( void )
@@ -345,36 +345,36 @@ ClientReconstructionInfo< Real , Dim >::ClientReconstructionInfo( BinaryStream &
 		b = _b!=0;
 		return true;
 	};
-	if( !stream.read( inDir ) ) ERROR_OUT( "Failed to read in dir" );
-	if( !stream.read( tempDir ) ) ERROR_OUT( "Failed to read temp dir" );
-	if( !stream.read( outDir ) ) ERROR_OUT( "Failed to read out dir" );
-	if( !stream.read( header ) ) ERROR_OUT( "Failed to read header" );
-	if( !stream.read( bufferSize ) ) ERROR_OUT( "Failed to read buffer size" );
-	if( !stream.read( filesPerDir ) ) ERROR_OUT( "Failed to read files per dir" );
-	if( !stream.read( reconstructionDepth ) ) ERROR_OUT( "Failed to read reconstruction depth" );
-	if( !stream.read( sharedDepth ) ) ERROR_OUT( "Failed to read shared depth" );
-	if( !stream.read( distributionDepth ) ) ERROR_OUT( "Failed to read distribution depth" );
-	if( !stream.read( baseDepth ) ) ERROR_OUT( "Failed to read base depth" );
-	if( !stream.read( kernelDepth ) ) ERROR_OUT( "Failed to read kernel depth" );
-	if( !stream.read( solveDepth ) ) ERROR_OUT( "Failed to read solveDepth depth" );
-	if( !stream.read( iters ) ) ERROR_OUT( "Failed to read iters" );
-	if( !stream.read( cgSolverAccuracy ) ) ERROR_OUT( "Failed to read CG-solver-accuracy" );
-	if( !stream.read( targetValue ) ) ERROR_OUT( "Failed to read target-value" );
-	if( !stream.read( pointWeight ) ) ERROR_OUT( "Failed to read point-weight" );
-	if( !stream.read( samplesPerNode ) ) ERROR_OUT( "Failed to read samples-per-node" );
-	if( !stream.read( dataX ) ) ERROR_OUT( "Failed to read data-multiplier" );
-	if( !stream.read( padSize ) ) ERROR_OUT( "Failed to read padSize" );
-	if( !stream.read( verbose ) ) ERROR_OUT( "Failed to read verbose" );
-	if( !stream.read( mergeType ) ) ERROR_OUT( "Failed to read merge-type" );
-	if( !ReadBool( density ) ) ERROR_OUT( "Failed to read density flag" );
-	if( !ReadBool( linearFit ) ) ERROR_OUT( "Failed to read linear-fit flag" );
-	if( !ReadBool( outputSolution ) ) ERROR_OUT( "Failed to read output-solution flag" );
-	if( !ReadBool( gridCoordinates ) ) ERROR_OUT( "Failed to read grid-coordinates flag" );
-	if( !ReadBool( ouputVoxelGrid ) ) ERROR_OUT( "Failed to read output-voxel-grid flag" );
-	if( !ReadBool( confidence ) ) ERROR_OUT( "Failed to read confidence flag" );
+	if( !stream.read( inDir ) ) MK_ERROR_OUT( "Failed to read in dir" );
+	if( !stream.read( tempDir ) ) MK_ERROR_OUT( "Failed to read temp dir" );
+	if( !stream.read( outDir ) ) MK_ERROR_OUT( "Failed to read out dir" );
+	if( !stream.read( header ) ) MK_ERROR_OUT( "Failed to read header" );
+	if( !stream.read( bufferSize ) ) MK_ERROR_OUT( "Failed to read buffer size" );
+	if( !stream.read( filesPerDir ) ) MK_ERROR_OUT( "Failed to read files per dir" );
+	if( !stream.read( reconstructionDepth ) ) MK_ERROR_OUT( "Failed to read reconstruction depth" );
+	if( !stream.read( sharedDepth ) ) MK_ERROR_OUT( "Failed to read shared depth" );
+	if( !stream.read( distributionDepth ) ) MK_ERROR_OUT( "Failed to read distribution depth" );
+	if( !stream.read( baseDepth ) ) MK_ERROR_OUT( "Failed to read base depth" );
+	if( !stream.read( kernelDepth ) ) MK_ERROR_OUT( "Failed to read kernel depth" );
+	if( !stream.read( solveDepth ) ) MK_ERROR_OUT( "Failed to read solveDepth depth" );
+	if( !stream.read( iters ) ) MK_ERROR_OUT( "Failed to read iters" );
+	if( !stream.read( cgSolverAccuracy ) ) MK_ERROR_OUT( "Failed to read CG-solver-accuracy" );
+	if( !stream.read( targetValue ) ) MK_ERROR_OUT( "Failed to read target-value" );
+	if( !stream.read( pointWeight ) ) MK_ERROR_OUT( "Failed to read point-weight" );
+	if( !stream.read( samplesPerNode ) ) MK_ERROR_OUT( "Failed to read samples-per-node" );
+	if( !stream.read( dataX ) ) MK_ERROR_OUT( "Failed to read data-multiplier" );
+	if( !stream.read( padSize ) ) MK_ERROR_OUT( "Failed to read padSize" );
+	if( !stream.read( verbose ) ) MK_ERROR_OUT( "Failed to read verbose" );
+	if( !stream.read( mergeType ) ) MK_ERROR_OUT( "Failed to read merge-type" );
+	if( !ReadBool( density ) ) MK_ERROR_OUT( "Failed to read density flag" );
+	if( !ReadBool( linearFit ) ) MK_ERROR_OUT( "Failed to read linear-fit flag" );
+	if( !ReadBool( outputSolution ) ) MK_ERROR_OUT( "Failed to read output-solution flag" );
+	if( !ReadBool( gridCoordinates ) ) MK_ERROR_OUT( "Failed to read grid-coordinates flag" );
+	if( !ReadBool( ouputVoxelGrid ) ) MK_ERROR_OUT( "Failed to read output-voxel-grid flag" );
+	if( !ReadBool( confidence ) ) MK_ERROR_OUT( "Failed to read confidence flag" );
 	{
 		size_t sz;
-		if( !stream.read( sz ) ) ERROR_OUT( "Failed to read number of auxiliary properties" );
+		if( !stream.read( sz ) ) MK_ERROR_OUT( "Failed to read number of auxiliary properties" );
 		auxProperties.resize(sz);
 		for( size_t i=0 ; i<sz ; i++ ) auxProperties[i].read( stream );
 	}
@@ -431,7 +431,7 @@ std::string ClientReconstructionInfo< Real , Dim >::sharedFile( unsigned int idx
 	case BACK:   sStream << PointPartition::FileDir( tempDir , header ) << "." << idx << ".back.shared"  ; break;
 	case CENTER: sStream << PointPartition::FileDir( tempDir , header ) << "." << idx << ".shared"       ; break;
 	case FRONT:  sStream << PointPartition::FileDir( tempDir , header ) << "." << idx << ".front.shared" ; break;
-	default: ERROR_OUT( "Unrecognized share type: " , shareType );
+	default: MK_ERROR_OUT( "Unrecognized share type: " , shareType );
 	}
 	return sStream.str();
 }

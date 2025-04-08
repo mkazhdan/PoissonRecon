@@ -200,7 +200,7 @@ void _Execute( int argc , char* argv[] )
 		FILE* fp = fopen( InXForm.value , "r" );
 		if( !fp )
 		{
-			WARN( "Could not open file for reading x-form: " , InXForm.value );
+			MK_WARN( "Could not open file for reading x-form: " , InXForm.value );
 			modelToUnitCube = XForm< Real , Dim+1 >::Identity();
 		}
 		else
@@ -208,7 +208,7 @@ void _Execute( int argc , char* argv[] )
 			for( int i=0 ; i<4 ; i++ ) for( int j=0 ; j<4 ; j++ )
 			{
 				float f;
-				if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read xform" );
+				if( fscanf( fp , " %f " , &f )!=1 ) MK_ERROR_OUT( "Failed to read xform" );
 				modelToUnitCube(i,j) = (Real)f;
 			}
 			fclose( fp );
@@ -265,7 +265,7 @@ void _Execute( int argc , char* argv[] )
 		if( OutXForm.set )
 		{
 			FILE* fp = fopen( OutXForm.value , "w" );
-			if( !fp ) WARN( "Could not open file for writing x-form: %s" );
+			if( !fp ) MK_WARN( "Could not open file for writing x-form: %s" );
 			else
 			{
 				for( int i=0 ; i<Dim+1 ; i++ )
@@ -441,7 +441,7 @@ void _Execute( int argc , char* argv[] )
 				if( len>GradientCutOff ) g /= len;
 				Point< Real , Dim+1 >* leafValue = leafValues(leaf);
 				if( leafValue ) for( int d=0 ; d<Dim ; d++ ) (*leafValue)[d+1] = -g[d];
-				else ERROR_OUT( "Leaf value doesn't exist" );
+				else MK_ERROR_OUT( "Leaf value doesn't exist" );
 			}
 		}
 		);
@@ -523,7 +523,7 @@ void _Execute( int argc , char* argv[] )
 		if( Out.set )
 		{
 			FILE* fp = fopen( Out.value , "wb" );
-			if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Out.value );
+			if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , Out.value );
 			FileStream fs(fp);
 			FEMTree< Dim , Real >::WriteParameter( fs );
 			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fs );
@@ -546,7 +546,7 @@ void Execute( int argc , char* argv[] )
 		case 2: return _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >( argc , argv );
 		case 3: return _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >( argc , argv );
 		case 4: return _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >( argc , argv );
-		default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
+		default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 	}
 }
 #endif // !FAST_COMPILE
@@ -554,7 +554,7 @@ int main( int argc , char* argv[] )
 {
 	Timer timer;
 #ifdef ARRAY_DEBUG
-	WARN( "Array debugging enabled" );
+	MK_WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	CmdLineParse( argc-1 , &argv[1] , params );
 	ThreadPool::ChunkSize = ThreadChunkSize.value;
@@ -571,11 +571,11 @@ int main( int argc , char* argv[] )
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = BOUNDARY_FREE;
 
-	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
+	MK_WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 	if( !BaseDepth.set ) BaseDepth.value = FullDepth.value;
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
+		if( BaseDepth.set ) MK_WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 	_Execute< DEFAULT_DIMENSION , Real , FEMDegreeAndBType< Degree , BType >::Signature >( argc , argv );

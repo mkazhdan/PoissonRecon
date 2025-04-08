@@ -315,7 +315,7 @@ public:
 				typename HyperCube::Cube< Dim >::template Element< 2 > f;
 				if     ( offset[Dim-1]+0==sliceIndex ) f = typename HyperCube::Cube< Dim >::template Element< 2 >( HyperCube::BACK  , 0 );
 				else if( offset[Dim-1]+1==sliceIndex ) f = typename HyperCube::Cube< Dim >::template Element< 2 >( HyperCube::FRONT , 0 );
-				else ERROR_OUT( "Node/slice-index mismatch: " , offset[Dim-1] , " <-> " , sliceIndex );
+				else MK_ERROR_OUT( "Node/slice-index mismatch: " , offset[Dim-1] , " <-> " , sliceIndex );
 				return faceIndexFunctor( node , f );
 			};
 
@@ -341,7 +341,7 @@ public:
 					LocalDepth d ; LocalOffset off;
 					tree.depthAndOffset( leaf , d , off );
 					// [WARNING] Is this right? If the face isn't set, wouldn't it inherit?
-					WARN( "Invalid face: [" , off[0] , " " , off[1] , " " , off[2] , " @ " , d , " | " , sliceIndex , " : " , leaf->nodeData.nodeIndex , " ( " , keyGenerator.to_string(key) , " | " , key.to_string() , " )"  );
+					MK_WARN( "Invalid face: [" , off[0] , " " , off[1] , " " , off[2] , " @ " , d , " | " , sliceIndex , " : " , leaf->nodeData.nodeIndex , " ( " , keyGenerator.to_string(key) , " | " , key.to_string() , " )"  );
 				}
 			}
 		}
@@ -579,17 +579,17 @@ public:
 			SliceLocalDepth sliceDepth ; SliceLocalOffset sliceOffset;
 			tree.depthAndOffset( node , depth , offset );
 			sliceTree.depthAndOffset( sliceNode , sliceDepth , sliceOffset );
-			if( depth!=sliceDepth ) ERROR_OUT( "Depths do not match: " , depth , " != " , sliceDepth );
-			for( unsigned int i=0 ; i<Dim-1 ; i++ ) if( offset[i]!=sliceOffset[i] ) ERROR_OUT( "Offsets do not match[ " , i , "]: " , offset[i] , " != " , sliceOffset[i] );
+			if( depth!=sliceDepth ) MK_ERROR_OUT( "Depths do not match: " , depth , " != " , sliceDepth );
+			for( unsigned int i=0 ; i<Dim-1 ; i++ ) if( offset[i]!=sliceOffset[i] ) MK_ERROR_OUT( "Offsets do not match[ " , i , "]: " , offset[i] , " != " , sliceOffset[i] );
 
 			unsigned int beginAtMaxDepth = ( offset[Dim-1] + 0 )<<( maxDepth - depth );
 			unsigned int   endAtMaxDepth = ( offset[Dim-1] + 1 )<<( maxDepth - depth );
 			unsigned int   midAtMaxDepth = ( beginAtMaxDepth + endAtMaxDepth ) / 2;
 
 			if( node->nodeData.nodeIndex==-1 ) return;
-			else if( sliceNode->nodeData.nodeIndex==-1 ) ERROR_OUT( "Expected valid slice node" );
+			else if( sliceNode->nodeData.nodeIndex==-1 ) MK_ERROR_OUT( "Expected valid slice node" );
 
-			if( sliceAtMaxDepth<beginAtMaxDepth || sliceAtMaxDepth>endAtMaxDepth ) ERROR_OUT( "Bad slice: " , sliceAtMaxDepth , " in [ " , beginAtMaxDepth , " , " , endAtMaxDepth , " ]" );
+			if( sliceAtMaxDepth<beginAtMaxDepth || sliceAtMaxDepth>endAtMaxDepth ) MK_ERROR_OUT( "Bad slice: " , sliceAtMaxDepth , " in [ " , beginAtMaxDepth , " , " , endAtMaxDepth , " ]" );
 			if( depth>=fullDepth )
 			{
 				// Set the incidence
@@ -613,7 +613,7 @@ public:
 					for( unsigned int d=0 ; d<Dim-1 ; d++ ) _p[d] = _off[d];
 					tree.depthAndOffset( node , d , off );
 					sliceTree.depthAndOffset( sliceNode , _d , _off );
-					ERROR_OUT( "Expected slice children: " , p , " @ " , d , " <-> " , _p , " @ " , _d , " : ",  node->nodeData.nodeIndex , " <-> " , sliceNode->nodeData.nodeIndex );
+					MK_ERROR_OUT( "Expected slice children: " , p , " @ " , d , " <-> " , _p , " @ " , _d , " : ",  node->nodeData.nodeIndex , " <-> " , sliceNode->nodeData.nodeIndex );
 				}
 				if( sliceAtMaxDepth<=midAtMaxDepth ) for( int c=0 ; c<(1<<(Dim-1)) ; c++ ) SetIncidenceFunctor( node->children+(c             ) , sliceNode->children + c );
 				if( sliceAtMaxDepth>=midAtMaxDepth ) for( int c=0 ; c<(1<<(Dim-1)) ; c++ ) SetIncidenceFunctor( node->children+(c|(1<<(Dim-1))) , sliceNode->children + c );
@@ -834,11 +834,11 @@ public:
 
 		unsigned int slice = sliceAtMaxDepth>>( maxDepth - depth );
 		if( !isBack && sliceAtMaxDepth!=( slice<<(maxDepth-depth ) ) ) slice++;
-		if( !slabValues[depth].validSlice( slice ) ) ERROR_OUT( "Invalid slice: " , slice , " @ " , depth , " : " , slabValues[depth].sliceValues(slice).slice() );
+		if( !slabValues[depth].validSlice( slice ) ) MK_ERROR_OUT( "Invalid slice: " , slice , " @ " , depth , " : " , slabValues[depth].sliceValues(slice).slice() );
 		SliceValues &sValues = slabValues[depth].sliceValues( slice );
 		const SliceSliceValues &ssValues = boundaryInfo.sliceValues[depth];
 
-		if( sValues.cornerGradients && !ssValues.cornerGradients ) ERROR_OUT( "Epxected slice gradients" );
+		if( sValues.cornerGradients && !ssValues.cornerGradients ) MK_ERROR_OUT( "Epxected slice gradients" );
 
 		auto CopyCornerInfo = [&]( node_index_type sliceIndex , node_index_type index )
 		{
@@ -1293,7 +1293,7 @@ public:
 						typename HyperCube::Cube< Dim >::template Element< 1 > e( zDir , _e.index );
 						const typename HyperCube::Cube< Dim >::template Element< 0 > *c = HyperCubeTables< Dim , 1 , 0 >::OverlapElements[e.index];
 						// [SANITY CHECK]
-						//						if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) ERROR_OUT( "Finer edges should both be valid or invalid" );
+						//						if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) MK_ERROR_OUT( "Finer edges should both be valid or invalid" );
 						if( !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index ) || !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) continue;
 
 						node_index_type cIndex1 = cCellIndices.template indices<1>( tree._sNodes.treeNodes[i]->children + c[0].index )[_e.index];
@@ -1365,7 +1365,7 @@ public:
 						typename HyperCube::Cube< Dim >::template Element< 0 > c0( HyperCube::BACK , _c.index ) , c1( HyperCube::FRONT , _c.index );
 
 						// [SANITY CHECK]
-						//					if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c0 )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c1 ) ) ERROR_OUT( "Finer edges should both be valid or invalid" );
+						//					if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c0 )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c1 ) ) MK_ERROR_OUT( "Finer edges should both be valid or invalid" );
 						if( !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c0.index ) || !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c1.index ) ) continue;
 
 						node_index_type cIndex0 , cIndex1;
@@ -1451,7 +1451,7 @@ public:
 							fe.count = HyperCube::MarchingSquares::AddEdgeIndices( mcIndex , isoEdges );
 							for( int j=0 ; j<fe.count ; j++ ) for( int k=0 ; k<2 ; k++ )
 							{
-								if( !sScratch.eSet[ eIndices[ isoEdges[2*j+k] ] ] ) ERROR_OUT( "Edge not set: " , slice-(zDir==HyperCube::BACK ? 0 : 1) , " / " , 1<<depth );
+								if( !sScratch.eSet[ eIndices[ isoEdges[2*j+k] ] ] ) MK_ERROR_OUT( "Edge not set: " , slice-(zDir==HyperCube::BACK ? 0 : 1) , " / " , 1<<depth );
 								fe.edges[j][k] = sValues.edgeKeys[ eIndices[ isoEdges[2*j+k] ] ];
 							}
 							sScratch.fSet[ fIndices[0] ] = 1;
@@ -1532,7 +1532,7 @@ public:
 									if( dir==HyperCube::CROSS ) // Cross-edge
 									{
 										node_index_type idx = cIndices[ coIndex ];
-										if( !xScratch.eSet[ idx ] ) ERROR_OUT( "Edge not set: " , slab , " / " , 1<<depth );
+										if( !xScratch.eSet[ idx ] ) MK_ERROR_OUT( "Edge not set: " , slab , " / " , 1<<depth );
 										fe.edges[j][k] = xValues.edgeKeys[ idx ];
 									}
 									else
@@ -1540,7 +1540,7 @@ public:
 										const SliceValues& sValues = dir==HyperCube::BACK ? bValues : fValues;
 										const typename SliceValues::Scratch &sScratch = dir==HyperCube::BACK ? bScratch : fScratch;
 										node_index_type idx = sValues.cellIndices.template indices<1>((node_index_type)i)[ coIndex ];
-										if( !sScratch.eSet[ idx ] ) ERROR_OUT( "Edge not set: " , slab , " / " , 1<<depth );
+										if( !sScratch.eSet[ idx ] ) MK_ERROR_OUT( "Edge not set: " , slab , " / " , 1<<depth );
 										fe.edges[j][k] = sValues.edgeKeys[ idx ];
 									}
 								}
@@ -1619,7 +1619,7 @@ public:
 										const std::vector< IsoEdge >& _edges = iter->second;
 										for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
 									}
-									else ERROR_OUT( "Invalid faces: " , i , "  " ,  fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
+									else MK_ERROR_OUT( "Invalid faces: " , i , "  " ,  fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
 								}
 							}
 						}
@@ -1642,7 +1642,7 @@ public:
 									if     ( bValues.setVertexPair(current,pair) ) loops.back().push_back( current ) , current = pair;
 									else if( fValues.setVertexPair(current,pair) ) loops.back().push_back( current ) , current = pair;
 									else if( (iter=xValues.vertexPairMap.find(current))!=xValues.vertexPairMap.end() ) loops.back().push_back( current ) , current = iter->second;
-									else ERROR_OUT( "Failed to close loop for node[" , i , "]: [" , off[0] , " " , off[1] , " " , off[2] , " @ " , d , "] | " , keyGenerator.to_string( current ) , " -- " , keyGenerator.to_string( start ) , " | " , current.to_string() , " -- " , start.to_string() );
+									else MK_ERROR_OUT( "Failed to close loop for node[" , i , "]: [" , off[0] , " " , off[1] , " " , off[2] , " @ " , d , "] | " , keyGenerator.to_string( current ) , " -- " , keyGenerator.to_string( start ) , " | " , current.to_string() , " -- " , start.to_string() );
 								}
 								else
 								{
@@ -1665,7 +1665,7 @@ public:
 								if     ( bValues.setEdgeVertex( key , polygon[kk] ) );
 								else if( fValues.setEdgeVertex( key , polygon[kk] ) );
 								else if( ( iter=xValues.edgeVertexMap.find( key ) )!=xValues.edgeVertexMap.end() ) polygon[kk] = iter->second;
-								else ERROR_OUT( "Couldn't find vertex in edge map: " , off[0] , " , " , off[1] , " , " , off[2] , " @ " , depth , " : " , keyGenerator.to_string( key ) , " | " , key.to_string() );
+								else MK_ERROR_OUT( "Couldn't find vertex in edge map: " , off[0] , " , " , off[1] , " , " , off[2] , " @ " , depth , " : " , keyGenerator.to_string( key ) , " | " , key.to_string() );
 							}
 							AddIsoPolygons( thread , vertexStream , polygonStream , polygon , polygonMesh , addBarycenter );
 						}
@@ -1748,7 +1748,7 @@ public:
 			// We have a linear function L, with L(0) = x0 and L(1) = x1
 			// => L(t) = x0 + t * (x1-x0)
 			// => L(t) = isoValue <=> t = ( isoValue - x0 ) / ( x1 - x0 )
-			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: " , x0 , " " , x1 );
+			if( x0==x1 ) MK_ERROR_OUT( "Not a zero-crossing root: " , x0 , " " , x1 );
 			averageRoot = ( isoValue - x0 ) / ( x1 - x0 );
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
@@ -1859,7 +1859,7 @@ public:
 			// We have a linear function L, with L(0) = x0 and L(1) = x1
 			// => L(t) = x0 + t * (x1-x0)
 			// => L(t) = isoValue <=> t = ( isoValue - x0 ) / ( x1 - x0 )
-			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: " , x0 , " " , x1 );
+			if( x0==x1 ) MK_ERROR_OUT( "Not a zero-crossing root: " , x0 , " " , x1 );
 			averageRoot = ( isoValue - x0 ) / ( x1 - x0 );
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
@@ -1945,7 +1945,7 @@ public:
 				std::vector< Point< Real , Dim > > vertices( polygon.size() );
 				for( unsigned int i=0 ; i<polygon.size() ; i++ ) vertices[i] = polygon[i].second.template get<0>();
 				std::vector< TriangleIndex< node_index_type > > triangles = MinimalAreaTriangulation< node_index_type , Real , Dim >( ( ConstPointer( Point< Real , Dim > ) )GetPointer( vertices ) , (node_index_type)vertices.size() );
-				if( triangles.size()!=polygon.size()-2 ) ERROR_OUT( "Minimal area triangulation failed:" , triangles.size() , " != " , polygon.size()-2 );
+				if( triangles.size()!=polygon.size()-2 ) MK_ERROR_OUT( "Minimal area triangulation failed:" , triangles.size() , " != " , polygon.size()-2 );
 				for( unsigned int i=0 ; i<triangles.size() ; i++ )
 				{
 					for( int j=0 ; j<3 ; j++ ) triangle[2-j] = polygon[ triangles[i].idx[j] ].first;
@@ -2008,9 +2008,9 @@ public:
 		bool copyTopology
 	)
 	{
-		if( maxKeyDepth<tree._maxDepth ) ERROR_OUT( "Max key depth has to be at least tree depth: " , tree._maxDepth , " <= " , maxKeyDepth );
-		if( slabStart>=slabEnd ) ERROR_OUT( "Slab start cannot excceed slab end: " , slabStart , " < " , slabEnd );
-		if( slabEnd>(1u<<slabDepth) ) ERROR_OUT( "Slab end cannot exceed slab num: " , slabEnd , " <= " , 1<<slabDepth );
+		if( maxKeyDepth<tree._maxDepth ) MK_ERROR_OUT( "Max key depth has to be at least tree depth: " , tree._maxDepth , " <= " , maxKeyDepth );
+		if( slabStart>=slabEnd ) MK_ERROR_OUT( "Slab start cannot excceed slab end: " , slabStart , " < " , slabEnd );
+		if( slabEnd>(1u<<slabDepth) ) MK_ERROR_OUT( "Slab end cannot exceed slab num: " , slabEnd , " <= " , 1<<slabDepth );
 
 		LevelSetExtraction::KeyGenerator< Dim > keyGenerator( maxKeyDepth );
 		LocalOffset start , end;
@@ -2021,7 +2021,7 @@ public:
 		unsigned int slabStartAtMaxDepth = slabStart << ( maxDepth - slabDepth );
 		unsigned int slabEndAtMaxDepth = slabEnd << ( maxDepth - slabDepth );
 #ifdef SHOW_WARNINGS
-		if( slabDepth>(unsigned int)fullDepth && ( ( slabStart!=0 && !backBoundary ) || ( slabEnd+1!=1<<(slabDepth) && !frontBoundary ) ) ) WARN( "Slab depth exceeds full depth, reconstruction may not be water-tight: " , slabDepth , " <= " , fullDepth , " [ " , slabStart , " , " , slabEnd , " )" );
+		if( slabDepth>(unsigned int)fullDepth && ( ( slabStart!=0 && !backBoundary ) || ( slabEnd+1!=1<<(slabDepth) && !frontBoundary ) ) ) MK_WARN( "Slab depth exceeds full depth, reconstruction may not be water-tight: " , slabDepth , " <= " , fullDepth , " [ " , slabStart , " , " , slabEnd , " )" );
 #endif // SHOW_WARNINGS
 
 		_BadRootCount = 0u;
@@ -2030,7 +2030,7 @@ public:
 		tree._setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 		static const unsigned int DataDegree = FEMSignature< DataSig >::Degree;
 		static const int FEMDegrees[] = { FEMSignature< FEMSigs >::Degree ... };
-		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 && ( nonLinearFit || gradientNormals ) ) ERROR_OUT( "Constant B-Splines do not support gradient estimation" );
+		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 && ( nonLinearFit || gradientNormals ) ) MK_ERROR_OUT( "Constant B-Splines do not support gradient estimation" );
 
 		LevelSetExtraction::SetHyperCubeTables< Dim >();
 		LevelSetExtraction::SetHyperCubeTables< Dim-1 >();
@@ -2194,7 +2194,7 @@ public:
 				for( LocalDepth d=maxDepth ; d>=fullDepth ; d-- ) if( d<=boundary->sliceTree.depth() && d<=tree._maxDepth )
 				{
 					unsigned int slice;
-					if( !SetCoarseSlice( sliceAtMaxDepth , d , slice ) ) ERROR_OUT( "Could not set coarse slice" );
+					if( !SetCoarseSlice( sliceAtMaxDepth , d , slice ) ) MK_ERROR_OUT( "Could not set coarse slice" );
 					OverwriteCornerValues( *boundary , (*dValues)[d] , tree , d , sliceAtMaxDepth , maxDepth , sliceAtMaxDepth==slabStartAtMaxDepth , slabValues , *incidence );
 					SetMCIndices( tree , isoValue , d , fullDepth , slice , slabValues );
 				}
@@ -2240,13 +2240,13 @@ public:
 				auto sliceFunctor = [&]( unsigned int depth ) -> SliceValues &
 				{
 					unsigned int slice;
-					if( !SetCoarseSlice( sliceAtMaxDepth , depth , slice ) ) ERROR_OUT( "Could not set coarse slice" );
+					if( !SetCoarseSlice( sliceAtMaxDepth , depth , slice ) ) MK_ERROR_OUT( "Could not set coarse slice" );
 					return slabValues[depth].sliceValues( slice );
 				};
 				auto scratchFunctor = [&]( unsigned int depth ) -> typename SliceValues::Scratch &
 				{
 					unsigned int slice;
-					if( !SetCoarseSlice( sliceAtMaxDepth , depth , slice ) ) ERROR_OUT( "Could not set coarse slice" );
+					if( !SetCoarseSlice( sliceAtMaxDepth , depth , slice ) ) MK_ERROR_OUT( "Could not set coarse slice" );
 					return slabValues[depth].sliceScratch( slice );
 				};
 				CopyIsoStructure< WeightDegree , DataSig >( keyGenerator , *boundary , tree , fullDepth , sliceAtMaxDepth , maxDepth , sliceFunctor , scratchFunctor , *incidence , vertexStream , gradientNormals , pointEvaluator , densityWeights , data , zeroData );
@@ -2395,7 +2395,7 @@ public:
 
 		if( pointEvaluator ) delete pointEvaluator;
 		size_t badRootCount = _BadRootCount;
-		if( badRootCount!=0 ) WARN( "bad average roots: " , badRootCount );
+		if( badRootCount!=0 ) MK_WARN( "bad average roots: " , badRootCount );
 		return stats;
 	}
 };

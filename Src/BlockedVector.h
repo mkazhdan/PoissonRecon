@@ -182,19 +182,19 @@ namespace PoissonRecon
 		{
 			for( size_t i=0 ; i<_allocatedBlocks ; i++ ) DeletePointer( _blocks[i] );
 			DeletePointer( _blocks );
-			if( !stream.read( _size ) ) ERROR_OUT( "Failed to read _size" );
-			if( !stream.read( _defaultValue ) ) ERROR_OUT( "Failed to read _defaultValue" );
-			if( !stream.read( _reservedBlocks ) ) ERROR_OUT( "Failed to read _reservedBlocks" );
-			if( !stream.read( _allocatedBlocks ) ) ERROR_OUT( "Failed to read _allocatedBlocks" );
+			if( !stream.read( _size ) ) MK_ERROR_OUT( "Failed to read _size" );
+			if( !stream.read( _defaultValue ) ) MK_ERROR_OUT( "Failed to read _defaultValue" );
+			if( !stream.read( _reservedBlocks ) ) MK_ERROR_OUT( "Failed to read _reservedBlocks" );
+			if( !stream.read( _allocatedBlocks ) ) MK_ERROR_OUT( "Failed to read _allocatedBlocks" );
 
 			_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
-			if( !_blocks ) ERROR_OUT( "Failed to allocate _blocks: " , _reservedBlocks );
+			if( !_blocks ) MK_ERROR_OUT( "Failed to allocate _blocks: " , _reservedBlocks );
 
 			for( size_t i=0 ; i<_allocatedBlocks ; i++ )
 			{
 				_blocks[i] = NewPointer< T >( _BlockSize );
-				if( !_blocks[i] ) ERROR_OUT( "Failed to allocate _blocks[" , i , "]" );
-				if( !stream.read( _blocks[i] , _BlockSize ) ) ERROR_OUT( "Failed to read _blocks[" , i , "]" );
+				if( !_blocks[i] ) MK_ERROR_OUT( "Failed to allocate _blocks[" , i , "]" );
+				if( !stream.read( _blocks[i] , _BlockSize ) ) MK_ERROR_OUT( "Failed to read _blocks[" , i , "]" );
 			}
 			for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
 		}
@@ -207,24 +207,24 @@ namespace PoissonRecon
 			DeletePointer( _blocks );
 			_size = _allocatedBlocks = _reservedBlocks = 0;
 
-			if( !stream.read( _size ) ) ERROR_OUT( "Failed to read _size" );
+			if( !stream.read( _size ) ) MK_ERROR_OUT( "Failed to read _size" );
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Should deserialize default value" )
 #endif // SHOW_WARNINGS
-			if( !stream.read( _defaultValue ) ) ERROR_OUT( "Failed to read _defaultValue" );
-			if( !stream.read( _reservedBlocks ) ) ERROR_OUT( "Failed to read _reservedBlocks" );
-			if( !stream.read( _allocatedBlocks ) ) ERROR_OUT( "Failed to read _allocatedBlocks" );
+			if( !stream.read( _defaultValue ) ) MK_ERROR_OUT( "Failed to read _defaultValue" );
+			if( !stream.read( _reservedBlocks ) ) MK_ERROR_OUT( "Failed to read _reservedBlocks" );
+			if( !stream.read( _allocatedBlocks ) ) MK_ERROR_OUT( "Failed to read _allocatedBlocks" );
 			_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
-			if( !_blocks ) ERROR_OUT( "Failed to allocate _blocks: " , _reservedBlocks );
+			if( !_blocks ) MK_ERROR_OUT( "Failed to allocate _blocks: " , _reservedBlocks );
 			for( size_t i=0 ; i<_allocatedBlocks ; i++ )
 			{
 				_blocks[i] = NewPointer< T >( _BlockSize );
-				if( !_blocks[i] ) ERROR_OUT( "Failed to allocate _blocks[" , i , "]" );
+				if( !_blocks[i] ) MK_ERROR_OUT( "Failed to allocate _blocks[" , i , "]" );
 			}
 			if( _size )
 			{
 				Pointer( char ) buffer = NewPointer< char >( _size * serializedSize );
-				if( !stream.read( buffer , serializedSize*_size ) ) ERROR_OUT( "Failed tor read in data" );
+				if( !stream.read( buffer , serializedSize*_size ) ) MK_ERROR_OUT( "Failed tor read in data" );
 				for( unsigned int i=0 ; i<_size ; i++ ) serializer.deserialize( buffer+i*serializedSize , operator[]( i ) );
 				DeletePointer( buffer );
 			}

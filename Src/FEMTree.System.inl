@@ -443,7 +443,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 			int b = _residualWindow.begin(!forward);
 			if( FullWindow.inBlock( b ) ) maxBlockSize = std::max< size_t >( maxBlockSize , _sNodesEnd( depth , BlockLast( b ) ) - _sNodesBegin( depth , BlockFirst( b ) ) );
 		}
-		if( maxBlockSize>std::numeric_limits< matrix_index_type >::max() ) ERROR_OUT( "more entries in a block than can be indexed in " , sizeof(matrix_index_type) , " bytes" );
+		if( maxBlockSize>std::numeric_limits< matrix_index_type >::max() ) MK_ERROR_OUT( "more entries in a block than can be indexed in " , sizeof(matrix_index_type) , " bytes" );
 		for( int i=0 ; i<matrixBlocks ; i++ ) _constraints[i] = AllocPointer< T >( maxBlockSize ) , _D[i] = AllocPointer< Real >( maxBlockSize );
 		for( ; residualWindow.end(!forward)*dir<FullWindow.end(forward)*dir ; residualWindow += dir , solveWindow += dir )
 		{
@@ -657,7 +657,7 @@ template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
 void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth maxSolveDepth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
-	if( maxSolveDepth>_baseDepth ) ERROR_OUT( "Regular MG depth cannot exceed base depth: " , maxSolveDepth , " <= " , _baseDepth );
+	if( maxSolveDepth>_baseDepth ) MK_ERROR_OUT( "Regular MG depth cannot exceed base depth: " , maxSolveDepth , " <= " , _baseDepth );
 	double& systemTime = stats.systemTime;
 	double&  solveTime = stats. solveTime;
 
@@ -843,7 +843,7 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 	typedef UIntPack< ( -BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::SupportStart ) ... > RightPointSupportRadii;
 	typedef UIntPack<    BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::SupportSize    ... > SupportSizes;
 
-	if( !( FEMDegrees() >= IsotropicUIntPack< Dim , PointD >() ) ) ERROR_OUT( "Insufficient derivatives" );
+	if( !( FEMDegrees() >= IsotropicUIntPack< Dim , PointD >() ) ) MK_ERROR_OUT( "Insufficient derivatives" );
 	if( !interpolationInfo ) return;
 	const InterpolationInfo< T , PointD >& iInfo = *interpolationInfo;
 
@@ -883,7 +883,7 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 				if( Dim==1 )
 				{
 					Point< double , PointD+1 > partialDot = peState.template partialDotDValues< Real , CumulativeDerivatives< Dim , PointD > >( dualValues , _idx );
-					Pointer( Real ) _pointValues = GetPointer( pointValues.data + idx[Dim-1] + OverlapRadii::Values[Dim-1] , - idx[Dim-1] - (int)OverlapRadii::Values[Dim-1] , pointValues.Size - idx[Dim-1] - (int)OverlapRadii::Values[Dim-1] );
+					Pointer( Real ) _pointValues = GetPointer( pointValues.data + idx[Dim-1] + OverlapRadii::Values[Dim-1] , - idx[Dim-1] - (int)OverlapRadii::Values[Dim-1] , pointValues.Size() - idx[Dim-1] - (int)OverlapRadii::Values[Dim-1] );
 
 					int _i = idx[Dim-1] + (int)OverlapRadii::Values[Dim-1] - (int)LeftPointSupportRadii::Values[Dim-1];
 					const double (*splineValues)[PointD+1] = peState.template values< Dim-1 >();
@@ -895,7 +895,7 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 					int start[Dim==1 ? 1 : Dim-1] , end[Dim==1 ? 1 : Dim-1];
 					// Compute the bounds of nodes which can be supported on the point
 					for( int d=0 ; d<Dim-1 ; d++ ) start[d] = idx[d] + (int)OverlapRadii::Values[d] - (int)LeftPointSupportRadii::Values[d] , end[d] = idx[d] + (int)OverlapRadii::Values[d] + (int)RightPointSupportRadii::Values[d] + 1;
-					WindowLoop< Dim , Dim-1 >::Run
+					Window::Loop< Dim , Dim-1 >::Run
 					(
 						start , end , 
 						[&]( int d , int i ){ _idx[d] = i - (int)OverlapRadii::Values[d] + off[d]; } ,
@@ -1003,7 +1003,7 @@ void FEMTree< Dim , Real >::_addProlongedPointValues( UIntPack< FEMSigs ... > , 
 #pragma message( "[WARNING] This code is broken" )
 #endif // SHOW_WARNINGS
 #if 1
-	ERROR_OUT( "Broken code" );
+	MK_ERROR_OUT( "Broken code" );
 #else
 	if( !interpolationInfo ) return;
 	const InterpolationInfo< T , PointD >& iInfo = *interpolationInfo;
@@ -1622,7 +1622,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::systemMatrix( UI
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	typedef typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > > BaseSystem;
-	if( depth<0 || depth>_maxDepth ) ERROR_OUT( "System depth out of bounds: 0 <= " , depth , " <= " , _maxDepth );
+	if( depth<0 || depth>_maxDepth ) MK_ERROR_OUT( "System depth out of bounds: 0 <= " , depth , " <= " , _maxDepth );
 	SparseMatrix< Real , matrix_index_type > matrix;
 	F.init( depth );
 	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( depth );
@@ -1658,7 +1658,7 @@ template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
 SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack<FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
-	if( highDepth<=0 || highDepth>_maxDepth ) ERROR_OUT( "System depth out of bounds: 0 < " , highDepth , " <= " , _maxDepth );
+	if( highDepth<=0 || highDepth>_maxDepth ) MK_ERROR_OUT( "System depth out of bounds: 0 < " , highDepth , " <= " , _maxDepth );
 
 	LocalDepth lowDepth = highDepth-1;
 	SparseMatrix< Real , matrix_index_type > matrix;
@@ -1768,7 +1768,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::_downSampleMatri
 				);
 
 				double values[Dim+1] ; values[0] = 1;
-				WindowLoop< Dim , Dim >::Run
+				WindowLoop< Dim >::Run
 				(
 					ZeroUIntPack< Dim >() , UpSampleSizes() ,
 					[&]( int d , int i ){ values[d+1] = values[d] * upSampleValues[d][i]; } ,
@@ -2632,13 +2632,13 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 
 	if( maxSolveDepth>_maxDepth )
 	{
-		WARN( "Solver depth should not exceed maximum depth: " , maxSolveDepth , " <= " , _maxDepth );
+		MK_WARN( "Solver depth should not exceed maximum depth: " , maxSolveDepth , " <= " , _maxDepth );
 		maxSolveDepth = _maxDepth;
 	}
 	if( minSolveDepth>maxSolveDepth ) return;
 	else if( minSolveDepth<_baseDepth )
 	{
-		WARN( "Minimum solver depth should not be smaller than base solver depth: " , minSolveDepth , " >= " , _baseDepth );
+		MK_WARN( "Minimum solver depth should not be smaller than base solver depth: " , minSolveDepth , " >= " , _baseDepth );
 		minSolveDepth = _baseDepth;
 	}
 
@@ -2647,7 +2647,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( sizeof...(InterpolationInfos)==0 ? 0 : maxSolveDepth );
 
 	if( solverInfo.clearSolution ) solution = initDenseNodeData< T >( UIntPack< FEMSigs ... >() );
-	else if( solution.size()!=_sNodesEnd( _maxDepth ) ) ERROR_OUT( "Solution is the wrong size: " , solution.size() , " != " , _sNodesEnd(_maxDepth) );
+	else if( solution.size()!=_sNodesEnd( _maxDepth ) ) MK_ERROR_OUT( "Solution is the wrong size: " , solution.size() , " != " , _sNodesEnd(_maxDepth) );
 
 	// The initial estimate of the solution (may be empty or may come in with an initial guess)
 	Pointer( T ) _solution = solution();
@@ -2976,7 +2976,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 			{
 				if( isInterior )
 				{
-					unsigned int size = neighbors.neighbors.Size;
+					unsigned int size = neighbors.neighbors.Size();
 					Pointer( const FEMTreeNode* ) nodes = neighbors.neighbors().data;
 					Pointer( Point< double , CDim > ) stencilValues = stencil.data;
 					for( unsigned int j=0 ; j<size ; j++ )
@@ -2990,7 +2990,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 				}
 				else
 				{
-					unsigned int size = neighbors.neighbors.Size;
+					unsigned int size = neighbors.neighbors.Size();
 					Pointer( const FEMTreeNode* ) nodes = neighbors.neighbors().data;
 					for( unsigned int j=0 ; j<size ; j++ )
 					{

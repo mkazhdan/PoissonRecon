@@ -257,7 +257,7 @@ namespace PoissonRecon
 		JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = { 0 };
 		jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_JOB_MEMORY;
 		jeli.JobMemoryLimit = peakMemory;
-		if( !SetInformationJobObject( h , JobObjectExtendedLimitInformation , &jeli , sizeof( jeli ) ) ) WARN( "Failed to set memory limit" );
+		if( !SetInformationJobObject( h , JobObjectExtendedLimitInformation , &jeli , sizeof( jeli ) ) ) MK_WARN( "Failed to set memory limit" );
 	}
 #else // !_WIN32 && !_WIN64
 	inline void SetPeakMemoryMB( size_t sz )

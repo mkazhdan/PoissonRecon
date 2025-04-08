@@ -280,7 +280,7 @@ std::vector< unsigned int > Reconstruct( unsigned int degree , const PointPartit
 	{
 		case 1: return Reconstruct< Real , Dim , BType , 1 >( pointSetInfo , partition , clientSockets , clientReconInfo );
 		case 2: return Reconstruct< Real , Dim , BType , 2 >( pointSetInfo , partition , clientSockets , clientReconInfo );
-		default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
+		default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
 	}
 	return std::vector< unsigned int >();
 }
@@ -298,7 +298,7 @@ std::vector< unsigned int > Reconstruct( BoundaryType bType , unsigned int degre
 		case BOUNDARY_FREE:      return Reconstruct< Real , Dim , BOUNDARY_FREE      >( degree , pointSetInfo , partition , clientSockets , clientReconInfo );
 		case BOUNDARY_NEUMANN:   return Reconstruct< Real , Dim , BOUNDARY_NEUMANN   >( degree , pointSetInfo , partition , clientSockets , clientReconInfo );
 		case BOUNDARY_DIRICHLET: return Reconstruct< Real , Dim , BOUNDARY_DIRICHLET >( degree , pointSetInfo , partition , clientSockets , clientReconInfo );
-		default: ERROR_OUT( "Not a valid boundary type: " , bType );
+		default: MK_ERROR_OUT( "Not a valid boundary type: " , bType );
 	}
 	return std::vector< unsigned int >();
 }
@@ -371,7 +371,7 @@ void Merge
 int main( int argc , char* argv[] )
 {
 #ifdef ARRAY_DEBUG
-	WARN( "Array debugging enabled" );
+	MK_WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 #ifdef USE_DOUBLE
 	typedef double Real;
@@ -387,7 +387,7 @@ int main( int argc , char* argv[] )
 		ShowUsage( argv[0] );
 		return 0;
 	}
-	if( PadSize.value<0 ) ERROR_OUT( "Padding size cannot be negative" );
+	if( PadSize.value<0 ) MK_ERROR_OUT( "Padding size cannot be negative" );
 
 	if( Verbose.value>1 )
 	{
@@ -406,7 +406,7 @@ int main( int argc , char* argv[] )
 
 	if( Depth.set && Width.value>0 )
 	{
-		WARN( "Both --" , Depth.name  , " and --" , Width.name , " set, ignoring --" , Width.name );
+		MK_WARN( "Both --" , Depth.name  , " and --" , Width.name , " set, ignoring --" , Width.name );
 		Width.value = 0;
 	}
 
@@ -426,7 +426,7 @@ int main( int argc , char* argv[] )
 
 		// Create a listening SOCKET for connecting to server
 		AcceptorSocket listenSocket = GetListenSocket( port );
-		if( listenSocket == _INVALID_ACCEPTOR_SOCKET_ ) ERROR_OUT( "Could not create listener socket" );
+		if( listenSocket == _INVALID_ACCEPTOR_SOCKET_ ) MK_ERROR_OUT( "Could not create listener socket" );
 		std::cout << "Server Address: " << address << ":" << port << std::endl;
 		{
 			std::stringstream ss;
@@ -511,15 +511,15 @@ int main( int argc , char* argv[] )
 		clientReconInfo.reconstructionDepth = Depth.value;
 		clientReconInfo.sharedDepth = 0;
 		while( ((size_t)1<<clientReconInfo.sharedDepth) < pointSetInfoAndPartition.first.pointsPerSlab.size() ) clientReconInfo.sharedDepth++;
-		if( ((size_t)1<<clientReconInfo.sharedDepth)!=pointSetInfoAndPartition.first.pointsPerSlab.size() ) ERROR_OUT( "Number of point slabs is not a power of two: " , pointSetInfoAndPartition.first.pointsPerSlab.size() );
+		if( ((size_t)1<<clientReconInfo.sharedDepth)!=pointSetInfoAndPartition.first.pointsPerSlab.size() ) MK_ERROR_OUT( "Number of point slabs is not a power of two: " , pointSetInfoAndPartition.first.pointsPerSlab.size() );
 		clientReconInfo.baseDepth = BaseDepth.value;
 
-		if( clientReconInfo.pointWeight<0 ) ERROR_OUT( "Expected non-negative point-weight" );
+		if( clientReconInfo.pointWeight<0 ) MK_ERROR_OUT( "Expected non-negative point-weight" );
 
-		if( clientReconInfo.sharedDepth>clientReconInfo.reconstructionDepth ) ERROR_OUT( "Slab depth cannot exceed reconstruction depth: " , clientReconInfo.sharedDepth , " <= "  , clientReconInfo.reconstructionDepth );
+		if( clientReconInfo.sharedDepth>clientReconInfo.reconstructionDepth ) MK_ERROR_OUT( "Slab depth cannot exceed reconstruction depth: " , clientReconInfo.sharedDepth , " <= "  , clientReconInfo.reconstructionDepth );
 		if( clientReconInfo.baseDepth>clientReconInfo.sharedDepth )
 		{
-			if( BaseDepth.set ) ERROR_OUT( "Base depth cannot exceed shared depth: " , clientReconInfo.baseDepth , " <="  , clientReconInfo.sharedDepth );
+			if( BaseDepth.set ) MK_ERROR_OUT( "Base depth cannot exceed shared depth: " , clientReconInfo.baseDepth , " <="  , clientReconInfo.sharedDepth );
 			else clientReconInfo.baseDepth = clientReconInfo.sharedDepth;
 		}
 		if( !KernelDepth.set ) KernelDepth.value = clientReconInfo.reconstructionDepth-2;
@@ -527,19 +527,19 @@ int main( int argc , char* argv[] )
 
 		if( clientReconInfo.kernelDepth>clientReconInfo.reconstructionDepth )
 		{
-			WARN( "Kernel depth should not exceed depth: " , clientReconInfo.kernelDepth , " <= " , clientReconInfo.reconstructionDepth );
+			MK_WARN( "Kernel depth should not exceed depth: " , clientReconInfo.kernelDepth , " <= " , clientReconInfo.reconstructionDepth );
 			clientReconInfo.kernelDepth = clientReconInfo.reconstructionDepth;
 		}
 
 		clientReconInfo.solveDepth = ( SolveDepth.set && SolveDepth.value!=-1 ) ? SolveDepth.value : clientReconInfo.reconstructionDepth;
 		if( clientReconInfo.solveDepth>clientReconInfo.reconstructionDepth )
 		{
-			WARN( "Solve depth cannot exceed reconstruction depth: " , clientReconInfo.solveDepth , " <= " , clientReconInfo.reconstructionDepth );
+			MK_WARN( "Solve depth cannot exceed reconstruction depth: " , clientReconInfo.solveDepth , " <= " , clientReconInfo.reconstructionDepth );
 			clientReconInfo.solveDepth = clientReconInfo.reconstructionDepth;
 		}
 		if( clientReconInfo.solveDepth<clientReconInfo.baseDepth )
 		{
-			WARN( "Solve depth cannot be smaller than base depth: " , clientReconInfo.solveDepth , " >= " , clientReconInfo.baseDepth );
+			MK_WARN( "Solve depth cannot be smaller than base depth: " , clientReconInfo.solveDepth , " >= " , clientReconInfo.baseDepth );
 			clientReconInfo.solveDepth = clientReconInfo.baseDepth;
 		}
 #ifdef FAST_COMPILE

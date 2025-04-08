@@ -296,7 +296,7 @@ inline int Polynomial< 4 >::getSolutions( double c , double* roots , double EPS 
 template< int Degree >
 int Polynomial<Degree>::getSolutions( double c , double* roots , double EPS ) const
 {
-	ERROR_OUT( "Can't solve polynomial of degree: " , Degree );
+	MK_ERROR_OUT( "Can't solve polynomial of degree: " , Degree );
 	return 0;
 }
 

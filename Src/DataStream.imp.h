@@ -145,7 +145,7 @@ namespace PoissonRecon
 			{
 				d.resize( pSize );
 				if( fread( &d[0] , sizeof(Data) , pSize , _fp )==pSize ) return true;
-				ERROR_OUT( "Failed to read polygon from file" );
+				MK_ERROR_OUT( "Failed to read polygon from file" );
 				return true;
 			}
 			else return false;

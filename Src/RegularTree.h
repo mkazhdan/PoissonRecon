@@ -38,10 +38,11 @@ DAMAGE.
 #include "BinaryNode.h"
 #include "Window.h"
 #include "MyMiscellany.h"
+#include "Array.h"
+#include "MyAtomic.h"
 
 namespace PoissonRecon
 {
-
 	template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 	struct RegularTreeNode
 	{
@@ -67,6 +68,7 @@ namespace PoissonRecon
 			RegularTreeNode &_root , *_rootParent;
 			int _depth , _offset[Dim];
 		};
+
 		struct DepthAndOffset
 		{
 			DepthAndOffsetType depth , offset[Dim];
@@ -113,7 +115,7 @@ namespace PoissonRecon
 		bool initChildren( Allocator< RegularTreeNode >* nodeAllocator )
 		{
 			auto initializer = []( RegularTreeNode & ){};
-			return initChildren( nodeAllocator , initializer );
+			return this->template initChildren< ThreadSafe >( nodeAllocator , initializer );
 		}
 		template< bool ThreadSafe , typename Initializer >
 		bool initChildren( Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
@@ -136,7 +138,7 @@ namespace PoissonRecon
 		template< class MergeFunctor >
 		void merge( RegularTreeNode* node , MergeFunctor& f );
 
-		void depthAndOffset( int& depth , int offset[Dim] ) const; 
+		void depthAndOffset( int& depth , int offset[Dim] ) const;
 		DepthAndOffset depthAndOffset( void ) const;
 		void centerIndex( int index[Dim] ) const;
 		int depth( void ) const;
@@ -174,7 +176,7 @@ namespace PoissonRecon
 		void setFullDepth( int maxDepth , Allocator< RegularTreeNode >* nodeAllocator )
 		{
 			auto initializer = []( RegularTreeNode & ){};
-			return setFulDepth( nodeAllocator , initializer );
+			return setFullDepth( nodeAllocator , initializer );
 		}
 		template< typename Initializer >
 		void setFullDepth( int maxDepth , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer );
@@ -200,78 +202,77 @@ namespace PoissonRecon
 			return read( stream , nodeAllocator , initializer );
 		}
 
-		template< typename Initializer >
-		bool read( const char* fileName , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer );
-		template< typename Initializer >
-		bool read( FILE* fp , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer );
-
 		template< typename Pack > struct Neighbors{};
+
 		template< unsigned int ... Widths >
-		struct Neighbors< UIntPack< Widths ... > >
+		struct Neighbors< ParameterPack::UIntPack< Widths ... > >
 		{
-			typedef StaticWindow< RegularTreeNode* , UIntPack< Widths ... > > Window;
-			Window neighbors;
+			using StaticWindow = Window::StaticWindow< RegularTreeNode * , Widths ... >;
+			StaticWindow neighbors;
 			Neighbors( void );
 			void clear( void );
 		};
 		template< typename Pack > struct ConstNeighbors{};
 		template< unsigned int ... Widths >
-		struct ConstNeighbors< UIntPack< Widths ... > >
+		struct ConstNeighbors< ParameterPack::UIntPack< Widths ... > >
 		{
-			typedef StaticWindow< const RegularTreeNode* , UIntPack< Widths ... > > Window;
-			Window neighbors;
+			using StaticWindow = Window::StaticWindow< const RegularTreeNode * , Widths ... >;
+			StaticWindow neighbors;
 			ConstNeighbors( void );
 			void clear( void );
 		};
 
 		template< typename LeftPack , typename RightPack > struct NeighborKey{};
 		template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-		struct NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >
+		struct NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >
 		{
 		protected:
 			static_assert( sizeof...(LeftRadii)==sizeof...(RightRadii) , "[ERROR] Left and right radii dimensions don't match" );
-			static const unsigned int CenterIndex = WindowIndex< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > , UIntPack< LeftRadii ... > >::Index;
 			int _depth;
 
 			template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-			static unsigned int _NeighborsLoop( UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > , ConstWindowSlice< RegularTreeNode* , UIntPack< ( _PLeftRadii+_PRightRadii+1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< ( _CLeftRadii+_CRightRadii+1 ) ... > > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
+			static unsigned int _NeighborsLoop( ParameterPack::UIntPack< _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadii ... > , Window::ConstSlice< RegularTreeNode* , ( _PLeftRadii+_PRightRadii+1 ) ... > pNeighbors , Window::Slice< RegularTreeNode* , ( _CLeftRadii+_CRightRadii+1 ) ... > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
 
 			template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-			static unsigned int _NeighborsLoop( UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > ,      WindowSlice< RegularTreeNode* , UIntPack< ( _PLeftRadii+_PRightRadii+1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< ( _CLeftRadii+_CRightRadii+1 ) ... > > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
+			static unsigned int _NeighborsLoop( ParameterPack::UIntPack< _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadii ... > ,      Window::Slice< RegularTreeNode* , ( _PLeftRadii+_PRightRadii+1 ) ... > pNeighbors , Window::Slice< RegularTreeNode* , ( _CLeftRadii+_CRightRadii+1 ) ... > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
 
 			template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , typename PLeft , typename PRight , typename CLeft , typename CRight > struct _Run{};
 
 			template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int _PLeftRadius , unsigned int ... _PLeftRadii , unsigned int _PRightRadius , unsigned int ... _PRightRadii , unsigned int _CLeftRadius , unsigned int ... _CLeftRadii , unsigned int _CRightRadius , unsigned int ... _CRightRadii >
-			struct _Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadius , _PLeftRadii ... > , UIntPack< _PRightRadius , _PRightRadii ... > , UIntPack< _CLeftRadius , _CLeftRadii ... > , UIntPack< _CRightRadius , _CRightRadii ... > >
+			struct _Run< CreateNodes , ThreadSafe , NodeInitializer , ParameterPack::UIntPack< _PLeftRadius , _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadius , _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadius , _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadius , _CRightRadii ... > >
 			{
-				static unsigned int Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 , ( _PLeftRadii+_PRightRadii+1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 , ( _CLeftRadii+_CRightRadii+1 ) ... > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
+				static unsigned int Run( Window::ConstSlice< RegularTreeNode* , _PLeftRadius+_PRightRadius+1 , ( _PLeftRadii+_PRightRadii+1 ) ... > pNeighbors , Window::Slice< RegularTreeNode* , _CLeftRadius+_CRightRadius+1 , ( _CLeftRadii+_CRightRadii+1 ) ... > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
 			};
 			template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius >
-			struct _Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >
+			struct _Run< CreateNodes , ThreadSafe , NodeInitializer , ParameterPack::UIntPack< _PLeftRadius > , ParameterPack::UIntPack< _PRightRadius > , ParameterPack::UIntPack< _CLeftRadius > , ParameterPack::UIntPack< _CRightRadius > >
 			{
-				static unsigned int Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
+				static unsigned int Run( Window::ConstSlice< RegularTreeNode* , _PLeftRadius+_PRightRadius+1 > pNeighbors , Window::Slice< RegularTreeNode* , _CLeftRadius+_CRightRadius+1 > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
 			};
 		public:
-			typedef Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > NeighborType;
+			static const unsigned int CenterIndex = Window::Index< ( LeftRadii + RightRadii + 1 ) ... >::template I< LeftRadii ... >();
+			typedef Neighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > NeighborType;
 			NeighborType* neighbors;
 
 
 			NeighborKey( void );
 			NeighborKey( const NeighborKey& key );
 			~NeighborKey( void );
-			int depth( void ) const { return _depth; }
 
+			int depth( void ) const { return _depth; }
 			void set( int depth );
 
+			RegularTreeNode *center( unsigned int depth ){ return neighbors[depth].neighbors.data[ CenterIndex ]; }
+			const RegularTreeNode *center( unsigned int depth ) const { return neighbors[depth].neighbors.data[ CenterIndex ]; }
+
 			template< bool CreateNodes , bool ThreadSafe >
-			typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& getNeighbors( RegularTreeNode* node , Allocator< RegularTreeNode >* nodeAllocator )
+			typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& getNeighbors( RegularTreeNode* node , Allocator< RegularTreeNode >* nodeAllocator )
 			{
 				auto initializer = []( RegularTreeNode & ){};
-				return getNeighbors( node , nodeAllocator , initializer );
+				return getNeighbors< CreateNodes , ThreadSafe >( node , nodeAllocator , initializer );				
 			}
 
 			template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer >
-			typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& getNeighbors( RegularTreeNode* node , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &nodeInitializer );
+			typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& getNeighbors( RegularTreeNode* node , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &nodeInitializer );
 
 			NeighborType& getNeighbors( const RegularTreeNode* node )
 			{
@@ -280,37 +281,37 @@ namespace PoissonRecon
 			}
 
 			template< bool CreateNodes , bool ThreadSafe , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-			void getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > ,       RegularTreeNode* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator )
+			void getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > ,       RegularTreeNode* node , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator )
 			{
 				auto initializer = []( RegularTreeNode & ){};
-				return getNeighbors( UIntPack< _LeftRadii ... >() , UIntPack< _RightRadii ... >() , node , neighbors , nodeAllocator , initializer );
+				return getNeighbors( ParameterPack::UIntPack< _LeftRadii ... >() , ParameterPack::UIntPack< _RightRadii ... >() , node , neighbors , nodeAllocator , initializer );
 			}
 
 			template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-			void getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > ,       RegularTreeNode* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
+			void getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > ,       RegularTreeNode* node , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
 
 			template< unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-			void getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , const RegularTreeNode* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
+			void getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > , const RegularTreeNode* node , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
 			{
 				auto initializer = []( RegularTreeNode & ){};
-				return getNeighbors< false , false >( UIntPack< _LeftRadii ... >() , UIntPack< _RightRadii ... >() , (RegularTreeNode*)node , NULL , initializer );
+				return getNeighbors< false , false >( ParameterPack::UIntPack< _LeftRadii ... >() , ParameterPack::UIntPack< _RightRadii ... >() , (RegularTreeNode*)node , NULL , initializer );
 			}
 
 			template< bool CreateNodes , bool ThreadSafe , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-			void getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > ,       RegularTreeNode* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator )
+			void getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > ,       RegularTreeNode* node , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator )
 			{
 				auto initializer = []( RegularTreeNode & ){};
-				return getNeighbors( UIntPack< _LeftRadii ... >() , UIntPack< _RightRadii ... >() , node , pNeighbors , neighbors , nodeAllocator , initializer );
+				return getNeighbors( ParameterPack::UIntPack< _LeftRadii ... >() , ParameterPack::UIntPack< _RightRadii ... >() , node , pNeighbors , neighbors , nodeAllocator , initializer );
 			}
 
 			template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-			void getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > ,       RegularTreeNode* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
+			void getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > ,       RegularTreeNode* node , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer );
 
 			template< unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-			void getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , const RegularTreeNode* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
+			void getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > , const RegularTreeNode* node , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
 			{
 				auto initializer = []( RegularTreeNode & ){};
-				return getNeighbors< false , false >( UIntPack< _LeftRadii ... >() , UIntPack< _RightRadii ... >() , (RegularTreeNode*)node , NULL , initializer );
+				return getNeighbors< false , false >( ParameterPack::UIntPack< _LeftRadii ... >() , ParameterPack::UIntPack< _RightRadii ... >() , (RegularTreeNode*)node , NULL , initializer );
 			}
 
 			template< bool CreateNodes , bool ThreadSafe >
@@ -346,40 +347,39 @@ namespace PoissonRecon
 				return getChildNeighbors< false , false , Real >( p , d , childNeighbors , NULL , initializer );
 			}
 
-			void setLeafNeighbors( RegularTreeNode *node , StaticWindow< RegularTreeNode * , UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > &leaves );
+			void setLeafNeighbors( RegularTreeNode *node , Window::StaticWindow< RegularTreeNode * , ( LeftRadii + RightRadii + 1 ) ... > &leaves );
 		};
 
 		template< typename LeftPack , typename RightPack > struct ConstNeighborKey{};
 
 		template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-		struct ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >
+		struct ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >
 		{
 		protected:
 			static_assert( sizeof...(LeftRadii)==sizeof...(RightRadii) , "[ERROR] Left and right radii dimensions don't match" );
-			static const unsigned int CenterIndex = WindowIndex< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > , UIntPack< LeftRadii ... > >::Index;
 			int _depth;
 
 			template< unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-			static unsigned int _NeighborsLoop( UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > , ConstWindowSlice< const RegularTreeNode* , UIntPack< ( _PLeftRadii+_PRightRadii+1 ) ... > > pNeighbors , WindowSlice< const RegularTreeNode* , UIntPack< ( _CLeftRadii+_CRightRadii+1 ) ... > > cNeighbors , int cIdx );
+			static unsigned int _NeighborsLoop( ParameterPack::UIntPack< _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadii ... > , Window::ConstSlice< const RegularTreeNode* , ( _PLeftRadii+_PRightRadii+1 ) ... > pNeighbors , Window::Slice< const RegularTreeNode* , ( _CLeftRadii+_CRightRadii+1 ) ... > cNeighbors , int cIdx );
 			template< unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-			static unsigned int _NeighborsLoop( UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > , WindowSlice< const RegularTreeNode* , UIntPack< ( _PLeftRadii+_PRightRadii+1 ) ... > > pNeighbors , WindowSlice< const RegularTreeNode* , UIntPack< ( _CLeftRadii+_CRightRadii+1 ) ... > > cNeighbors , int cIdx );
+			static unsigned int _NeighborsLoop( ParameterPack::UIntPack< _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadii ... > , Window::Slice< const RegularTreeNode* , ( _PLeftRadii+_PRightRadii+1 ) ... > pNeighbors , Window::Slice< const RegularTreeNode* , ( _CLeftRadii+_CRightRadii+1 ) ... > cNeighbors , int cIdx );
 
 			template< typename PLeft , typename PRight , typename CLeft , typename CRight > struct _Run{};
 
 			template< unsigned int _PLeftRadius , unsigned int ... _PLeftRadii , unsigned int _PRightRadius , unsigned int ... _PRightRadii , unsigned int _CLeftRadius , unsigned int ... _CLeftRadii , unsigned int _CRightRadius , unsigned int ... _CRightRadii >
-			struct _Run< UIntPack< _PLeftRadius , _PLeftRadii ... > , UIntPack< _PRightRadius , _PRightRadii ... > , UIntPack< _CLeftRadius , _CLeftRadii ... > , UIntPack< _CRightRadius , _CRightRadii ... > >
+			struct _Run< ParameterPack::UIntPack< _PLeftRadius , _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadius , _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadius , _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadius , _CRightRadii ... > >
 			{
-				static unsigned int Run( ConstWindowSlice< const RegularTreeNode* , UIntPack< _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii+_PRightRadii+1 ) ... > > pNeighbors , WindowSlice< const RegularTreeNode* , UIntPack< _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii+_CRightRadii+1 ) ... > > cNeighbors , int* c , int cornerIndex );
+				static unsigned int Run( Window::ConstSlice< const RegularTreeNode* , _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii+_PRightRadii+1 ) ... > pNeighbors , Window::Slice< const RegularTreeNode* , _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii+_CRightRadii+1 ) ... > cNeighbors , int* c , int cornerIndex );
 			};
 			template< unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius >
-			struct _Run< UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >
+			struct _Run< ParameterPack::UIntPack< _PLeftRadius > , ParameterPack::UIntPack< _PRightRadius > , ParameterPack::UIntPack< _CLeftRadius > , ParameterPack::UIntPack< _CRightRadius > >
 			{
-				static unsigned int Run( ConstWindowSlice< const RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< const RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex );
+				static unsigned int Run( Window::ConstSlice< const RegularTreeNode* , _PLeftRadius+_PRightRadius+1 > pNeighbors , Window::Slice< const RegularTreeNode* , _CLeftRadius+_CRightRadius+1 > cNeighbors , int* c , int cornerIndex );
 			};
 
 		public:
-
-			typedef ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > NeighborType;
+			static const unsigned int CenterIndex = Window::Index< ( LeftRadii + RightRadii + 1 ) ... >::template I< LeftRadii ... >();
+			typedef ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > NeighborType;
 			NeighborType* neighbors;
 
 			ConstNeighborKey( void );
@@ -389,17 +389,18 @@ namespace PoissonRecon
 
 			int depth( void ) const { return _depth; }
 			void set( int depth );
+			const RegularTreeNode *center( unsigned int depth ) const { return neighbors[depth].neighbors.data[ CenterIndex ]; }
 
-			typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& getNeighbors( const RegularTreeNode* node );
+			typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& getNeighbors( const RegularTreeNode* node );
 			template< unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-			void getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , const RegularTreeNode* node , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors );
+			void getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > , const RegularTreeNode* node , ConstNeighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors );
 			template< unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-			void getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , const RegularTreeNode* node , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors );
+			void getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > , const RegularTreeNode* node , ConstNeighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , ConstNeighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors );
 			unsigned int getChildNeighbors( int cIdx , int d , NeighborType& childNeighbors ) const;
 			template< class Real >
-			unsigned int getChildNeighbors( Point< Real , Dim > p , int d , ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& childNeighbors ) const;
+			unsigned int getChildNeighbors( Point< Real , Dim > p , int d , ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& childNeighbors ) const;
 
-			void setLeafNeighbors( const RegularTreeNode *node , StaticWindow< RegularTreeNode * , UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > &leaves );
+			void setLeafNeighbors( const RegularTreeNode *node , Window::StaticWindow< RegularTreeNode * , ( LeftRadii + RightRadii + 1 ) ... > &leaves );
 		};
 
 		int width( int maxDepth ) const;

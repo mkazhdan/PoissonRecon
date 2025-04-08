@@ -101,7 +101,7 @@ struct ComponentGraph
 				nodes.pop_back();
 			};
 
-			if( !neighbors.size() ) ERROR_OUT( "No neighbors" );
+			if( !neighbors.size() ) MK_ERROR_OUT( "No neighbors" );
 
 			// Remove the node from the neighbors of the neighbors
 			for( unsigned int i=0 ; i<neighbors.size() ; i++ ) for( int j=(int)neighbors[i]->neighbors.size()-1 ; j>=0 ; j-- ) if( neighbors[i]->neighbors[j]==this )
@@ -148,10 +148,10 @@ struct ComponentGraph
 
 		for( auto iter=flags.begin() ; iter!=flags.end() ; iter++ ) for( unsigned int j=0 ; j<iter->first->neighbors.size() ; j++ )
 		{
-			if( iter->second==flags[ iter->first->neighbors[j] ] ) ERROR_OUT( "Not a bipartite graph" );
+			if( iter->second==flags[ iter->first->neighbors[j] ] ) MK_ERROR_OUT( "Not a bipartite graph" );
 			bool foundSelf = false;
 			for( unsigned int k=0 ; k<iter->first->neighbors[j]->neighbors.size() ; k++ ) if( iter->first->neighbors[j]->neighbors[k]==iter->first ) foundSelf = true;
-			if( !foundSelf ) ERROR_OUT( "Asymmetric graph" );
+			if( !foundSelf ) MK_ERROR_OUT( "Asymmetric graph" );
 		}
 	}
 
@@ -581,11 +581,11 @@ int main( int argc , char* argv[] )
 	PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties , vNum );
 	if( vNum>std::numeric_limits< int >::max() )
 	{
-		if( !Long.set ) WARN( "Number of vertices not supported by 32-bit indexing. Switching to 64-bit indexing" );
+		if( !Long.set ) MK_WARN( "Number of vertices not supported by 32-bit indexing. Switching to 64-bit indexing" );
 		Long.set = true;
 	}
-	if( !factory.template plyValidReadProperties<0>( readFlags ) ) ERROR_OUT( "Ply file does not contain positions" );
-	if( !factory.template plyValidReadProperties<1>( readFlags ) ) ERROR_OUT( "Ply file does not contain values" );
+	if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain positions" );
+	if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain values" );
 	delete[] readFlags;
 
 	if( Long.set ) return Execute< Real , Dim , long long >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );

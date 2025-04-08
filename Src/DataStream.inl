@@ -82,7 +82,7 @@ template< typename ... Data >
 bool InputDataStream< Data ... >::read( unsigned int thread , Data& ... d )
 {
 #ifdef SHOW_WARNINGS
-	WARN_ONCE( "Serializing read: " , typeid(*this).name() );
+	MK_WARN_ONCE( "Serializing read: " , typeid(*this).name() );
 #endif // SHOW_WARNINGS
 	std::lock_guard< std::mutex > lock( _insertionMutex );
 	return read(d...);
@@ -142,7 +142,7 @@ template< typename ... Data >
 size_t OutputDataStream< Data ... >::write( unsigned int thread , const Data& ... d )
 {
 #ifdef SHOW_WARNINGS
-	WARN_ONCE( "Serializing write: " , typeid(*this).name() );
+	MK_WARN_ONCE( "Serializing write: " , typeid(*this).name() );
 #endif // SHOW_WARNINGS
 	std::lock_guard< std::mutex > lock( _insertionMutex );
 	return write(d...);

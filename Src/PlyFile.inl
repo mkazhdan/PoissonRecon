@@ -246,7 +246,7 @@ void PlyFile::describe_element( const std::string &elem_name , size_t nelems , i
 {
 	/* look for appropriate element */
 	PlyElement *elem = find_element( elem_name );
-	if( elem==NULL ) ERROR_OUT( "Can't find element '" , elem_name , "'" );
+	if( elem==NULL ) MK_ERROR_OUT( "Can't find element '" , elem_name , "'" );
 
 	elem->num = nelems;
 
@@ -270,7 +270,7 @@ void PlyFile::describe_property( const std::string &elem_name , const PlyPropert
 	PlyElement *elem = find_element( elem_name );
 	if( elem == NULL )
 	{
-		WARN( "Can't find element '" , elem_name , "'" );
+		MK_WARN( "Can't find element '" , elem_name , "'" );
 		return;
 	}
 
@@ -289,7 +289,7 @@ void PlyFile::describe_other_properties( const PlyOtherProp &other , int offset 
 	PlyElement *elem = find_element( other.name );
 	if( elem==NULL )
 	{
-		WARN( "Can't find element '" , other.name , "'" );
+		MK_WARN( "Can't find element '" , other.name , "'" );
 		return;
 	}
 
@@ -313,7 +313,7 @@ void PlyFile::element_count( const std::string &elem_name , size_t nelems )
 {
 	/* look for appropriate element */
 	PlyElement *elem = find_element( elem_name );
-	if( elem==NULL ) ERROR_OUT( "Can't find element '" , elem_name , "'" );
+	if( elem==NULL ) MK_ERROR_OUT( "Can't find element '" , elem_name , "'" );
 
 	elem->num = nelems;
 }
@@ -332,7 +332,7 @@ void PlyFile::header_complete( void )
 	case PLY_ASCII: fprintf( fp , "format ascii 1.0\n" )                    ; break;
 	case PLY_BINARY_BE: fprintf( fp , "format binary_big_endian 1.0\n" )    ; break;
 	case PLY_BINARY_LE: fprintf( fp , "format binary_little_endian 1.0\n" ) ; break;
-	default: ERROR_OUT( "Bad file type: " , file_type );
+	default: MK_ERROR_OUT( "Bad file type: " , file_type );
 	}
 
 	/* write out the comments */
@@ -380,7 +380,7 @@ elem_name - name of element we're talking about
 void PlyFile::put_element_setup( const std::string &elem_name )
 {
 	PlyElement *elem = find_element( elem_name );
-	if( elem==NULL ) ERROR_OUT( "Can't find element '" , elem_name , "'" );
+	if( elem==NULL ) MK_ERROR_OUT( "Can't find element '" , elem_name , "'" );
 	which_elem = elem;
 }
 
@@ -663,7 +663,7 @@ void PlyFile::get_element_setup( const std::string &elem_name , int nprops , Ply
 		PlyProperty *prop = elem->find_property( prop_list[i].name , index );
 		if( prop==NULL )
 		{
-			WARN( "Can't find property '" , prop_list[i].name , "' in element '" , elem_name , "'" );
+			MK_WARN( "Can't find property '" , prop_list[i].name , "' in element '" , elem_name , "'" );
 			continue;
 		}
 
@@ -830,7 +830,7 @@ bool PlyFile::set_other_properties( const std::string &elem_name , int offset , 
 	PlyElement *elem = find_element( elem_name );
 	if( elem==NULL )
 	{
-		WARN( "Can't find element '" , elem_name , "'" );
+		MK_WARN( "Can't find element '" , elem_name , "'" );
 		return false;
 	}
 
@@ -876,7 +876,7 @@ PlyOtherElems *PlyFile::get_other_element( std::string &elem_name , size_t elem_
 {
 	/* look for appropriate element */
 	PlyElement *elem = find_element( elem_name );
-	if( elem==NULL ) ERROR_OUT( "Can't find element '" , elem_name , "'" );
+	if( elem==NULL ) MK_ERROR_OUT( "Can't find element '" , elem_name , "'" );
 
 	if( other_elems==NULL ) other_elems = new PlyOtherElems();
 	other_elems->other_list.resize( other_elems->other_list.size()+1 );
@@ -1053,7 +1053,7 @@ void PlyFile::_ascii_get_element( void *elem_ptr )
 
 	/* read in the element */
 	words = get_words( fp , &orig_line );
-	if( !words.size() ) ERROR_OUT( "Unexpected end of file" );
+	if( !words.size() ) MK_ERROR_OUT( "Unexpected end of file" );
 
 	which_word = 0;
 
@@ -1232,7 +1232,7 @@ code - code for type
 void write_scalar_type( FILE *fp , int code )
 {
 	/* make sure this is a valid code */
-	if( code<=PLY_START_TYPE || code>=PLY_END_TYPE ) ERROR_OUT( "Bad data code: " , code );
+	if( code<=PLY_START_TYPE || code>=PLY_END_TYPE ) MK_ERROR_OUT( "Bad data code: " , code );
 
 	/* write the code to a file */
 	fprintf( fp , "%s" , type_names[code] );
@@ -1276,7 +1276,7 @@ void get_native_binary_type( void )
 	test.int_value = 1;
 	if     ( test.byte_values[0]==1 ) native_binary_type = PLY_BINARY_LE;
 	else if( test.byte_values[sizeof(int)-1] == 1) native_binary_type = PLY_BINARY_BE;
-	else ERROR_OUT( "Couldn't determine machine endianness" );
+	else MK_ERROR_OUT( "Couldn't determine machine endianness" );
 }
 
 /******************************************************************************
@@ -1297,7 +1297,7 @@ void check_types()
 		(ply_type_size[PLY_ULONGLONG] != sizeof(unsigned long long)) ||	
 		(ply_type_size[PLY_FLOAT] != sizeof(float)) ||	
 		(ply_type_size[PLY_DOUBLE] != sizeof(double)))
-		ERROR_OUT( "Type sizes do not match built-in types" );
+		MK_ERROR_OUT( "Type sizes do not match built-in types" );
 
 	types_checked = 1;
 }
@@ -1422,7 +1422,7 @@ double get_item_value( const void *item , int type )
 	case PLY_FLOAT_32:  return (double)*(const              float *)item;
 	case PLY_DOUBLE:
 	case PLY_FLOAT_64:  return (double)*(const             double *)item;
-	default: ERROR_OUT( "Bad type: " , type );
+	default: MK_ERROR_OUT( "Bad type: " , type );
 	}
 	return 0;
 }
@@ -1494,12 +1494,12 @@ void write_binary_item( FILE *fp , int file_type , int int_val , unsigned int ui
 	case PLY_FLOAT_64:
 		value = &double_val;
 		break;
-	default: ERROR_OUT( "Bad type: " , type );
+	default: MK_ERROR_OUT( "Bad type: " , type );
 	}
 
 
 	if( (file_type!=native_binary_type) && (ply_type_size[type]>1) ) swap_bytes( (char *)value , ply_type_size[type] );
-	if( fwrite( value , ply_type_size[type] , 1 , fp )!=1 ) ERROR_OUT( "Failed to write binary item" );
+	if( fwrite( value , ply_type_size[type] , 1 , fp )!=1 ) MK_ERROR_OUT( "Failed to write binary item" );
 }
 
 
@@ -1524,11 +1524,11 @@ void write_ascii_item( FILE *fp , int int_val , unsigned int uint_val , long lon
 	case PLY_INT_16:
 	case PLY_INT:
 	case PLY_INT_32:
-		if( fprintf( fp , "%d " , int_val )<=0 ) ERROR_OUT( "fprintf() failed -- aborting" );
+		if( fprintf( fp , "%d " , int_val )<=0 ) MK_ERROR_OUT( "fprintf() failed -- aborting" );
 		break;
 	case PLY_LONGLONG:
 	case PLY_INT_64:
-		if( fprintf( fp , "%lld " , longlong_val )<=0 ) ERROR_OUT( "fprintf() failed -- aborting" );
+		if( fprintf( fp , "%lld " , longlong_val )<=0 ) MK_ERROR_OUT( "fprintf() failed -- aborting" );
 		break;
 	case PLY_UCHAR:
 	case PLY_UINT_8:
@@ -1536,19 +1536,19 @@ void write_ascii_item( FILE *fp , int int_val , unsigned int uint_val , long lon
 	case PLY_UINT_16:
 	case PLY_UINT:
 	case PLY_UINT_32:
-		if( fprintf( fp , "%u " , uint_val )<=0 ) ERROR_OUT( "fprintf() failed -- aborting" );
+		if( fprintf( fp , "%u " , uint_val )<=0 ) MK_ERROR_OUT( "fprintf() failed -- aborting" );
 		break;
 	case PLY_ULONGLONG:
 	case PLY_UINT_64:
-		if( fprintf( fp , "%llu " , ulonglong_val )<=0 ) ERROR_OUT( "fprintf() failed -- aborting" );
+		if( fprintf( fp , "%llu " , ulonglong_val )<=0 ) MK_ERROR_OUT( "fprintf() failed -- aborting" );
 		break;
 	case PLY_FLOAT:
 	case PLY_FLOAT_32:
 	case PLY_DOUBLE:
 	case PLY_FLOAT_64:
-		if( fprintf( fp , "%g " , double_val )<=0 ) ERROR_OUT( "fprintf() failed -- aborting" );
+		if( fprintf( fp , "%g " , double_val )<=0 ) MK_ERROR_OUT( "fprintf() failed -- aborting" );
 		break;
-	default: ERROR_OUT( "Bad type: " , type );
+	default: MK_ERROR_OUT( "Bad type: " , type );
 	}
 }
 
@@ -1650,7 +1650,7 @@ void get_stored_item( void *ptr , int type , int &int_val , unsigned int &uint_v
 		longlong_val = (long long)double_val;
 		ulonglong_val = (unsigned long long)double_val;
 		break;
-	default: ERROR_OUT( "Bad type: " , type );
+	default: MK_ERROR_OUT( "Bad type: " , type );
 	}
 }
 
@@ -1675,7 +1675,7 @@ void get_binary_item( FILE *fp , int file_type , int type , int &int_val , unsig
 
 	ptr = ( void * )c;
 
-	if( fread( ptr , ply_type_size[type] , 1 , fp )!=1 ) ERROR_OUT( "fread() failed -- aborting: " , std::string( type_names[type] ) );
+	if( fread( ptr , ply_type_size[type] , 1 , fp )!=1 ) MK_ERROR_OUT( "fread() failed -- aborting: " , std::string( type_names[type] ) );
 	if( ( file_type!=native_binary_type ) && ( ply_type_size[type]>1 ) ) swap_bytes( (char *)ptr , ply_type_size[type] );
 
 	switch( type )
@@ -1760,7 +1760,7 @@ void get_binary_item( FILE *fp , int file_type , int type , int &int_val , unsig
 		longlong_val = (long long)double_val;
 		ulonglong_val = (unsigned long long)int_val;
 		break;
-	default: ERROR_OUT( "Bad type: " , type );
+	default: MK_ERROR_OUT( "Bad type: " , type );
 	}
 }
 
@@ -1832,7 +1832,7 @@ void get_ascii_item( const std::string &word , int type , int &int_val , unsigne
 		longlong_val = (long long)double_val;
 		ulonglong_val = (unsigned long long)double_val;
 		break;
-	default: ERROR_OUT( "Bad type: " , type );
+	default: MK_ERROR_OUT( "Bad type: " , type );
 	}
 }
 
@@ -1874,7 +1874,7 @@ void store_item( void *item , int type , int int_val , unsigned int uint_val , l
 	case PLY_FLOAT_32: *(        float *)item = (         float)double_val ; break;
 	case PLY_DOUBLE:
 	case PLY_FLOAT_64: *(       double *)item = (        double)double_val ; break;
-	default: ERROR_OUT( "Bad type: " , type );
+	default: MK_ERROR_OUT( "Bad type: " , type );
 	}
 }
 

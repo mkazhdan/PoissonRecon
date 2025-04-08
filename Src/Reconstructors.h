@@ -111,23 +111,23 @@ namespace PoissonRecon
 
 				if( solveDepth>depth )
 				{
-					if( solveDepth!=-1 ) WARN( "Solution depth cannot exceed system depth: " , solveDepth , " <= " , depth );
+					if( solveDepth!=-1 ) MK_WARN( "Solution depth cannot exceed system depth: " , solveDepth , " <= " , depth );
 					solveDepth = depth;
 				}
 				if( fullDepth>solveDepth )
 				{
-					if( fullDepth!=-1 ) WARN( "Full depth cannot exceed system depth: " , fullDepth , " <= " , solveDepth );
+					if( fullDepth!=-1 ) MK_WARN( "Full depth cannot exceed system depth: " , fullDepth , " <= " , solveDepth );
 					fullDepth = solveDepth;
 				}
 				if( baseDepth>fullDepth )
 				{
-					if( baseDepth!=-1 ) WARN( "Base depth must be smaller than full depth: " , baseDepth , " <= " , fullDepth );
+					if( baseDepth!=-1 ) MK_WARN( "Base depth must be smaller than full depth: " , baseDepth , " <= " , fullDepth );
 					baseDepth = fullDepth;
 				}
 				if( kernelDepth==-1 ) kernelDepth = depth>2 ? depth-2 : 0;
 				if( kernelDepth>depth )
 				{
-					if( kernelDepth!=-1 ) WARN( "Kernel depth cannot exceed system depth: " , kernelDepth , " <= " , depth );
+					if( kernelDepth!=-1 ) MK_WARN( "Kernel depth cannot exceed system depth: " , kernelDepth , " <= " , depth );
 					kernelDepth = depth;
 				}
 			}
@@ -483,12 +483,12 @@ namespace PoissonRecon
 					if( envelopeDepth==-1 ) envelopeDepth = Reconstructor::SolutionParameters< Real >::baseDepth;
 					if( envelopeDepth>Reconstructor::SolutionParameters< Real >::depth )
 					{
-						if( envelopeDepth!=-1 ) WARN( "Envelope depth cannot exceed system depth:  " , envelopeDepth , " <= " , Reconstructor::SolutionParameters< Real >::depth );
+						if( envelopeDepth!=-1 ) MK_WARN( "Envelope depth cannot exceed system depth:  " , envelopeDepth , " <= " , Reconstructor::SolutionParameters< Real >::depth );
 						envelopeDepth = Reconstructor::SolutionParameters< Real >::depth;
 					}
 					if( envelopeDepth<Reconstructor::SolutionParameters< Real >::baseDepth )
 					{
-						WARN( "Envelope depth cannot be less than base depth: " , envelopeDepth , " >= " , Reconstructor::SolutionParameters< Real >::baseDepth );
+						MK_WARN( "Envelope depth cannot be less than base depth: " , envelopeDepth , " >= " , Reconstructor::SolutionParameters< Real >::baseDepth );
 						envelopeDepth = Reconstructor::SolutionParameters< Real >::baseDepth;
 					}
 				}
@@ -615,12 +615,20 @@ namespace PoissonRecon
 					// OutputDataStream< Position< Real , Dim > , Gradient< Real , Dim > , Weight< Real > , AuxData... >
 					// -> OutputDataStream< Position< Real , Dim > , Gradient< Real , Dim > , Weight< Real > , InternalAuxData >
 					OutputDataStreamConverter< typename _VertexTypeConverter::InternalVertexType , typename _VertexTypeConverter::ExternalVertexType > __vertexStream( _vertexStream , _VertexTypeConverter::ConvertX2I );
-					typename LevelSetExtractor< Real , Dim , InternalAuxData >::Stats stats = LevelSetExtractor< Real , Dim , InternalAuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , tree , density , _auxData , solution , isoValue , __vertexStream , faceStream , _zeroAuxData , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
+					typename LevelSetExtractor< Real , Dim , InternalAuxData >::Stats stats;
+					if constexpr( Dim==3 )
+						stats = LevelSetExtractor< Real , Dim , InternalAuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , tree , density , _auxData , solution , isoValue , __vertexStream , faceStream , _zeroAuxData , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
+					else if constexpr( Dim==2 )
+						stats = LevelSetExtractor< Real , Dim , InternalAuxData >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , UIntPack< DataSig >() , tree , density , _auxData , solution , isoValue , __vertexStream , faceStream , _zeroAuxData , !params.linearFit , params.outputGradients , false );
 					statsString = stats.toString();
 				}
 				else
 				{
-					typename LevelSetExtractor< Real , Dim >::Stats stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , tree , density , solution , isoValue , _vertexStream , faceStream , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
+					typename LevelSetExtractor< Real , Dim >::Stats stats;
+					if constexpr( Dim==3 )
+						stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , tree , density , solution , isoValue , _vertexStream , faceStream , !params.linearFit , params.outputGradients , params.forceManifold , params.polygonMesh , false );
+					else if constexpr( Dim==2 )
+						stats = LevelSetExtractor< Real , Dim >::Extract( Sigs() , UIntPack< Reconstructor::WeightDegree >() , tree , density , solution , isoValue , _vertexStream , faceStream , !params.linearFit , params.outputGradients , false );
 					statsString = stats.toString();
 				}
 
@@ -631,7 +639,7 @@ namespace PoissonRecon
 					std::cout << "#            Got Faces: " << profiler << std::endl;
 				}
 			}
-			else WARN( "Extraction only supported for dimensions 2 and 3" );
+			else MK_WARN( "Extraction only supported for dimensions 2 and 3" );
 		}
 
 		// Implementation of the derived Poisson::Implicit's constructor
@@ -643,10 +651,10 @@ namespace PoissonRecon
 
 			if( params.valueInterpolationWeight<0 )
 			{
-				WARN( "Negative value interpolation weight clamped to zero" );
+				MK_WARN( "Negative value interpolation weight clamped to zero" );
 				params.valueInterpolationWeight = 0;
 			}
-			if( valueInterpolationStream && !params.valueInterpolationWeight ) WARN( "Value interpolation stream provided but interpolation weight is zero" );
+			if( valueInterpolationStream && !params.valueInterpolationWeight ) MK_WARN( "Value interpolation stream provided but interpolation weight is zero" );
 
 			// The signature for the finite-elements representing the auxiliary data (if it's there)
 			static const unsigned int DataSig = FEMDegreeAndBType< Reconstructor::DataDegree , BOUNDARY_FREE >::Signature;

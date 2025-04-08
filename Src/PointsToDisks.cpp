@@ -125,7 +125,7 @@ int main( int argc , char* argv[] )
 
 	if( PointsToKeep.set && Fraction.set )
 	{
-		WARN( "One of --" , PointsToKeep.name , " and --" , Fraction.name , " should be set. Using --" , PointsToKeep.name );
+		MK_WARN( "One of --" , PointsToKeep.name , " and --" , Fraction.name , " should be set. Using --" , PointsToKeep.name );
 		Fraction.set = false;
 	}
 
@@ -186,11 +186,11 @@ int main( int argc , char* argv[] )
 	if( Verbose.set ) std::cout << "Input points: " << vertices.size() << std::endl;
 	if( PointsToKeep.set && PointsToKeep.value>vertices.size() )
 	{
-		WARN( "--" , PointsToKeep.name , " value exceeds number of points: " , PointsToKeep.value , " > " , vertices.size() );
+		MK_WARN( "--" , PointsToKeep.name , " value exceeds number of points: " , PointsToKeep.value , " > " , vertices.size() );
 		PointsToKeep.value = (unsigned int)vertices.size();
 	}
 
-	if( !hasNormals ) ERROR_OUT( "Input is not oriented" );
+	if( !hasNormals ) MK_ERROR_OUT( "Input is not oriented" );
 	
 	if( PointsToKeep.set )
 	{

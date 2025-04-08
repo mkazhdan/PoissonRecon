@@ -176,7 +176,7 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 	else if( !strcasecmp( ext , "iso" ) )
 	{
 		FILE *fp = fopen( fileName , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , fileName );
+		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , fileName );
 		int r = (int)res;
 		fwrite( &r , sizeof(int) , 1 , fp );
 		size_t count = 1;
@@ -381,7 +381,7 @@ void _Execute( const FEMTree< Dim , Real > *tree , XForm< Real , Dim+1 > modelTo
 			sliceModelToUnitCube(Dim-1,i) = modelToUnitCube(Dim,i);
 		}
 		FILE *fp = fopen( OutSlice.value , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , OutSlice.value );
+		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , OutSlice.value );
 		FileStream fs(fp);
 		FEMTree< Dim-1 , Real >::WriteParameter( fs );
 		DenseNodeData< Real , IsotropicUIntPack< Dim-1 , FEMSig > >::WriteSignatures( fs );
@@ -432,7 +432,7 @@ void Execute( BinaryStream &stream , int degree , FEMTree< Dim , Real > *tree , 
 		case 2: _Execute< Dim , Real , FEMDegreeAndBType< 2 , BType >::Signature >( tree , modelToUnitCube , stream ) ; break;
 		case 3: _Execute< Dim , Real , FEMDegreeAndBType< 3 , BType >::Signature >( tree , modelToUnitCube , stream ) ; break;
 		case 4: _Execute< Dim , Real , FEMDegreeAndBType< 4 , BType >::Signature >( tree , modelToUnitCube , stream ) ; break;
-		default: ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
+		default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
 	}
 }
 
@@ -450,14 +450,14 @@ void Execute( BinaryStream &stream , int degree , BoundaryType bType )
 		case BOUNDARY_FREE:      return Execute< Dim , Real , BOUNDARY_FREE      >( stream , degree , &tree , modelToUnitCube );
 		case BOUNDARY_NEUMANN:   return Execute< Dim , Real , BOUNDARY_NEUMANN   >( stream , degree , &tree , modelToUnitCube );
 		case BOUNDARY_DIRICHLET: return Execute< Dim , Real , BOUNDARY_DIRICHLET >( stream , degree , &tree , modelToUnitCube );
-		default: ERROR_OUT( "Not a valid boundary type: " , bType );
+		default: MK_ERROR_OUT( "Not a valid boundary type: " , bType );
 	}
 }
 
 int main( int argc , char* argv[] )
 {
 #ifdef ARRAY_DEBUG
-	WARN( "Array debugging enabled" );
+	MK_WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	CmdLineParse( argc-1 , &argv[1] , params );
 	ThreadPool::ChunkSize = ThreadChunkSize.value;
@@ -477,7 +477,7 @@ int main( int argc , char* argv[] )
 		return EXIT_FAILURE;
 	}
 	FILE* fp = fopen( In.value , "rb" );
-	if( !fp ) ERROR_OUT( "Failed to open file for reading: " , In.value );
+	if( !fp ) MK_ERROR_OUT( "Failed to open file for reading: " , In.value );
 	FEMTreeRealType realType ; int degree ; BoundaryType bType;
 	unsigned int dimension;
 	FileStream fs(fp);
@@ -485,8 +485,8 @@ int main( int argc , char* argv[] )
 	{
 		unsigned int dim = dimension;
 		unsigned int* sigs = ReadDenseNodeDataSignatures( fs , dim );
-		if( dimension!=dim ) ERROR_OUT( "Octree and node data dimensions don't math: " , dimension , " != " , dim );
-		for( unsigned int d=1 ; d<dim ; d++ ) if( sigs[0]!=sigs[d] ) ERROR_OUT( "Anisotropic signatures" );
+		if( dimension!=dim ) MK_ERROR_OUT( "Octree and node data dimensions don't math: " , dimension , " != " , dim );
+		for( unsigned int d=1 ; d<dim ; d++ ) if( sigs[0]!=sigs[d] ) MK_ERROR_OUT( "Anisotropic signatures" );
 		degree = FEMSignatureDegree( sigs[0] );
 		bType = FEMSignatureBType( sigs[0] );
 		delete[] sigs;
@@ -500,7 +500,7 @@ int main( int argc , char* argv[] )
 		{
 			case FEM_TREE_REAL_FLOAT:  Execute< 2 , float  >( fs , degree , bType ) ; break;
 			case FEM_TREE_REAL_DOUBLE: Execute< 2 , double >( fs , degree , bType ) ; break;
-			default: ERROR_OUT( "Unrecognized real type: " , realType );
+			default: MK_ERROR_OUT( "Unrecognized real type: " , realType );
 		}
 		break;
 	case 3:
@@ -508,10 +508,10 @@ int main( int argc , char* argv[] )
 		{
 			case FEM_TREE_REAL_FLOAT:  Execute< 3 , float  >( fs , degree , bType ) ; break;
 			case FEM_TREE_REAL_DOUBLE: Execute< 3 , double >( fs , degree , bType ) ; break;
-			default: ERROR_OUT( "Unrecognized real type: " , realType );
+			default: MK_ERROR_OUT( "Unrecognized real type: " , realType );
 		}
 		break;
-	default: ERROR_OUT( "Only dimensions 1-4 supported" );
+	default: MK_ERROR_OUT( "Only dimensions 1-4 supported" );
 	}
 
 	fclose( fp );

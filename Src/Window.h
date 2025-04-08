@@ -30,424 +30,309 @@ DAMAGE.
 #define WINDOW_INCLUDED
 
 #include <functional>
-#include "MyMiscellany.h"
-#include "Allocator.h"
 #include "Array.h"
+#include "ParameterPack.h"
+#include "MultiThreading.h"
 
-namespace PoissonRecon
+namespace Window
 {
-
-	//////////////////////////////////////////////////////////
-	// Some basic functionality for integer parameter packs //
-	//////////////////////////////////////////////////////////
-
-	// A wrapper class for passing unsigned integer parameter packs
-	template< unsigned int  ... Values > struct UIntPack{};
-	template< unsigned int _Value , unsigned int ... _Values > struct UIntPack< _Value , _Values ... >
+	using namespace PoissonRecon;
+	template< unsigned int Res , unsigned int ... Ress >
+	constexpr unsigned int Size( void )
 	{
-		static const unsigned int First = _Value;
-		typedef UIntPack< _Values ... > Rest;
+		if constexpr( sizeof...(Ress)==0 ) return Res;
+		else                               return Res * Size< Ress... >();
+	}
 
-		static const unsigned int Size = 1 + sizeof ... ( _Values );
-		template< unsigned int __Value > using  Append = UIntPack< _Value , _Values ... , __Value >;
-		template< unsigned int __Value > using Prepend = UIntPack< __Value , _Value , _Values ... >;
-		static const unsigned int Values[];
-		static constexpr unsigned int Min( void ){ return _Value < Rest::Min() ? _Value : Rest::Min(); }
-		static constexpr unsigned int Max( void ){ return _Value > Rest::Max() ? _Value : Rest::Max(); }
+	template< unsigned int Dim , unsigned int Res >
+	constexpr unsigned int IsotropicSize( void )
+	{
+		if constexpr( Dim==1 ) return Res;
+		else                   return Res * IsotropicSize< Dim-1 , Res >();
+	}
 
-		using Reverse = typename Rest::Reverse::template Append< First >;
-
-		template< typename T > struct Plus{};
-		template< typename T > struct Minus{};
-		template< typename T > struct Compare{};
-		template< unsigned int __Value , unsigned int ... __Values > struct Plus < UIntPack< __Value , __Values ... > >{ typedef typename Rest::template Plus < UIntPack< __Values ... > >::type::template Prepend< _Value + __Value > type; };
-		template< unsigned int __Value , unsigned int ... __Values > struct Minus< UIntPack< __Value , __Values ... > >{ typedef typename Rest::template Minus< UIntPack< __Values ... > >::type::template Prepend< _Value - __Value > type; };
-		template< unsigned int __Value , unsigned int ... __Values > struct Compare< UIntPack< __Value , __Values ... > >
+	template< unsigned int Res , unsigned int ... Ress >
+	struct Index
+	{
+		template< unsigned int Idx , unsigned int ... Idxs >
+		static constexpr unsigned int I( void )
 		{
-			static const bool              Equal = _Value==__Value && Rest::template Compare< UIntPack< __Values ... > >::             Equal;
-			static const bool           NotEqual = _Value!=__Value || Rest::template Compare< UIntPack< __Values ... > >::          NotEqual;
-			static const bool    LessThan        = _Value< __Value && Rest::template Compare< UIntPack< __Values ... > >::   LessThan       ;
-			static const bool    LessThanOrEqual = _Value<=__Value && Rest::template Compare< UIntPack< __Values ... > >::   LessThanOrEqual;
-			static const bool GreaterThan        = _Value> __Value && Rest::template Compare< UIntPack< __Values ... > >::GreaterThan       ;
-			static const bool GreaterThanOrEqual = _Value>=__Value && Rest::template Compare< UIntPack< __Values ... > >::GreaterThanOrEqual;
-		};
-
-		static void Print( FILE* fp=stdout , bool leadingSpace=false ){ if( leadingSpace ) fprintf( fp , " " ) ; fprintf( fp , "%d" , _Value ) ; Rest::Print( fp , true ); }
-
-		template< unsigned int I > constexpr static typename std::enable_if< I==0 , unsigned int >::type Get( void ){ return _Value; }
-		template< unsigned int I > constexpr static typename std::enable_if< I!=0 , unsigned int >::type Get( void ){ return Rest::template Get< I-1 >(); }
-
-		template< unsigned int __Value , unsigned int ... __Values > constexpr bool operator <  ( UIntPack< __Value , __Values ... > ) const { return _Value< __Value && Rest()< UIntPack< __Values ... >(); }
-		template< unsigned int __Value , unsigned int ... __Values > constexpr bool operator <= ( UIntPack< __Value , __Values ... > ) const { return _Value<=__Value && Rest()<=UIntPack< __Values ... >(); }
-		template< unsigned int __Value , unsigned int ... __Values > constexpr bool operator >  ( UIntPack< __Value , __Values ... > ) const { return _Value> __Value && Rest()> UIntPack< __Values ... >(); }
-		template< unsigned int __Value , unsigned int ... __Values > constexpr bool operator >= ( UIntPack< __Value , __Values ... > ) const { return _Value>=__Value && Rest()>=UIntPack< __Values ... >(); }
-		template< unsigned int __Value , unsigned int ... __Values > constexpr bool operator == ( UIntPack< __Value , __Values ... > ) const { return _Value==__Value && Rest()==UIntPack< __Values ... >(); }
-		template< unsigned int __Value , unsigned int ... __Values > constexpr bool operator != ( UIntPack< __Value , __Values ... > ) const { return _Value!=__Value && Rest()!=UIntPack< __Values ... >(); }
+			static_assert( sizeof...(Ress)==sizeof...(Idxs) , "[ERROR] sizes don't match" );
+			if constexpr( sizeof...(Ress)==0 ) return Idx;
+			else                               return Idx * Size< Ress ... >() + Index< Ress... >::template I< Idxs... >();
+		}
 	};
 
-	template< unsigned int _Value > struct UIntPack< _Value >
+	template< unsigned int Dim , unsigned int Res >
+	struct IsotropicIndex
 	{
-		static const unsigned int First = _Value;
-
-		static const unsigned int Size = 1;
-		template< unsigned int __Value > using  Append = UIntPack< _Value , __Value >;
-		template< unsigned int __Value > using Prepend = UIntPack< __Value , _Value >;
-		static const unsigned int Values[];
-		static constexpr unsigned int Min( void ){ return _Value; }
-		static constexpr unsigned int Max( void ){ return _Value; }
-
-		using Reverse = UIntPack< _Value >;
-
-		template< typename T > struct Plus{};
-		template< typename T > struct Minus{};
-		template< typename T > struct Compare{};
-		template< unsigned int __Value > struct Plus < UIntPack< __Value > >{ typedef UIntPack< _Value + __Value > type; };
-		template< unsigned int __Value > struct Minus< UIntPack< __Value > >{ typedef UIntPack< _Value - __Value > type; };
-		template< unsigned int __Value > struct Compare< UIntPack< __Value > >
+		template< unsigned int Idx >
+		static constexpr unsigned int I( void )
 		{
-			static const bool              Equal = _Value==__Value;
-			static const bool           NotEqual = _Value!=__Value;
-			static const bool    LessThan        = _Value< __Value;
-			static const bool    LessThanOrEqual = _Value<=__Value;
-			static const bool GreaterThan        = _Value> __Value;
-			static const bool GreaterThanOrEqual = _Value>=__Value;
-		};
-
-		static void Print( FILE* fp=stdout , bool leadingSpace=false ){ if( leadingSpace ) fprintf( fp , " " ) ; fprintf( fp , "%d" , _Value ); }
-		template< unsigned int I > constexpr static unsigned int Get( void ){ static_assert( I==0 , "[ERROR] UIntPack< Value >::Get called with non-zero index" ) ; return _Value; }
-
-		template< unsigned int __Value > constexpr bool operator <  ( UIntPack< __Value > ) const { return _Value< __Value; }
-		template< unsigned int __Value > constexpr bool operator <= ( UIntPack< __Value > ) const { return _Value<=__Value; }
-		template< unsigned int __Value > constexpr bool operator >  ( UIntPack< __Value > ) const { return _Value> __Value; }
-		template< unsigned int __Value > constexpr bool operator >= ( UIntPack< __Value > ) const { return _Value>=__Value; }
-		template< unsigned int __Value > constexpr bool operator == ( UIntPack< __Value > ) const { return _Value==__Value; }
-		template< unsigned int __Value > constexpr bool operator != ( UIntPack< __Value > ) const { return _Value!=__Value; }
+			if constexpr( Dim==1 ) return Idx;
+			else                   return Idx * IsotropicSize< Dim-1 , Res >() + IsotropicIndex< Dim-1 , Res >::template I< Idx >();
+		}
 	};
-	template< unsigned int _Value , unsigned int ... _Values > const unsigned int UIntPack< _Value , _Values ... >::Values[] = { _Value , _Values ... };
-	template< unsigned int _Value > const unsigned int UIntPack< _Value >::Values[] = { _Value };
-	template< unsigned int ... V1 , unsigned int ... V2 > typename UIntPack< V1 ... >::template Plus < UIntPack< V2 ... > >::type operator + ( UIntPack< V1 ... > , UIntPack< V2 ... > ){ return typename UIntPack< V1 ... >::template Plus < UIntPack< V2 ... > >::type(); }
-	template< unsigned int ... V1 , unsigned int ... V2 > typename UIntPack< V1 ... >::template Minus< UIntPack< V2 ... > >::type operator - ( UIntPack< V1 ... > , UIntPack< V2 ... > ){ return typename UIntPack< V1 ... >::template Minus< UIntPack< V2 ... > >::type(); }
 
-	template< int ... Values > struct IntPack{};
-	template< int _Value , int ... _Values > struct IntPack< _Value , _Values ... >
+	template< unsigned int Res , unsigned int ... Ress >
+	unsigned int GetIndex( const unsigned int idx[] )
 	{
-		static const int First = _Value;
-		typedef IntPack< _Values ... > Rest;
+		if constexpr( sizeof...(Ress)==0 ) return idx[0];
+		else                               return idx[0] * Size< Ress ... >() + GetIndex< Ress... >( idx+1 );
+	}
 
-		static const unsigned int Size = 1 + sizeof ... ( _Values );
-		template< int __Value > using  Append = IntPack< _Value , _Values ... , __Value >;
-		template< int __Value > using Prepend = IntPack< __Value , _Value , _Values ... >;
-		static const int Values[];
-		static constexpr int Min( void ){ return _Value < Rest::Min ? _Value : Rest::Min; }
-		static constexpr int Max( void ){ return _Value > Rest::Max ? _Value : Rest::Max; }
+	template< unsigned int Res , unsigned int ... Ress >
+	unsigned int GetIndex( const int idx[] )
+	{
+		if constexpr( sizeof...(Ress)==0 ) return idx[0];
+		else                               return idx[0] * Size< Ress ... >() + GetIndex< Ress... >( idx+1 );
+	};
 
-		using Reverse = typename Rest::Reverse::template Append< First >;
 
-		template< typename T > struct Plus{};
-		template< typename T > struct Minus{};
-		template< typename T > struct Compare{};
-		template< int __Value , int ... __Values > struct Plus < IntPack< __Value , __Values ... > >{ typedef typename Rest::template Plus < IntPack< __Values ... > >::type::template Prepend< _Value + __Value > type; };
-		template< int __Value , int ... __Values > struct Minus< IntPack< __Value , __Values ... > >{ typedef typename Rest::template Minus< IntPack< __Values ... > >::type::template Prepend< _Value - __Value > type; };
-		template< int __Value , int ... __Values > struct Compare< IntPack< __Value , __Values ... > >
+	template< class Data , unsigned int ... Res > struct ConstSlice{};
+
+	template< class Data , unsigned int Res , unsigned int ... Ress >
+	struct ConstSlice< Data , Res , Ress... >
+	{
+		using data_type = Data;
+		using data_reference_type = const Data &;
+		using const_data_reference_type = const Data &;
+		static constexpr unsigned int Size( void ){ return Window::Size< Res , Ress... >(); }
+
+		ConstSlice(      Pointer( Data ) d ) : data(d) {}
+		ConstSlice( ConstPointer( Data ) d ) : data(d) {}
+
+		std::conditional_t< sizeof...(Ress)==0 , data_reference_type , ConstSlice< Data , Ress... > > operator[]( int idx ) const
 		{
-			static const bool              Equal = _Value==__Value && Rest::template Compare< IntPack< __Values ... > >::             Equal;
-			static const bool           NotEqual = _Value!=__Value || Rest::template Compare< IntPack< __Values ... > >::          NotEqual;
-			static const bool    LessThan        = _Value< __Value && Rest::template Compare< IntPack< __Values ... > >::   LessThan       ;
-			static const bool    LessThanOrEqual = _Value<=__Value && Rest::template Compare< IntPack< __Values ... > >::   LessThanOrEqual;
-			static const bool GreaterThan        = _Value> __Value && Rest::template Compare< IntPack< __Values ... > >::GreaterThan       ;
-			static const bool GreaterThanOrEqual = _Value>=__Value && Rest::template Compare< IntPack< __Values ... > >::GreaterThanOrEqual;
-		};
-
-		static void Print( FILE* fp=stdout , bool leadingSpace=false ){ if( leadingSpace ) fprintf( fp , " " ) ; fprintf( fp , "%d" , _Value ) ; Rest::Print( fp , true ); }
-
-		template< unsigned int I > constexpr static typename std::enable_if< I==0 , unsigned int >::type Get( void ){ return _Value; }
-		template< unsigned int I > constexpr static typename std::enable_if< I!=0 , unsigned int >::type Get( void ){ return Rest::template Get< I-1 >(); }
-
-		template< int __Value , int ... __Values > constexpr bool operator <  ( IntPack< __Value , __Values ... > ) const { return _Value< __Value && Rest()< IntPack< __Values ... >(); }
-		template< int __Value , int ... __Values > constexpr bool operator <= ( IntPack< __Value , __Values ... > ) const { return _Value<=__Value && Rest()<=IntPack< __Values ... >(); }
-		template< int __Value , int ... __Values > constexpr bool operator >  ( IntPack< __Value , __Values ... > ) const { return _Value> __Value && Rest()> IntPack< __Values ... >(); }
-		template< int __Value , int ... __Values > constexpr bool operator >= ( IntPack< __Value , __Values ... > ) const { return _Value>=__Value && Rest()>=IntPack< __Values ... >(); }
-		template< int __Value , int ... __Values > constexpr bool operator == ( IntPack< __Value , __Values ... > ) const { return _Value==__Value && Rest()==IntPack< __Values ... >(); }
-		template< int __Value , int ... __Values > constexpr bool operator != ( IntPack< __Value , __Values ... > ) const { return _Value!=__Value && Rest()!=IntPack< __Values ... >(); }
-	};
-	template< int _Value > struct IntPack< _Value >
-	{
-		static const int First = _Value;
-
-		static const unsigned int Size = 1;
-		template< int __Value > using  Append = IntPack< _Value , __Value >;
-		template< int __Value > using Prepend = IntPack< __Value , _Value >;
-		static const int Values[];
-		static constexpr int Min( void ){ return _Value; }
-		static constexpr int Max( void ){ return _Value; }
-
-		using Reverse = IntPack< _Value >;
-
-		template< typename T > struct Plus{};
-		template< typename T > struct Minus{};
-		template< typename T > struct Compare{};
-		template< int __Value > struct Plus < IntPack< __Value > >{ typedef IntPack< _Value + __Value > type; };
-		template< int __Value > struct Minus< IntPack< __Value > >{ typedef IntPack< _Value - __Value > type; };
-		template< int __Value > struct Compare< IntPack< __Value > >
-		{
-			static const bool              Equal = _Value==__Value;
-			static const bool           NotEqual = _Value!=__Value;
-			static const bool    LessThan        = _Value< __Value;
-			static const bool    LessThanOrEqual = _Value<=__Value;
-			static const bool GreaterThan        = _Value> __Value;
-			static const bool GreaterThanOrEqual = _Value>=__Value;
-		};
-
-		static void Print( FILE* fp=stdout , bool leadingSpace=false ){ if( leadingSpace ) fprintf( fp , " " ) ; fprintf( fp , "%d" , _Value ); }
-		template< unsigned int I > constexpr static unsigned int Get( void ){ static_assert( I==0 , "[ERROR] IntPack< Value >::Get called with non-zero index" ) ; return _Value; }
-
-		template< int __Value > constexpr bool operator <  ( IntPack< __Value > ) const { return _Value< __Value; }
-		template< int __Value > constexpr bool operator <= ( IntPack< __Value > ) const { return _Value<=__Value; }
-		template< int __Value > constexpr bool operator >  ( IntPack< __Value > ) const { return _Value> __Value; }
-		template< int __Value > constexpr bool operator >= ( IntPack< __Value > ) const { return _Value>=__Value; }
-		template< int __Value > constexpr bool operator == ( IntPack< __Value > ) const { return _Value==__Value; }
-		template< int __Value > constexpr bool operator != ( IntPack< __Value > ) const { return _Value!=__Value; }
-	};
-	template< int _Value , int ... _Values > const int IntPack< _Value , _Values ... >::Values[] = { _Value , _Values ... };
-	template< int _Value > const int IntPack< _Value >::Values[] = { _Value };
-	template< int ... V1 , int ... V2 > typename IntPack< V1 ... >::template Plus < IntPack< V2 ... > >::type operator + ( IntPack< V1 ... > , IntPack< V2 ... > ){ return typename IntPack< V1 ... >::template Plus < IntPack< V2 ... > >::type(); }
-	template< int ... V1 , int ... V2 > typename IntPack< V1 ... >::template Minus< IntPack< V2 ... > >::type operator - ( IntPack< V1 ... > , IntPack< V2 ... > ){ return typename IntPack< V1 ... >::template Minus< IntPack< V2 ... > >::type(); }
-
-	///////////////////////////
-	// The isotropic variant //
-	///////////////////////////
-	template< unsigned int Dim , unsigned int Value > struct _IsotropicUIntPack             { typedef typename _IsotropicUIntPack< Dim-1 , Value >::type::template Append< Value > type; };
-	template<                    unsigned int Value > struct _IsotropicUIntPack< 1 , Value >{ typedef UIntPack< Value > type; };
-	template<                    unsigned int Value > struct _IsotropicUIntPack< 0 , Value >{ typedef UIntPack< > type; };
-	template< unsigned int Dim , unsigned int Value > using IsotropicUIntPack = typename _IsotropicUIntPack< Dim , Value >::type;
-	template< unsigned int Dim > using ZeroUIntPack = IsotropicUIntPack< Dim , 0 >;
-
-	template< int Dim , int Value > struct _IsotropicIntPack             { typedef typename _IsotropicUIntPack< Dim-1 , Value >::type::template Append< Value > type; };
-	template<           int Value > struct _IsotropicIntPack< 1 , Value >{ typedef IntPack< Value > type; };
-	template<           int Value > struct _IsotropicIntPack< 0 , Value >{ typedef IntPack< > type; };
-	template< int Dim , int Value > using IsotropicIntPack = typename _IsotropicIntPack< Dim , Value >::type;
-	template< int Dim > using ZeroIntPack = IsotropicIntPack< Dim , 0 >;
-	/////////////////////////////
-	// And now for the windows //
-	/////////////////////////////
-	template< typename T > struct WindowSize{};
-	template< typename T1 , typename T2 > struct WindowIndex{};
-
-	template< unsigned int Res , unsigned int ... Ress > struct WindowSize< UIntPack< Res , Ress ... > >{ static const unsigned int Size = WindowSize< UIntPack< Ress ... > >::Size * Res; };
-	template< unsigned int Res                         > struct WindowSize< UIntPack< Res            > >{ static const unsigned int Size = Res; };
-
-	template< unsigned int Res , unsigned int ... Ress , unsigned int Idx , unsigned int ... Idxs > struct WindowIndex< UIntPack< Res , Ress ... > , UIntPack< Idx , Idxs ... > >{ static const unsigned int Index = Idx * WindowSize< UIntPack< Ress ... > >::Size + WindowIndex< UIntPack< Ress ... > , UIntPack< Idxs ... > >::Index; };
-	template< unsigned int Res                         , unsigned int Idx                         > struct WindowIndex< UIntPack< Res            > , UIntPack< Idx            > >{ static const unsigned int Index = Idx; };
-
-	template< unsigned int Res , unsigned int ... Ress > typename std::enable_if< (sizeof...(Ress)!=0) , unsigned int >::type GetWindowIndex( UIntPack< Res , Ress ... > , const unsigned int idx[] ){ return idx[0] * WindowSize< UIntPack< Ress ... > >::Size + GetWindowIndex( UIntPack< Ress ... >() , idx+1 ); };
-	template< unsigned int Res                         > unsigned int GetWindowIndex( UIntPack< Res > , const unsigned int idx[] ){ return idx[0]; }
-
-	template< unsigned int Res , unsigned int ... Ress > typename std::enable_if< (sizeof...(Ress)!=0) , unsigned int >::type GetWindowIndex( UIntPack< Res , Ress ... > , const int idx[] ){ return idx[0] * WindowSize< UIntPack< Ress ... > >::Size + GetWindowIndex( UIntPack< Ress ... >() , idx+1 ); };
-	template< unsigned int Res                         > unsigned int GetWindowIndex( UIntPack< Res > , const int idx[] ){ return idx[0]; }
-
-	template< typename Data , typename Pack > struct   ConstWindowSlice{};
-	template< typename Data , typename Pack > struct        WindowSlice{};
-	template< typename Data , typename Pack > struct  StaticWindow     {};
-	template< typename Data , typename Pack > struct DynamicWindow     {};
-
-
-	template< class Data , unsigned int ... Ress >
-	struct ConstWindowSlice< Data , UIntPack< Ress ... > >
-	{
-		typedef UIntPack< Ress ... > Pack;
-		static const unsigned int Size = WindowSize< Pack >::Size;
-		typedef Data data_type;
-		typedef const Data& data_reference_type;
-		typedef const Data& const_data_reference_type;
-		ConstWindowSlice( Pointer( Data ) d ) : data(d) { ; }
-		ConstWindowSlice( ConstPointer( Data ) d ) : data(d) { ; }
-		ConstWindowSlice< Data , typename Pack::Rest > operator[]( int idx ) const { return ConstWindowSlice< Data , typename Pack::Rest >( data + WindowSize< typename Pack::Rest >::Size * idx ); }
-		data_reference_type operator()( const          int idx[sizeof...(Ress)] ) const { return data[ GetWindowIndex( UIntPack< Ress ... >() , idx ) ]; }
-		data_reference_type operator()( const unsigned int idx[sizeof...(Ress)] ) const { return data[ GetWindowIndex( UIntPack< Ress ... >() , idx ) ]; }
+			if constexpr( sizeof...(Ress)==0 ) return data[idx];
+			else                               return ConstSlice< Data , Ress... >( data + Window::Size< Ress... >() * idx );
+		}
+		data_reference_type operator()( const          int idx[] ) const { return data[ GetIndex< Res , Ress... >( idx ) ]; }
+		data_reference_type operator()( const unsigned int idx[] ) const { return data[ GetIndex< Res , Ress... >( idx ) ]; }
 		ConstPointer( Data ) data;
 	};
-	template< class Data , unsigned int Res >
-	struct ConstWindowSlice< Data , UIntPack< Res > >
+
+	template< typename Data , unsigned Dim , unsigned int Res , unsigned int ... Ress >
+	struct _IsotropicConstSlice{ using Type = std::conditional_t< Dim==1 , ConstSlice< Data , Res , Ress... > , _IsotropicConstSlice< Data , Dim-1 , Res , Res , Ress... > >; };
+	template< typename Data , unsigned int Dim , unsigned int Res >
+	using IsotropicConstSlice = typename _IsotropicConstSlice< Data , Dim , Res >::Type;
+
+
+	template< class Data , unsigned int ... Res > struct Slice{};
+
+	template< class Data , unsigned int Res , unsigned int ... Ress >
+	struct Slice< Data , Res , Ress... >
 	{
-		typedef UIntPack< Res > Pack;
-		static const unsigned int Size = Res;
-		typedef Data data_type;
-		typedef const Data& data_reference_type;
-		typedef const Data& const_data_reference_type;
-		ConstWindowSlice( Pointer( Data ) d ) : data(d) { ; }
-		ConstWindowSlice( ConstPointer( Data ) d ) : data(d) { ; }
-		inline data_reference_type operator[]( int idx ) const { return data[idx]; }
-		data_reference_type operator()( const          int idx[1] ) const { return data[ idx[0] ]; }
-		data_reference_type operator()( const unsigned int idx[1] ) const { return data[ idx[0] ]; }
-		ConstPointer( Data ) data;
-	};
-	template< class Data , unsigned int ... Ress >
-	struct WindowSlice< Data , UIntPack< Ress ... > >
-	{
-		typedef UIntPack< Ress ... > Pack;
-		static const unsigned int Size = WindowSize< Pack >::Size;
-		typedef Data data_type;
-		typedef Data& data_reference_type;
-		typedef const Data& const_data_reference_type;
-		WindowSlice( Pointer( Data ) d ) : data(d) { ; }
-		WindowSlice< Data , typename Pack::Rest > operator[]( int idx ){ return WindowSlice< Data , typename Pack::Rest >( data + WindowSize< typename Pack::Rest >::Size * idx ); }
-		inline data_reference_type operator()( const int idx[sizeof...(Ress)] ){ return (*this)[ idx[0] ]( idx+1 ); }
-		const_data_reference_type operator()( const int idx[sizeof...(Ress)] ) const { return (*this)[ idx[0] ]( idx+1 ); }
-		operator ConstWindowSlice< Data , Pack >() const { return ConstWindowSlice< Data , Pack >( ( ConstPointer( Data ) )data ); }
+		using data_type = Data;
+		using data_reference_type = Data &;
+		using const_data_reference_type = const Data &;
+		static constexpr unsigned int Size( void ){ return Window::Size< Res , Ress... >(); }
+
+		Slice( Pointer( Data ) d ) : data(d) {}
+		std::conditional_t< sizeof...(Ress)==0 , data_reference_type , Slice< Data , Ress... > > operator[]( int idx )
+		{
+			if constexpr( sizeof...(Ress)==0 ) return data[idx];
+			else                               return Slice< Data , Ress... >( data + Window::Size< Ress... >() * idx );
+		}
+		std::conditional_t< sizeof...(Ress)==0 , const_data_reference_type , ConstSlice< Data , Ress... > > operator[]( int idx ) const
+		{
+			if constexpr( sizeof...(Ress)==0 ) return data[idx];
+			else                               return ConstSlice< Data , Ress... >( data + Window::Size< Ress... >() * idx );
+		}
+		data_reference_type operator()( const int idx[] )
+		{
+			if constexpr( sizeof...(Ress)==0 ) return operator[]( idx[0] );
+			else                               return operator[]( idx[0] )( idx+1 );
+		}
+		const_data_reference_type operator()( const int idx[] ) const
+		{
+			if constexpr( sizeof...(Ress)==0 ) return operator[]( idx[0] );
+			else                               return operator[]( idx[0] )( idx+1 );
+		}
+		data_reference_type operator()( const unsigned int idx[] )
+		{
+			if constexpr( sizeof...(Ress)==0 ) return operator[]( idx[0] );
+			else                               return operator[]( idx[0] )( idx+1 );
+		}
+		const_data_reference_type operator()( const unsigned int idx[] ) const
+		{
+			if constexpr( sizeof...(Ress)==0 ) return operator[]( idx[0] );
+			else                               return operator[]( idx[0] )( idx+1 );
+		}
+		operator ConstSlice< Data , Res , Ress... >() const { return ConstSlice< Data , Res , Ress... >( ( ConstPointer( Data ) )data ); }
 		Pointer( Data ) data;
 	};
-	template< class Data , unsigned int Res >
-	struct WindowSlice< Data , UIntPack< Res > >
+
+	template< typename Data , unsigned Dim , unsigned int Res , unsigned int ... Ress >
+	struct _IsotropicSlice{ using Type = std::conditional_t< Dim==1 , Slice< Data , Res , Ress... > , _IsotropicSlice< Data , Dim-1 , Res , Res , Ress... > >; };
+	template< typename Data , unsigned int Dim , unsigned int Res >
+	using IsotropicSlice = typename _IsotropicSlice< Data , Dim , Res >::Type;
+
+
+	template< class Data , unsigned int Res , unsigned int ... Ress >
+	struct StaticWindow
 	{
-		typedef UIntPack< Res > Pack;
-		static const unsigned int Size = Res;
-		typedef Data data_type;
-		typedef Data& data_reference_type;
-		typedef const Data& const_data_reference_type;
-		WindowSlice( Pointer( Data ) d ) : data(d) { ; }
-		inline data_reference_type operator[]( int idx ){ return data[idx]; }
-		inline const_data_reference_type operator[]( int idx ) const { return data[idx]; }
-		data_reference_type operator()( const int idx[1] ){ return (*this)[ idx[0] ]; }
-		const_data_reference_type operator()( const int idx[1] ) const { return (*this)[ idx[0] ]; }
-		operator ConstWindowSlice< Data , Pack >() const { return ConstWindowSlice< Data , Pack >( ( ConstPointer( Data ) )data ); }
-		Pointer( Data ) data;
+		using const_window_slice_type = ConstSlice< Data , Res , Ress... >;
+		using window_slice_type = Slice< Data , Res , Ress... >;
+		using data_type = Data ;
+		static constexpr unsigned int Size( void ){ return Window::Size< Res , Ress... >(); }
+
+		std::conditional_t< sizeof...(Ress)==0 , Data & , Slice< Data , Ress... > > operator[]( int idx )
+		{
+			if constexpr( sizeof...(Ress)==0 ) return data[idx];
+			else                               return Slice< Data , Ress... >( GetPointer( data , Size() ) + Window::Size< Ress... >() * idx );
+		}
+
+		std::conditional_t< sizeof...(Ress)==0 , const Data & , ConstSlice< Data , Ress... > > operator[]( int idx ) const
+		{
+			if constexpr( sizeof...(Ress)==0 ) return data[idx];
+			else                               return ConstSlice< Data , Ress... >( ( ConstPointer( Data ) )GetPointer( data , Size() ) + Window::Size< Ress... >() * idx );
+		}
+
+		Slice< Data , Res , Ress... > operator()( void ){ return Slice< Data , Res , Ress... >( GetPointer( data , Size() ) ); }
+
+		ConstSlice< Data , Res , Ress... > operator()( void ) const { return ConstSlice< Data , Res , Ress... >( ( ConstPointer( Data ) )GetPointer( data , Size() ) ); }
+
+		Data& operator()( const unsigned int idx[] ){ return (*this)()( idx ); }
+		Data& operator()( const          int idx[] ){ return (*this)()( idx ); }
+
+		const Data& operator()( const unsigned int idx[] ) const { return data[ GetIndex< Res , Ress... >( idx ) ]; }
+		const Data& operator()( const          int idx[] ) const { return data[ GetIndex< Res , Ress... >( idx ) ]; }
+
+		Data data[ Window::Size< Res , Ress... >() ];
 	};
 
-	template< class Data , unsigned int ... Ress >
-	struct StaticWindow< Data , UIntPack< Ress ... > >
-	{
-		typedef UIntPack< Ress ... > Pack;
-#if defined( __GNUC__ ) && defined( DEBUG )
-#ifdef SHOW_WARNINGS
-		#warning "you've got me gcc"
-#endif // SHOW_WARNINGS
-			static const unsigned int Size;
-#else // !( __GNUC__ && DEBUG )
-		static const unsigned int Size = WindowSize< Pack >::Size;
-#endif // ( __GNUC__ && DEBUG )
-		typedef ConstWindowSlice< Data , Pack > const_window_slice_type;
-		typedef WindowSlice< Data , Pack > window_slice_type;
-		typedef Data data_type;
-		WindowSlice< Data , typename Pack::Rest > operator[]( int idx ){ return WindowSlice< Data , typename Pack::Rest >( GetPointer( data , WindowSize< Pack >::Size ) + WindowSize< typename Pack::Rest >::Size * idx ); }
-		ConstWindowSlice< Data , typename Pack::Rest > operator[]( int idx ) const { return ConstWindowSlice< Data , typename Pack::Rest >( ( ConstPointer( Data ) )GetPointer( data , WindowSize< Pack >::Size ) + WindowSize< typename Pack::Rest >::Size * idx ); }
-		WindowSlice< Data , Pack > operator()( void ){ return WindowSlice< Data , Pack >( GetPointer( data , WindowSize< Pack >::Size ) ); }
-		ConstWindowSlice< Data , Pack > operator()( void ) const { return ConstWindowSlice< Data , Pack >( ( ConstPointer( Data ) )GetPointer( data , WindowSize< Pack >::Size ) ); }
-		Data& operator()( const int idx[sizeof...(Ress)] ){ return (*this)()( idx ); }
-		const Data& operator()( const unsigned int idx[sizeof...(Ress)] ) const { return data[ GetWindowIndex( UIntPack< Ress ... >() , idx ) ]; }
-		const Data& operator()( const          int idx[sizeof...(Ress)] ) const { return data[ GetWindowIndex( UIntPack< Ress ... >() , idx ) ]; }
-		Data data[ WindowSize< Pack >::Size ];
-	};
-#if defined( __GNUC__ ) && defined( DEBUG )
-	template< class Data , unsigned int ... Ress >
-	const unsigned int StaticWindow< Data , UIntPack< Ress ... > >::Size = WindowSize< UIntPack< Ress ... > >::Size;
-#endif // ( __GNUC__ && DEBUG )
-	template< class Data , unsigned int Res >
-	struct StaticWindow< Data , UIntPack< Res > >
-	{
-		typedef UIntPack< Res > Pack;
-#if defined( __GNUC__ ) && defined( DEBUG )
-#ifdef SHOW_WARNINGS
-		#warning "you've got me gcc"
-#endif // SHOW_WARNINGS
-			static const unsigned int Size;
-#else // !( __GNUC__ && DEBUG )
-		static const unsigned int Size = Res;
-#endif // ( __GNUC__ && DEBUG )
-		typedef Data data_type;
-		Data& operator[]( int idx ){ return data[idx]; };
-		const Data& operator[]( int idx ) const { return data[idx]; };
-		WindowSlice< Data , Pack > operator()( void ){ return WindowSlice< Data , Pack >( GetPointer( data , WindowSize< Pack >::Size ) ); }
-		ConstWindowSlice< Data , Pack > operator()( void ) const { return ConstWindowSlice< Data , Pack >( ( ConstPointer( Data ) )GetPointer( data , WindowSize< Pack >::Size ) ); }
-		Data& operator()( const int idx[1] ){ return (*this)()( idx ); }
-		const Data& operator()( const unsigned int idx[1] ) const { return data[ idx[0] ]; }
-		const Data& operator()( const          int idx[1] ) const { return data[ idx[0] ]; }
-		Data data[ Res ];
-	};
-#if defined( __GNUC__ ) && defined( DEBUG )
-	template< class Data , unsigned int Res >
-	const unsigned int StaticWindow< Data , UIntPack< Res > >::Size = Res;
-#endif // ( __GNUC__ && DEBUG )
+	template< typename Data , unsigned Dim , unsigned int Res , unsigned int ... Ress >
+	struct _IsotropicStaticWindow{ using Type = std::conditional_t< Dim==1 , StaticWindow< Data , Res , Ress... > , _IsotropicStaticWindow< Data , Dim-1 , Res , Res , Ress... > >; };
+	template< typename Data , unsigned int Dim , unsigned int Res >
+	using IsotropicStaticWindow = typename _IsotropicStaticWindow< Data , Dim , Res >::Type;
 
-	template< class Data , unsigned int ... Ress >
-	struct DynamicWindow< Data , UIntPack< Ress ... > >
-	{
-		typedef UIntPack< Ress ... > Pack;
-		static const unsigned int Size = WindowSize< Pack >::Size;
-		typedef ConstWindowSlice< Data , Pack > const_window_slice_type;
-		typedef WindowSlice< Data , Pack > window_slice_type;
-		typedef Data data_type;
-		WindowSlice< Data , typename Pack::Rest > operator[]( int idx ){ return WindowSlice< Data , typename Pack::Rest >( data + WindowSize< typename Pack::Rest >::Size * idx ); }
-		ConstWindowSlice< Data , typename Pack::Rest > operator[]( int idx ) const { return ConstWindowSlice< Data , typename Pack::Rest >( ( ConstPointer( Data ) )( data + WindowSize< typename Pack::Rest >::Size * idx ) ); }
-		WindowSlice< Data , Pack > operator()( void ){ return WindowSlice< Data , Pack >( data ); }
-		ConstWindowSlice< Data , Pack > operator()( void ) const { return ConstWindowSlice< Data , Pack >( ( ConstPointer( Data ) )data ); }
-		Data& operator()( const int idx[sizeof...(Ress)+1] ){ return (*this)()( idx ); }
-		const Data& operator()( const int idx[sizeof...(Ress)+1] ) const { return (*this)()( idx ); }
 
-		DynamicWindow( void ){ data = NewPointer< Data >( WindowSize< Pack >::Size ); }
+	template< class Data , unsigned int Res , unsigned int ... Ress >
+	struct DynamicWindow
+	{
+		using const_window_slice_type = ConstSlice< Data , Res , Ress... >;
+		using window_slice_type = Slice< Data , Res , Ress... >;
+		using data_type = Data;
+		static constexpr unsigned int Size( void ){ return Window::Size< Res , Ress... >(); }
+
+		std::conditional_t< sizeof...(Ress)==0 , Data & , Slice< Data , Ress... > > operator[]( int idx )
+		{
+			if constexpr( sizeof...(Ress)==0 ) return data[idx];
+			else                               return Slice< Data , Ress... >( data + Window::Size< Ress... >() * idx );
+		}
+
+		std::conditional_t< sizeof...(Ress)==0 , const Data & , ConstSlice< Data , Ress... > > operator[]( int idx ) const
+		{
+			if constexpr( sizeof...(Ress)==0 ) return data[idx];
+			else                               ConstSlice< Data , Ress... >( ( ConstPointer( Data ) )( data + Window::Size< Ress... >() * idx ) );
+		}
+
+		Slice< Data , Res , Ress... > operator()( void ){ return Slice< Data , Res , Ress... >( data ); }
+		ConstSlice< Data , Res , Ress... > operator()( void ) const { return ConstSlice< Data , Res , Ress... >( ( ConstPointer( Data ) )data ); }
+
+		Data& operator()( const int idx[] ){ return (*this)()( idx ); }
+		const Data& operator()( const int idx[] ) const { return (*this)()( idx ); }
+
+		DynamicWindow( void ){ data = NewPointer< Data >( Size() ); }
+
 		~DynamicWindow( void ){ DeletePointer( data ); }
-		Pointer( Data ) data;
-	};
-	template< class Data , unsigned int Res >
-	struct DynamicWindow< Data , UIntPack< Res > >
-	{
-		typedef UIntPack< Res > Pack;
-		static const unsigned int Size = Res;
-		typedef Data data_type;
-		Data& operator[]( int idx ){ return data[idx]; };
-		const Data& operator[]( int idx ) const { return data[idx]; };
-		WindowSlice< Data , Pack > operator()( void ) { return WindowSlice< Data , Pack >( data ); }
-		ConstWindowSlice< Data , Pack > operator()( void ) const { return ConstWindowSlice< Data , Pack >( ( ConstPointer( Data ) )data ); }
-		Data& operator()( const int idx[1] ){ return (*this)()( idx ); }
-		const Data& operator()( const int idx[1] ) const { return (*this)()( idx ); }
 
-		DynamicWindow( void ){ data = NewPointer< Data >( Res ); }
-		~DynamicWindow( void ){ DeletePointer( data ); }
 		Pointer( Data ) data;
 	};
+
+	template< typename Data , unsigned Dim , unsigned int Res , unsigned int ... Ress >
+	struct _IsotropicDynamicWindow{ using Type = std::conditional_t< Dim==1 , DynamicWindow< Data , Res , Ress... > , _IsotropicDynamicWindow< Data , Dim-1 , Res , Res , Ress... > >; };
+	template< typename Data , unsigned int Dim , unsigned int Res >
+	using IsotropicDynamicWindow = typename _IsotropicDynamicWindow< Data , Dim , Res >::Type;
 
 	// Recursive loop iterations for processing window slices
 	//		WindowDimension: the the window slice
 	//		IterationDimensions: the number of dimensions to process
 	//		Res: the resolution of the window
 
-	template< unsigned int WindowDimension , unsigned int IterationDimensions , unsigned int CurrentIteration > struct _WindowLoop;
+	template< unsigned int WindowDimension , unsigned int IterationDimensions , unsigned int CurrentIteration > struct _Loop;
+
 	template< unsigned int WindowDimension , unsigned int IterationDimensions=WindowDimension >
-	struct WindowLoop
+	struct Loop
 	{
 		template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 		static void Run( int begin , int end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
 		{
-			_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::Run( begin , end , updateState , function , w ... ); 
+			_Loop< WindowDimension , IterationDimensions , IterationDimensions >::Run( begin , end , updateState , function , w ... ); 
 		}
 		template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 		static void Run( const int* begin , const int* end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
 		{
-			_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::Run( begin , end , updateState , function , w ... ); 
+			_Loop< WindowDimension , IterationDimensions , IterationDimensions >::Run( begin , end , updateState , function , w ... ); 
 		}
 		template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
-		static void Run( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
+		static void Run( ParameterPack::UIntPack< Begin ... > begin , ParameterPack::UIntPack< End ... > end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
 		{
-			_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::Run( begin , end , updateState , function , w ... ); 
+			_Loop< WindowDimension , IterationDimensions , IterationDimensions >::Run( begin , end , updateState , function , w ... ); 
 		}
 
 		template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 		static void RunParallel( int begin , int end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
 		{
-			_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( begin , end , updateState , function , w ... ); 
+			_Loop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( begin , end , updateState , function , w ... ); 
 		}
 		template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 		static void RunParallel( const int* begin , const int* end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
 		{
-			_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( begin , end , updateState , function , w ... ); 
+			_Loop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( begin , end , updateState , function , w ... ); 
 		}
 		template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
-		static void RunParallel( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
+		static void RunParallel( ParameterPack::UIntPack< Begin ... > begin , ParameterPack::UIntPack< End ... > end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
 		{
-			_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( begin , end , updateState , function , w ... ); 
+			_Loop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( begin , end , updateState , function , w ... ); 
 		}
 	};
 
 #include "Window.inl"
 }
+// Adding definitions to be consistent with old code
+namespace PoissonRecon
+{
+	template< typename Pack1 , typename Pack2 > struct WindowIndex;
+	template< unsigned int ... Res , unsigned int ... Idx >
+	struct WindowIndex< ParameterPack::UIntPack< Res... > , ParameterPack::UIntPack< Idx... > >{ static const unsigned int Index = Window::Index< Res... >::template I< Idx ... >(); };
 
+	template< int ... Values >
+	using IntPack = ParameterPack::IntPack< Values... >;
+
+	template< unsigned int ... Values >
+	using UIntPack = ParameterPack::UIntPack< Values... >;
+
+	template< unsigned int Dim , unsigned int Res >
+	using IsotropicUIntPack = ParameterPack::IsotropicPack< unsigned int , Dim , Res >;
+
+	template< unsigned int Dim >
+	using ZeroUIntPack = IsotropicUIntPack< Dim , 0 >;
+
+	template< typename Data , typename Pack > struct _WindowSlice;
+	template< typename Data , unsigned int ... Res > struct _WindowSlice< Data , ParameterPack::UIntPack< Res... > >{ using type = Window::Slice< Data , Res... >; };
+	template< typename Data , typename Pack > using WindowSlice = typename _WindowSlice< Data , Pack >::type;
+
+	template< typename Data , typename Pack > struct _ConstWindowSlice;
+	template< typename Data , unsigned int ... Res > struct _ConstWindowSlice< Data , ParameterPack::UIntPack< Res... > >{ using type = Window::ConstSlice< Data , Res... >; };
+	template< typename Data , typename Pack > using ConstWindowSlice = typename _ConstWindowSlice< Data , Pack >::type;
+
+	template< typename Data , typename Pack > struct StaticWindow;
+	template< typename Data , unsigned int ... Res >
+	struct StaticWindow< Data , ParameterPack::UIntPack< Res... > > : public Window::StaticWindow< Data , Res... >{};
+
+	template< typename Data , typename Pack > struct DynamicWindow;
+	template< typename Data , unsigned int ... Res >
+	struct DynamicWindow< Data , ParameterPack::UIntPack< Res... > > : public Window::DynamicWindow< Data , Res... >{};
+
+	template< typename Pack > struct WindowSize;
+	template< unsigned int ... Res > struct WindowSize< ParameterPack::UIntPack< Res... > >{ static const unsigned int Size = Window::Size< Res... >(); };
+
+	template< unsigned ... Res >
+	unsigned int GetWindowIndex( UIntPack< Res... > , const unsigned int idx[] ){ return Window::GetIndex< Res... >( idx ); }
+
+	template< unsigned int WindowDimension >
+	using WindowLoop = Window::Loop< WindowDimension >;
+}
 #endif // WINDOW_INCLUDED

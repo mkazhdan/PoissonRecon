@@ -90,7 +90,7 @@ protected:
 
 		struct BoundaryInfo
 		{
-			using SliceSigs = typename Sigs::Reverse::Rest::Reverse;
+			using SliceSigs = typename Sigs::Transpose::Rest::Transpose;
 			FEMTree< Dim-1 , Real > *tree;
 			DenseNodeData< Real , SliceSigs > solution , dSolution;
 			BoundaryInfo( void ) : tree(NULL) {}
@@ -441,7 +441,7 @@ size_t Client< Real , Dim , BType , Degree >::_receive1( const ClientReconstruct
 	ClientServerStream< true > serverStream( _serverSocket , _index , clientReconInfo );
 	serverStream.ioBytes = 0;
 
-	if( !serverStream.read( _modelToUnitCube ) ) ERROR_OUT( "Failed to read model-to-unit-cube transform" );
+	if( !serverStream.read( _modelToUnitCube ) ) MK_ERROR_OUT( "Failed to read model-to-unit-cube transform" );
 	serverStream.read( _range );
 	profiler.update();
 
@@ -682,7 +682,7 @@ size_t Client< Real , Dim , BType , Degree >::_receive3( const ClientReconstruct
 {
 	ClientServerStream< true > serverStream( _serverSocket , _index , clientReconInfo );
 	serverStream.ioBytes = 0;
-	if( !serverStream.read( cumulativePointWeight ) ) ERROR_OUT( "Could not read cumulative point weight" );
+	if( !serverStream.read( cumulativePointWeight ) ) MK_ERROR_OUT( "Could not read cumulative point weight" );
 	profiler.update();
 	return serverStream.ioBytes;
 }
@@ -1043,7 +1043,7 @@ std::pair< double , double > Client< Real , Dim , BType , Degree >::_process5( c
 			{
 				if( clientNode->nodeData.nodeIndex!=-1 )
 				{
-					if( clientNode->nodeData.nodeIndex>=(node_index_type)clientToServer.size() ) ERROR_OUT( "More client nodes than server nodes" );
+					if( clientNode->nodeData.nodeIndex>=(node_index_type)clientToServer.size() ) MK_ERROR_OUT( "More client nodes than server nodes" );
 					clientToServer[ clientNode->nodeData.nodeIndex ] = serverNode->nodeData.nodeIndex;
 				}
 				if( _tree.depth( clientNode )<(int)clientReconInfo.sharedDepth && clientNode->children )
@@ -1120,8 +1120,8 @@ std::pair< double , double > Client< Real , Dim , BType , Degree >::_process5( c
 	if constexpr( Dim==3 )
 	{
 		Timer timer;
-		using SliceSigs = typename Sigs::Reverse::Rest::Reverse;
-		static const unsigned int CrossSig = Sigs::Reverse::First;
+		using SliceSigs = typename Sigs::Transpose::Rest::Transpose;
+		static const unsigned int CrossSig = Sigs::Transpose::First;
 
 		auto SetBoundary = [&]( unsigned int index , typename _State5::BoundaryInfo &boundaryInfo )
 		{
@@ -1146,7 +1146,7 @@ std::pair< double , double > Client< Real , Dim , BType , Degree >::_process5( c
 		if( clientReconInfo.outDir.length() ) outFileName = PointPartition::FileDir( clientReconInfo.outDir , outFileName );
 
 		FILE* fp = fopen( outFileName.c_str() , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , outFileName );
+		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , outFileName );
 		FileStream fs(fp);
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
@@ -1350,7 +1350,7 @@ Client< Real , Dim , BType , Degree >::Client( const ClientReconstructionInfo< R
 	AuxDataFactory auxDataFactory( clientReconInfo.auxProperties );
 	bool needAuxData = clientReconInfo.dataX>0 && auxDataFactory.bufferSize();
 
-	if( phase!=3 && phase!=5 && phase!=7 ) ERROR_OUT( "Only phases 3, 5, and 7 supported: " , phase );
+	if( phase!=3 && phase!=5 && phase!=7 ) MK_ERROR_OUT( "Only phases 3, 5, and 7 supported: " , phase );
 
 	stream.read( _index );
 	stream.read( _range );
@@ -1366,10 +1366,10 @@ Client< Real , Dim , BType , Degree >::Client( const ClientReconstructionInfo< R
 			std::vector< FEMTreeNode * > nodes( _tree.spaceRoot().nodes() , NULL );
 			size_t idx = 0;
 			_tree.spaceRoot().processNodes( [&]( FEMTreeNode *node ){ nodes[idx++] = node; } );
-if( idx!=nodes.size() ) ERROR_OUT( "uhoh" );
+if( idx!=nodes.size() ) MK_ERROR_OUT( "uhoh" );
 
 			std::vector< T > _samples;
-			if( !stream.read( _samples ) ) ERROR_OUT( "Failed to read samples" );
+			if( !stream.read( _samples ) ) MK_ERROR_OUT( "Failed to read samples" );
 			samples.resize( _samples.size() );
 			// Convert indices to node pointers
 			for( size_t i=0 ; i<samples.size() ; i++ ) samples[i].sample = _samples[i].sample , samples[i].node = nodes[ _samples[i].index ];
@@ -1389,7 +1389,7 @@ if( idx!=nodes.size() ) ERROR_OUT( "uhoh" );
 			};
 			{
 				std::vector< T > _samples;
-				if( !stream.read( _samples ) ) ERROR_OUT( "Failed to read samples" );
+				if( !stream.read( _samples ) ) MK_ERROR_OUT( "Failed to read samples" );
 				size_t sz = _samples.size();
 				SampleDataTypeSerializer< Real , Dim > serializer( clientReconInfo.auxProperties );
 				samples.resize( sz );
@@ -1397,7 +1397,7 @@ if( idx!=nodes.size() ) ERROR_OUT( "uhoh" );
 				size_t serializedSize = serializer.size();
 				{
 					Pointer( char ) buffer = NewPointer< char >( sz * serializedSize );
-					if( !stream.read( buffer , sz*serializedSize ) ) ERROR_OUT( "Failed to read sample data" );
+					if( !stream.read( buffer , sz*serializedSize ) ) MK_ERROR_OUT( "Failed to read sample data" );
 					for( unsigned int i=0 ; i<sz ; i++ ) serializer.deserialize( buffer+i*serializedSize , sampleData[i] );
 					DeletePointer( buffer );
 				}
@@ -1459,7 +1459,7 @@ void Client< Real , Dim , BType , Degree >::_write( const ClientReconstructionIn
 	AuxDataFactory auxDataFactory( clientReconInfo.auxProperties );
 	bool needAuxData = clientReconInfo.dataX>0 && auxDataFactory.bufferSize();
 
-	if( phase!=1 && phase!=3 && phase!=5 ) ERROR_OUT( "Only phases 1, 3, and 5 supported: " , phase );
+	if( phase!=1 && phase!=3 && phase!=5 ) MK_ERROR_OUT( "Only phases 1, 3, and 5 supported: " , phase );
 
 	_tree.write( stream , false );
 	stream.write( _modelToUnitCube );

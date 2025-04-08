@@ -119,7 +119,7 @@ void Reconstruct( unsigned int degree , std::vector< Socket > &serverSockets )
 	{
 		case 1: return Reconstruct< Real , Dim , BType , 1 >( serverSockets );
 		case 2: return Reconstruct< Real , Dim , BType , 2 >( serverSockets );
-		default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
+		default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
 	}
 }
 
@@ -131,7 +131,7 @@ void Reconstruct( BoundaryType bType , unsigned int degree , std::vector< Socket
 		case BOUNDARY_FREE:      return Reconstruct< Real , Dim , BOUNDARY_FREE      >( degree , serverSockets );
 		case BOUNDARY_NEUMANN:   return Reconstruct< Real , Dim , BOUNDARY_NEUMANN   >( degree , serverSockets );
 		case BOUNDARY_DIRICHLET: return Reconstruct< Real , Dim , BOUNDARY_DIRICHLET >( degree , serverSockets );
-		default: ERROR_OUT( "Not a valid boundary type: " , bType );
+		default: MK_ERROR_OUT( "Not a valid boundary type: " , bType );
 	}
 }
 
@@ -142,8 +142,8 @@ void Reconstruct( std::vector< Socket > &serverSockets )
 	unsigned int degree;
 	for( unsigned int i=0 ; i<serverSockets.size() ; i++ )
 	{
-		if( !SocketStream( serverSockets[i] ).read( bType ) ) ERROR_OUT( "Failed to read boundary-type" );
-		if( !SocketStream( serverSockets[i] ).read( degree ) ) ERROR_OUT( "Failed to read degree" );
+		if( !SocketStream( serverSockets[i] ).read( bType ) ) MK_ERROR_OUT( "Failed to read boundary-type" );
+		if( !SocketStream( serverSockets[i] ).read( degree ) ) MK_ERROR_OUT( "Failed to read degree" );
 	}
 	Reconstruct< Real , Dim >( bType , degree , serverSockets );
 }
@@ -153,7 +153,7 @@ void Reconstruct( std::vector< Socket > &serverSockets )
 int main( int argc , char* argv[] )
 {
 #ifdef ARRAY_DEBUG
-	WARN( "Array debugging enabled" );
+	MK_WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 #ifdef USE_DOUBLE
 	typedef double Real;

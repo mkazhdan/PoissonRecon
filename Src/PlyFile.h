@@ -155,13 +155,13 @@ namespace PoissonRecon
 		}
 		void read( BinaryStream &stream )
 		{
-			if( !stream.read( name ) ) ERROR_OUT( "Failed to read name" );
-			if( !stream.read( external_type ) ) ERROR_OUT( "Failed to read external_type" );
-			if( !stream.read( offset ) ) ERROR_OUT( "Failed to read offset" );
-			if( !stream.read( is_list ) ) ERROR_OUT( "Failed to read is_list" );
-			if( !stream.read( count_external ) ) ERROR_OUT( "Failed to read count_external" );
-			if( !stream.read( count_internal ) ) ERROR_OUT( "Failed to read count_internal" );
-			if( !stream.read( count_offset ) ) ERROR_OUT( "Failed to read count_offset" );
+			if( !stream.read( name ) ) MK_ERROR_OUT( "Failed to read name" );
+			if( !stream.read( external_type ) ) MK_ERROR_OUT( "Failed to read external_type" );
+			if( !stream.read( offset ) ) MK_ERROR_OUT( "Failed to read offset" );
+			if( !stream.read( is_list ) ) MK_ERROR_OUT( "Failed to read is_list" );
+			if( !stream.read( count_external ) ) MK_ERROR_OUT( "Failed to read count_external" );
+			if( !stream.read( count_internal ) ) MK_ERROR_OUT( "Failed to read count_internal" );
+			if( !stream.read( count_offset ) ) MK_ERROR_OUT( "Failed to read count_offset" );
 		}
 	};
 

@@ -41,7 +41,7 @@ std::string FileDir( std::string dir , std::string header , unsigned int clientI
 
 std::string FileName( std::string dir , unsigned int slab , unsigned int slabs , unsigned int filesPerDir )
 {
-	if( filesPerDir<=1 ) ERROR_OUT( "Need at least two files per directory" );
+	if( filesPerDir<=1 ) MK_ERROR_OUT( "Need at least two files per directory" );
 
 	if( !dir.length() ) dir = std::string( "." );
 	if( dir.back()!=FileSeparator ) dir.push_back( FileSeparator );
@@ -95,16 +95,16 @@ PointSetInfo< Real , Dim >::PointSetInfo( unsigned int slabs ) : modelToUnitCube
 template< typename Real , unsigned int Dim >
 PointSetInfo< Real , Dim >::PointSetInfo( BinaryStream &stream )
 {
-	if( !stream.read( header ) ) ERROR_OUT( "Failed to read header" );
-	if( !stream.read( modelToUnitCube ) ) ERROR_OUT( "Failed to read model-to-unit-cube transform" );
-	if( !stream.read( pointsPerSlab ) ) ERROR_OUT( "Failed to read points-per-slab" );
+	if( !stream.read( header ) ) MK_ERROR_OUT( "Failed to read header" );
+	if( !stream.read( modelToUnitCube ) ) MK_ERROR_OUT( "Failed to read model-to-unit-cube transform" );
+	if( !stream.read( pointsPerSlab ) ) MK_ERROR_OUT( "Failed to read points-per-slab" );
 	{
 		size_t sz;
-		if( !stream.read( sz ) ) ERROR_OUT( "Failed to read number of auxiliary properties" );
+		if( !stream.read( sz ) ) MK_ERROR_OUT( "Failed to read number of auxiliary properties" );
 		auxiliaryProperties.resize(sz);
 		for( size_t i=0 ; i<sz ; i++ ) auxiliaryProperties[i].read( stream );
 	}
-	if( !stream.read( filesPerDir ) ) ERROR_OUT( "Failed to read files-per-directory" );
+	if( !stream.read( filesPerDir ) ) MK_ERROR_OUT( "Failed to read files-per-directory" );
 }
 
 template< typename Real , unsigned int Dim >
@@ -124,12 +124,12 @@ void PointSetInfo< Real , Dim >::write( BinaryStream &stream ) const
 void RemovePointSlabDirs( std::string dir ){ std::filesystem::remove_all( dir ); }
 void CreatePointSlabDirs( std::string dir , unsigned int count , unsigned int filesPerDir )
 {
-	if( filesPerDir<=1 ) ERROR_OUT( "Need at least two files per directory" );
+	if( filesPerDir<=1 ) MK_ERROR_OUT( "Need at least two files per directory" );
 	if( !dir.length() ) dir = std::string( "." );
 	if( dir.back()!=FileSeparator ) dir += std::string(1,FileSeparator);
 
 	try{ std::filesystem::create_directories( dir ); }
-	catch( ... ){ ERROR_OUT( "Failed to create directory: " , dir ); }
+	catch( ... ){ MK_ERROR_OUT( "Failed to create directory: " , dir ); }
 
 	unsigned int depth = 0;
 	{
@@ -155,7 +155,7 @@ void CreatePointSlabDirs( std::string dir , unsigned int count , unsigned int fi
 				sStream << dir << i << FileSeparator;
 				std::string _dir = sStream.str();
 				try{ std::filesystem::create_directories( _dir ); }
-				catch( ... ){ ERROR_OUT( "Failed to create directory: " , _dir ); }
+				catch( ... ){ MK_ERROR_OUT( "Failed to create directory: " , _dir ); }
 				MakeDirs( _dir , std::min< unsigned int >( count-(i*_filesPerDir) , _filesPerDir ) , depth-1 , filesPerDir );
 			}
 		}
@@ -258,7 +258,7 @@ protected:
 					}
 				}
 			}
-			if( minIndex==-1 ) ERROR_OUT( "Could not find a solution: [ " , start , " , " , end , " ) " , interiorBoundaries );
+			if( minIndex==-1 ) MK_ERROR_OUT( "Could not find a solution: [ " , start , " , " , end , " ) " , interiorBoundaries );
 			_solutions[start][end][interiorBoundaries].e = minEnergy;
 			_solutions[start][end][interiorBoundaries].idx = minIndex;
 			return minEnergy;
@@ -361,7 +361,7 @@ size_t Partition::size( unsigned int i ) const
 size_t Partition::size( unsigned int i , unsigned int padSize ) const
 #endif // ADAPTIVE_PADDING
 {
-	if( i>_starts.size() ) ERROR_OUT( "Index out of bounds: 0 <= " , i , " <= " , _starts.size() );
+	if( i>_starts.size() ) MK_ERROR_OUT( "Index out of bounds: 0 <= " , i , " <= " , _starts.size() );
 #ifdef ADAPTIVE_PADDING
 	std::pair< unsigned int , unsigned int > r = range( i );
 #else // !ADAPTIVE_PADDING
@@ -448,7 +448,7 @@ unsigned int Partition::partitions( void ) const{ return (unsigned int)_starts.s
 long ReadPLYProperties( FILE *fp , std::vector< PlyProperty > &properties )
 {
 	size_t sz;
-	if( fread( &sz , sizeof( size_t ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read property size" );
+	if( fread( &sz , sizeof( size_t ) , 1 , fp )!=1 ) MK_ERROR_OUT( "Failed to read property size" );
 	properties.resize( sz );
 	FileStream fs(fp);
 	for( size_t i=0 ; i<sz ; i++ ) properties[i].read( fs );
@@ -458,7 +458,7 @@ long ReadPLYProperties( FILE *fp , std::vector< PlyProperty > &properties )
 long ReadPLYProperties( const char *fileName , std::vector< PlyProperty > &properties )
 {
 	FILE *fp = fopen( fileName , "rb" );
-	if( !fp ) ERROR_OUT( "Could not open file for reading: " , fileName );
+	if( !fp ) MK_ERROR_OUT( "Could not open file for reading: " , fileName );
 	long pos = ReadPLYProperties( fp , properties );
 	fclose( fp );
 	return pos;
@@ -476,7 +476,7 @@ long WritePLYProperties( FILE *fp , const std::vector< PlyProperty > &properties
 long WritePLYProperties( const char *fileName , const std::vector< PlyProperty > &properties )
 {
 	FILE *fp = fopen( fileName , "wb" );
-	if( !fp ) ERROR_OUT( "Could not open file for writing: " , fileName );
+	if( !fp ) MK_ERROR_OUT( "Could not open file for writing: " , fileName );
 	long pos = WritePLYProperties( fp , properties );
 	fclose( fp );
 	return pos;
@@ -491,13 +491,13 @@ BufferedBinaryInputDataStream< InputFactory >::BufferedBinaryInputDataStream( co
 
 	if( !_bufferSize )
 	{
-		WARN_ONCE( "BufferSize cannot be zero , setting to one" );
+		MK_WARN_ONCE( "BufferSize cannot be zero , setting to one" );
 		_bufferSize = 1;
 	}
 	_elementSize = _factory.bufferSize();
 	_buffer = AllocPointer< char >( _elementSize*_bufferSize );
 	_fp = fopen( fileName , "rb" );
-	if( !_fp ) ERROR_OUT( "Could not open file for reading: " , fileName );
+	if( !_fp ) MK_ERROR_OUT( "Could not open file for reading: " , fileName );
 	std::vector< PlyProperty > properties;
 	_inset = ReadPLYProperties( _fp , properties );
 }
@@ -542,13 +542,13 @@ BufferedBinaryOutputDataStream< OutputFactory >::BufferedBinaryOutputDataStream(
 {
 	if( !_bufferSize )
 	{
-		WARN_ONCE( "BufferSize cannot be zero , setting to one" );
+		MK_WARN_ONCE( "BufferSize cannot be zero , setting to one" );
 		_bufferSize = 1;
 	}
 	_elementSize = _factory.bufferSize();
 	_buffer = AllocPointer< char >( _elementSize*_bufferSize );
 	_fp = fopen( fileName , "wb" );
-	if( !_fp ) ERROR_OUT( "Could not open file for writing: " , fileName );
+	if( !_fp ) MK_ERROR_OUT( "Could not open file for writing: " , fileName );
 	std::vector< PlyProperty > properties( factory.plyWriteNum() );
 	for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) properties[i] = factory.plyWriteProperty(i);
 	_inset = WritePLYProperties( _fp , properties );

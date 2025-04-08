@@ -50,6 +50,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( bool
 	}
 	children = NULL;
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::~RegularTreeNode(void)
 {
@@ -122,7 +123,7 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren( Allo
 		if( children ) delete[] children;
 		children = new RegularTreeNode[ 1<<Dim ];
 	}
-	if( !children ) ERROR_OUT( "Failed to initialize children" );
+	if( !children ) MK_ERROR_OUT( "Failed to initialize children" );
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 	{
 		children[idx].parent = this;
@@ -143,7 +144,7 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren_s( Al
 	// Allocate the children
 	if( nodeAllocator ) _children = PointerAddress( nodeAllocator->newElements( 1<<Dim ) );
 	else                _children = new RegularTreeNode[ 1<<Dim ];
-	if( !_children ) ERROR_OUT( "Failed to initialize children" );
+	if( !_children ) MK_ERROR_OUT( "Failed to initialize children" );
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 	{
 		_children[idx].parent = this;
@@ -204,6 +205,7 @@ inline void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::centerIndex(
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 inline int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::depth( void ) const { return _depth; }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< class Real >
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::centerAndWidth( Point< Real , Dim >& center , Real& width ) const
@@ -277,7 +279,6 @@ size_t RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::maxDepthLeaves( i
 		return c;
 	}
 }
-
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::root( void ) const
 {
@@ -545,7 +546,7 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( BinaryStream 
 		{
 			node->children = NULL;
 			node->initChildren< false >( nodeAllocator , initializer );
-			if( !stream.read( GetPointer( node->children , 1<<Dim ) , 1<<Dim ) ) ERROR_OUT( "Failed to read children" );
+			if( !stream.read( GetPointer( node->children , 1<<Dim ) , 1<<Dim ) ) MK_ERROR_OUT( "Failed to read children" );
 			for( int i=0 ; i<(1<<Dim) ; i++ )
 			{
 				node->children[i].parent = node;
@@ -553,7 +554,7 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( BinaryStream 
 			}
 		}
 	};
-	if( !stream.read( *this ) ) ERROR_OUT( "Failed to read root" );
+	if( !stream.read( *this ) ) MK_ERROR_OUT( "Failed to read root" );
 	ReadChildren( this );
 	return true;
 }
@@ -570,45 +571,45 @@ int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::width( int maxDepth 
 ////////////////////////////////
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... Widths >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::Neighbors< UIntPack< Widths ... > >::Neighbors( void ){ static_assert( sizeof...(Widths)==Dim , "[ERROR] Window and tree dimensions don't match" ) ; clear(); }
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::Neighbors< ParameterPack::UIntPack< Widths ... > >::Neighbors( void ){ static_assert( sizeof...(Widths)==Dim , "[ERROR] Window and tree dimensions don't match" ) ; clear(); }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... Widths >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::Neighbors< UIntPack< Widths ... > >::clear( void ){ for( int i=0 ; i<WindowSize< UIntPack< Widths ... > >::Size ; i++ ) neighbors.data[i] = NULL; }
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::Neighbors< ParameterPack::UIntPack< Widths ... > >::clear( void ){ for( unsigned int i=0 ; i<Window::Size< Widths... >() ; i++ ) neighbors.data[i] = NULL; }
 
 /////////////////////////////////////
 // RegularTreeNode::ConstNeighbors //
 /////////////////////////////////////
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... Widths >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighbors< UIntPack< Widths ... > >::ConstNeighbors( void ){ static_assert( sizeof...(Widths)==Dim , "[ERROR] Window and tree dimensions don't match" ) ; clear(); }
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighbors< ParameterPack::UIntPack< Widths ... > >::ConstNeighbors( void ){ static_assert( sizeof...(Widths)==Dim , "[ERROR] Window and tree dimensions don't match" ) ; clear(); }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... Widths >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighbors< UIntPack< Widths ... > >::clear( void ){ for( int i=0 ; i<WindowSize< UIntPack< Widths ... > >::Size ; i++ ) neighbors.data[i] = NULL; }
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighbors< ParameterPack::UIntPack< Widths ... > >::clear( void ){ for( unsigned int i=0 ; i<Window::Size< Widths... >() ; i++ ) neighbors.data[i] = NULL; }
 
 //////////////////////////////////
 // RegularTreeNode::NeighborKey //
 //////////////////////////////////
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::NeighborKey( void ){ _depth=-1 , neighbors=NULL; }
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::NeighborKey( void ){ _depth=-1 , neighbors=NULL; }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::NeighborKey( const NeighborKey& key )
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::NeighborKey( const NeighborKey& key )
 {
 	_depth = 0 , neighbors = NULL;
 	set( key._depth );
-	for( int d=0 ; d<=_depth ; d++ ) memcpy( &neighbors[d] , &key.neighbors[d] , sizeof( Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > ) );
+	for( int d=0 ; d<=_depth ; d++ ) memcpy( &neighbors[d] , &key.neighbors[d] , sizeof( Neighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > ) );
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::~NeighborKey( void )
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::~NeighborKey( void )
 {
 	if( neighbors ) delete[] neighbors;
 	neighbors=NULL;
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::set( int d )
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::set( int d )
 {
 	if( neighbors ) delete[] neighbors;
 	neighbors = NULL;
@@ -616,34 +617,37 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 	if( d<0 ) return;
 	neighbors = new NeighborType[d+1];
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , ConstWindowSlice< RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::_NeighborsLoop( ParameterPack::UIntPack< _PLeftRadii ... > pLeftRadii , ParameterPack::UIntPack< _PRightRadii ... > pRightRadii , ParameterPack::UIntPack< _CLeftRadii ... > cLeftRadii , ParameterPack::UIntPack< _CRightRadii ... > cRightRadii , Window::ConstSlice< RegularTreeNode* , ( _PLeftRadii + _PRightRadii + 1 ) ... > pNeighbors , Window::Slice< RegularTreeNode* , ( _CLeftRadii + _CRightRadii + 1 ) ... > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
 {
 	static_assert( Dim==sizeof ... ( _PLeftRadii ) && Dim==sizeof ... ( _PRightRadii ) && Dim==sizeof ... ( _CLeftRadii ) && Dim==sizeof ... ( _CRightRadii ) , "[ERROR] Dimensions don't match" );
 	int c[Dim];
 	for( int d=0 ; d<Dim ; d++ ) c[d] = ( cIdx>>d ) & 1;
-	return _Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors , cNeighbors , c , 0 , nodeAllocator , initializer );
+	return _Run< CreateNodes , ThreadSafe , NodeInitializer , ParameterPack::UIntPack< _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadii ... > >::Run( pNeighbors , cNeighbors , c , 0 , nodeAllocator , initializer );
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , WindowSlice< RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::_NeighborsLoop( ParameterPack::UIntPack< _PLeftRadii ... > pLeftRadii , ParameterPack::UIntPack< _PRightRadii ... > pRightRadii , ParameterPack::UIntPack< _CLeftRadii ... > cLeftRadii , ParameterPack::UIntPack< _CRightRadii ... > cRightRadii , Window::Slice< RegularTreeNode* , ( _PLeftRadii + _PRightRadii + 1 ) ... > pNeighbors , Window::Slice< RegularTreeNode* , ( _CLeftRadii + _CRightRadii + 1 ) ... > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
 {
-	return _NeighborsLoop< CreateNodes , ThreadSafe , NodeInitializer >( UIntPack< _PLeftRadii ... >() , UIntPack< _PRightRadii ... >() , UIntPack< _CLeftRadii ... >() , UIntPack< _CRightRadii ... >() , ( ConstWindowSlice< RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > )pNeighbors , cNeighbors , cIdx , nodeAllocator , initializer );
+	return _NeighborsLoop< CreateNodes , ThreadSafe , NodeInitializer >( ParameterPack::UIntPack< _PLeftRadii ... >() , ParameterPack::UIntPack< _PRightRadii ... >() , ParameterPack::UIntPack< _CLeftRadii ... >() , ParameterPack::UIntPack< _CRightRadii ... >() , ( Window::ConstSlice< RegularTreeNode* , ( _PLeftRadii + _PRightRadii + 1 ) ... > )pNeighbors , cNeighbors , cIdx , nodeAllocator , initializer );
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int _PLeftRadius , unsigned int ... _PLeftRadii , unsigned int _PRightRadius , unsigned int ... _PRightRadii , unsigned int _CLeftRadius , unsigned int ... _CLeftRadii , unsigned int _CRightRadius , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadius , _PLeftRadii ... > , UIntPack< _PRightRadius , _PRightRadii ... > , UIntPack< _CLeftRadius , _CLeftRadii ... > , UIntPack< _CRightRadius , _CRightRadii ... > >::Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::_Run< CreateNodes , ThreadSafe , NodeInitializer , ParameterPack::UIntPack< _PLeftRadius , _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadius , _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadius , _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadius , _CRightRadii ... > >::Run( Window::ConstSlice< RegularTreeNode* , _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii + _PRightRadii + 1 ) ... > pNeighbors , Window::Slice< RegularTreeNode* , _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii + _CRightRadii + 1 ) ... > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
 {
 	static const int D = sizeof ... ( _PLeftRadii ) + 1;
 	unsigned int count=0;
 	for( int i=-(int)_CLeftRadius ; i<=(int)_CRightRadius ; i++ )
 	{
 		int _i = (i+c[Dim-D]) + ( _CLeftRadius<<1 ) , pi = ( _i>>1 ) - _CLeftRadius + _PLeftRadius  , ci = i + _CLeftRadius;
-		count += _Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors[pi] , cNeighbors[ci] , c , cornerIndex | ( ( _i&1)<<(Dim-D) ) , nodeAllocator , initializer );
+		count += _Run< CreateNodes , ThreadSafe , NodeInitializer , ParameterPack::UIntPack< _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadii ... > >::Run( pNeighbors[pi] , cNeighbors[ci] , c , cornerIndex | ( ( _i&1)<<(Dim-D) ) , nodeAllocator , initializer );
 	}
 	return count;
 }
@@ -652,7 +656,7 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >::Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::_Run< CreateNodes , ThreadSafe , NodeInitializer , ParameterPack::UIntPack< _PLeftRadius > , ParameterPack::UIntPack< _PRightRadius > , ParameterPack::UIntPack< _CLeftRadius > , ParameterPack::UIntPack< _CRightRadius > >::Run( Window::ConstSlice< RegularTreeNode* , _PLeftRadius+_PRightRadius+1 > pNeighbors , Window::Slice< RegularTreeNode* , _CLeftRadius+_CRightRadius+1 > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
 {
 	static const int D = 1;
 	unsigned int count=0;
@@ -664,6 +668,7 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 			if( pNeighbors[pi] )
 			{
 #ifdef SANITIZED_PR
+//#ifdef NEW_CODE
 				RegularTreeNode * children = ReadAtomic( pNeighbors[pi]->children );
 				if( !children )
 				{
@@ -691,18 +696,18 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getChildNeighbors( int cIdx , int d , NeighborType& cNeighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer ) const
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getChildNeighbors( int cIdx , int d , NeighborType& cNeighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer ) const
 {
 	NeighborType& pNeighbors = neighbors[d];
 	// Check that we actually have a center node
 	if( !pNeighbors.neighbors.data[ CenterIndex ] ) return 0;
-	return _NeighborsLoop< CreateNodes , ThreadSafe >( UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , pNeighbors.neighbors() , cNeighbors.neighbors() , cIdx , nodeAllocator , initializer );
+	return _NeighborsLoop< CreateNodes , ThreadSafe >( ParameterPack::UIntPack< LeftRadii ... >() , ParameterPack::UIntPack< RightRadii ... >() , ParameterPack::UIntPack< LeftRadii ... >() , ParameterPack::UIntPack< RightRadii ... >() , pNeighbors.neighbors() , cNeighbors.neighbors() , cIdx , nodeAllocator , initializer );
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , class Real >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getChildNeighbors( Point< Real , Dim > p , int d , NeighborType& cNeighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer ) const
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getChildNeighbors( Point< Real , Dim > p , int d , NeighborType& cNeighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer ) const
 {
 	NeighborType& pNeighbors = neighbors[d];
 	// Check that we actually have a center node
@@ -716,14 +721,14 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer >
-typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getNeighbors( RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
 {
 	NeighborType& neighbors = this->neighbors[node->depth()];
 	// This is required in case the neighbors have been constructed between the last call to getNeighbors and this one
 	if( node==neighbors.neighbors.data[ CenterIndex ] )
 	{
 		bool reset = false;
-		for( int i=0 ; i<WindowSize< UIntPack< ( LeftRadii+RightRadii+1 ) ... > >::Size ; i++ ) if( !neighbors.neighbors.data[i] ) reset = true;
+		for( unsigned int i=0 ; i<Window::Size< ( LeftRadii+RightRadii+1 ) ... >() ; i++ ) if( !neighbors.neighbors.data[i] ) reset = true;
 		if( reset ) neighbors.neighbors.data[ CenterIndex ] = NULL;
 	}
 	if( node!=neighbors.neighbors.data[ CenterIndex ] )
@@ -731,7 +736,7 @@ typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighb
 		for( int d=node->depth()+1 ; d<=_depth && this->neighbors[d].neighbors.data[ CenterIndex ] ; d++ ) this->neighbors[d].neighbors.data[ CenterIndex ] = NULL;
 		neighbors.clear();
 		if( !node->parent ) neighbors.neighbors.data[ CenterIndex ] = node;
-		else _NeighborsLoop< CreateNodes , ThreadSafe >( UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , getNeighbors< CreateNodes , ThreadSafe >( node->parent , nodeAllocator , initializer ).neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
+		else _NeighborsLoop< CreateNodes , ThreadSafe >( ParameterPack::UIntPack< LeftRadii ... >() , ParameterPack::UIntPack< RightRadii ... >() , ParameterPack::UIntPack< LeftRadii ... >() , ParameterPack::UIntPack< RightRadii ... >() , getNeighbors< CreateNodes , ThreadSafe >( node->parent , nodeAllocator , initializer ).neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
 	}
 	return neighbors;
 }
@@ -739,19 +744,19 @@ typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighb
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > , RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
 {
-	static const unsigned int _CenterIndex = WindowIndex< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > , UIntPack< _LeftRadii ... > >::Index;
+	static const unsigned int _CenterIndex = Window::Index( ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... >() , ParameterPack::UIntPack< _LeftRadii ... >() );
 	neighbors.clear();
 	if( !node ) return;
 
 	// [WARNING] This estimate of the required radius is somewhat conservative if the readius is odd (depending on where the node is relative to its parent)
-	UIntPack<  LeftRadii ... >  leftRadii;
-	UIntPack< RightRadii ... > rightRadii;
-	UIntPack< (  _LeftRadii+1 )/2 ... >  pLeftRadii;
-	UIntPack< ( _RightRadii+1 )/2 ... > pRightRadii;
-	UIntPack<  _LeftRadii ... >  cLeftRadii;
-	UIntPack< _RightRadii ... > cRightRadii;
+	ParameterPack::UIntPack<  LeftRadii ... >  leftRadii;
+	ParameterPack::UIntPack< RightRadii ... > rightRadii;
+	ParameterPack::UIntPack< (  _LeftRadii+1 )/2 ... >  pLeftRadii;
+	ParameterPack::UIntPack< ( _RightRadii+1 )/2 ... > pRightRadii;
+	ParameterPack::UIntPack<  _LeftRadii ... >  cLeftRadii;
+	ParameterPack::UIntPack< _RightRadii ... > cRightRadii;
 
 	// If we are at the root of the tree, we are done
 	if( !node->parent ) neighbors.neighbors.data[ _CenterIndex ] = node;
@@ -759,13 +764,13 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 	else if( pLeftRadii<=leftRadii && pRightRadii<=rightRadii )
 	{
 		getNeighbors< CreateNodes , ThreadSafe >( node->parent , nodeAllocator , initializer );
-		const Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& pNeighbors = this->neighbors[ node->depth()-1 ];
+		const Neighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& pNeighbors = this->neighbors[ node->depth()-1 ];
 		_NeighborsLoop< CreateNodes , ThreadSafe >( leftRadii , rightRadii , cLeftRadii , cRightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
 	}
 	// Otherwise recurse
 	else
 	{
-		Neighbors< UIntPack< ( ( _LeftRadii+1 )/2  + ( _RightRadii+1 )/2 + 1 ) ... > > pNeighbors;
+		Neighbors< ParameterPack::UIntPack< ( ( _LeftRadii+1 )/2  + ( _RightRadii+1 )/2 + 1 ) ... > > pNeighbors;
 		getNeighbors< CreateNodes , ThreadSafe >( pLeftRadii , pRightRadii , node->parent , pNeighbors , nodeAllocator , initializer );
 		_NeighborsLoop< CreateNodes , ThreadSafe >( pLeftRadii , pRightRadii , cLeftRadii , cRightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
 	}
@@ -774,10 +779,10 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > , RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
 {
-	UIntPack<  _LeftRadii ... >  leftRadii;
-	UIntPack< _RightRadii ... > rightRadii;
+	ParameterPack::UIntPack<  _LeftRadii ... >  leftRadii;
+	ParameterPack::UIntPack< _RightRadii ... > rightRadii;
 	if( !node->parent ) getNeighbors< CreateNodes , ThreadSafe >( leftRadii , rightRadii , node , neighbors , nodeAllocator , initializer );
 	else
 	{
@@ -788,7 +793,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::setLeafNeighbors( RegularTreeNode *node , StaticWindow< RegularTreeNode * , UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > &leaves )
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::setLeafNeighbors( RegularTreeNode *node , Window::StaticWindow< RegularTreeNode * , ( LeftRadii + RightRadii + 1 ) ... > &leaves )
 {
 	// Suppose that we have a node at index I and we want the leaf nodes supported on the (possibly virtual) node K away
 	// Case 1: The K-th neighbor exists
@@ -802,7 +807,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 	static const unsigned int _LeftRadii[] = { LeftRadii ... };
 	auto GetNeighborLeaf = [&]( unsigned int depth , const int index[Dim] , const int offset[Dim] )
 	{
-		//		unsigned int _index[Dim] , _offset[Dim] , __offset[Dim];
+//		unsigned int _index[Dim] , _offset[Dim] , __offset[Dim];
 		int _index[Dim] , _offset[Dim] , __offset[Dim];
 		for( int dim=0 ; dim<Dim ; dim++ ) _index[dim] = index[dim] , _offset[dim] = offset[dim];
 		for( int d=depth ; d>=0 ; d-- )
@@ -824,9 +829,9 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 	int depth , index[Dim] , offset[Dim] , _offset[Dim];
 	node->depthAndOffset( depth , index );
 
-	WindowLoop< Dim >::Run
+	Window::Loop< Dim >::Run
 	(
-		IsotropicUIntPack< Dim , 0 >() , UIntPack< ( LeftRadii + RightRadii + 1 ) ... >() ,
+		ParameterPack::IsotropicUIntPack< Dim , 0 >() , ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... >() ,
 		[&]( int d , int i ){ offset[d] = i , _offset[d] = i-_LeftRadii[d]; } ,
 		[&]( void ){ leaves( offset ) = GetNeighborLeaf( depth , index , _offset ); }
 	);
@@ -837,32 +842,32 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 ///////////////////////////////////////
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::ConstNeighborKey( void ){ _depth=-1 , neighbors=NULL; }
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::ConstNeighborKey( void ){ _depth=-1 , neighbors=NULL; }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::ConstNeighborKey( const ConstNeighborKey& key )
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::ConstNeighborKey( const ConstNeighborKey& key )
 {
 	_depth = 0 , neighbors = NULL;
 	set( key._depth );
-	for( int d=0 ; d<=_depth ; d++ ) memcpy( &neighbors[d] , &key.neighbors[d] , sizeof( ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > ) );
+	for( int d=0 ; d<=_depth ; d++ ) memcpy( &neighbors[d] , &key.neighbors[d] , sizeof( ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > ) );
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::~ConstNeighborKey( void )
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::~ConstNeighborKey( void )
 {
 	if( neighbors ) delete[] neighbors;
 	neighbors=NULL;
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::operator = ( const ConstNeighborKey& key )
+typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::operator = ( const ConstNeighborKey& key )
 {
 	set( key._depth );
-	for( int d=0 ; d<=_depth ; d++ ) memcpy( &neighbors[d] , &key.neighbors[d] , sizeof( ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > ) );
+	for( int d=0 ; d<=_depth ; d++ ) memcpy( &neighbors[d] , &key.neighbors[d] , sizeof( ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > ) );
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::set( int d )
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::set( int d )
 {
 	if( neighbors ) delete[] neighbors;
 	neighbors = NULL;
@@ -874,39 +879,41 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< U
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , ConstWindowSlice< const RegularTreeNode * , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< const RegularTreeNode * , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx )
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::_NeighborsLoop( ParameterPack::UIntPack< _PLeftRadii ... > pLeftRadii , ParameterPack::UIntPack< _PRightRadii ... > pRightRadii , ParameterPack::UIntPack< _CLeftRadii ... > cLeftRadii , ParameterPack::UIntPack< _CRightRadii ... > cRightRadii , Window::ConstSlice< const RegularTreeNode * , ( _PLeftRadii + _PRightRadii + 1 ) ... > pNeighbors , Window::Slice< const RegularTreeNode * , ( _CLeftRadii + _CRightRadii + 1 ) ... > cNeighbors , int cIdx )
 {
 	static_assert( Dim==sizeof ... ( _PLeftRadii ) && Dim==sizeof ... ( _PRightRadii ) && Dim==sizeof ... ( _CLeftRadii ) && Dim==sizeof ... ( _CRightRadii ) , "[ERROR] Dimensions don't match" );
 	int c[Dim];
 	for( int d=0 ; d<Dim ; d++ ) c[d] = ( cIdx>>d ) & 1;
-	return _Run< UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors , cNeighbors , c , 0 );
+	return _Run< ParameterPack::UIntPack< _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadii ... > >::Run( pNeighbors , cNeighbors , c , 0 );
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , WindowSlice< const RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< const RegularTreeNode* , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx )
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::_NeighborsLoop( ParameterPack::UIntPack< _PLeftRadii ... > pLeftRadii , ParameterPack::UIntPack< _PRightRadii ... > pRightRadii , ParameterPack::UIntPack< _CLeftRadii ... > cLeftRadii , ParameterPack::UIntPack< _CRightRadii ... > cRightRadii , Window::Slice< const RegularTreeNode* , ( _PLeftRadii + _PRightRadii + 1 ) ... > pNeighbors , Window::Slice< const RegularTreeNode* , ( _CLeftRadii + _CRightRadii + 1 ) ... > cNeighbors , int cIdx )
 {
-	return _NeighborsLoop( UIntPack< _PLeftRadii ... >() , UIntPack< _PRightRadii ... >() , UIntPack< _CLeftRadii ... >() , UIntPack< _CRightRadii ... >() , ( ConstWindowSlice< const RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > )pNeighbors , cNeighbors , cIdx );
+	return _NeighborsLoop( ParameterPack::UIntPack< _PLeftRadii ... >() , ParameterPack::UIntPack< _PRightRadii ... >() , ParameterPack::UIntPack< _CLeftRadii ... >() , ParameterPack::UIntPack< _CRightRadii ... >() , ( Window::ConstSlice< const RegularTreeNode* , ( _PLeftRadii + _PRightRadii + 1 ) ... > )pNeighbors , cNeighbors , cIdx );
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int _PLeftRadius , unsigned int ... _PLeftRadii , unsigned int _PRightRadius , unsigned int ... _PRightRadii , unsigned int _CLeftRadius , unsigned int ... _CLeftRadii , unsigned int _CRightRadius , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< UIntPack< _PLeftRadius , _PLeftRadii ... > , UIntPack< _PRightRadius , _PRightRadii ... > , UIntPack< _CLeftRadius , _CLeftRadii ... > , UIntPack< _CRightRadius , _CRightRadii ... > >::Run( ConstWindowSlice< const RegularTreeNode* , UIntPack< _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< const RegularTreeNode* , UIntPack< _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int* c , int cornerIndex )
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::_Run< ParameterPack::UIntPack< _PLeftRadius , _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadius , _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadius , _CLeftRadii ... > , ParameterPack::UIntPack< _CRightRadius , _CRightRadii ... > >::Run( Window::ConstSlice< const RegularTreeNode* , _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii + _PRightRadii + 1 ) ... > pNeighbors , Window::Slice< const RegularTreeNode* ,  _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii + _CRightRadii + 1 ) ... > cNeighbors , int* c , int cornerIndex )
 {
 	static const int D = sizeof ... ( _PLeftRadii ) + 1;
 	unsigned int count=0;
 	for( int i=-(int)_CLeftRadius ; i<=(int)_CRightRadius ; i++ )
 	{
 		int _i = (i+c[Dim-D]) + ( _CLeftRadius<<1 ) , pi = ( _i>>1 ) - _CLeftRadius + _PLeftRadius  , ci = i + _CLeftRadius;
-		count += _Run< UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack<  _CRightRadii ... > >::Run( pNeighbors[pi] , cNeighbors[ci] , c , cornerIndex | ( ( _i&1)<<(Dim-D) ) );
+		count += _Run< ParameterPack::UIntPack< _PLeftRadii ... > , ParameterPack::UIntPack< _PRightRadii ... > , ParameterPack::UIntPack< _CLeftRadii ... > , ParameterPack::UIntPack<  _CRightRadii ... > >::Run( pNeighbors[pi] , cNeighbors[ci] , c , cornerIndex | ( ( _i&1)<<(Dim-D) ) );
 	}
 	return count;
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius  >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >::Run( ConstWindowSlice< const RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< const RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex )
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::_Run< ParameterPack::UIntPack< _PLeftRadius > , ParameterPack::UIntPack< _PRightRadius > , ParameterPack::UIntPack< _CLeftRadius > , ParameterPack::UIntPack< _CRightRadius > >::Run( Window::ConstSlice< const RegularTreeNode* , _PLeftRadius+_PRightRadius+1 > pNeighbors , Window::Slice< const RegularTreeNode* , _CLeftRadius+_CRightRadius+1 > cNeighbors , int* c , int cornerIndex )
 {
 	static const int D = 1;
 	unsigned int count=0;
@@ -921,70 +928,72 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighb
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getChildNeighbors( int cIdx , int d , ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& cNeighbors ) const
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getChildNeighbors( int cIdx , int d , ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& cNeighbors ) const
 {
-	const ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& pNeighbors = neighbors[d];
+	const ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& pNeighbors = neighbors[d];
 	// Check that we actually have a center node
 	if( !pNeighbors.neighbors.data[ CenterIndex ] ) return 0;
 
-	return _NeighborsLoop( UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , pNeighbors.neighbors() , cNeighbors.neighbors() , cIdx );
+	return _NeighborsLoop( ParameterPack::UIntPack< LeftRadii ... >() , ParameterPack::UIntPack< RightRadii ... >() , ParameterPack::UIntPack< LeftRadii ... >() , ParameterPack::UIntPack< RightRadii ... >() , pNeighbors.neighbors() , cNeighbors.neighbors() , cIdx );
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( const RegularTreeNode* node )
+typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getNeighbors( const RegularTreeNode* node )
 {
-	ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& neighbors = this->neighbors[ node->depth() ];
+	ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& neighbors = this->neighbors[ node->depth() ];
 	if( node!=neighbors.neighbors.data[ CenterIndex ] )
 	{
 		for( int d=node->depth()+1 ; d<=_depth && this->neighbors[d].neighbors.data[ CenterIndex ] ; d++ ) this->neighbors[d].neighbors.data[ CenterIndex ] = NULL;
 		neighbors.clear();
 		if( !node->parent ) neighbors.neighbors.data[ CenterIndex ] = node;
-		else _NeighborsLoop( UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , getNeighbors( node->parent ).neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) );
+		else _NeighborsLoop( ParameterPack::UIntPack< LeftRadii ... >() , ParameterPack::UIntPack< RightRadii ... >() , ParameterPack::UIntPack< LeftRadii ... >() , ParameterPack::UIntPack< RightRadii ... >() , getNeighbors( node->parent ).neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) );
 	}
 	return neighbors;
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > , const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , ConstNeighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
 {
-	static const unsigned int _CenterIndex = WindowIndex< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > , UIntPack< _LeftRadii ... > >::Index;
+	static const unsigned int _CenterIndex = Window::Index< ( _LeftRadii + _RightRadii + 1 ) ... >::template I< _LeftRadii ... >();
 
 	neighbors.clear();
 	if( !node ) return;
 
-	UIntPack<  LeftRadii ... >  leftRadii;
-	UIntPack< RightRadii ... > rightRadii;
-	UIntPack< (  _LeftRadii+1 )/2 ... >  pLeftRadii;
-	UIntPack< ( _RightRadii+1 )/2 ... > pRightRadii;
-	UIntPack<  _LeftRadii ... >  cLeftRadii;
-	UIntPack< _RightRadii ... > cRightRadii;
+	ParameterPack::UIntPack<  LeftRadii ... >  leftRadii;
+	ParameterPack::UIntPack< RightRadii ... > rightRadii;
+	ParameterPack::UIntPack< (  _LeftRadii+1 )/2 ... >  pLeftRadii;
+	ParameterPack::UIntPack< ( _RightRadii+1 )/2 ... > pRightRadii;
+	ParameterPack::UIntPack<  _LeftRadii ... >  cLeftRadii;
+	ParameterPack::UIntPack< _RightRadii ... > cRightRadii;
 	// If we are at the root of the tree, we are done
 	if( !node->parent ) neighbors.neighbors.data[ _CenterIndex ] = node;
 	// If we can get the data from the the key for the parent node, do that
 	else if( pLeftRadii<=leftRadii && pRightRadii<=rightRadii )
 	{
 		getNeighbors( node->parent );
-		const ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& pNeighbors = this->neighbors[ node->depth()-1 ];
+		const ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& pNeighbors = this->neighbors[ node->depth()-1 ];
 		_NeighborsLoop( leftRadii , rightRadii , cLeftRadii , cRightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) );
 	}
 	// Otherwise recurse
 	else
 	{
-		ConstNeighbors< UIntPack< ( ( _LeftRadii+1 )/2  + ( _RightRadii+1 )/2 + 1 ) ... > > pNeighbors;
+		ConstNeighbors< ParameterPack::UIntPack< ( ( _LeftRadii+1 )/2  + ( _RightRadii+1 )/2 + 1 ) ... > > pNeighbors;
 		getNeighbors( pLeftRadii , pRightRadii , node->parent , pNeighbors );
 		_NeighborsLoop( pLeftRadii , pRightRadii , cLeftRadii , cRightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) );
 	}
 	return;
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getNeighbors( ParameterPack::UIntPack< _LeftRadii ... > , ParameterPack::UIntPack< _RightRadii ... > , const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , ConstNeighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , ConstNeighbors< ParameterPack::UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
 {
-	UIntPack<  _LeftRadii ... >  leftRadii;
-	UIntPack< _RightRadii ... > rightRadii;
+	ParameterPack::UIntPack<  _LeftRadii ... >  leftRadii;
+	ParameterPack::UIntPack< _RightRadii ... > rightRadii;
 	if( !node->parent ) return getNeighbors( leftRadii , rightRadii , node , neighbors );
 	else
 	{
@@ -992,12 +1001,13 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< U
 		_NeighborsLoop( leftRadii , rightRadii , leftRadii , rightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) );
 	}
 }
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< class Real >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getChildNeighbors( Point< Real , Dim > p , int d , ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& cNeighbors ) const
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::getChildNeighbors( Point< Real , Dim > p , int d , ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& cNeighbors ) const
 {
-	ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& pNeighbors = neighbors[d];
+	ConstNeighbors< ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& pNeighbors = neighbors[d];
 	// Check that we actually have a center node
 	if( !pNeighbors.neighbors.data[ CenterIndex ] ) return 0;
 	Point< Real , Dim > c;
@@ -1010,7 +1020,7 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighb
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::setLeafNeighbors( const RegularTreeNode *node , StaticWindow< RegularTreeNode * , UIntPack< ( LeftRadii + RightRadii + 1 ) ... > > &leaves )
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< ParameterPack::UIntPack< LeftRadii ... > , ParameterPack::UIntPack< RightRadii ... > >::setLeafNeighbors( const RegularTreeNode *node , Window::StaticWindow< RegularTreeNode * , ( LeftRadii + RightRadii + 1 ) ... > &leaves )
 {
 	// Suppose that we have a node at index I and we want the leaf nodes supported on the (possibly virtual) node K away
 	// Case 1: The K-th neighbor exists
@@ -1046,9 +1056,9 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< U
 	int depth , index[Dim] , offset[Dim] , _offset[Dim];
 	node->depthAndOffset( depth , index );
 
-	WindowLoop< Dim >::Run
+	Window::Loop< Dim >::Run
 	(
-		IsotropicUIntPack< Dim , 0 >() , UIntPack< ( LeftRadii + RightRadii + 1 ) ... >() ,
+		ParameterPack::IsotropicUIntPack< Dim , 0 >() , ParameterPack::UIntPack< ( LeftRadii + RightRadii + 1 ) ... >() ,
 		[&]( int d , int i ){ offset[d] = i , _offset[d] = i-_LeftRadii[d]; } ,
 		[&]( void ){ leaves( offset ) = GetNeighborLeaf( depth , index , _offset ); }
 	);

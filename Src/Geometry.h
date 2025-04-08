@@ -180,7 +180,7 @@ namespace PoissonRecon
 		void _init( unsigned int d )
 		{
 			if( !d ) memset( coords , 0 , sizeof(Real)*Dim );
-			else ERROR_OUT( "Should never be called" );
+			else MK_ERROR_OUT( "Should never be called" );
 		}
 		template< class _Real , class ... _Reals > void _init( unsigned int d , _Real v , _Reals ... values )
 		{
@@ -276,7 +276,7 @@ namespace PoissonRecon
 		{
 			if( !_dim ){ _resize( p._dim ) ; memcpy( _coords , p._coords , sizeof(Real)*_dim ); }
 			else if( _dim==p._dim ) memcpy( _coords , p._coords , sizeof(Real)*_dim );
-			else ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
+			else MK_ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
 			return *this;
 		}
 
@@ -289,14 +289,14 @@ namespace PoissonRecon
 		{
 			if( !_dim ){ _resize( p._dim ) ; for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] = p._coords[i]; }
 			else if( _dim==p._dim ) for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] += p._coords[i];
-			else ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
+			else MK_ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
 			return *this;
 		}
 		Point& operator -= ( const Point& p )
 		{
 			if( !_dim ){ _resize( p._dim ) ; for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] = -p._coords[i]; }
 			else if( _dim==p._dim ) for( unsigned int i=0 ; i<_dim ; i++ ) _coords[i] -= p._coords[i];
-			else ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
+			else MK_ERROR_OUT( "Dimensions don't match: " , _dim , " != " , p._dim );
 			return *this;
 		}
 		Point& operator *= ( Real s )
@@ -317,7 +317,7 @@ namespace PoissonRecon
 		static Real Dot( const Point &p1 , const Point &p2 )
 		{
 			Real dot;
-			if( p1._dim!=p2._dim ) ERROR_OUT( "Dimensions differ: " , p1._dim , " != " , p2._dim );
+			if( p1._dim!=p2._dim ) MK_ERROR_OUT( "Dimensions differ: " , p1._dim , " != " , p2._dim );
 			for( size_t d=0 ; d<p1._dim ; d++ ) dot += p1[d] * p2[d];
 			return dot;
 		}
@@ -695,7 +695,7 @@ namespace PoissonRecon
 		template< unsigned int _K=K >
 		static typename std::enable_if< _K==Dim-1 , bool >::type IsInterior( Point< Real , Dim > p , const std::vector< Simplex< Real , Dim , Dim-1 > > &simplices )
 		{
-			if( !simplices.size() ) ERROR_OUT( "No simplices provided" );
+			if( !simplices.size() ) MK_ERROR_OUT( "No simplices provided" );
 
 			// Create a ray that intersecting the largest simplex
 			int idx;
@@ -709,7 +709,7 @@ namespace PoissonRecon
 			}
 			Ray< Real , Dim > ray( p , simplices[idx].center() - p );
 			Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
-			if( !l ) ERROR_OUT( "point is on simplex" );
+			if( !l ) MK_ERROR_OUT( "point is on simplex" );
 			l = (Real)sqrt(l);
 			ray.direction /= l;
 
@@ -729,7 +729,7 @@ namespace PoissonRecon
 		template< unsigned int _K=K >
 		static typename std::enable_if< _K==Dim-1 , bool >::type IsInterior( Point< Real , Dim > p , const std::vector< Simplex< Real , Dim , Dim-1 > > &simplices , const std::vector< Point< Real , Dim > > &normals )
 		{
-			if( !simplices.size() ) ERROR_OUT( "No simplices provided" );
+			if( !simplices.size() ) MK_ERROR_OUT( "No simplices provided" );
 
 #if 0
 			// A more conservative approach for ray-tracing, sending a ray for each simplex and using the consensus solution
@@ -738,7 +738,7 @@ namespace PoissonRecon
 			{
 				Ray< Real , Dim > ray( p , simplices[idx].center() - p );
 				Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
-				if( !l ){ WARN( "point is on simplex" ) ; continue; }
+				if( !l ){ MK_WARN( "point is on simplex" ) ; continue; }
 				l = (Real)sqrt(l);
 				ray.direction /= l;
 
@@ -770,7 +770,7 @@ namespace PoissonRecon
 			}
 			Ray< Real , Dim > ray( p , simplices[idx].center() - p );
 			Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
-			if( !l ) ERROR_OUT( "point is on simplex" );
+			if( !l ) MK_ERROR_OUT( "point is on simplex" );
 			l = (Real)sqrt(l);
 			ray.direction /= l;
 
@@ -819,11 +819,11 @@ namespace PoissonRecon
 		template< unsigned int _K=0 >
 		static typename std::enable_if< _K==Dim-1 , bool >::type IsInterior( Point< Real , Dim > p , const std::vector< Simplex< Real , Dim , Dim-1 > > &simplices , const std::vector< Point< Real , Dim > > &normals )
 		{
-			if( !simplices.size() ) ERROR_OUT( "No simplices provided" );
+			if( !simplices.size() ) MK_ERROR_OUT( "No simplices provided" );
 
 			Ray< Real , Dim > ray( p , simplices[0].center() - p );
 			Real l = (Real)Point< Real , Dim >::SquareNorm( ray.direction );
-			if( !l ) ERROR_OUT( "point is on simplex" );
+			if( !l ) MK_ERROR_OUT( "point is on simplex" );
 			l = (Real)sqrt(l);
 			ray.direction /= l;
 
@@ -863,7 +863,7 @@ namespace PoissonRecon
 		void _init( unsigned int k )
 		{
 			if( !k ) memset( idx , 0 , sizeof(idx) );
-			else ERROR_OUT( "Should never be called" );
+			else MK_ERROR_OUT( "Should never be called" );
 		}
 		template< class ... Ints > void _init( unsigned int k , Index v , Ints ... values )
 		{
