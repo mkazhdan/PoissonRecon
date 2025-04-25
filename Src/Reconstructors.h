@@ -94,7 +94,7 @@ namespace PoissonRecon
 			{}
 
 			template< unsigned int Dim >
-			void testAndSet( XForm< Real , Dim > unitCubeToModel )
+			void testAndSet( XForm< Real , Dim+1 > unitCubeToModel )
 			{
 				if( width>0 )
 				{
@@ -477,9 +477,9 @@ namespace PoissonRecon
 				{}
 
 				template< unsigned int Dim >
-				void testAndSet( XForm< Real , Dim > unitCubeToModel )
+				void testAndSet( XForm< Real , Dim+1 > unitCubeToModel )
 				{
-					Reconstructor::SolutionParameters< Real >::testAndSet( unitCubeToModel );
+					Reconstructor::SolutionParameters< Real >::template testAndSet< Dim >( unitCubeToModel );
 					if( envelopeDepth==-1 ) envelopeDepth = Reconstructor::SolutionParameters< Real >::baseDepth;
 					if( envelopeDepth>Reconstructor::SolutionParameters< Real >::depth )
 					{
@@ -707,7 +707,7 @@ namespace PoissonRecon
 				implicit.unitCubeToModel = modelToUnitCube.inverse();
 				pointStream.reset();
 
-				params.testAndSet( implicit.unitCubeToModel );
+				params.template testAndSet< Dim >( implicit.unitCubeToModel );
 
 				{
 					// Apply the transformation
@@ -1110,7 +1110,7 @@ namespace PoissonRecon
 				implicit.unitCubeToModel = modelToUnitCube.inverse();
 				pointStream.reset();
 
-				params.testAndSet( implicit.unitCubeToModel );
+				params.template testAndSet< Dim >( implicit.unitCubeToModel );
 
 				{
 					// Apply the transformation
