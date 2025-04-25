@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.60)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.71)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,12 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.60/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.71/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.60/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.71/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.70/">V18.70</a>,
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.60/">V18.60</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.55/">V18.55</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/">V18.50</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.42/">V18.42</a>,
@@ -1761,6 +1763,16 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <OL>
 <LI> Changed the <B>--confidence</b> flag to be a bool (enabling is equivalent to having set to 1.0).
 <LI> Resolved clang compilation issues.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/">Version 18.70</a>:
+<OL>
+<LI> Added support for 2D iso-surfacing.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.50/">Version 18.70</a>:
+<OL>
+<LI> Fixed bug with width estimation reading translational component.
 </OL>
 
 </DETAILS>
