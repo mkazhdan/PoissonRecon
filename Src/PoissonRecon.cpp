@@ -361,7 +361,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 			for( int i=0 ; i<Dim+1 ; i++ ) for( int j=0 ; j<Dim+1 ; j++ )
 			{
 				float f;
-				if( fscanf( fp , " %f " , &f )!=1 ) MK_ERROR_OUT( "Failed to read xform" );
+				if( fscanf( fp , " %f " , &f )!=1 ) MK_THROW( "Failed to read xform" );
 				toModel(i,j) = (Real)f;
 			}
 			fclose( fp );
@@ -407,7 +407,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 			PLY::ReadPolygons( Envelope.value , PositionFactory< Real , Dim >() , envelopeMesh->vertices , polygons , file_type , comments );
 			envelopeMesh->simplices.resize( polygons.size() );
 			for( int i=0 ; i<polygons.size() ; i++ )
-				if( polygons[i].size()!=Dim ) MK_ERROR_OUT( "Not a simplex" );
+				if( polygons[i].size()!=Dim ) MK_THROW( "Not a simplex" );
 				else for( int j=0 ; j<Dim ; j++ ) envelopeMesh->simplices[i][j] = polygons[i][j];
 		}
 	}
@@ -505,7 +505,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
-		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , Tree.value );
+		if( !fp ) MK_THROW( "Failed to open file for writing: " , Tree.value );
 		FileStream fs(fp);
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
@@ -570,7 +570,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		case 2: return Execute< Real , Dim , FEMDegreeAndBType< 2 , BType >::Signature >( auxDataFactory );
 //		case 3: return Execute< Real , Dim , FEMDegreeAndBType< 3 , BType >::Signature >( auxDataFactory );
 //		case 4: return Execute< Real , Dim , FEMDegreeAndBType< 4 , BType >::Signature >( auxDataFactory );
-		default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
+		default: MK_THROW( "Only B-Splines of degree 1 - 2 are supported" );
 	}
 }
 
@@ -582,7 +582,7 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		case BOUNDARY_FREE+1:      return Execute< Dim , Real , BOUNDARY_FREE      >( auxDataFactory );
 		case BOUNDARY_NEUMANN+1:   return Execute< Dim , Real , BOUNDARY_NEUMANN   >( auxDataFactory );
 		case BOUNDARY_DIRICHLET+1: return Execute< Dim , Real , BOUNDARY_DIRICHLET >( auxDataFactory );
-		default: MK_ERROR_OUT( "Not a valid boundary type: " , BType.value );
+		default: MK_THROW( "Not a valid boundary type: " , BType.value );
 	}
 }
 #endif // !FAST_COMPILE
@@ -626,8 +626,8 @@ int main( int argc , char* argv[] )
 		bool *readFlags = new bool[ factory.plyReadNum() ];
 		std::vector< PlyProperty > unprocessedProperties;
 		PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties );
-		if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain positions" );
-		if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain normals" );
+		if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_THROW( "Ply file does not contain positions" );
+		if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_THROW( "Ply file does not contain normals" );
 		delete[] readFlags;
 
 		if( unprocessedProperties.size() ) Execute< Real , Dim , FEMSig >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );
@@ -649,8 +649,8 @@ int main( int argc , char* argv[] )
 		bool *readFlags = new bool[ factory.plyReadNum() ];
 		std::vector< PlyProperty > unprocessedProperties;
 		PLY::ReadVertexHeader( In.value , factory , readFlags , unprocessedProperties );
-		if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain positions" );
-		if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain normals" );
+		if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_THROW( "Ply file does not contain positions" );
+		if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_THROW( "Ply file does not contain normals" );
 		delete[] readFlags;
 
 		if( unprocessedProperties.size() ) Execute< DEFAULT_DIMENSION , Real >( VertexFactory::DynamicFactory< Real >( unprocessedProperties ) );

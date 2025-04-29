@@ -206,68 +206,68 @@ public:
 			if( cellIndices.size() )
 			{
 				mcIndices = AllocPointer< char >( cellIndices.size() );
-				if( !stream.read( mcIndices , cellIndices.size() ) ) MK_ERROR_OUT( "Failed to read mc indices" );
+				if( !stream.read( mcIndices , cellIndices.size() ) ) MK_THROW( "Failed to read mc indices" );
 			}
 			if( cellIndices.counts[0] )
 			{
 				cornerValues = AllocPointer< Real >( cellIndices.counts[0] );
-				if( !stream.read( cornerValues , cellIndices.counts[0] ) ) MK_ERROR_OUT( "Failed to read corner values" );
+				if( !stream.read( cornerValues , cellIndices.counts[0] ) ) MK_THROW( "Failed to read corner values" );
 				char hasCornerGradients;
-				if( !stream.read( hasCornerGradients ) ) MK_ERROR_OUT( "Could not read corner gradient state" );
+				if( !stream.read( hasCornerGradients ) ) MK_THROW( "Could not read corner gradient state" );
 				if( hasCornerGradients )
 				{
 					cornerGradients = AllocPointer< Point< Real , Dim > >( cellIndices.counts[0] );
-					if( !stream.read( cornerGradients , cellIndices.counts[0] ) ) MK_ERROR_OUT( "Could not read corner gradients" );
+					if( !stream.read( cornerGradients , cellIndices.counts[0] ) ) MK_THROW( "Could not read corner gradients" );
 				}
 			}
 
 			if( cellIndices.counts[1] )
 			{
 				edgeKeys = NewPointer< Key >( cellIndices.counts[1] );
-				if( !stream.read( edgeKeys , cellIndices.counts[1]) ) MK_ERROR_OUT( "Could not read edge keys" );
+				if( !stream.read( edgeKeys , cellIndices.counts[1]) ) MK_THROW( "Could not read edge keys" );
 			}
 
 			if( cellIndices.counts[2] )
 			{
 				faceEdges = NewPointer< FaceEdges >( cellIndices.counts[2] );
-				if( !stream.read( faceEdges , cellIndices.counts[2] ) ) MK_ERROR_OUT( "Could not read face edges" );
+				if( !stream.read( faceEdges , cellIndices.counts[2] ) ) MK_THROW( "Could not read face edges" );
 			}
 
 			auto ReadIsoEdgeVector = [&]( BinaryStream &stream , std::vector< IsoEdge > &edges )
 			{
 				size_t sz;
-				if( !stream.read( sz ) ) MK_ERROR_OUT( "Could not read iso-edge vector size" );
+				if( !stream.read( sz ) ) MK_THROW( "Could not read iso-edge vector size" );
 				edges.resize( sz );
-				if( sz && !stream.read( GetPointer( edges ) , sz ) ) MK_ERROR_OUT( "Could not read iso-edges" );
+				if( sz && !stream.read( GetPointer( edges ) , sz ) ) MK_THROW( "Could not read iso-edges" );
 			};
 			{
 				size_t sz;
-				if( !stream.read( sz ) ) MK_ERROR_OUT( "Could not read face-edge-map size" );
+				if( !stream.read( sz ) ) MK_THROW( "Could not read face-edge-map size" );
 				for( unsigned int i=0 ; i<sz ; i++ )
 				{
 					Key key;
-					if( !stream.read( key ) ) MK_ERROR_OUT( "Could not read face-edge-map key" );
+					if( !stream.read( key ) ) MK_THROW( "Could not read face-edge-map key" );
 					ReadIsoEdgeVector( stream , faceEdgeMap[key] );
 				}
 			}
 			{
 				size_t sz;
-				if( !stream.read( sz ) ) MK_ERROR_OUT( "Could not read edge-vertex-map size" );
+				if( !stream.read( sz ) ) MK_THROW( "Could not read edge-vertex-map size" );
 				for( unsigned int i=0 ; i<sz ; i++ )
 				{
 					Key key;
-					if( !stream.read( key ) ) MK_ERROR_OUT( "Could not read edge-vertex-map key" );
-					if( !stream.read( edgeVertexMap[key] ) ) MK_ERROR_OUT( "Could not read edge-vertex-map value" );
+					if( !stream.read( key ) ) MK_THROW( "Could not read edge-vertex-map key" );
+					if( !stream.read( edgeVertexMap[key] ) ) MK_THROW( "Could not read edge-vertex-map value" );
 				}
 			}
 			{
 				size_t sz;
-				if( !stream.read( sz ) ) MK_ERROR_OUT( "Could not read vertex-pair-map size" );
+				if( !stream.read( sz ) ) MK_THROW( "Could not read vertex-pair-map size" );
 				for( unsigned int i=0 ; i<sz ; i++ )
 				{
 					Key key;
-					if( !stream.read( key ) ) MK_ERROR_OUT( "Could not read vertex-pair-map key" );
-					if( !stream.read( vertexPairMap[key] ) ) MK_ERROR_OUT( "Could not read vertex-pair-map value" );
+					if( !stream.read( key ) ) MK_THROW( "Could not read vertex-pair-map key" );
+					if( !stream.read( vertexPairMap[key] ) ) MK_THROW( "Could not read vertex-pair-map value" );
 				}
 			}
 		}
@@ -480,14 +480,14 @@ public:
 			stream.read( xForm );
 
 			size_t sz;
-			if( !stream.read( sz ) ) MK_ERROR_OUT( "Could not read slice count" );
+			if( !stream.read( sz ) ) MK_THROW( "Could not read slice count" );
 			sliceValues.resize( sz );
 			for( unsigned int i=0 ; i<sliceValues.size() ; i++ ) sliceValues[i].read( stream );
-			if( !stream.read( sz ) ) MK_ERROR_OUT( "Could not read iso-vertex count" );
+			if( !stream.read( sz ) ) MK_THROW( "Could not read iso-vertex count" );
 			if( sz )
 			{
 				vertexPositions.resize( sz );
-				if( sz && !stream.read( GetPointer( vertexPositions ) , sz ) ) MK_ERROR_OUT( "Could not read iso-vertex positions" );
+				if( sz && !stream.read( GetPointer( vertexPositions ) , sz ) ) MK_THROW( "Could not read iso-vertex positions" );
 			}
 		}
 
@@ -497,7 +497,7 @@ public:
 			for( unsigned int i=0 ; i<sliceValues.size() ; i++ )
 				for( typename LevelSetExtraction::KeyMap< Dim , node_index_type >::const_iterator iter=sliceValues[i].edgeVertexMap.cbegin() ; iter!=sliceValues[i].edgeVertexMap.cend() ; iter++ )
 				{
-					if( iter->second>=(node_index_type)vertexPositions.size() ) MK_ERROR_OUT( "Unexpected vertex index: " , iter->second , " <= " , vertexPositions.size() );
+					if( iter->second>=(node_index_type)vertexPositions.size() ) MK_THROW( "Unexpected vertex index: " , iter->second , " <= " , vertexPositions.size() );
 					keys[iter->second] = iter->first;
 				}
 			return keys;
@@ -750,7 +750,7 @@ public:
 						// The corner indices incident on the edeg
 						const typename HyperCube::Cube< Dim >::template Element< 0 > *c = HyperCubeTables< Dim , 1 , 0 >::OverlapElements[e.index];
 						// [SANITY CHECK]
-						//						if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) MK_ERROR_OUT( "Finer edges should both be valid or invalid" );
+						//						if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index )!=tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) MK_THROW( "Finer edges should both be valid or invalid" );
 						// Can only copy edge information from the finer nodes incident on the edge if they are valid (note since we refine in broods, we can't have one child in and the other out)
 						if( !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[0].index ) || !tree._isValidSpaceNode( tree._sNodes.treeNodes[i]->children + c[1].index ) ) continue;
 
@@ -829,7 +829,7 @@ public:
 					fe.count = HyperCube::MarchingSquares::AddEdgeIndices( mcIndex , isoEdges );
 					for( int j=0 ; j<fe.count ; j++ ) for( int k=0 ; k<2 ; k++ )
 					{
-						if( !edgeSet[ eIndices[ isoEdges[2*j+k] ] ] ) MK_ERROR_OUT( "Edge not set: " , 1<<depth );
+						if( !edgeSet[ eIndices[ isoEdges[2*j+k] ] ] ) MK_THROW( "Edge not set: " , 1<<depth );
 						fe.edges[j][k] = sValues.edgeKeys[ eIndices[ isoEdges[2*j+k] ] ];
 					}
 					sValues.faceEdges[ fIndices[0] ] = fe;
@@ -871,9 +871,9 @@ public:
 			typename LevelSetExtraction::KeyMap< Dim , node_index_type >::const_iterator iter;
 			node_index_type idx1 , idx2;
 			if( ( iter=sValues.edgeVertexMap.find( e[0] ) )!=sValues.edgeVertexMap.end() ) idx1 = iter->second;
-			else MK_ERROR_OUT( "Couldn't find vertex in edge map" );
+			else MK_THROW( "Couldn't find vertex in edge map" );
 			if( ( iter=sValues.edgeVertexMap.find( e[1] ) )!=sValues.edgeVertexMap.end() ) idx2 = iter->second;
-			else MK_ERROR_OUT( "Couldn't find vertex in edge map" );
+			else MK_THROW( "Couldn't find vertex in edge map" );
 			if( flipOrientation ) edgeStream.write( thread , std::make_pair( idx2 , idx1 ) );
 			else                  edgeStream.write( thread , std::make_pair( idx1 , idx2 ) );
 		};
@@ -961,7 +961,7 @@ public:
 			// We have a linear function L, with L(0) = x0 and L(1) = x1
 			// => L(t) = x0 + t * (x1-x0)
 			// => L(t) = isoValue <=> t = ( isoValue - x0 ) / ( x1 - x0 )
-			if( x0==x1 ) MK_ERROR_OUT( "Not a zero-crossing root: " , x0 , " " , x1 );
+			if( x0==x1 ) MK_THROW( "Not a zero-crossing root: " , x0 , " " , x1 );
 			averageRoot = ( isoValue - x0 ) / ( x1 - x0 );
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
@@ -1033,7 +1033,7 @@ public:
 	template< unsigned int WeightDegree , unsigned int DataSig , typename VertexStream , unsigned int ... FEMSigs >
 	static Stats SetSliceValues( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real > &tree , int maxKeyDepth , const DensityEstimator< WeightDegree > *densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > *data , const DenseNodeData< Real , UIntPack< FEMSigs ... > > &coefficients , Real isoValue , VertexStream &vertexStream , const Data &zeroData , bool nonLinearFit , bool outputGradients , std::vector< SliceValues > &sliceValues , int setFlag )
 	{
-		if( maxKeyDepth<tree._maxDepth ) MK_ERROR_OUT( "Max key depth has to be at least tree depth: " , tree._maxDepth , " <= " , maxKeyDepth );
+		if( maxKeyDepth<tree._maxDepth ) MK_THROW( "Max key depth has to be at least tree depth: " , tree._maxDepth , " <= " , maxKeyDepth );
 		LevelSetExtraction::KeyGenerator< Dim > keyGenerator( maxKeyDepth );
 		unsigned int slabStart = 0 , slabEnd = 1<<tree._maxDepth;
 		LocalDepth fullDepth = tree.getFullDepth( UIntPack< FEMSignature< FEMSigs >::Degree ... >() );
@@ -1044,7 +1044,7 @@ public:
 		static_assert( sizeof...(FEMSigs)==Dim , "[ERROR] Number of signatures should match dimension" );
 		tree._setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 		static const int FEMDegrees[] = { FEMSignature< FEMSigs >::Degree ... };
-		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 && nonLinearFit ) MK_ERROR_OUT( "Constant B-Splines do not support gradient estimation" );
+		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 && nonLinearFit ) MK_THROW( "Constant B-Splines do not support gradient estimation" );
 
 		LevelSetExtraction::SetHyperCubeTables< Dim >();
 

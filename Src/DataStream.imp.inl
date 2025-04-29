@@ -33,7 +33,7 @@ template< typename Factory >
 ASCIIInputDataStream< Factory >::ASCIIInputDataStream( const char* fileName , const Factory &factory ) : _factory( factory )
 {
 	_fp = fopen( fileName , "r" );
-	if( !_fp ) MK_ERROR_OUT( "Failed to open file for reading: %s" , fileName );
+	if( !_fp ) MK_THROW( "Failed to open file for reading: %s" , fileName );
 }
 
 template< typename Factory >
@@ -56,7 +56,7 @@ template< typename Factory >
 ASCIIOutputDataStream< Factory >::ASCIIOutputDataStream( const char* fileName , const Factory &factory ) : _factory( factory )
 {
 	_fp = fopen( fileName , "w" );
-	if( !_fp ) MK_ERROR_OUT( "Failed to open file for writing: %s" , fileName );
+	if( !_fp ) MK_THROW( "Failed to open file for writing: %s" , fileName );
 }
 
 template< typename Factory >
@@ -76,7 +76,7 @@ template< typename Factory >
 BinaryInputDataStream< Factory >::BinaryInputDataStream( const char* fileName , const Factory &factory ) : _factory(factory)
 {
 	_fp = fopen( fileName , "rb" );
-	if( !_fp ) MK_ERROR_OUT( "Failed to open file for reading: %s" , fileName );
+	if( !_fp ) MK_THROW( "Failed to open file for reading: %s" , fileName );
 }
 
 template< typename Factory >
@@ -92,7 +92,7 @@ template< typename Factory >
 BinaryOutputDataStream< Factory >::BinaryOutputDataStream( const char* fileName , const Factory &factory ) : _factory(factory)
 {
 	_fp = fopen( fileName , "wb" );
-	if( !_fp ) MK_ERROR_OUT( "Failed to open file for writing: %s" , fileName );
+	if( !_fp ) MK_THROW( "Failed to open file for writing: %s" , fileName );
 }
 
 template< typename Factory >
@@ -131,7 +131,7 @@ void PLYInputDataStream< Factory >::reset( void )
 	float version;
 	if( _ply ) _free();
 	_ply = PlyFile::Read( _fileName, _elist, fileType, version );
-	if( !_ply ) MK_ERROR_OUT( "Failed to open ply file for reading: " , _fileName );
+	if( !_ply ) MK_THROW( "Failed to open ply file for reading: " , _fileName );
 
 	bool foundData = false;
 	for( int i=0 ; i<_elist.size() ; i++ )
@@ -142,7 +142,7 @@ void PLYInputDataStream< Factory >::reset( void )
 		{
 			size_t num_elems;
 			std::vector< PlyProperty > plist = _ply->get_element_description( elem_name , num_elems );
-			if( !plist.size() ) MK_ERROR_OUT( "Failed to get description for \"" , elem_name , "\"" );
+			if( !plist.size() ) MK_THROW( "Failed to get description for \"" , elem_name , "\"" );
 
 			foundData = true;
 			_pCount = num_elems , _pIdx = 0;
@@ -158,10 +158,10 @@ void PLYInputDataStream< Factory >::reset( void )
 			}
 			bool valid = _factory.plyValidReadProperties( properties );
 			delete[] properties;
-			if( !valid ) MK_ERROR_OUT( "Failed to validate properties in file" );
+			if( !valid ) MK_THROW( "Failed to validate properties in file" );
 		}
 	}
-	if( !foundData ) MK_ERROR_OUT( "Could not find data in ply file" );
+	if( !foundData ) MK_THROW( "Could not find data in ply file" );
 }
 
 template< typename Factory >
@@ -201,7 +201,7 @@ PLYOutputDataStream< Factory >::PLYOutputDataStream( const char* fileName , cons
 	float version;
 	std::vector< std::string > elem_names = { std::string( "vertex" ) };
 	_ply = PlyFile::Write( fileName , elem_names , fileType , version );
-	if( !_ply ) MK_ERROR_OUT( "Failed to open ply file for writing: " , fileName );
+	if( !_ply ) MK_THROW( "Failed to open ply file for writing: " , fileName );
 
 	_pIdx = 0;
 	_pCount = count;
@@ -222,7 +222,7 @@ PLYOutputDataStream< Factory >::PLYOutputDataStream( const char* fileName , cons
 template< typename Factory >
 PLYOutputDataStream< Factory >::~PLYOutputDataStream( void )
 {
-	if( _pIdx!=_pCount ) MK_ERROR_OUT( "Streamed points not equal to total count: " , _pIdx , " != " , _pCount );
+	if( _pIdx!=_pCount ) MK_THROW( "Streamed points not equal to total count: " , _pIdx , " != " , _pCount );
 	delete _ply;
 	DeletePointer( _buffer );
 }
@@ -230,7 +230,7 @@ PLYOutputDataStream< Factory >::~PLYOutputDataStream( void )
 template< typename Factory >
 size_t PLYOutputDataStream< Factory >::write( const Data &d )
 {
-	if( _pIdx==_pCount ) MK_ERROR_OUT( "Trying to add more points than total: " , _pIdx , " < " , _pCount );
+	if( _pIdx==_pCount ) MK_THROW( "Trying to add more points than total: " , _pIdx , " < " , _pCount );
 	if constexpr( Factory::IsStaticallyAllocated() ) _ply->put_element( (void *)&d );
 	else
 	{

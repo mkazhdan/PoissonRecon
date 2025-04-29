@@ -47,8 +47,8 @@ inline void _Copy( FILE *target , FILE *source , size_t sz , size_t bufferSize=1
 		while( sz )
 		{
 			size_t ioBytes = std::min< size_t >( bufferSize , sz );
-			if( ioBytes!=fread( buffer , sizeof(unsigned char) , ioBytes , source ) ) MK_ERROR_OUT( "Failed to read from source: " , ioBytes );
-			if( ioBytes!=fwrite( buffer , sizeof(unsigned char) , ioBytes , target ) ) MK_ERROR_OUT( "Failed to write to target: " , ioBytes );
+			if( ioBytes!=fread( buffer , sizeof(unsigned char) , ioBytes , source ) ) MK_THROW( "Failed to read from source: " , ioBytes );
+			if( ioBytes!=fwrite( buffer , sizeof(unsigned char) , ioBytes , target ) ) MK_THROW( "Failed to write to target: " , ioBytes );
 			sz -= ioBytes;
 		}
 	}
@@ -101,13 +101,13 @@ void _OffsetPolygons( const Factory &factory , std::string in , std::string out 
 		auto ReadPolygon = [&]( FILE *fp )
 		{
 			int n;
-			if( fread( &n , sizeof(int) , 1 , fp )!=1 ) MK_ERROR_OUT( "Failed to read polygon size" );
+			if( fread( &n , sizeof(int) , 1 , fp )!=1 ) MK_THROW( "Failed to read polygon size" );
 			if( n>maxIndices )
 			{
 				maxIndices = n;
 				faceIndices = (Index*)realloc( faceIndices , sizeof(Index) * maxIndices );
 			}
-			if( fread( faceIndices , sizeof(Index) , n , fp )!=n ) MK_ERROR_OUT( "Failed to read polygon indices" );
+			if( fread( faceIndices , sizeof(Index) , n , fp )!=n ) MK_THROW( "Failed to read polygon indices" );
 			return n;
 		};
 
@@ -184,8 +184,8 @@ void _RunServer
 			for( unsigned int j=0 ; j<elems.size() ; j++ )
 				if     ( std::get<0>( elems[j] )==std::string( "vertex" ) ) foundVertices = true , vNum[i] = std::get<1>( elems[j] );
 				else if( std::get<0>( elems[j] )==std::string( "face"   ) ) foundFaces    = true , fNum[i] = std::get<1>( elems[j] );
-			if( !foundVertices ) MK_ERROR_OUT( "Could not find vertices" );
-			if( !foundFaces ) MK_ERROR_OUT( "Could not find faces" );
+			if( !foundVertices ) MK_THROW( "Could not find vertices" );
+			if( !foundFaces ) MK_THROW( "Could not find faces" );
 			profiler.update();
 		}
 		offsets[0] = 0;
@@ -255,7 +255,7 @@ void _RunServer
 			case INT:       std::get<2>( elems[1] )[0] = PLY::Face<          int >::Properties[0] ; break;
 			case U_INT:     std::get<2>( elems[1] )[0] = PLY::Face< unsigned int >::Properties[0] ; break;
 			case LONG_LONG: std::get<2>( elems[1] )[0] = PLY::Face<    long long >::Properties[0] ; break;
-			default: MK_ERROR_OUT( "Unrecognized output type" );
+			default: MK_THROW( "Unrecognized output type" );
 		}
 	}
 
@@ -404,7 +404,7 @@ void RunServer
 	std::function< std::vector< std::string > (unsigned int) > commentFunctor
 )
 {
-	if( clientSockets.size()!=sharedVertexCounts.size()+1 ) MK_ERROR_OUT( "Socket num and shared vertex count don't match: " , clientSockets.size() , " / " , sharedVertexCounts.size() );
+	if( clientSockets.size()!=sharedVertexCounts.size()+1 ) MK_THROW( "Socket num and shared vertex count don't match: " , clientSockets.size() , " / " , sharedVertexCounts.size() );
 
 	for( unsigned int i=0 ; i<clientSockets.size() ; i++ )
 	{
@@ -459,7 +459,7 @@ void _RunClients
 			case INT:       _OffsetPolygons<          int >( factory , in , out , offset , profiler ) ; break;
 			case U_INT:     _OffsetPolygons< unsigned int >( factory , in , out , offset , profiler ) ; break;
 			case LONG_LONG: _OffsetPolygons<    long long >( factory , in , out , offset , profiler ) ; break;
-			default: MK_ERROR_OUT( "Unrecognized output index type" );
+			default: MK_THROW( "Unrecognized output index type" );
 		}
 		char done = 1;
 		socketStream.write( done );
@@ -510,15 +510,15 @@ ClientMergePlyInfo::ClientMergePlyInfo( BinaryStream &stream )
 		return true;
 	};
 
-	if( !stream.read( bufferSize ) ) MK_ERROR_OUT( "Failed to read buffer size" );
+	if( !stream.read( bufferSize ) ) MK_THROW( "Failed to read buffer size" );
 	{
 		size_t sz;
-		if( !stream.read( sz ) ) MK_ERROR_OUT( "Failed to read number of auxiliary properties" );
+		if( !stream.read( sz ) ) MK_THROW( "Failed to read number of auxiliary properties" );
 		auxProperties.resize(sz);
 		for( size_t i=0 ; i<sz ; i++ ) auxProperties[i].read( stream );
 	}
-	if( !ReadBool( keepSeparate ) ) MK_ERROR_OUT( "Failed to read keep-separate flag" );
-	if( !ReadBool( verbose ) ) MK_ERROR_OUT( "Failed to read verbose flag" );
+	if( !ReadBool( keepSeparate ) ) MK_THROW( "Failed to read keep-separate flag" );
+	if( !ReadBool( verbose ) ) MK_THROW( "Failed to read verbose flag" );
 }
 
 void ClientMergePlyInfo::write( BinaryStream &stream ) const

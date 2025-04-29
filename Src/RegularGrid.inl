@@ -120,7 +120,7 @@ template< typename Real >
 void RegularGrid< DataType , Dim >::Write( std::string fileName , const unsigned int res[Dim] , ConstPointer( DataType ) values , XForm< Real , Dim+1 > gridToModel )
 {
 	FILE *fp = fopen( fileName.c_str() , "wb" );
-	if( !fp ) MK_ERROR_OUT( "Failed to open grid file for writing: " , fileName );
+	if( !fp ) MK_THROW( "Failed to open grid file for writing: " , fileName );
 	else
 	{
 		// Write the magic number
@@ -164,25 +164,25 @@ template< typename Real >
 void RegularGrid< DataType , Dim >::Read( std::string fileName , unsigned int res[Dim] , Pointer( DataType ) &values , XForm< Real , Dim+1 > &gridToModel )
 {
 	FILE *fp = fopen( fileName.c_str() , "rb" );
-	if( !fp ) MK_ERROR_OUT( "Failed to open grid file for reading: " , fileName );
+	if( !fp ) MK_THROW( "Failed to open grid file for reading: " , fileName );
 	else
 	{
 		// Read the magic number
 		{
 			int dim;
-			if( fscanf( fp , " G%d " , &dim )!=1 ) MK_ERROR_OUT( "Failed to read magic number: " , fileName );
-			if( dim!=Dim ) MK_ERROR_OUT( "Dimensions don't match: " , Dim , " != " , dim );
+			if( fscanf( fp , " G%d " , &dim )!=1 ) MK_THROW( "Failed to read magic number: " , fileName );
+			if( dim!=Dim ) MK_THROW( "Dimensions don't match: " , Dim , " != " , dim );
 		}
 
 		// Read the data type
-		if( !RegularGridDataType< DataType >::Read( fp ) ) MK_ERROR_OUT( "Failed to read type" );
+		if( !RegularGridDataType< DataType >::Read( fp ) ) MK_THROW( "Failed to read type" );
 
 		// Read the dimensions
 		{
 			int r;
 			for( int d=0 ; d<Dim ; d++ )
 			{
-				if( fscanf( fp , " %d " , &r )!=1 ) MK_ERROR_OUT( "Failed to read dimension[ " , d , " ]" );
+				if( fscanf( fp , " %d " , &r )!=1 ) MK_THROW( "Failed to read dimension[ " , d , " ]" );
 				res[d] = r;
 			}
 		}
@@ -192,7 +192,7 @@ void RegularGrid< DataType , Dim >::Read( std::string fileName , unsigned int re
 			float x;
 			for( int j=0 ; j<Dim+1 ; j++ ) for( int i=0 ; i<Dim+1 ; i++ )
 			{
-				if( fscanf( fp , " %f" , &x )!=1 ) MK_ERROR_OUT( "Failed to read xForm( " , i , " , " , j , " )" );
+				if( fscanf( fp , " %f" , &x )!=1 ) MK_THROW( "Failed to read xForm( " , i , " , " , j , " )" );
 				gridToModel(i,j) = x;
 			}
 		}
@@ -200,7 +200,7 @@ void RegularGrid< DataType , Dim >::Read( std::string fileName , unsigned int re
 		// Read through the end of the line
 		{
 			char line[1024];
-			if( !fgets( line , sizeof(line)/sizeof(char) , fp ) ) MK_ERROR_OUT( "Could not read end of line" );
+			if( !fgets( line , sizeof(line)/sizeof(char) , fp ) ) MK_THROW( "Could not read end of line" );
 		}
 
 		values = NewPointer< DataType >( _Resolution(res) );

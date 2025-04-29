@@ -190,7 +190,7 @@ int main( int argc , char* argv[] )
 		PointsToKeep.value = (unsigned int)vertices.size();
 	}
 
-	if( !hasNormals ) MK_ERROR_OUT( "Input is not oriented" );
+	if( !hasNormals ) MK_THROW( "Input is not oriented" );
 	
 	if( PointsToKeep.set )
 	{

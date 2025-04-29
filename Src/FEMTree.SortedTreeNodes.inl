@@ -67,7 +67,7 @@ void SortedTreeNodes< Dim >::read( BinaryStream &stream , TreeNode &root )
 	_sliceStart = NullPointer( Pointer( node_index_type ) );
 	treeNodes = NullPointer( TreeNode* );
 
-	if( !stream.read( _levels ) ) MK_ERROR_OUT( "Failed to read levels" );
+	if( !stream.read( _levels ) ) MK_THROW( "Failed to read levels" );
 	if( _levels )
 	{
 		_sliceStart = AllocPointer< Pointer( node_index_type ) >( _levels );
@@ -75,7 +75,7 @@ void SortedTreeNodes< Dim >::read( BinaryStream &stream , TreeNode &root )
 		{
 			size_t sz = ((size_t)1<<l)+1;
 			_sliceStart[l] = AllocPointer< node_index_type >( sz );
-			if( !stream.read( _sliceStart[l] , sz ) ) MK_ERROR_OUT( "Failed to read slices at level: " , l );
+			if( !stream.read( _sliceStart[l] , sz ) ) MK_THROW( "Failed to read slices at level: " , l );
 		}
 
 		size_t sz = _sliceStart[_levels-1][(size_t)1<<(_levels-1)];

@@ -443,7 +443,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 			int b = _residualWindow.begin(!forward);
 			if( FullWindow.inBlock( b ) ) maxBlockSize = std::max< size_t >( maxBlockSize , _sNodesEnd( depth , BlockLast( b ) ) - _sNodesBegin( depth , BlockFirst( b ) ) );
 		}
-		if( maxBlockSize>std::numeric_limits< matrix_index_type >::max() ) MK_ERROR_OUT( "more entries in a block than can be indexed in " , sizeof(matrix_index_type) , " bytes" );
+		if( maxBlockSize>std::numeric_limits< matrix_index_type >::max() ) MK_THROW( "more entries in a block than can be indexed in " , sizeof(matrix_index_type) , " bytes" );
 		for( int i=0 ; i<matrixBlocks ; i++ ) _constraints[i] = AllocPointer< T >( maxBlockSize ) , _D[i] = AllocPointer< Real >( maxBlockSize );
 		for( ; residualWindow.end(!forward)*dir<FullWindow.end(forward)*dir ; residualWindow += dir , solveWindow += dir )
 		{
@@ -657,7 +657,7 @@ template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , typename T , typename TDotT , typename ... InterpolationInfos >
 void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth maxSolveDepth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
-	if( maxSolveDepth>_baseDepth ) MK_ERROR_OUT( "Regular MG depth cannot exceed base depth: " , maxSolveDepth , " <= " , _baseDepth );
+	if( maxSolveDepth>_baseDepth ) MK_THROW( "Regular MG depth cannot exceed base depth: " , maxSolveDepth , " <= " , _baseDepth );
 	double& systemTime = stats.systemTime;
 	double&  solveTime = stats. solveTime;
 
@@ -843,7 +843,7 @@ void FEMTree< Dim , Real >::_addPointValues( UIntPack< FEMSigs ... > , StaticWin
 	typedef UIntPack< ( -BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::SupportStart ) ... > RightPointSupportRadii;
 	typedef UIntPack<    BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::SupportSize    ... > SupportSizes;
 
-	if( !( FEMDegrees() >= IsotropicUIntPack< Dim , PointD >() ) ) MK_ERROR_OUT( "Insufficient derivatives" );
+	if( !( FEMDegrees() >= IsotropicUIntPack< Dim , PointD >() ) ) MK_THROW( "Insufficient derivatives" );
 	if( !interpolationInfo ) return;
 	const InterpolationInfo< T , PointD >& iInfo = *interpolationInfo;
 
@@ -1003,7 +1003,7 @@ void FEMTree< Dim , Real >::_addProlongedPointValues( UIntPack< FEMSigs ... > , 
 #pragma message( "[WARNING] This code is broken" )
 #endif // SHOW_WARNINGS
 #if 1
-	MK_ERROR_OUT( "Broken code" );
+	MK_THROW( "Broken code" );
 #else
 	if( !interpolationInfo ) return;
 	const InterpolationInfo< T , PointD >& iInfo = *interpolationInfo;
@@ -1622,7 +1622,7 @@ SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::systemMatrix( UI
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	typedef typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > > BaseSystem;
-	if( depth<0 || depth>_maxDepth ) MK_ERROR_OUT( "System depth out of bounds: 0 <= " , depth , " <= " , _maxDepth );
+	if( depth<0 || depth>_maxDepth ) MK_THROW( "System depth out of bounds: 0 <= " , depth , " <= " , _maxDepth );
 	SparseMatrix< Real , matrix_index_type > matrix;
 	F.init( depth );
 	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( depth );
@@ -1658,7 +1658,7 @@ template< unsigned int ... FEMSigs , typename ... InterpolationInfos >
 SparseMatrix< Real , matrix_index_type > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack<FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , std::tuple< InterpolationInfos *... > interpolationInfos ) const
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
-	if( highDepth<=0 || highDepth>_maxDepth ) MK_ERROR_OUT( "System depth out of bounds: 0 < " , highDepth , " <= " , _maxDepth );
+	if( highDepth<=0 || highDepth>_maxDepth ) MK_THROW( "System depth out of bounds: 0 < " , highDepth , " <= " , _maxDepth );
 
 	LocalDepth lowDepth = highDepth-1;
 	SparseMatrix< Real , matrix_index_type > matrix;
@@ -2647,7 +2647,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( sizeof...(InterpolationInfos)==0 ? 0 : maxSolveDepth );
 
 	if( solverInfo.clearSolution ) solution = initDenseNodeData< T >( UIntPack< FEMSigs ... >() );
-	else if( solution.size()!=_sNodesEnd( _maxDepth ) ) MK_ERROR_OUT( "Solution is the wrong size: " , solution.size() , " != " , _sNodesEnd(_maxDepth) );
+	else if( solution.size()!=_sNodesEnd( _maxDepth ) ) MK_THROW( "Solution is the wrong size: " , solution.size() , " != " , _sNodesEnd(_maxDepth) );
 
 	// The initial estimate of the solution (may be empty or may come in with an initial guess)
 	Pointer( T ) _solution = solution();

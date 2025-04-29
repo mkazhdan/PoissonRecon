@@ -154,7 +154,7 @@ namespace PoissonRecon
 		size_t size( void ) const { return _levels ? _sliceStart[_levels-1][(size_t)1<<(_levels-1)] : 0; }
 		size_t size( int depth ) const
 		{
-			if( depth<0 || depth>=_levels ) MK_ERROR_OUT( "bad depth: 0 <= " , depth , " < " , _levels );
+			if( depth<0 || depth>=_levels ) MK_THROW( "bad depth: 0 <= " , depth , " < " , _levels );
 			return _sliceStart[depth][(size_t)1<<depth] - _sliceStart[depth][0];
 		}
 		size_t size( int depth , int slice ) const { return end( depth , slice ) - begin( depth , slice ); }
@@ -523,9 +523,9 @@ namespace PoissonRecon
 		}
 		void read( BinaryStream &stream )
 		{
-			if( !stream.read( _sz ) ) MK_ERROR_OUT( "Failed to read size" );
+			if( !stream.read( _sz ) ) MK_THROW( "Failed to read size" );
 			_data = NewPointer< Data >( _sz );
-			if( !stream.read( _data , _sz ) ) MK_ERROR_OUT( "failed to read data" );
+			if( !stream.read( _data , _sz ) ) MK_THROW( "failed to read data" );
 		}
 
 		Data& operator[] ( size_t idx ) { return _data[idx]; }
@@ -575,15 +575,15 @@ namespace PoissonRecon
 
 	inline void ReadFEMTreeParameter( BinaryStream &stream , FEMTreeRealType& realType , unsigned int &dimension )
 	{
-		if( !stream.read( realType ) ) MK_ERROR_OUT( "Failed to read real type" );
-		if( !stream.read( dimension ) ) MK_ERROR_OUT( "Failed to read dimension" );
+		if( !stream.read( realType ) ) MK_THROW( "Failed to read real type" );
+		if( !stream.read( dimension ) ) MK_THROW( "Failed to read dimension" );
 	}
 
 	inline unsigned int* ReadDenseNodeDataSignatures( BinaryStream &stream , unsigned int &dim )
 	{
-		if( !stream.read( dim ) ) MK_ERROR_OUT( "Failed to read dimension" );
+		if( !stream.read( dim ) ) MK_THROW( "Failed to read dimension" );
 		unsigned int* femSigs = new unsigned int[dim];
-		if( !stream.read( GetPointer( femSigs , dim ) , dim ) ) MK_ERROR_OUT( "Failed to read signatures" );
+		if( !stream.read( GetPointer( femSigs , dim ) , dim ) ) MK_THROW( "Failed to read signatures" );
 		return femSigs;
 	}
 
@@ -635,7 +635,7 @@ namespace PoissonRecon
 		{
 			unsigned int dCount = 0;
 			for( unsigned int d=0 ; d<Dim ; d++ ) dCount += derivatives[d];
-			if( dCount>=D ) MK_ERROR_OUT( "More derivatives than allowed" );
+			if( dCount>=D ) MK_THROW( "More derivatives than allowed" );
 			else if( dCount<D ) return _CumulativeDerivatives::Index( derivatives );
 			else                return _CumulativeDerivatives::Size + _Index( derivatives );
 		}
@@ -655,7 +655,7 @@ namespace PoissonRecon
 				_d[i]--;
 				return _CumulativeDerivatives::Index( _d ) * Dim + i;
 			}
-			MK_ERROR_OUT( "No derivatives specified" );
+			MK_THROW( "No derivatives specified" );
 			return -1;
 		}
 		friend CumulativeDerivatives< Dim , D+1 >;
@@ -1305,7 +1305,7 @@ namespace PoissonRecon
 				case INTEGRATE_CHILD_CHILD:  return std::get< D >( _integrators ).ccIntegrator.dot( off1[D] , off2[D] , d1[D] , d2[D] ) * remainingIntegral;
 				case INTEGRATE_PARENT_CHILD: return std::get< D >( _integrators ).pcIntegrator.dot( off1[D] , off2[D] , d1[D] , d2[D] ) * remainingIntegral;
 				case INTEGRATE_CHILD_PARENT: return std::get< D >( _integrators ).cpIntegrator.dot( off2[D] , off1[D] , d2[D] , d1[D] ) * remainingIntegral;
-				default: MK_ERROR_OUT( "Undefined integration type" );
+				default: MK_THROW( "Undefined integration type" );
 				}
 				return 0;
 			}
@@ -1432,7 +1432,7 @@ namespace PoissonRecon
 		using Value = Point< Real >;
 		static void Add( volatile Value &a , const Value &b )
 		{
-			if( a._dim !=b._dim ) MK_ERROR_OUT( "Sizes don't match: " , a._dim , " != " , b._dim );
+			if( a._dim !=b._dim ) MK_THROW( "Sizes don't match: " , a._dim , " != " , b._dim );
 			for( unsigned int d=0 ; d<a._dim && d<b.dim() ; d++ ) AddAtomic( a._coords[d] , b[d] );
 		}
 	};
@@ -1615,10 +1615,10 @@ namespace PoissonRecon
 			void read( BinaryStream &stream )
 			{
 				unsigned char constrainsDCTerm;
-				if( !stream.read( constrainsDCTerm ) ) MK_ERROR_OUT( "Failed to read constrainsDCTerm" );
+				if( !stream.read( constrainsDCTerm ) ) MK_THROW( "Failed to read constrainsDCTerm" );
 				_constrainsDCTerm = constrainsDCTerm!=0;
-				if( !stream.read( _constraintDual ) ) MK_ERROR_OUT( "Failed to read _constraintDual" );
-				if( !stream.read( _systemDual ) ) MK_ERROR_OUT( "Failed to read _systemDual" );
+				if( !stream.read( _constraintDual ) ) MK_THROW( "Failed to read _constraintDual" );
+				if( !stream.read( _systemDual ) ) MK_THROW( "Failed to read _systemDual" );
 				iData.read( stream );
 			}
 			ApproximatePointInterpolationInfo( BinaryStream &stream ){ read(stream); }
@@ -1666,10 +1666,10 @@ namespace PoissonRecon
 			void read( BinaryStream &stream )
 			{
 				unsigned char constrainsDCTerm;
-				if( !stream.read( constrainsDCTerm ) ) MK_ERROR_OUT( "Failed to read constrainsDCTerm" );
+				if( !stream.read( constrainsDCTerm ) ) MK_THROW( "Failed to read constrainsDCTerm" );
 				_constrainsDCTerm = constrainsDCTerm!=0;
-				if( !stream.read( _constraintDual ) ) MK_ERROR_OUT( "Failed to read _constraintDual" );
-				if( !stream.read( _systemDual ) ) MK_ERROR_OUT( "Failed to read _systemDual" );
+				if( !stream.read( _constraintDual ) ) MK_THROW( "Failed to read _constraintDual" );
+				if( !stream.read( _systemDual ) ) MK_THROW( "Failed to read _systemDual" );
 				iData.read( stream );
 			}
 			ApproximatePointInterpolationInfo( BinaryStream &stream ){ read(stream); }
@@ -1716,10 +1716,10 @@ namespace PoissonRecon
 			void read( BinaryStream &stream )
 			{
 				unsigned char constrainsDCTerm;
-				if( !stream.read( constrainsDCTerm ) ) MK_ERROR_OUT( "Failed to read constrainsDCTerm" );
+				if( !stream.read( constrainsDCTerm ) ) MK_THROW( "Failed to read constrainsDCTerm" );
 				_constrainsDCTerm = constrainsDCTerm!=0;
-				if( !stream.read( _constraintDual ) ) MK_ERROR_OUT( "Failed to read _constraintDual" );
-				if( !stream.read( _systemDual ) ) MK_ERROR_OUT( "Failed to read _systemDual" );
+				if( !stream.read( _constraintDual ) ) MK_THROW( "Failed to read _constraintDual" );
+				if( !stream.read( _systemDual ) ) MK_THROW( "Failed to read _systemDual" );
 				iData.read( stream );
 			}
 			ApproximatePointAndDataInterpolationInfo( BinaryStream &stream ){ read(stream); }
@@ -1766,10 +1766,10 @@ namespace PoissonRecon
 			void read( BinaryStream &stream )
 			{
 				unsigned char constrainsDCTerm;
-				if( !stream.read( constrainsDCTerm ) ) MK_ERROR_OUT( "Failed to read constrainsDCTerm" );
+				if( !stream.read( constrainsDCTerm ) ) MK_THROW( "Failed to read constrainsDCTerm" );
 				_constrainsDCTerm = constrainsDCTerm!=0;
-				if( !stream.read( _constraintDual ) ) MK_ERROR_OUT( "Failed to read _constraintDual" );
-				if( !stream.read( _systemDual ) ) MK_ERROR_OUT( "Failed to read _systemDual" );
+				if( !stream.read( _constraintDual ) ) MK_THROW( "Failed to read _constraintDual" );
+				if( !stream.read( _systemDual ) ) MK_THROW( "Failed to read _systemDual" );
 				iData.read( stream );
 			}
 
@@ -1973,9 +1973,9 @@ namespace PoissonRecon
 			}
 			void read( BinaryStream &stream )
 			{
-				if( !stream.read( _kernelDepth ) ) MK_ERROR_OUT( "Failed to read _kernelDepth" );
-				if( !stream.read( _coDimension ) ) MK_ERROR_OUT( "Failed to read _coDimension" );
-				if( !stream.read( _samplesPerNode ) ) MK_ERROR_OUT( "Failed to read _samplesPerNode" );
+				if( !stream.read( _kernelDepth ) ) MK_THROW( "Failed to read _kernelDepth" );
+				if( !stream.read( _coDimension ) ) MK_THROW( "Failed to read _coDimension" );
+				if( !stream.read( _samplesPerNode ) ) MK_THROW( "Failed to read _samplesPerNode" );
 				SparseNodeData< Real , IsotropicUIntPack< Dim , FEMDegreeAndBType< DensityDegree >::Signature > >::read( stream );
 			}
 			DensityEstimator( BinaryStream &stream ){ read(stream); }
@@ -2601,7 +2601,7 @@ namespace PoissonRecon
 			FEMTreeRealType realType;
 			if     ( typeid( Real )==typeid( float  ) ) realType=FEM_TREE_REAL_FLOAT;
 			else if( typeid( Real )==typeid( double ) ) realType=FEM_TREE_REAL_DOUBLE;
-			else MK_ERROR_OUT( "Unrecognized real type" );
+			else MK_THROW( "Unrecognized real type" );
 			stream.write( realType );
 			int dim = Dim;
 			stream.write( dim );

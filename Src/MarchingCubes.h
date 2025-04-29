@@ -46,7 +46,7 @@ namespace PoissonRecon
 			if( dir==BACK ) return std::string( "back" );
 			else if( dir==CROSS ) return std::string( "cross" );
 			else if( dir==FRONT ) return std::string( "front" );
-			else{ MK_ERROR_OUT( "Unrecognized direction" ) ; return std::string( "" ); }
+			else{ MK_THROW( "Unrecognized direction" ) ; return std::string( "" ); }
 		}
 
 		// The number of k-dimensional elements in a d-dimensional cube is equal to
@@ -346,7 +346,7 @@ namespace PoissonRecon
 			case BACK:  index = coIndex ; break;
 			case CROSS: index = coIndex + HyperCube::ElementNum< D-1 , K >::Value ; break;
 			case FRONT: index = coIndex + HyperCube::ElementNum< D-1 , K >::Value + HyperCube::ElementNum< D-1 , K-1 >::Value ; break;
-			default: MK_ERROR_OUT( "Bad direction: " , dir );
+			default: MK_THROW( "Bad direction: " , dir );
 			}
 		}
 		template< unsigned int D > template< unsigned int K > template< unsigned int _D , unsigned int _K >
@@ -356,7 +356,7 @@ namespace PoissonRecon
 			{
 			case BACK:  index = coIndex ; break;
 			case FRONT: index = coIndex + HyperCube::ElementNum< D-1 , K >::Value ; break;
-			default: MK_ERROR_OUT( "Bad direction: " , dir );
+			default: MK_THROW( "Bad direction: " , dir );
 			}
 		}
 		template< unsigned int D > template< unsigned int K > template< unsigned int _D , unsigned int _K >

@@ -43,7 +43,7 @@ my_error_exit (j_common_ptr cinfo)
 inline bool JPEGReader::GetInfo( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels )
 {
 	FILE* fp = fopen( fileName , "rb" );
-	if( !fp ) MK_ERROR_OUT( "Failed to open: " , fileName );
+	if( !fp ) MK_THROW( "Failed to open: " , fileName );
 
 	struct jpeg_decompress_struct cInfo;
 	struct my_error_mgr jErr;
@@ -53,7 +53,7 @@ inline bool JPEGReader::GetInfo( const char* fileName , unsigned int& width , un
 	if( setjmp( jErr.setjmp_buffer ) )
 	{
 		jpeg_destroy_decompress( &cInfo );
-		MK_ERROR_OUT( "JPEG error occured" );
+		MK_THROW( "JPEG error occured" );
 	}
 
 	jpeg_create_decompress( &cInfo );
@@ -74,14 +74,14 @@ inline JPEGReader::JPEGReader( const char* fileName , unsigned int& width , unsi
 {
 	_currentRow = 0;
 	_fp = fopen( fileName , "rb" );
-	if( !_fp ) MK_ERROR_OUT( "Failed to open: " , fileName );
+	if( !_fp ) MK_THROW( "Failed to open: " , fileName );
 
 	_cInfo.err = jpeg_std_error( &_jErr.pub );
 	_jErr.pub.error_exit = my_error_exit;
 	if( setjmp( _jErr.setjmp_buffer ) )
 	{
 		jpeg_destroy_decompress( &_cInfo );
-		MK_ERROR_OUT( "JPEG error occured" );
+		MK_THROW( "JPEG error occured" );
 	}
 
 	jpeg_create_decompress( &_cInfo );
@@ -112,7 +112,7 @@ inline JPEGWriter::JPEGWriter( const char* fileName , unsigned int width , unsig
 {
 	_currentRow = 0;
 	_fp = fopen( fileName , "wb" );
-	if( !_fp ) MK_ERROR_OUT( "Failed to open: " , fileName );
+	if( !_fp ) MK_THROW( "Failed to open: " , fileName );
 
 	_cInfo.err = jpeg_std_error( &_jErr.pub );
 	jpeg_create_compress( &_cInfo );

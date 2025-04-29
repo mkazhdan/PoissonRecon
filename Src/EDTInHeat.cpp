@@ -208,7 +208,7 @@ void _Execute( int argc , char* argv[] )
 			for( int i=0 ; i<4 ; i++ ) for( int j=0 ; j<4 ; j++ )
 			{
 				float f;
-				if( fscanf( fp , " %f " , &f )!=1 ) MK_ERROR_OUT( "Failed to read xform" );
+				if( fscanf( fp , " %f " , &f )!=1 ) MK_THROW( "Failed to read xform" );
 				modelToUnitCube(i,j) = (Real)f;
 			}
 			fclose( fp );
@@ -441,7 +441,7 @@ void _Execute( int argc , char* argv[] )
 				if( len>GradientCutOff ) g /= len;
 				Point< Real , Dim+1 >* leafValue = leafValues(leaf);
 				if( leafValue ) for( int d=0 ; d<Dim ; d++ ) (*leafValue)[d+1] = -g[d];
-				else MK_ERROR_OUT( "Leaf value doesn't exist" );
+				else MK_THROW( "Leaf value doesn't exist" );
 			}
 		}
 		);
@@ -523,7 +523,7 @@ void _Execute( int argc , char* argv[] )
 		if( Out.set )
 		{
 			FILE* fp = fopen( Out.value , "wb" );
-			if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , Out.value );
+			if( !fp ) MK_THROW( "Failed to open file for writing: " , Out.value );
 			FileStream fs(fp);
 			FEMTree< Dim , Real >::WriteParameter( fs );
 			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fs );
@@ -546,7 +546,7 @@ void Execute( int argc , char* argv[] )
 		case 2: return _Execute< Dim , Real , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >( argc , argv );
 		case 3: return _Execute< Dim , Real , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >( argc , argv );
 		case 4: return _Execute< Dim , Real , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >( argc , argv );
-		default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 4 are supported" );
+		default: MK_THROW( "Only B-Splines of degree 1 - 4 are supported" );
 	}
 }
 #endif // !FAST_COMPILE

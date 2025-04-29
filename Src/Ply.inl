@@ -38,7 +38,7 @@ namespace PLY
 	template<> inline int Type<        double >( void ){ return PLY_DOUBLE; }
 	template< class Scalar > inline int Type( void )
 	{
-		MK_ERROR_OUT( "Unrecognized scalar type: " , typeid(Scalar).name() );
+		MK_THROW( "Unrecognized scalar type: " , typeid(Scalar).name() );
 		return -1;
 	}
 
@@ -70,7 +70,7 @@ namespace PLY
 		float version;
 
 		PlyFile *ply = PlyFile::Read( fileName , elist , fileType , version );
-		if( !ply ) MK_ERROR_OUT( "Could not open ply file for reading: " , fileName );
+		if( !ply ) MK_THROW( "Could not open ply file for reading: " , fileName );
 
 		elems.resize( elist.size() );
 		for( unsigned int i=0 ; i<elist.size() ; i++ )
@@ -94,7 +94,7 @@ namespace PLY
 			for( unsigned int i=0 ; i<elems.size() ; i++ ) elist[i] = std::get<0>( elems[i] );
 			ply = PlyFile::Write( fileName , elist , fileType , version );
 		}
-		if( !ply ) MK_ERROR_OUT( "Could not open ply for writing: " , fileName );
+		if( !ply ) MK_THROW( "Could not open ply for writing: " , fileName );
 		for( unsigned int i=0 ; i<elems.size() ; i++ )
 		{
 			ply->element_count( std::get<0>( elems[i] ) , std::get<1>( elems[i] ) );
@@ -150,10 +150,10 @@ namespace PLY
 		float version;
 
 		PlyFile *ply = PlyFile::Read( fileName, elist, fileType, version );
-		if( !ply ) MK_ERROR_OUT( "Failed to open ply file for reading: " , fileName );
+		if( !ply ) MK_THROW( "Failed to open ply file for reading: " , fileName );
 
 		std::vector< PlyProperty > plist = ply->get_element_description( "vertex" , vNum );
-		if( !plist.size() ) MK_ERROR_OUT( "Failed to get element description: vertex" );
+		if( !plist.size() ) MK_THROW( "Failed to get element description: vertex" );
 		for( unsigned int i=0 ; i<vFactory.plyReadNum() ; i++ ) readFlags[i] = false;
 
 		for( int i=0 ; i<plist.size() ; i++ )
@@ -185,7 +185,7 @@ namespace PLY
 		float version;
 
 		PlyFile *ply = PlyFile::Read( fileName, elist, fileType, version );
-		if( !ply ) MK_ERROR_OUT( "Failed to open ply file for reading: " , fileName );
+		if( !ply ) MK_THROW( "Failed to open ply file for reading: " , fileName );
 
 		std::vector< PlyProperty > plist = ply->get_element_description( "vertex" , vNum );
 		for( int i=0 ; i<plist.size() ; i++ ) properties.push_back( plist[i] );
@@ -206,7 +206,7 @@ namespace PLY
 		float version;
 
 		PlyFile *ply = PlyFile::Read( fileName , elist , file_type , version );
-		if( !ply ) MK_ERROR_OUT( "Could not create ply file for reading: " , fileName );
+		if( !ply ) MK_THROW( "Could not create ply file for reading: " , fileName );
 
 		comments.reserve( comments.size() + ply->comments.size() );
 		for( int i=0 ; i<ply->comments.size() ; i++ ) comments.push_back( ply->comments[i] );
@@ -216,7 +216,7 @@ namespace PLY
 			std::string &elem_name = elist[i];
 			size_t num_elems;
 			std::vector< PlyProperty > plist = ply->get_element_description( elem_name , num_elems );
-			if( !plist.size() ) MK_ERROR_OUT( "Could not read element properties: " , elem_name );
+			if( !plist.size() ) MK_THROW( "Could not read element properties: " , elem_name );
 			if( elem_name=="vertex" )
 			{
 				for( unsigned int i=0 ; i<vFactory.plyReadNum() ; i++ )
@@ -266,7 +266,7 @@ namespace PLY
 		float version;
 
 		PlyFile *ply = PlyFile::Read( fileName , elist , file_type , version );
-		if( !ply ) MK_ERROR_OUT( "Could not create ply file for reading: " , fileName );
+		if( !ply ) MK_THROW( "Could not create ply file for reading: " , fileName );
 
 		comments.reserve( comments.size() + ply->comments.size() );
 		for( int i=0 ; i<ply->comments.size() ; i++ ) comments.push_back( ply->comments[i] );
@@ -276,7 +276,7 @@ namespace PLY
 			std::string &elem_name = elist[i];
 			size_t num_elems;
 			std::vector< PlyProperty > plist = ply->get_element_description( elem_name , num_elems );
-			if( !plist.size() ) MK_ERROR_OUT( "Could not read element properties: " , elem_name );
+			if( !plist.size() ) MK_THROW( "Could not read element properties: " , elem_name );
 			if( elem_name=="vertex" )
 			{
 				for( unsigned int i=0 ; i<vFactory.plyReadNum() ; i++)
@@ -327,7 +327,7 @@ namespace PLY
 		float version;
 		std::vector< std::string > elem_names = { std::string( "vertex" ) , std::string( "face" ) };
 		PlyFile *ply = PlyFile::Write( fileName , elem_names , file_type , version );
-		if( !ply ) MK_ERROR_OUT( "Could not create ply file for writing: " , fileName );
+		if( !ply ) MK_THROW( "Could not create ply file for writing: " , fileName );
 
 		//
 		// describe vertex and face properties
@@ -391,14 +391,14 @@ namespace PLY
 	{
 		if( vertexNum>(size_t)std::numeric_limits< OutputIndex >::max() )
 		{
-			if( std::is_same< Index , OutputIndex >::value ) MK_ERROR_OUT( "more vertices than can be represented using " , Traits< Index >::name );
+			if( std::is_same< Index , OutputIndex >::value ) MK_THROW( "more vertices than can be represented using " , Traits< Index >::name );
 			MK_WARN( "more vertices than can be represented using " , Traits< OutputIndex >::name , " using " , Traits< Index >::name , " instead" );
 			return Write< VertexFactory , Index , Real , Dim , Index >( fileName , vFactory , vertexNum , polygonNum , vertexStream , polygonStream , file_type , comments );
 		}
 		float version;
 		std::vector< std::string > elem_names = { std::string( "vertex" ) , std::string( "face" ) };
 		PlyFile *ply = PlyFile::Write( fileName , elem_names , file_type , version );
-		if( !ply ) MK_ERROR_OUT( "Could not create ply file for writing: " , fileName );
+		if( !ply ) MK_THROW( "Could not create ply file for writing: " , fileName );
 
 		vertexStream.reset();
 		polygonStream.reset();
@@ -428,7 +428,7 @@ namespace PLY
 			for( size_t i=0; i<vertexNum ; i++ )
 			{
 				typename VertexFactory::VertexType vertex = vFactory();
-				if( !vertexStream.read( vertex ) ) MK_ERROR_OUT( "Failed to read vertex " , i , " / " , vertexNum );
+				if( !vertexStream.read( vertex ) ) MK_THROW( "Failed to read vertex " , i , " / " , vertexNum );
 				ply->put_element( (void *)&vertex );
 			}
 		}
@@ -438,7 +438,7 @@ namespace PLY
 			for( size_t i=0; i<vertexNum ; i++ )
 			{
 				typename VertexFactory::VertexType vertex = vFactory();
-				if( !vertexStream.read( vertex ) ) MK_ERROR_OUT( "Failed to read vertex " , i , " / " , vertexNum );
+				if( !vertexStream.read( vertex ) ) MK_THROW( "Failed to read vertex " , i , " / " , vertexNum );
 				vFactory.toBuffer( vertex , buffer );
 				ply->put_element( PointerAddress( buffer ) );
 			}
@@ -454,7 +454,7 @@ namespace PLY
 			// create and fill a struct that the ply code can handle
 			//
 			Face< OutputIndex > ply_face;
-			if( !polygonStream.read( polygon ) ) MK_ERROR_OUT( "Failed to read polygon " , i , " / " , polygonNum ); 
+			if( !polygonStream.read( polygon ) ) MK_THROW( "Failed to read polygon " , i , " / " , polygonNum ); 
 			ply_face.nr_vertices = int( polygon.size() );
 			ply_face.vertices = new OutputIndex[ polygon.size() ];
 			for( int j=0 ; j<int(polygon.size()) ; j++ ) ply_face.vertices[j] = (OutputIndex)polygon[j];
@@ -471,14 +471,14 @@ namespace PLY
 	{
 		if( vertexNum>(size_t)std::numeric_limits< OutputIndex >::max() )
 		{
-			if( std::is_same< Index , OutputIndex >::value ) MK_ERROR_OUT( "more vertices than can be represented using " , Traits< Index >::name );
+			if( std::is_same< Index , OutputIndex >::value ) MK_THROW( "more vertices than can be represented using " , Traits< Index >::name );
 			MK_WARN( "more vertices than can be represented using " , Traits< OutputIndex >::name , " using " , Traits< Index >::name , " instead" );
 			return Write< VertexFactory , Index , Real , Dim , Index >( fileName , vFactory , vertexNum , edgeNum , vertexStream , edgeStream , file_type , comments );
 		}
 		float version;
 		std::vector< std::string > elem_names = { std::string( "vertex" ) , std::string( "edge" ) };
 		PlyFile *ply = PlyFile::Write( fileName , elem_names , file_type , version );
-		if( !ply ) MK_ERROR_OUT( "Could not create ply file for writing: " , fileName );
+		if( !ply ) MK_THROW( "Could not create ply file for writing: " , fileName );
 
 		vertexStream.reset();
 		edgeStream.reset();
@@ -509,7 +509,7 @@ namespace PLY
 			for( size_t i=0; i<vertexNum ; i++ )
 			{
 				typename VertexFactory::VertexType vertex = vFactory();
-				if( !vertexStream.read( vertex ) ) MK_ERROR_OUT( "Failed to read vertex " , i , " / " , vertexNum );
+				if( !vertexStream.read( vertex ) ) MK_THROW( "Failed to read vertex " , i , " / " , vertexNum );
 				ply->put_element( (void *)&vertex );
 			}
 		}
@@ -519,7 +519,7 @@ namespace PLY
 			for( size_t i=0; i<vertexNum ; i++ )
 			{
 				typename VertexFactory::VertexType vertex = vFactory();
-				if( !vertexStream.read( vertex ) ) MK_ERROR_OUT( "Failed to read vertex " , i , " / " , vertexNum );
+				if( !vertexStream.read( vertex ) ) MK_THROW( "Failed to read vertex " , i , " / " , vertexNum );
 				vFactory.toBuffer( vertex , buffer );
 				ply->put_element( PointerAddress( buffer ) );
 			}
@@ -535,7 +535,7 @@ namespace PLY
 			// create and fill a struct that the ply code can handle
 			//
 			Edge< OutputIndex > ply_edge;
-			if( !edgeStream.read( edge ) ) MK_ERROR_OUT( "Failed to read edge " , i , " / " , edgeNum ); 
+			if( !edgeStream.read( edge ) ) MK_THROW( "Failed to read edge " , i , " / " , edgeNum ); 
 			ply_edge.v1 = (OutputIndex)edge.first;
 			ply_edge.v2 = (OutputIndex)edge.second;
 			ply->put_element( (void *)&ply_edge );

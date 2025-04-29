@@ -164,12 +164,12 @@ void WriteMesh( const char *fileName , int ft , VertexDataFactory vertexDataFact
 	FullVertexFactory< Real , Dim , VertexDataFactory > vertexFactory( VertexFactory::PositionFactory< Real , Dim >() , vertexDataFactory );
 
 	char *ext = GetFileExtension( fileName );
-	if( strcasecmp( ext , "ply" ) ) MK_ERROR_OUT( "Can only output mesh to .ply file" );
+	if( strcasecmp( ext , "ply" ) ) MK_THROW( "Can only output mesh to .ply file" );
 	delete[] ext;
 
 	if( vertices.size()>std::numeric_limits< int >::max() )
 	{
-		if( vertices.size()>std::numeric_limits< unsigned int >::max() ) MK_ERROR_OUT( "more vertices than can be indexed by an unsigned int: %llu" , (unsigned long long)vertices.size() );
+		if( vertices.size()>std::numeric_limits< unsigned int >::max() ) MK_THROW( "more vertices than can be indexed by an unsigned int: %llu" , (unsigned long long)vertices.size() );
 		MK_WARN( "more vertices than can be indexed by an int, using unsigned int instead: %llu" , (unsigned long long)vertices.size() );
 		std::vector< std::vector< unsigned int > > outPolygons;
 		outPolygons.resize( polygons.size() );
@@ -585,7 +585,7 @@ int main( int argc , char* argv[] )
 		char *ext = GetFileExtension( In.values[i] );
 		bool _isPly = strcasecmp( ext , "ply" )==0;
 		if( !i ) isPly = _isPly;
-		else if( isPly!=_isPly ) MK_ERROR_OUT( "All files must be of the same type" );
+		else if( isPly!=_isPly ) MK_THROW( "All files must be of the same type" );
 		delete[] ext;
 	}
 	if( isPly )
@@ -597,10 +597,10 @@ int main( int argc , char* argv[] )
 		{
 			std::vector< PlyProperty > unprocessedProperties;
 			PLY::ReadVertexHeader( In.values[i] , factory , readFlags , unprocessedProperties );
-			if( !factory.plyValidReadProperties( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain positions" );
+			if( !factory.plyValidReadProperties( readFlags ) ) MK_THROW( "Ply file does not contain positions" );
 			VertexFactory::DynamicFactory< Real > _remainingProperties( unprocessedProperties );
 			if( !i ) remainingProperties = new VertexFactory::DynamicFactory< Real >( _remainingProperties );
-			else if( (*remainingProperties)!=(_remainingProperties) ) MK_ERROR_OUT( "Remaining properties differ" );
+			else if( (*remainingProperties)!=(_remainingProperties) ) MK_THROW( "Remaining properties differ" );
 		}
 		delete[] readFlags;
 		if( !remainingProperties || !remainingProperties->size() ) Execute( VertexFactory::EmptyFactory< Real >() );

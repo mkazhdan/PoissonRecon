@@ -54,7 +54,7 @@ namespace PoissonRecon
 			unsigned int channels;
 			ImageReader* reader = Get( fileName );
 			width = reader->width() , height = reader->height() , channels = reader->channels();
-			if( channels!=1 && channels!=3 ) MK_ERROR_OUT( "Requres one- or three-channel input" );
+			if( channels!=1 && channels!=3 ) MK_THROW( "Requres one- or three-channel input" );
 			unsigned char* pixels = new unsigned char[ width*height*3 ];
 			unsigned char* pixelRow = new unsigned char[ width*channels];
 			for( unsigned int j=0 ; j<height ; j++ )
@@ -160,7 +160,7 @@ namespace PoissonRecon
 		static inline char* LocalHeader( const char* fileName )
 		{
 			char* localFileName = Local( fileName );
-			if( !localFileName ) MK_ERROR_OUT( "Couldn't get local file name: " , fileName );
+			if( !localFileName ) MK_THROW( "Couldn't get local file name: " , fileName );
 			char* localFileHeader = Header( localFileName );
 			delete[] localFileName;
 			return localFileHeader;
@@ -310,19 +310,19 @@ namespace PoissonRecon
 		if( !fp ){ MK_WARN( "Couldn't open file for reading: " , fileName ) ; return false; }
 		{
 			char line[1024];
-			if( !fgets( line , 1024 , fp ) ) MK_ERROR_OUT( "Failed to read column line from: " , fileName );
+			if( !fgets( line , 1024 , fp ) ) MK_THROW( "Failed to read column line from: " , fileName );
 			line[strlen(line)-1] = 0;
-			if( sscanf( line , "Columns: %d" , &_tileColumns )!=1 ) MK_ERROR_OUT( "Failed to read column count from: " , fileName , " (" , line , ")" );
-			if( !fgets( line , 1024 , fp ) ) MK_ERROR_OUT( "Failed to read row line from: " , fileName );
+			if( sscanf( line , "Columns: %d" , &_tileColumns )!=1 ) MK_THROW( "Failed to read column count from: " , fileName , " (" , line , ")" );
+			if( !fgets( line , 1024 , fp ) ) MK_THROW( "Failed to read row line from: " , fileName );
 			line[strlen(line)-1] = 0;
-			if( sscanf( line , "Rows: %d" , &_tileRows )!=1 ) MK_ERROR_OUT( "Failed to read row count from: " , fileName , " (" , line , ")" );
+			if( sscanf( line , "Rows: %d" , &_tileRows )!=1 ) MK_THROW( "Failed to read row count from: " , fileName , " (" , line , ")" );
 			_tileHeights = new unsigned int[ _tileRows+1 ];
 			_tileWidths  = new unsigned int[ _tileColumns+1 ];
 
 			char tileName[2048];
 			for( unsigned int r=0 ; r<_tileRows ; r++ ) for( unsigned int c=0 ; c<_tileColumns ; c++ )
 			{
-				if( !fgets( line , 1024 , fp ) ) MK_ERROR_OUT( "Failed to read tile name from: " , fileName );
+				if( !fgets( line , 1024 , fp ) ) MK_THROW( "Failed to read tile name from: " , fileName );
 				line[strlen(line)-1] = 0;
 				if( fileDir ) sprintf( tileName , "%s%c%s" , fileDir , FileNameParser::Separator , line );
 				else          sprintf( tileName , "%s" , line );
@@ -330,11 +330,11 @@ namespace PoissonRecon
 				unsigned int _w , _h , _c;
 				ImageReader::GetInfo( tileName , _w , _h , _c );
 				if( !r && !c ) _channels = _c;
-				else if( _channels!=_c ) MK_ERROR_OUT( "Number of color channels don't match: " , _channels , " != " , _c );
+				else if( _channels!=_c ) MK_THROW( "Number of color channels don't match: " , _channels , " != " , _c );
 				if( !r ) _tileWidths[c+1] = _w;
-				else if( _tileWidths[c+1]!=_w ) MK_ERROR_OUT( "Images in the same column must have the same width: " , _tileWidths[c+1] , " != " , _w );
+				else if( _tileWidths[c+1]!=_w ) MK_THROW( "Images in the same column must have the same width: " , _tileWidths[c+1] , " != " , _w );
 				if( !c ) _tileHeights[r+1] = _h;
-				else if( _tileHeights[r+1]!=_h ) MK_ERROR_OUT( "Images in the same row must have the same heights: " , _tileHeights[r+1] ," != " , _h );
+				else if( _tileHeights[r+1]!=_h ) MK_THROW( "Images in the same row must have the same heights: " , _tileHeights[r+1] ," != " , _h );
 			}
 		}
 		fclose( fp );
@@ -350,15 +350,15 @@ namespace PoissonRecon
 	{
 		char* fileDir = FileNameParser::Dir( fileName );
 		FILE* fp = fopen( fileName , "r" );
-		if( !fp ) MK_ERROR_OUT( "Couldn't open file for reading: " , fileName );
+		if( !fp ) MK_THROW( "Couldn't open file for reading: " , fileName );
 		{
 			char line[1024];
-			if( !fgets( line , 1024 , fp ) ) MK_ERROR_OUT( "Failed read column line from: " , fileName );
+			if( !fgets( line , 1024 , fp ) ) MK_THROW( "Failed read column line from: " , fileName );
 			line[strlen(line)-1] = 0;
-			if( sscanf( line , "Columns: %d" , &_tileColumns )!=1 ) MK_ERROR_OUT( "Failed to read column count from: " , fileName , " (" , line , ")" );
-			if( !fgets( line , 1024 , fp ) ) MK_ERROR_OUT( "Failed read row line from: " , fileName );
+			if( sscanf( line , "Columns: %d" , &_tileColumns )!=1 ) MK_THROW( "Failed to read column count from: " , fileName , " (" , line , ")" );
+			if( !fgets( line , 1024 , fp ) ) MK_THROW( "Failed read row line from: " , fileName );
 			line[strlen(line)-1] = 0;
-			if( sscanf( line , "Rows: %d" , &_tileRows )!=1 ) MK_ERROR_OUT( "Failed to read row count from: " , fileName , " (" , line , ")" );
+			if( sscanf( line , "Rows: %d" , &_tileRows )!=1 ) MK_THROW( "Failed to read row count from: " , fileName , " (" , line , ")" );
 
 			_tileReaders = new ImageReader*[ _tileColumns ];
 			_tileHeights = new unsigned int[ _tileRows+1 ];
@@ -368,7 +368,7 @@ namespace PoissonRecon
 			char tileName[2048];
 			for( unsigned int r=0 ; r<_tileRows ; r++ ) for( unsigned int c=0 ; c<_tileColumns ; c++ )
 			{
-				if( !fgets( line , 1024 , fp ) ) MK_ERROR_OUT( "Failed to read tile name from: " , fileName );
+				if( !fgets( line , 1024 , fp ) ) MK_THROW( "Failed to read tile name from: " , fileName );
 				line[strlen(line)-1] = 0;
 				if( fileDir ) sprintf( tileName , "%s%c%s" , fileDir , FileNameParser::Separator , line );
 				else          sprintf( tileName , "%s" , line );
@@ -383,11 +383,11 @@ namespace PoissonRecon
 			unsigned int _w , _h , _c;
 			ImageReader::GetInfo( _tileNames[r*_tileColumns+c] , _w , _h , _c );
 			if( !r && !c ) _channels = _c;
-			else if( _channels!=_c ) MK_ERROR_OUT( "Number of color channels don't match: " , _channels , " != " , _c );
+			else if( _channels!=_c ) MK_THROW( "Number of color channels don't match: " , _channels , " != " , _c );
 			if( !r ) _tileWidths[c+1] = _w;
-			else if( _tileWidths[c+1]!=_w ) MK_ERROR_OUT( "Images in the same column must have the same width: " , _tileWidths[c+1] , " != " , _w );
+			else if( _tileWidths[c+1]!=_w ) MK_THROW( "Images in the same column must have the same width: " , _tileWidths[c+1] , " != " , _w );
 			if( !c ) _tileHeights[r+1] = _h;
-			else if( _tileHeights[r+1]!=_h ) MK_ERROR_OUT( "Images in the same row must have the same heights: " , _tileHeights[r+1] , " != " , _h );
+			else if( _tileHeights[r+1]!=_h ) MK_THROW( "Images in the same row must have the same heights: " , _tileHeights[r+1] , " != " , _h );
 		}
 		_tileWidths[0] = _tileHeights[0] = 0;
 		for( unsigned int c=0 ; c<_tileColumns ; c++ ) _tileWidths[c+1] += _tileWidths[c];
@@ -439,7 +439,7 @@ namespace PoissonRecon
 		}
 		delete[] tileHeader;
 		FILE* fp = fopen( fileName , "w" );
-		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , fileName );
+		if( !fp ) MK_THROW( "Failed to open file for writing: " , fileName );
 		fprintf( fp , "Columns: %d\n" , _tileColumns );
 		fprintf( fp , "Rows: %d\n" , _tileRows );
 		for( unsigned int i=0 ; i<_tileRows*_tileColumns ; i++ )

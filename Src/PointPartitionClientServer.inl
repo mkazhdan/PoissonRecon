@@ -30,7 +30,7 @@ template< typename Real , unsigned int Dim >
 size_t _SampleCount( std::string in , std::vector< PlyProperty > &auxProperties )
 {
 	char *ext = GetFileExtension( in.c_str() );
-	if( strcasecmp( ext , "ply" ) ) MK_ERROR_OUT( "Only .ply files supported: "  , in );
+	if( strcasecmp( ext , "ply" ) ) MK_THROW( "Only .ply files supported: "  , in );
 	delete[] ext;
 
 	size_t vNum;
@@ -38,9 +38,9 @@ size_t _SampleCount( std::string in , std::vector< PlyProperty > &auxProperties 
 	Factory factory;
 	bool *readFlags = new bool[ factory.plyReadNum() ];
 	int fileType = PLY::ReadVertexHeader( in , factory , readFlags , auxProperties , vNum );
-	if( fileType==PLY_ASCII ) MK_ERROR_OUT( "Point set must be in binary format" );
-	if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain positions" );
-	if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain normals" );
+	if( fileType==PLY_ASCII ) MK_THROW( "Point set must be in binary format" );
+	if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_THROW( "Ply file does not contain positions" );
+	if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_THROW( "Ply file does not contain normals" );
 	delete[] readFlags;
 	return vNum;
 }
@@ -55,14 +55,14 @@ void _ProcessPLY( std::string in , std::pair< size_t , size_t > range , const Fa
 	int file_type;
 
 	PlyFile *ply = PlyFile::Read( in , elist , file_type , version );
-	if( !ply ) MK_ERROR_OUT( "Could not create ply file for reading: " , in );
-	if( file_type==PLY_ASCII ) MK_ERROR_OUT( "Only binary file type supported" );
+	if( !ply ) MK_THROW( "Could not create ply file for reading: " , in );
+	if( file_type==PLY_ASCII ) MK_THROW( "Only binary file type supported" );
 
 	size_t vCount;
 	std::vector< PlyProperty > plist = ply->get_element_description( std::string( "vertex" ) , vCount );
-	if( !plist.size() ) MK_ERROR_OUT( "Could not read element properties: vertex" );
+	if( !plist.size() ) MK_THROW( "Could not read element properties: vertex" );
 	if( range.second==-1 ) range.second = vCount;
-	if( range.first>=range.second ) MK_ERROR_OUT( "Bad Range: [ " , range.first , " , " , range.second , " )" );
+	if( range.first>=range.second ) MK_THROW( "Bad Range: [ " , range.first , " , " , range.second , " )" );
 	if( range.second>vCount )
 	{
 		MK_WARN( "Max range too large, resetting" );
@@ -178,7 +178,7 @@ template< typename Real , unsigned int Dim >
 std::vector< PlyProperty > _GetUnprocessedProperties( std::string in )
 {
 	char *ext = GetFileExtension( in.c_str() );
-	if( strcasecmp( ext , "ply" ) ) MK_ERROR_OUT( "Expected .ply file" );
+	if( strcasecmp( ext , "ply" ) ) MK_THROW( "Expected .ply file" );
 	delete[] ext;
 
 	std::vector< PlyProperty > unprocessedProperties;
@@ -187,8 +187,8 @@ std::vector< PlyProperty > _GetUnprocessedProperties( std::string in )
 		Factory factory;
 		bool *readFlags = new bool[ factory.plyReadNum() ];
 		PLY::ReadVertexHeader( in , factory , readFlags , unprocessedProperties );
-		if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain positions" );
-		if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_ERROR_OUT( "Ply file does not contain normals" );
+		if( !factory.template plyValidReadProperties<0>( readFlags ) ) MK_THROW( "Ply file does not contain positions" );
+		if( !factory.template plyValidReadProperties<1>( readFlags ) ) MK_THROW( "Ply file does not contain normals" );
 		delete[] readFlags;
 	}
 	return unprocessedProperties;
@@ -262,7 +262,7 @@ std::pair< PointPartition::PointSetInfo< Real , Dim > , PointPartition::Partitio
 	{
 		std::vector< size_t > slabSizes;
 		SocketStream( clientSockets[c] ).read( slabSizes );
-		if( slabSizes.size()!=clientPartitionInfo.slabs ) MK_ERROR_OUT( "Unexpected number of slabs: " , slabSizes.size() , " != " , clientPartitionInfo.slabs );
+		if( slabSizes.size()!=clientPartitionInfo.slabs ) MK_THROW( "Unexpected number of slabs: " , slabSizes.size() , " != " , clientPartitionInfo.slabs );
 		for( unsigned int i=0 ; i<clientPartitionInfo.slabs ; i++ ) pointSetInfo.pointsPerSlab[i] += slabSizes[i];
 	}
 	if( clientPartitionInfo.verbose )
@@ -317,7 +317,7 @@ void _RunClients
 
 	int maxFiles = 2*clientPartitionInfo.slabs;
 #ifdef _WIN32
-	if( _setmaxstdio( maxFiles )!=maxFiles ) MK_ERROR_OUT( "Could not set max file handles: " , maxFiles );
+	if( _setmaxstdio( maxFiles )!=maxFiles ) MK_THROW( "Could not set max file handles: " , maxFiles );
 #else // !_WIN32
 	struct rlimit rl;
 	getrlimit( RLIMIT_NOFILE , &rl ); 
@@ -427,17 +427,17 @@ ClientPartitionInfo< Real >::ClientPartitionInfo( BinaryStream &stream )
 		b = _b!=0;
 		return true;
 	};
-	if( !stream.read( in ) ) MK_ERROR_OUT( "Failed to read in" );
-	if( !stream.read( tempDir ) ) MK_ERROR_OUT( "Failed to read temp dir" );
-	if( !stream.read( outDir ) ) MK_ERROR_OUT( "Failed to read out dir" );
-	if( !stream.read( outHeader ) ) MK_ERROR_OUT( "Failed to read out header" );
-	if( !stream.read( slabs ) ) MK_ERROR_OUT( "Failed to read slabs" );
-	if( !stream.read( filesPerDir ) ) MK_ERROR_OUT( "Failed to read files per dir" );
-	if( !stream.read( bufferSize ) ) MK_ERROR_OUT( "Failed to read buffer size" );
-	if( !stream.read( scale ) ) MK_ERROR_OUT( "Failed to read scale" );
-	if( !stream.read( clientCount ) ) MK_ERROR_OUT( "Failed to read client count" );
-	if( !stream.read( sliceDir ) ) MK_ERROR_OUT( "Failed to read slice direction" );
-	if( !ReadBool( verbose ) ) MK_ERROR_OUT( "Failed to read verbose flag" );
+	if( !stream.read( in ) ) MK_THROW( "Failed to read in" );
+	if( !stream.read( tempDir ) ) MK_THROW( "Failed to read temp dir" );
+	if( !stream.read( outDir ) ) MK_THROW( "Failed to read out dir" );
+	if( !stream.read( outHeader ) ) MK_THROW( "Failed to read out header" );
+	if( !stream.read( slabs ) ) MK_THROW( "Failed to read slabs" );
+	if( !stream.read( filesPerDir ) ) MK_THROW( "Failed to read files per dir" );
+	if( !stream.read( bufferSize ) ) MK_THROW( "Failed to read buffer size" );
+	if( !stream.read( scale ) ) MK_THROW( "Failed to read scale" );
+	if( !stream.read( clientCount ) ) MK_THROW( "Failed to read client count" );
+	if( !stream.read( sliceDir ) ) MK_THROW( "Failed to read slice direction" );
+	if( !ReadBool( verbose ) ) MK_THROW( "Failed to read verbose flag" );
 }
 
 template< typename Real >

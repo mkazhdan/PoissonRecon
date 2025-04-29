@@ -249,7 +249,7 @@ namespace LevelSetExtraction
 		void _zeroOut( size_t sz )
 		{
 			if( sz && maps[CellDim] ) memset( maps[CellDim] , 0 , sizeof(node_index_type) * sz * HyperCube::Cube< Dim >::template ElementNum< CellDim >() );
-			else if( sz ) MK_ERROR_OUT( "Traying to zero out null pointer" );
+			else if( sz ) MK_THROW( "Traying to zero out null pointer" );
 
 			if constexpr( CellDim==MaxCellDim ) return;
 			else _zeroOut< CellDim+1 >( sz );
@@ -298,7 +298,7 @@ namespace LevelSetExtraction
 
 		void read( BinaryStream &stream )
 		{
-			if( !stream.read( _size ) ) MK_ERROR_OUT( "Failed to read node count" );
+			if( !stream.read( _size ) ) MK_THROW( "Failed to read node count" );
 			resize( _size );
 			if( _size ) _read<0>( stream );
 		}
@@ -344,8 +344,8 @@ namespace LevelSetExtraction
 		template< unsigned int CellDim >
 		void _read( BinaryStream &stream )
 		{
-			if( !stream.read( counts[CellDim] ) ) MK_ERROR_OUT( "Failed to read count at dimension: " , CellDim );
-			if( !stream.read( std::get< CellDim >( tables ) , _size ) ) MK_ERROR_OUT( "Failed to read table at dimension: " , CellDim );
+			if( !stream.read( counts[CellDim] ) ) MK_THROW( "Failed to read count at dimension: " , CellDim );
+			if( !stream.read( std::get< CellDim >( tables ) , _size ) ) MK_THROW( "Failed to read table at dimension: " , CellDim );
 
 			if constexpr( CellDim==MaxCellDim ) return;
 			else _read< CellDim+1 >( stream );
@@ -386,7 +386,7 @@ namespace LevelSetExtraction
 
 		void read( BinaryStream &stream )
 		{
-			if( !stream.read( nodeOffset ) ) MK_ERROR_OUT( "Failed to read node ofset" );
+			if( !stream.read( nodeOffset ) ) MK_THROW( "Failed to read node ofset" );
 			CellIndexData< Dim , MaxCellDim >::read( stream );
 		}
 
@@ -516,7 +516,7 @@ namespace LevelSetExtraction
 
 		void read( BinaryStream &stream )
 		{
-			if( !stream.read( nodeOffset ) ) MK_ERROR_OUT( "Failed to read node ofset" );
+			if( !stream.read( nodeOffset ) ) MK_THROW( "Failed to read node ofset" );
 			CellIndexData< _Dim , _Dim >::read( stream );
 		}
 
@@ -650,7 +650,7 @@ namespace LevelSetExtraction
 
 		void read( BinaryStream &stream )
 		{
-			if( !stream.read( nodeOffset ) ) MK_ERROR_OUT( "Failed to read node ofset" );
+			if( !stream.read( nodeOffset ) ) MK_THROW( "Failed to read node ofset" );
 			CellIndexData< _Dim , _Dim >::read( stream );
 		}
 
@@ -782,7 +782,7 @@ namespace LevelSetExtraction
 		Key< Dim > operator()( int depth , int offset , Key< Dim-1 > key ) const
 		{
 			Key< Dim > pKey;
-			if( depth>_maxDepth ) MK_ERROR_OUT( "Depth cannot exceed max depth: " , depth , " <= " , _maxDepth );
+			if( depth>_maxDepth ) MK_THROW( "Depth cannot exceed max depth: " , depth , " <= " , _maxDepth );
 			for( unsigned int d=0 ; d<Dim-1 ; d++ ) pKey[d] = key[d];
 			pKey[Dim-1] = cornerIndex( depth , offset );
 			return pKey;

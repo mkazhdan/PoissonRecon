@@ -128,8 +128,8 @@ namespace PoissonRecon
 			unsigned int  plyReadNum( void ) const { return 0; }
 			unsigned int plyWriteNum( void ) const { return 0; }
 			bool plyValidReadProperties( const bool *flags ) const { return true ; }
-			PlyProperty  plyReadProperty( unsigned int idx ) const { if( idx>= plyReadNum() ) MK_ERROR_OUT(  "read property out of bounds" ) ; return PlyProperty(); }
-			PlyProperty plyWriteProperty( unsigned int idx ) const { if( idx>=plyWriteNum() ) MK_ERROR_OUT( "write property out of bounds" ) ; return PlyProperty(); }
+			PlyProperty  plyReadProperty( unsigned int idx ) const { if( idx>= plyReadNum() ) MK_THROW(  "read property out of bounds" ) ; return PlyProperty(); }
+			PlyProperty plyWriteProperty( unsigned int idx ) const { if( idx>=plyWriteNum() ) MK_THROW( "write property out of bounds" ) ; return PlyProperty(); }
 			bool   readASCII( FILE *fp ,       VertexType &dt ) const { return true; }
 			bool  readBinary( FILE *fp ,       VertexType &dt ) const { return true; }
 			void  writeASCII( FILE *fp , const VertexType &dt ) const {}
@@ -137,8 +137,8 @@ namespace PoissonRecon
 
 			static constexpr bool IsStaticallyAllocated( void ){ return true; }
 
-			PlyProperty  plyStaticReadProperty( unsigned int idx ) const { if( idx>= plyReadNum() ) MK_ERROR_OUT(  "read property out of bounds" ) ; return PlyProperty(); }
-			PlyProperty plyStaticWriteProperty( unsigned int idx ) const { if( idx>=plyWriteNum() ) MK_ERROR_OUT( "write property out of bounds" ) ; return PlyProperty(); }
+			PlyProperty  plyStaticReadProperty( unsigned int idx ) const { if( idx>= plyReadNum() ) MK_THROW(  "read property out of bounds" ) ; return PlyProperty(); }
+			PlyProperty plyStaticWriteProperty( unsigned int idx ) const { if( idx>=plyWriteNum() ) MK_THROW( "write property out of bounds" ) ; return PlyProperty(); }
 
 			size_t bufferSize( void ) const { return 0; }
 			void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const {}
@@ -491,8 +491,8 @@ namespace PoissonRecon
 
 			static constexpr bool IsStaticallyAllocated( void ){ return false; } 
 
-			PlyProperty  plyStaticReadProperty( unsigned int idx ) const { MK_ERROR_OUT( "does not support static allocation" ) ; return PlyProperty(); }
-			PlyProperty plyStaticWriteProperty( unsigned int idx ) const { MK_ERROR_OUT( "does not support static allocation" ) ; return PlyProperty(); }
+			PlyProperty  plyStaticReadProperty( unsigned int idx ) const { MK_THROW( "does not support static allocation" ) ; return PlyProperty(); }
+			PlyProperty plyStaticWriteProperty( unsigned int idx ) const { MK_THROW( "does not support static allocation" ) ; return PlyProperty(); }
 
 			size_t size( void ) const { return _namesAndTypesOnDisk.size(); }
 
@@ -584,8 +584,8 @@ namespace PoissonRecon
 			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , bool >::type _plyValidReadProperties( const bool *flags ) const { return true; }
 			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , PlyProperty >::type _plyReadProperty( unsigned int idx , size_t offset ) const;
 			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , PlyProperty >::type _plyWriteProperty( unsigned int idx , size_t offset ) const;
-			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , PlyProperty >::type _plyReadProperty( unsigned int idx , size_t offset ) const { MK_ERROR_OUT( "read property out of bounds" ) ; return PlyProperty(); }
-			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , PlyProperty >::type _plyWriteProperty( unsigned int idx , size_t offset ) const { MK_ERROR_OUT( "write property out of bounds" ) ; return PlyProperty(); }
+			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , PlyProperty >::type _plyReadProperty( unsigned int idx , size_t offset ) const { MK_THROW( "read property out of bounds" ) ; return PlyProperty(); }
+			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , PlyProperty >::type _plyWriteProperty( unsigned int idx , size_t offset ) const { MK_THROW( "write property out of bounds" ) ; return PlyProperty(); }
 			template< unsigned int I > typename std::enable_if< I==0 , unsigned int >::type _readOffset( void ) const { return 0; }
 			template< unsigned int I > typename std::enable_if< I!=0 , unsigned int >::type _readOffset( void ) const { return _readOffset< I-1 >() + get< I-1 >().plyReadNum(); }
 			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , bool >::type _readASCII( FILE *fp , VertexType &dt ) const { return this->template get<I>().readASCII( fp , dt.template get<I>() ) && _readASCII< I+1 >( fp , dt ); }
@@ -605,8 +605,8 @@ namespace PoissonRecon
 
 			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , PlyProperty >::type _plyStaticReadProperty ( unsigned int idx ) const;
 			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , PlyProperty >::type _plyStaticWriteProperty( unsigned int idx ) const;
-			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , PlyProperty >::type _plyStaticReadProperty ( unsigned int idx ) const { MK_ERROR_OUT(  "read property out of bounds" ) ; return PlyProperty(); }
-			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , PlyProperty >::type _plyStaticWriteProperty( unsigned int idx ) const { MK_ERROR_OUT( "write property out of bounds" ) ; return PlyProperty(); }
+			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , PlyProperty >::type _plyStaticReadProperty ( unsigned int idx ) const { MK_THROW(  "read property out of bounds" ) ; return PlyProperty(); }
+			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , PlyProperty >::type _plyStaticWriteProperty( unsigned int idx ) const { MK_THROW( "write property out of bounds" ) ; return PlyProperty(); }
 
 			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , size_t >::type _bufferSize( void ) const { return this->template get<I>().bufferSize() + _bufferSize< I+1 >(); }
 			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , size_t >::type _bufferSize( void ) const { return 0; }

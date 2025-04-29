@@ -91,12 +91,12 @@ Point< Real , Dim > CmdLineType< Point< Real , Dim > >::StringToType( const char
 	{
 		if( d==0 )
 		{
-			if( temp[0]!='{' ) MK_ERROR_OUT( "Expected opening brace: " , std::string( str ) );
+			if( temp[0]!='{' ) MK_THROW( "Expected opening brace: " , std::string( str ) );
 			t[d++] = CmdLineType< Real >::StringToType( temp+1 );
 		}
 		else if( d==Dim-1 )
 		{
-			if( temp[ strlen(temp)-1 ]!='}' )  MK_ERROR_OUT( "Expected closing brace: " , std::string( str ) );
+			if( temp[ strlen(temp)-1 ]!='}' )  MK_THROW( "Expected closing brace: " , std::string( str ) );
 			temp[ strlen(temp)-1 ] = 0;
 			t[d++] = CmdLineType< Real >::StringToType( temp );
 			break;
@@ -104,7 +104,7 @@ Point< Real , Dim > CmdLineType< Point< Real , Dim > >::StringToType( const char
 		else t[d++] = CmdLineType< Real >::StringToType( temp );
 		temp = strtok( NULL ,"," );
 	}
-	if( d<Dim ) MK_ERROR_OUT( "Could not parse all coordinates: " , std::string( str ) , " (" , Dim , ")" );
+	if( d<Dim ) MK_THROW( "Could not parse all coordinates: " , std::string( str ) , " (" , Dim , ")" );
 	delete[] _str;
 	return t;
 }

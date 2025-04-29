@@ -432,7 +432,7 @@ void WriteGrid( const char *fileName , ConstPointer( Real ) values , unsigned in
 	else if( !strcasecmp( ext , "iso" ) )
 	{
 		FILE *fp = fopen( fileName , "wb" );
-		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , fileName );
+		if( !fp ) MK_THROW( "Failed to open file for writing: " , fileName );
 		int r = (int)res;
 		fwrite( &r , sizeof(int) , 1 , fp );
 		size_t count = 1;
@@ -557,7 +557,7 @@ void Execute( UIntPack< FEMSigs ... > )
 			for( int i=0 ; i<Dim+1 ; i++ ) for( int j=0 ; j<Dim+1 ; j++ )
 			{
 				float f;
-				if( fscanf( fp , " %f " , &f )!=1 ) MK_ERROR_OUT( "Failed to read xform" );
+				if( fscanf( fp , " %f " , &f )!=1 ) MK_THROW( "Failed to read xform" );
 				modelToUnitCube(i,j) = (Real)f;
 			}
 			fclose( fp );
@@ -872,7 +872,7 @@ void Execute( UIntPack< FEMSigs ... > )
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
-		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , Tree.value );
+		if( !fp ) MK_THROW( "Failed to open file for writing: " , Tree.value );
 		FileStream fs( fp );
 		FEMTree< Dim , Real >::WriteParameter( fs );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fs );
@@ -949,7 +949,7 @@ void Execute( void )
 		case 2: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BType >::Signature >() );
 		case 3: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BType >::Signature >() );
 			//		case 4: return Execute< Real >( IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BType >::Signature >() );
-		default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 3 are supported" );
+		default: MK_THROW( "Only B-Splines of degree 1 - 3 are supported" );
 	}
 }
 
@@ -961,7 +961,7 @@ void Execute( void )
 		case BOUNDARY_FREE+1:      return Execute< Dim , Real , BOUNDARY_FREE      >();
 		case BOUNDARY_NEUMANN+1:   return Execute< Dim , Real , BOUNDARY_NEUMANN   >();
 		case BOUNDARY_DIRICHLET+1: return Execute< Dim , Real , BOUNDARY_DIRICHLET >();
-		default: MK_ERROR_OUT( "Not a valid boundary type: " , BType.value );
+		default: MK_THROW( "Not a valid boundary type: " , BType.value );
 	}
 }
 #endif // !FAST_COMPILE
@@ -982,19 +982,19 @@ int main( int argc , char* argv[] )
 	if( !InValues.set && !InGradients.set )
 	{
 		ShowUsage( argv[0] );
-		MK_ERROR_OUT( "Either values or gradients need to be specified" );
+		MK_THROW( "Either values or gradients need to be specified" );
 		return 0;
 	}
 	if( !InValues.set ) ValueWeight.value = 0;
 	if( !InGradients.set ) GradientWeight.value = 0;
 
-	if( ValueWeight.value<0 ) MK_ERROR_OUT( "Value weight must be non-negative: " , ValueWeight.value , "> 0" );
-	if( GradientWeight.value<0 ) MK_ERROR_OUT( "Gradient weight must be non-negative: " , GradientWeight.value , "> 0" );
-	if( !ValueWeight.value && !GradientWeight.value ) MK_ERROR_OUT( "Either value or gradient weight must be positive" );
+	if( ValueWeight.value<0 ) MK_THROW( "Value weight must be non-negative: " , ValueWeight.value , "> 0" );
+	if( GradientWeight.value<0 ) MK_THROW( "Gradient weight must be non-negative: " , GradientWeight.value , "> 0" );
+	if( !ValueWeight.value && !GradientWeight.value ) MK_THROW( "Either value or gradient weight must be positive" );
 
-	if( LapWeight.value<0 ) MK_ERROR_OUT( "Laplacian weight must be non-negative: " , LapWeight.value , " > 0" );
-	if( BiLapWeight.value<0 ) MK_ERROR_OUT( "Bi-Laplacian weight must be non-negative: " , BiLapWeight.value , " > 0" );
-	if( !LapWeight.value && !BiLapWeight.value ) MK_ERROR_OUT( "Eiter Laplacian or bi-Laplacian weight must be positive" );
+	if( LapWeight.value<0 ) MK_THROW( "Laplacian weight must be non-negative: " , LapWeight.value , " > 0" );
+	if( BiLapWeight.value<0 ) MK_THROW( "Bi-Laplacian weight must be non-negative: " , BiLapWeight.value , " > 0" );
+	if( !LapWeight.value && !BiLapWeight.value ) MK_THROW( "Eiter Laplacian or bi-Laplacian weight must be positive" );
 
 	if( !BaseDepth.set ) BaseDepth.value = FullDepth.value;
 	if( BaseDepth.value>FullDepth.value )
@@ -1025,7 +1025,7 @@ int main( int argc , char* argv[] )
 #else // !FAST_COMPILE
 	if     ( Dimension.value==2 ) Execute< 2 , Real >();
 	else if( Dimension.value==3 ) Execute< 3 , Real >();
-	else MK_ERROR_OUT( "Only Degrees 2 and 3 are supported" );
+	else MK_THROW( "Only Degrees 2 and 3 are supported" );
 #endif // FAST_COMPILE
 	if( Performance.set )
 	{

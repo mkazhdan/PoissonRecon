@@ -59,7 +59,7 @@ void FEMTree< Dim , Real >::_init( void )
 	_spaceRoot = &_tree;
 	for( int d=0 ; d<_depthOffset ; d++ )
 	{
-		if( !_spaceRoot->children ) MK_ERROR_OUT( "Expected child node: " , d , " / " , _depthOffset );
+		if( !_spaceRoot->children ) MK_THROW( "Expected child node: " , d , " / " , _depthOffset );
 		else if( d==0 ) _spaceRoot = _spaceRoot->children + (1<<Dim)-1;
 		else            _spaceRoot = _spaceRoot->children;
 	}
@@ -68,8 +68,8 @@ void FEMTree< Dim , Real >::_init( void )
 template< unsigned int Dim , class Real >
 FEMTree< Dim , Real > *FEMTree< Dim , Real >::Merge( const FEMTree< Dim , Real > &tree1 , const FEMTree< Dim , Real > &tree2 , size_t blockSize )
 {
-	if( tree1._baseDepth != tree2._baseDepth ) MK_ERROR_OUT( "Base depths differ: " , tree1._baseDepth , " != " , tree2._baseDepth );
-	if( tree1._depthOffset != tree2._depthOffset ) MK_ERROR_OUT( "Depth offsets differ: " , tree1._depthOffset , " != " , tree2._depthOffset );
+	if( tree1._baseDepth != tree2._baseDepth ) MK_THROW( "Base depths differ: " , tree1._baseDepth , " != " , tree2._baseDepth );
+	if( tree1._depthOffset != tree2._depthOffset ) MK_THROW( "Depth offsets differ: " , tree1._depthOffset , " != " , tree2._depthOffset );
 	FEMTree< Dim , Real > *mergeTree = new FEMTree( blockSize );
 
 	// have support overlapping the slice.
@@ -108,7 +108,7 @@ template< unsigned int Dim , class Real >
 template< unsigned int CrossDegree , unsigned int Pad >
 FEMTree< Dim , Real > *FEMTree< Dim , Real >::Slice( const FEMTree< Dim+1 , Real > &tree , unsigned int sliceDepth , unsigned int sliceIndex , bool includeBounds , size_t blockSize )
 {
-	if( sliceIndex>(unsigned int)(1<<sliceDepth) ) MK_ERROR_OUT( "Slice index out of bounds: 0 <= " , sliceIndex , " <= " , (1<<sliceDepth) );
+	if( sliceIndex>(unsigned int)(1<<sliceDepth) ) MK_THROW( "Slice index out of bounds: 0 <= " , sliceIndex , " <= " , (1<<sliceDepth) );
 	FEMTree< Dim , Real > *sliceTree = new FEMTree( blockSize );
 
 	unsigned int maxDepth = tree.maxDepth();
@@ -184,7 +184,7 @@ void FEMTree< Dim , Real >::merge( const FEMTree< Dim , Real > &tree , const Den
 	{
 		if( node && node->nodeData.nodeIndex!=-1 )
 		{
-			if( !mergeNode || mergeNode->nodeData.nodeIndex==-1 ) MK_ERROR_OUT( "Merge node not set" );
+			if( !mergeNode || mergeNode->nodeData.nodeIndex==-1 ) MK_THROW( "Merge node not set" );
 			LocalDepth d ; LocalOffset off;
 			tree.depthAndOffset( node , d , off );
 			mergeCoefficients[ mergeNode->nodeData.nodeIndex ] += coefficients[ node->nodeData.nodeIndex ];
@@ -243,7 +243,7 @@ struct SliceEvaluator
 				}
 
 			}
-			else MK_ERROR_OUT( "Derivative exceeds degree: " , d , " > " , FEMSignature< FEMSig >::Degree );
+			else MK_THROW( "Derivative exceeds degree: " , d , " > " , FEMSignature< FEMSig >::Degree );
 		}
 		Real operator()( int off ) const
 		{
@@ -318,7 +318,7 @@ void FEMTree< Dim , Real >::slice( const FEMTree< Dim+1 , Real > &tree , unsigne
 	{
 		if( node->nodeData.nodeIndex!=-1 )
 		{
-			if( sliceNode->nodeData.nodeIndex==-1 ) MK_ERROR_OUT( "Slice node not set" );
+			if( sliceNode->nodeData.nodeIndex==-1 ) MK_THROW( "Slice node not set" );
 			typename FEMTree< Dim+1 , Real >::LocalDepth d ; typename FEMTree< Dim+1 , Real >::LocalOffset off;
 			tree.depthAndOffset( node , d , off );
 			sliceCoefficients[ sliceNode->nodeData.nodeIndex ] += coefficients[ node->nodeData.nodeIndex ] * sliceEvaluator( d , off[Dim] );
@@ -358,11 +358,11 @@ FEMTree< Dim , Real >::FEMTree( BinaryStream &stream , size_t blockSize ) : FEMT
 {
 	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
 	node_index_type nodeCount;
-	if( !stream.read( nodeCount ) ) MK_ERROR_OUT( "Failed to read nodeCount" );
+	if( !stream.read( nodeCount ) ) MK_THROW( "Failed to read nodeCount" );
 	_nodeCount = nodeCount;
-	if( !stream.read( _maxDepth ) ) MK_ERROR_OUT( "Failed to read _maxDepth" );
-	if( !stream.read( _depthOffset ) ) MK_ERROR_OUT( "Failed to read _depthOffset" );
-	if( !stream.read( _baseDepth ) ) MK_ERROR_OUT( "Failed to read _baseDepth" );
+	if( !stream.read( _maxDepth ) ) MK_THROW( "Failed to read _maxDepth" );
+	if( !stream.read( _depthOffset ) ) MK_THROW( "Failed to read _depthOffset" );
+	if( !stream.read( _baseDepth ) ) MK_THROW( "Failed to read _baseDepth" );
 	_tree.read( stream , nodeAllocator );
 	_init();
 	_sNodes.read( stream , _tree );
@@ -630,9 +630,9 @@ typename FEMTree< Dim , Real >::LocalDepth FEMTree< Dim , Real >::getFullDepth( 
 	LocalDepth _depth ; LocalOffset _begin , _end;
 	for( unsigned int d=0 ; d<Dim ; d++ )
 	{
-		if( begin[d]>end[d] ) MK_ERROR_OUT( "Bad bounds [" , d , "]: " , begin[d] , " <= " , end[d] );
-		if( begin[d]<0 ) MK_ERROR_OUT( "Start bound cannot be negative [" , d , "]: 0 <= " , begin[d]  );
-		if( end[d]>(1<<depth) ) MK_ERROR_OUT( "End bound cannot exceed resolution [" , d , "]: " , end[d] , " <=" , (1<<depth) );
+		if( begin[d]>end[d] ) MK_THROW( "Bad bounds [" , d , "]: " , begin[d] , " <= " , end[d] );
+		if( begin[d]<0 ) MK_THROW( "Start bound cannot be negative [" , d , "]: 0 <= " , begin[d]  );
+		if( end[d]>(1<<depth) ) MK_THROW( "End bound cannot exceed resolution [" , d , "]: " , end[d] , " <=" , (1<<depth) );
 
 		// Push to max depth
 		if( depth<maxDepth )
@@ -796,7 +796,7 @@ void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	maxSplatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( maxSplatDepth , maxDepth ) );
 	minSplatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( minSplatDepth , maxDepth ) );
-	if( minSplatDepth>maxSplatDepth ) MK_ERROR_OUT( "Minimum splat depth exceeds maximum splat depth" );
+	if( minSplatDepth>maxSplatDepth ) MK_THROW( "Minimum splat depth exceeds maximum splat depth" );
 	PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
 	densityKey.set( maxSplatDepth );
 
@@ -828,7 +828,7 @@ void FEMTree< Dim , Real >::updateDensityEstimator( typename FEMTree< Dim , Real
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	maxSplatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( maxSplatDepth , maxDepth ) );
 	minSplatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( minSplatDepth , maxDepth ) );
-	if( minSplatDepth>maxSplatDepth ) MK_ERROR_OUT( "Minimum splat depth exceeds maximum splat depth" );
+	if( minSplatDepth>maxSplatDepth ) MK_THROW( "Minimum splat depth exceeds maximum splat depth" );
 	PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
 	densityKey.set( maxSplatDepth );
 
@@ -1315,7 +1315,7 @@ std::vector< node_index_type > FEMTree< Dim , Real >::_finalizeForMultigrid( Loc
 		// -- Swap the children sitting off the last node of the old children to the first node of the old children
 		FEMTreeNode *oldChildren = _tree.children;
 		FEMTreeNode *newChildren = FEMTreeNode::NewBrood( nodeAllocator , _nodeInitializer );
-		if( !oldChildren ) MK_ERROR_OUT( "Expected children" );
+		if( !oldChildren ) MK_THROW( "Expected children" );
 		{
 			if( oldChildren[(1<<Dim)-1].children )
 			{
@@ -1944,7 +1944,7 @@ template< unsigned int Dim , class Real >
 std::vector< node_index_type > FEMTree< Dim , Real >::merge( FEMTree* tree )
 {
 	std::vector< node_index_type > map;
-	if( _depthOffset!=tree->_depthOffset ) MK_ERROR_OUT( "depthOffsets don't match: %d != %d" , _depthOffset , tree->_depthOffset );
+	if( _depthOffset!=tree->_depthOffset ) MK_THROW( "depthOffsets don't match: %d != %d" , _depthOffset , tree->_depthOffset );
 
 	// Compute the next available index
 	node_index_type nextIndex = 0;

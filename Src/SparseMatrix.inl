@@ -166,7 +166,7 @@ void SparseMatrix< T , IndexType , 0 >::setRowSize( size_t row , size_t count )
 		}
 		rowSizes[row] = count;
 	}
-	else MK_ERROR_OUT( "Row is out of bounds: 0 <= " , row , " < " , rowNum );
+	else MK_THROW( "Row is out of bounds: 0 <= " , row , " < " , rowNum );
 }
 template< class T , class IndexType >
 void SparseMatrix< T , IndexType , 0 >::resetRowSize( size_t row , size_t count )
@@ -178,7 +178,7 @@ void SparseMatrix< T , IndexType , 0 >::resetRowSize( size_t row , size_t count 
 		if( count>oldCount ) memset( _entries[row]+oldCount , 0 , sizeof( MatrixEntry< T , IndexType > ) * ( count - oldCount ) );
 		rowSizes[row] = count;
 	}
-	else MK_ERROR_OUT( "Row is out of bounds: 0 <= " , row , " < " , rowNum );
+	else MK_THROW( "Row is out of bounds: 0 <= " , row , " < " , rowNum );
 }
 
 template< class T , class IndexType >
@@ -235,7 +235,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator * 
 	size_t bCols = 0 , bRows = B.rowNum;
 	for( size_t i=0 ; i<A.rowNum ; i++ ) for( size_t j=0 ; j<A.rowSizes[i] ; j++ ) if( aCols<=A[i][j].N ) aCols = A[i][j].N+1;
 	for( size_t i=0 ; i<B.rowNum ; i++ ) for( size_t j=0 ; j<B.rowSizes[i] ; j++ ) if( bCols<=B[i][j].N ) bCols = B[i][j].N+1;
-	if( bRows<aCols ) MK_ERROR_OUT( "Matrix sizes do not support multiplication " , aRows , " x " , aCols , " * " , bRows , " x " , bCols );
+	if( bRows<aCols ) MK_THROW( "Matrix sizes do not support multiplication " , aRows , " x " , aCols , " * " , bRows , " x " , bCols );
 
 	out.resize( aRows );
 	ThreadPool::ParallelFor( 0 , aRows , [&]( unsigned int , size_t i )
@@ -377,7 +377,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 	const SparseMatrix& At = *this;
 	size_t _aRows = 0 , aCols = At.rowNum;
 	for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ ) if( aCols<=At[i][j].N ) _aRows = At[i][j].N+1;
-	if( _aRows>aRows ) MK_ERROR_OUT( "Prescribed output dimension too low: " , aRows , " < " , _aRows );
+	if( _aRows>aRows ) MK_THROW( "Prescribed output dimension too low: " , aRows , " < " , _aRows );
 
 	A.resize( aRows );
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
@@ -420,7 +420,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Multiply( c
 	size_t bCols = 0 , bRows = B.rows();
 	for( size_t i=0 ; i<A.rows() ; i++ ) for( A_const_iterator iter=A.begin(i) ; iter!=A.end(i) ; iter++ ) if( aCols<=iter->N ) aCols = iter->N+1;
 	for( size_t i=0 ; i<B.rows() ; i++ ) for( B_const_iterator iter=B.begin(i) ; iter!=B.end(i) ; iter++ ) if( bCols<=iter->N ) bCols = iter->N+1;
-	if( bRows<aCols ) MK_ERROR_OUT( "Matrix sizes do not support multiplication " , aRows , " x " , aCols , " * " , bRows , " x " , bCols );
+	if( bRows<aCols ) MK_THROW( "Matrix sizes do not support multiplication " , aRows , " x " , aCols , " * " , bRows , " x " , bCols );
 
 	M.resize( aRows );
 
@@ -488,7 +488,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Transpose( 
 	SparseMatrix< T , IndexType , 0 > A;
 	size_t _aRows = 0 , aCols = At.rows() , aRows = outRows;
 	for( size_t i=0 ; i<At.rows() ; i++ ) for( const_iterator iter=At.begin(i) ; iter!=At.end(i) ; iter++ ) if( aCols<=iter->N ) _aRows = iter->N+1;
-	if( _aRows>aRows ) MK_ERROR_OUT( "Prescribed output dimension too low: " , aRows , " < " , _aRows );
+	if( _aRows>aRows ) MK_THROW( "Prescribed output dimension too low: " , aRows , " < " , _aRows );
 
 	A.resize( aRows );
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
@@ -625,15 +625,15 @@ void SparseMatrix< T , IndexType , MaxRowSize >::resize( size_t rowNum )
 template< class T , class IndexType , size_t MaxRowSize >
 void SparseMatrix< T , IndexType , MaxRowSize >::setRowSize( size_t row , size_t rowSize )
 {
-	if( row>=_rowNum ) MK_ERROR_OUT( "Row is out of bounds: 0 <= " , row , " < " , _rowNum );
-	else if( rowSize>MaxRowSize ) MK_ERROR_OUT( "Row size larger than max row size: " , rowSize , " < " , MaxRowSize );
+	if( row>=_rowNum ) MK_THROW( "Row is out of bounds: 0 <= " , row , " < " , _rowNum );
+	else if( rowSize>MaxRowSize ) MK_THROW( "Row size larger than max row size: " , rowSize , " < " , MaxRowSize );
 	else _rowSizes[row] = rowSize;
 }
 template< class T , class IndexType , size_t MaxRowSize >
 void SparseMatrix< T , IndexType , MaxRowSize >::resetRowSize( size_t row , size_t rowSize )
 {
-	if( row>=_rowNum ) MK_ERROR_OUT( "Row is out of bounds: 0 <= " , row , " < " , _rowNum );
-	else if( rowSize>MaxRowSize ) MK_ERROR_OUT( "Row size larger than max row size: " , rowSize , " < " , MaxRowSize );
+	if( row>=_rowNum ) MK_THROW( "Row is out of bounds: 0 <= " , row , " < " , _rowNum );
+	else if( rowSize>MaxRowSize ) MK_THROW( "Row size larger than max row size: " , rowSize , " < " , MaxRowSize );
 	else _rowSizes[row] = rowSize;
 }
 

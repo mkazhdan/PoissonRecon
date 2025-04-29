@@ -267,7 +267,7 @@ void FEMTree< Dim , Real >::_getSampleDepthAndWeight( const DensityEstimator< We
 	temp = _spaceRoot;
 	while( _localDepth( temp )<densityWeights.kernelDepth() )
 	{
-		if( !IsActiveNode< Dim >( temp->children ) ) break; // MK_ERROR_OUT( "" );
+		if( !IsActiveNode< Dim >( temp->children ) ) break; // MK_THROW( "" );
 		int cIndex = FEMTreeNode::ChildIndex( myCenter , position );
 		temp = temp->children + cIndex;
 		myWidth /= 2;
