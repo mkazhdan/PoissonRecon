@@ -713,7 +713,7 @@ size_t Client< Real , Dim , BType , Degree >::_send3( const ClientReconstruction
 
 		if( needAuxData )
 		{
-			if( !auxDataFactory.isStaticallyAllocated() )
+			if constexpr( !AuxDataFactory::IsStaticallyAllocated() )
 			{
 				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
 				state3.auxDataField.write( serverStream , serializer );
@@ -952,7 +952,7 @@ size_t Client< Real , Dim , BType , Degree >::_receive5( const ClientReconstruct
 		using Data = typename _State5::Data;
 		Data defaultValue;
 
-		if( !auxDataFactory.isStaticallyAllocated() )
+		if constexpr( !AuxDataFactory::IsStaticallyAllocated() )
 		{
 			ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
 			state5.auxDataField = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( serverStream , serializer );
@@ -1428,7 +1428,7 @@ if( idx!=nodes.size() ) MK_ERROR_OUT( "uhoh" );
 
 		if( needAuxData )
 		{
-			if( !auxDataFactory.isStaticallyAllocated() )
+			if constexpr( !AuxDataFactory::IsStaticallyAllocated() )
 			{
 				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
 				_auxDataField.read( stream , serializer );
@@ -1443,7 +1443,7 @@ if( idx!=nodes.size() ) MK_ERROR_OUT( "uhoh" );
 		bool needAuxData = clientReconInfo.dataX>0 && auxDataFactory.bufferSize();
 		if( needAuxData )
 		{
-			if( !auxDataFactory.isStaticallyAllocated() )
+			if constexpr( !AuxDataFactory::IsStaticallyAllocated() )
 			{
 				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
 				_auxDataField.read( stream , serializer );
@@ -1532,7 +1532,7 @@ void Client< Real , Dim , BType , Degree >::_write( const ClientReconstructionIn
 
 		if( needAuxData )
 		{
-			if( !auxDataFactory.isStaticallyAllocated() )
+			if constexpr( !AuxDataFactory::IsStaticallyAllocated() )
 			{
 				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
 				_auxDataField.write( stream , serializer );
@@ -1546,7 +1546,7 @@ void Client< Real , Dim , BType , Degree >::_write( const ClientReconstructionIn
 
 		if( _auxDataField.size() )
 		{
-			if( !auxDataFactory.isStaticallyAllocated() )
+			if constexpr( !AuxDataFactory::IsStaticallyAllocated() )
 			{
 				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
 				_auxDataField.write( stream , serializer );

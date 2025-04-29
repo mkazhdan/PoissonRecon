@@ -150,7 +150,9 @@ void PLYInputDataStream< Factory >::reset( void )
 			bool* properties = new bool[ _factory.plyReadNum() ];
 			for( unsigned int i=0 ; i<_factory.plyReadNum() ; i++ )
 			{
-				PlyProperty prop = _factory.isStaticallyAllocated() ? _factory.plyStaticReadProperty(i) : _factory.plyReadProperty(i);
+				PlyProperty prop;
+				if constexpr( Factory::IsStaticallyAllocated() ) prop = _factory.plyStaticReadProperty(i);
+				else                                             prop = _factory.plyReadProperty(i);
 				if( !_ply->get_property( elem_name , &prop ) ) properties[i] = false;
 				else                                           properties[i] = true;
 			}
@@ -178,7 +180,7 @@ bool PLYInputDataStream< Factory >::read( Data &d )
 {
 	if( _pIdx<_pCount )
 	{
-		if( _factory.isStaticallyAllocated() ) _ply->get_element( (void *)&d );
+		if constexpr( Factory::IsStaticallyAllocated() ) _ply->get_element( (void *)&d );
 		else
 		{
 			_ply->get_element( PointerAddress( _buffer ) );
@@ -206,7 +208,9 @@ PLYOutputDataStream< Factory >::PLYOutputDataStream( const char* fileName , cons
 	_ply->element_count( "vertex" , _pCount );
 	for( unsigned int i=0 ; i<_factory.plyWriteNum() ; i++ )
 	{
-		PlyProperty prop = _factory.isStaticallyAllocated() ? _factory.plyStaticWriteProperty(i) : _factory.plyWriteProperty(i);
+		PlyProperty prop;
+		if constexpr( Factory::IsStaticallyAllocated() ) prop = _factory.plyStaticWriteProperty(i);
+		else                                             prop = _factory.plyWriteProperty(i);
 		_ply->describe_property( "vertex" , &prop );
 	}
 	_ply->header_complete();
@@ -227,7 +231,7 @@ template< typename Factory >
 size_t PLYOutputDataStream< Factory >::write( const Data &d )
 {
 	if( _pIdx==_pCount ) MK_ERROR_OUT( "Trying to add more points than total: " , _pIdx , " < " , _pCount );
-	if( _factory.isStaticallyAllocated() ) _ply->put_element( (void *)&d );
+	if constexpr( Factory::IsStaticallyAllocated() ) _ply->put_element( (void *)&d );
 	else
 	{
 		_factory.toBuffer( d , _buffer );

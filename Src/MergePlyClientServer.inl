@@ -59,8 +59,8 @@ template< typename Factory >
 size_t SizeOnDisk( const Factory &factory )
 {
 	size_t sizeOnDisk = 0;
-	if( factory.isStaticallyAllocated() ) for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyStaticWriteProperty(i).external_type ];
-	else                                  for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyWriteProperty(i).external_type ];
+	if constexpr( Factory::IsStaticallyAllocated() ) for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyStaticWriteProperty(i).external_type ];
+	else                                             for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) sizeOnDisk += ply_type_size[ factory.plyWriteProperty(i).external_type ];
 	return sizeOnDisk;
 }
 
@@ -242,7 +242,9 @@ void _RunServer
 		for( unsigned int i=0 ; i<vNum.size() ; i++ ) std::get<1>( elems[0] ) += vNum[i];
 		for( unsigned int i=0 ; i<sharedVertexCounts.size() ; i++ ) std::get<1>( elems[0] ) -= sharedVertexCounts[i];
 		std::get<2>( elems[0] ).resize( factory.plyWriteNum() );
-		for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ ) std::get<2>( elems[0] )[i] = factory.isStaticallyAllocated() ? factory.plyStaticWriteProperty(i) : factory.plyWriteProperty(i);
+		for( unsigned int i=0 ; i<factory.plyWriteNum() ; i++ )
+			if constexpr( Factory::IsStaticallyAllocated() ) std::get<2>( elems[0] )[i] = factory.plyStaticWriteProperty(i);
+			else                                             std::get<2>( elems[0] )[i] = factory.plyWriteProperty(i);
 
 		std::get<0>( elems[1] ) = std::string( "face" );
 		std::get<1>( elems[1] ) = 0;
@@ -300,7 +302,7 @@ void _RunServer
 			Vertex v = factory();
 			for( unsigned int j=0 ; j<sharedVertices.size() ; j++ )
 			{
-				if( factory.isStaticallyAllocated() )
+				if constexpr( Factory::IsStaticallyAllocated() )
 				{
 					inPly->get_element( &v );
 					sharedVertices[j] = ( sharedVertices[j] + v ) / (Real)2.;
@@ -344,7 +346,7 @@ void _RunServer
 
 				for( unsigned int j=0 ; j<sharedVertices.size() ; j++ )
 				{
-					if( factory.isStaticallyAllocated() ) inPly->get_element( (void*)&sharedVertices[j] );
+					if constexpr( Factory::IsStaticallyAllocated() ) inPly->get_element( (void*)&sharedVertices[j] );
 					else
 					{
 						inPly->get_element( PointerAddress( vBuffer ) );

@@ -132,7 +132,9 @@ namespace PLY
 
 		for( int i=0 ; i<(int)elist.size() ; i++ ) if( elist[i]=="vertex" ) for( unsigned int j=0 ; j<vFactory.plyReadNum() ; j++ )
 		{
-			PlyProperty prop = vFactory.isStaticallyAllocated() ? vFactory.plyStaticReadProperty(j) : vFactory.plyReadProperty(j);
+			PlyProperty prop;
+			if constexpr( VertexFactory::IsStaticallyAllocated() ) prop = vFactory.plyStaticReadProperty(j);
+			else                                                   prop = vFactory.plyReadProperty(j);
 			readFlags[j] = ( ply->get_property( elist[i] , &prop )!=0 );
 		}
 
@@ -159,7 +161,9 @@ namespace PLY
 			bool found = false;
 			for( unsigned int j=0 ; j<vFactory.plyReadNum() ; j++ )
 			{
-				PlyProperty prop = vFactory.isStaticallyAllocated() ? vFactory.plyStaticReadProperty(j) : vFactory.plyReadProperty(j);
+				PlyProperty prop;
+				if constexpr( VertexFactory::IsStaticallyAllocated() ) prop = vFactory.plyStaticReadProperty(j);
+				else                                                   prop = vFactory.plyReadProperty(j);
 				if( prop.name==plist[i].name ) found = readFlags[j] = true;
 			}
 			if( !found ) unprocessedProperties.push_back( plist[i] );
@@ -217,7 +221,9 @@ namespace PLY
 			{
 				for( unsigned int i=0 ; i<vFactory.plyReadNum() ; i++ )
 				{
-					PlyProperty prop = vFactory.isStaticallyAllocated() ? vFactory.plyStaticReadProperty(i) : vFactory.plyReadProperty(i);
+					PlyProperty prop;
+					if constexpr( VertexFactory::IsStaticallyAllocated() ) prop = vFactory.plyStaticReadProperty(i);
+					else                                                   prop = vFactory.plyReadProperty(i);
 					int hasProperty = ply->get_property( elem_name , &prop );
 					if( readFlags ) readFlags[i] = (hasProperty!=0);
 				}
@@ -225,7 +231,7 @@ namespace PLY
 				Pointer( char ) buffer = NewPointer< char >( vFactory.bufferSize() );
 				for( size_t j=0 ; j<num_elems ; j++ )
 				{
-					if( vFactory.isStaticallyAllocated() ) ply->get_element( (void*)&vertices[j] );
+					if constexpr( VertexFactory::IsStaticallyAllocated() ) ply->get_element( (void*)&vertices[j] );
 					else
 					{
 						ply->get_element( PointerAddress( buffer ) );
@@ -275,7 +281,9 @@ namespace PLY
 			{
 				for( unsigned int i=0 ; i<vFactory.plyReadNum() ; i++)
 				{
-					PlyProperty prop = vFactory.isStaticallyAllocated() ? vFactory.plyStaticReadProperty(i) : vFactory.plyReadProperty(i);
+					PlyProperty prop;
+					if constexpr( VertexFactory::IsStaticallyAllocated() ) prop = vFactory.plyStaticReadProperty(i);
+					else                                                   prop = vFactory.plyReadProperty(i);
 					int hasProperty = ply->get_property( elem_name , &prop );
 					if( readFlags ) readFlags[i] = (hasProperty!=0);
 				}
@@ -283,7 +291,7 @@ namespace PLY
 				Pointer( char ) buffer = NewPointer< char >( vFactory.bufferSize() );
 				for( size_t j=0 ; j<num_elems ; j++ )
 				{
-					if( vFactory.isStaticallyAllocated() ) ply->get_element( (void *)&vertices[j] );
+					if constexpr( VertexFactory::IsStaticallyAllocated() ) ply->get_element( (void*)&vertices[j] );
 					else
 					{
 						ply->get_element( PointerAddress( buffer ) );
@@ -327,7 +335,9 @@ namespace PLY
 		ply->element_count( "vertex", nr_vertices );
 		for( unsigned int i=0 ; i<vFactory.plyWriteNum() ; i++ )
 		{
-			PlyProperty prop = vFactory.isStaticallyAllocated() ? vFactory.plyStaticWriteProperty(i) : vFactory.plyWriteProperty(i);
+			PlyProperty prop;
+			if constexpr( VertexFactory::IsStaticallyAllocated() ) prop = vFactory.plyStaticWriteProperty(i);
+			else                                                   prop = vFactory.plyWriteProperty(i);
 			ply->describe_property( "vertex" , &prop );
 		}
 		ply->element_count( "face" , nr_faces );
@@ -343,7 +353,7 @@ namespace PLY
 		Pointer( char ) buffer = NewPointer< char >( vFactory.bufferSize() );
 		for( size_t j=0 ; j<vertices.size() ; j++ )
 		{
-			if( vFactory.isStaticallyAllocated() ) ply->put_element( (void *)&vertices[j] );
+			if constexpr( VertexFactory::IsStaticallyAllocated() ) ply->put_element( (void *)&vertices[j] );
 			else
 			{
 				vFactory.toBuffer( vertices[j] , buffer );
@@ -399,7 +409,9 @@ namespace PLY
 		ply->element_count( "vertex" , vertexNum );
 		for( unsigned int i=0 ; i<vFactory.plyWriteNum() ; i++ )
 		{
-			PlyProperty prop = vFactory.isStaticallyAllocated() ? vFactory.plyStaticWriteProperty(i) : vFactory.plyWriteProperty(i);
+			PlyProperty prop;
+			if constexpr( VertexFactory::IsStaticallyAllocated() ) prop = vFactory.plyStaticWriteProperty(i);
+			else                                                   prop = vFactory.plyWriteProperty(i);
 			ply->describe_property( "vertex" , &prop );
 		}
 		ply->element_count( "face" , polygonNum );
@@ -411,7 +423,7 @@ namespace PLY
 
 		// write vertices
 		ply->put_element_setup( "vertex" );
-		if( vFactory.isStaticallyAllocated() )
+		if constexpr( VertexFactory::IsStaticallyAllocated() )
 		{
 			for( size_t i=0; i<vertexNum ; i++ )
 			{
@@ -477,7 +489,9 @@ namespace PLY
 		ply->element_count( "vertex" , vertexNum );
 		for( unsigned int i=0 ; i<vFactory.plyWriteNum() ; i++ )
 		{
-			PlyProperty prop = vFactory.isStaticallyAllocated() ? vFactory.plyStaticWriteProperty(i) : vFactory.plyWriteProperty(i);
+			PlyProperty prop;
+			if constexpr( VertexFactory::IsStaticallyAllocated() ) prop = vFactory.plyStaticWriteProperty(i);
+			else                                                   prop = vFactory.plyWriteProperty(i);
 			ply->describe_property( "vertex" , &prop );
 		}
 		ply->element_count( "edge" , edgeNum );
@@ -490,7 +504,7 @@ namespace PLY
 
 		// write vertices
 		ply->put_element_setup( "vertex" );
-		if( vFactory.isStaticallyAllocated() )
+		if constexpr( VertexFactory::IsStaticallyAllocated() )
 		{
 			for( size_t i=0; i<vertexNum ; i++ )
 			{

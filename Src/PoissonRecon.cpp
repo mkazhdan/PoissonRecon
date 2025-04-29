@@ -420,17 +420,20 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		typedef InputDataStream< SampleType > _InputPointStream;
 		_InputPointStream &pointStream;
 		SampleType scratch;
-		_InputOrientedSampleStream( _InputPointStream &pointStream ) : pointStream( pointStream )
-		{
-			scratch = SampleType( Reconstructor::Position< Real , Dim >() , Reconstructor::Normal< Real , Dim >() );
-		}
+
+		_InputOrientedSampleStream( _InputPointStream &pointStream )
+			: pointStream( pointStream ) , scratch( Reconstructor::Position< Real , Dim >() , Reconstructor::Normal< Real , Dim >() )
+		{}
+
 		void reset( void ){ pointStream.reset(); }
+
 		bool read( Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n ) 
 		{
 			bool ret = pointStream.read( scratch );
 			if( ret ) p = scratch.template get<0>() , n = scratch.template get<1>();
 			return ret;
 		}
+
 		bool read( unsigned int thread , Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n ) 
 		{
 			bool ret = pointStream.read( thread , scratch );
@@ -447,17 +450,20 @@ void Execute( const AuxDataFactory &auxDataFactory )
 		typedef InputDataStream< SampleType > _InputPointStream;
 		_InputPointStream &pointStream;
 		SampleType scratch;
-		_InputOrientedSampleWithDataStream( _InputPointStream &pointStream , typename AuxDataFactory::VertexType zero ) : pointStream( pointStream )
-		{
-			scratch = SampleType( Reconstructor::Position< Real , Dim >() , DataType( Reconstructor::Normal< Real , Dim >() , zero ) );
-		}
+
+		_InputOrientedSampleWithDataStream( _InputPointStream &pointStream , typename AuxDataFactory::VertexType zero )
+			: pointStream( pointStream ) , scratch( Reconstructor::Position< Real , Dim >() , DataType( Reconstructor::Normal< Real , Dim >() , zero ) )
+		{}
+
 		void reset( void ){ pointStream.reset(); }
+
 		bool read( Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n , typename AuxDataFactory::VertexType &d ) 
 		{
 			bool ret = pointStream.read( scratch );
 			if( ret ) p = scratch.template get<0>() , n = scratch.template get<1>().template get<0>() , d = scratch.template get<1>().template get<1>();
 			return ret;
 		}
+
 		bool read( unsigned int thread , Reconstructor::Position< Real , Dim > &p , Reconstructor::Normal< Real , Dim > &n , typename AuxDataFactory::VertexType &d ) 
 		{
 			bool ret = pointStream.read( thread , scratch );

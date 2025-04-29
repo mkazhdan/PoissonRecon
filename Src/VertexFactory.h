@@ -103,7 +103,6 @@ namespace PoissonRecon
 			virtual void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const = 0;
 			virtual void fromBuffer( ConstPointer( char ) buffer , VertexType &dt ) const = 0;
 
-			virtual bool isStaticallyAllocated( void ) const = 0;
 			virtual PlyProperty  plyStaticReadProperty( unsigned int idx ) const = 0;
 			virtual PlyProperty plyStaticWriteProperty( unsigned int idx ) const = 0;
 
@@ -136,7 +135,8 @@ namespace PoissonRecon
 			void  writeASCII( FILE *fp , const VertexType &dt ) const {}
 			void writeBinary( FILE *fp , const VertexType &dt ) const {};
 
-			bool isStaticallyAllocated( void ) const{ return true; }
+			static constexpr bool IsStaticallyAllocated( void ){ return true; }
+
 			PlyProperty  plyStaticReadProperty( unsigned int idx ) const { if( idx>= plyReadNum() ) MK_ERROR_OUT(  "read property out of bounds" ) ; return PlyProperty(); }
 			PlyProperty plyStaticWriteProperty( unsigned int idx ) const { if( idx>=plyWriteNum() ) MK_ERROR_OUT( "write property out of bounds" ) ; return PlyProperty(); }
 
@@ -183,7 +183,8 @@ namespace PoissonRecon
 				if( _realTypeOnDisk ) fwrite( &dt[0] , sizeof(Real) , Dim , fp );
 				else VertexIO< Real >::WriteBinary( fp , _typeOnDisk , Dim , &dt[0] );
 			}
-			bool isStaticallyAllocated( void ) const{ return true; }
+
+			static constexpr bool IsStaticallyAllocated( void ){ return true; } 
 
 			PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 			PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
@@ -241,7 +242,8 @@ namespace PoissonRecon
 				else VertexIO< Real >::WriteBinary( fp , _typeOnDisk , Dim , &dt[0] );
 			}
 
-			bool isStaticallyAllocated( void ) const{ return true; }
+			static constexpr bool IsStaticallyAllocated( void ){ return true; } 
+
 			PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 			PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
@@ -291,7 +293,8 @@ namespace PoissonRecon
 				VertexIO< Real >::WriteBinary( fp , _typeOnDisk , Dim , &dt[0] );
 			}
 
-			bool isStaticallyAllocated( void ) const{ return true; }
+			static constexpr bool IsStaticallyAllocated( void ){ return true; } 
+
 			PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 			PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
@@ -342,7 +345,8 @@ namespace PoissonRecon
 				VertexIO< Real >::WriteBinary( fp , _typeOnDisk , 3 , &dt[0] );
 			}
 
-			bool isStaticallyAllocated( void ) const{ return true; }
+			static constexpr bool IsStaticallyAllocated( void ){ return true; } 
+
 			PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 			PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
@@ -392,7 +396,8 @@ namespace PoissonRecon
 				VertexIO< Real >::WriteBinary( fp , _typeOnDisk , 4 , &dt[0] );
 			}
 
-			bool isStaticallyAllocated( void ) const{ return true; }
+			static constexpr bool IsStaticallyAllocated( void ){ return true; } 
+
 			PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 			PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
@@ -441,7 +446,8 @@ namespace PoissonRecon
 				else VertexIO< Real >::WriteBinary( fp , _typeOnDisk , 1 , &dt );
 			}
 
-			bool isStaticallyAllocated( void ) const{ return true; }
+			static constexpr bool IsStaticallyAllocated( void ){ return true; } 
+
 			PlyProperty  plyStaticReadProperty( unsigned int idx ) const;
 			PlyProperty plyStaticWriteProperty( unsigned int idx ) const;
 
@@ -483,7 +489,8 @@ namespace PoissonRecon
 			void  writeASCII( FILE *fp , const VertexType &dt ) const;
 			void writeBinary( FILE *fp , const VertexType &dt ) const;
 
-			bool isStaticallyAllocated( void ) const{ return false; }
+			static constexpr bool IsStaticallyAllocated( void ){ return false; } 
+
 			PlyProperty  plyStaticReadProperty( unsigned int idx ) const { MK_ERROR_OUT( "does not support static allocation" ) ; return PlyProperty(); }
 			PlyProperty plyStaticWriteProperty( unsigned int idx ) const { MK_ERROR_OUT( "does not support static allocation" ) ; return PlyProperty(); }
 
@@ -550,9 +557,9 @@ namespace PoissonRecon
 			void  writeASCII( FILE *fp , const VertexType &dt ) const {  _writeASCII<0>( fp , dt ); }
 			void writeBinary( FILE *fp , const VertexType &dt ) const { _writeBinary<0>( fp , dt ); }
 
-			bool isStaticallyAllocated( void ) const { return _isStaticallyAllocated<0>(); }
-			PlyProperty  plyStaticReadProperty( unsigned int idx ) const { return  _plyStaticReadProperty<0>( idx ); }
-			PlyProperty plyStaticWriteProperty( unsigned int idx ) const { return _plyStaticWriteProperty<0>( idx ); }
+			static constexpr bool IsStaticallyAllocated( void ){ return _IsStaticallyAllocated<0>(); }
+			PlyProperty  plyStaticReadProperty( unsigned int idx ) const { if constexpr( IsStaticallyAllocated() ) return  _plyStaticReadProperty<0>( idx ) ; else return PlyProperty(); }
+			PlyProperty plyStaticWriteProperty( unsigned int idx ) const { if constexpr( IsStaticallyAllocated() ) return _plyStaticWriteProperty<0>( idx ) ; else return PlyProperty(); }
 
 			size_t bufferSize( void ) const { return _bufferSize<0>(); }
 			void toBuffer( const VertexType &dt , Pointer( char ) buffer ) const { _toBuffer<0>( dt , buffer ); }
@@ -590,8 +597,12 @@ namespace PoissonRecon
 			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) >::type _writeBinary( FILE *fp , const VertexType &dt ) const { this->template get<I>().writeBinary( fp , dt.template get<I>() ) ; _writeBinary< I+1 >( fp , dt ); }
 			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) >::type _writeBinary( FILE *fp , const VertexType &dt ) const {}
 
-			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , bool >::type _isStaticallyAllocated( void ) const { return this->template get< I >().isStaticallyAllocated() && _isStaticallyAllocated< I+1 >(); }
-			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , bool >::type _isStaticallyAllocated( void ) const { return true; }
+			template< unsigned int I > static constexpr bool _IsStaticallyAllocated( void )
+			{
+				if constexpr( I<sizeof...(Factories) ) return FactoryType< I >::IsStaticallyAllocated() && _IsStaticallyAllocated< I+1 >();
+				else return true;
+			}
+
 			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , PlyProperty >::type _plyStaticReadProperty ( unsigned int idx ) const;
 			template< unsigned int I > typename std::enable_if< I!=sizeof...(Factories) , PlyProperty >::type _plyStaticWriteProperty( unsigned int idx ) const;
 			template< unsigned int I > typename std::enable_if< I==sizeof...(Factories) , PlyProperty >::type _plyStaticReadProperty ( unsigned int idx ) const { MK_ERROR_OUT(  "read property out of bounds" ) ; return PlyProperty(); }

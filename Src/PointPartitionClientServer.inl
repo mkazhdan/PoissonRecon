@@ -70,11 +70,15 @@ void _ProcessPLY( std::string in , std::pair< size_t , size_t > range , const Fa
 	}
 
 	size_t leftToReadCount = range.second - range.first;
-	size_t vSize = factory.isStaticallyAllocated() ? sizeof( Vertex ) : factory.bufferSize();
+	size_t vSize = 0;
+	if constexpr( Factory::IsStaticallyAllocated() ) vSize = sizeof( Vertex );
+	else                                             vSize = factory.bufferSize();
 
 	for( unsigned int i=0 ; i<factory.plyReadNum() ; i++)
 	{
-		PlyProperty prop = factory.isStaticallyAllocated() ? factory.plyStaticReadProperty(i) : factory.plyReadProperty(i);
+		PlyProperty prop;
+		if constexpr( Factory::IsStaticallyAllocated() ) prop = factory.plyStaticReadProperty(i);
+		else                                             prop = factory.plyReadProperty(i);
 		ply->get_property( std::string( "vertex" ) , &prop );
 	}
 
@@ -91,7 +95,7 @@ void _ProcessPLY( std::string in , std::pair< size_t , size_t > range , const Fa
 	Pointer( char ) buffer = NewPointer< char >( factory.bufferSize() );
 	for( size_t i=range.first ; i<range.second ; i++ )
 	{
-		if( factory.isStaticallyAllocated() ) ply->get_element( (void *)&vertex );
+		if constexpr( Factory::IsStaticallyAllocated() ) ply->get_element( (void *)&vertex );
 		else
 		{
 			ply->get_element( PointerAddress( buffer ) );

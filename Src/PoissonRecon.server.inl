@@ -404,7 +404,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 		{
 			Timer timer;
 			SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > > *_auxDataField;
-			if( !auxDataFactory.isStaticallyAllocated() )
+			if constexpr( !AuxDataFactory::IsStaticallyAllocated() )
 			{
 				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
 				_auxDataField = new SparseNodeData< ProjectiveData< AuxData , Real > , IsotropicUIntPack< Dim , DataSig > >( clientStream , serializer );
@@ -538,7 +538,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 			phaseInfo.processTime += timer.wallTime();
 
 			timer = Timer();
-			if( !auxDataFactory.isStaticallyAllocated() )
+			if constexpr( !AuxDataFactory::IsStaticallyAllocated() )
 			{
 				ProjectiveAuxDataTypeSerializer< Real > serializer( clientReconInfo.auxProperties );
 				_auxDataField.write( clientStream , serializer );
