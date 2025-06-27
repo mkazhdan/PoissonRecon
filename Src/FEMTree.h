@@ -1170,7 +1170,7 @@ namespace PoissonRecon
 			unsigned int _maxDepth;
 			std::tuple< BSplineData< TSignatures , TDs > ... > _bSplineData;
 			template< unsigned int I=0 > typename std::enable_if< I==Dim >::type _init( void ){}
-			template< unsigned int I=0 > typename std::enable_if< I< Dim >::type _init( void ){ std::get< I >( _bSplineData ).reset( _maxDepth ) ; _init< I+1 >( ); }
+			template< unsigned int I=0 > typename std::enable_if< (I<Dim) >::type _init( void ){ std::get< I >( _bSplineData ).reset( _maxDepth ) ; _init< I+1 >( ); }
 
 			template< unsigned int I , unsigned int TSig , unsigned int D , typename State >
 			void _setEvaluationState( const double* p , unsigned int depth , State& state ) const
@@ -2434,7 +2434,7 @@ namespace PoissonRecon
 			template< unsigned int _PointD=PointD > CumulativeDerivativeValues< double , Dim , _PointD > _centerValues( unsigned int d , const int fIdx[Dim] , const int idx[Dim] ,                                bool parentChild ) const;
 			template< unsigned int _PointD=PointD > CumulativeDerivativeValues< double , Dim , _PointD > _cornerValues( unsigned int d , const int fIdx[Dim] , const int idx[Dim] , int corner ,                   bool parentChild ) const;
 			template< unsigned int _PointD=PointD , unsigned int I=0 > typename std::enable_if< I==Dim >::type _setDValues( unsigned int d , const int fIdx[] , const int cIdx[] , const _CenterOffset off[] , bool pc , double dValues[][_PointD+1] ) const{ }
-			template< unsigned int _PointD=PointD , unsigned int I=0 > typename std::enable_if< I< Dim >::type _setDValues( unsigned int d , const int fIdx[] , const int cIdx[] , const _CenterOffset off[] , bool pc , double dValues[][_PointD+1] ) const
+			template< unsigned int _PointD=PointD , unsigned int I=0 > typename std::enable_if< (I<Dim) >::type _setDValues( unsigned int d , const int fIdx[] , const int cIdx[] , const _CenterOffset off[] , bool pc , double dValues[][_PointD+1] ) const
 			{
 				if( pc ) for( int dd=0 ; dd<=_PointD ; dd++ ) dValues[I][dd] = off[I]==CENTER ? std::get< I >( childEvaluators[d] ).centerValue( fIdx[I] , cIdx[I] , dd ) : std::get< I >( childEvaluators[d] ).cornerValue( fIdx[I] , cIdx[I]+off[I] , dd );
 				else     for( int dd=0 ; dd<=_PointD ; dd++ ) dValues[I][dd] = off[I]==CENTER ? std::get< I >(      evaluators[d] ).centerValue( fIdx[I] , cIdx[I] , dd ) : std::get< I >(      evaluators[d] ).cornerValue( fIdx[I] , cIdx[I]+off[I] , dd );
@@ -2442,7 +2442,7 @@ namespace PoissonRecon
 			}
 
 			template< unsigned int I=0 > typename std::enable_if< I==Dim >::type _setEvaluators( unsigned int maxDepth ){ }
-			template< unsigned int I=0 > typename std::enable_if< I< Dim >::type _setEvaluators( unsigned int maxDepth )
+			template< unsigned int I=0 > typename std::enable_if< (I<Dim) >::type _setEvaluators( unsigned int maxDepth )
 			{
 				static const unsigned int FEMSig = UIntPack< FEMSigs ... >::template Get< I >();
 				for( unsigned int d=0 ; d<=maxDepth ; d++ ) BSplineEvaluationData< FEMSig >::     SetEvaluator( std::template get< I >(      evaluators[d] ) , d   );

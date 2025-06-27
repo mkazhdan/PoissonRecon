@@ -1,4 +1,4 @@
-<center><h2>Adaptive Multigrid Solvers (Version 18.73)</h2></center>
+<center><h2>Adaptive Multigrid Solvers (Version 18.74)</h2></center>
 <center>
 <a href="#LINKS">links</a>
 <a href="#COMPILATION">compilation</a>
@@ -29,10 +29,11 @@ This code-base was born from the Poisson Surface Reconstruction code. It has evo
 <a href="https://www.cs.jhu.edu/~misha/MyPapers/CGF23.pdf">[Kazhdan and Hoppe, 2023]</a>
 <br>
 <b>Executables: </b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.73/AdaptiveSolvers.x64.zip">Win64</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.74/AdaptiveSolvers.x64.zip">Win64</a><br>
 <b>Source Code:</b>
-<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.73/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.74/AdaptiveSolvers.zip">ZIP</a> <a href="https://github.com/mkazhdan/PoissonRecon">GitHub</a><br>
 <b>Older Versions:</b>
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.73/">V18.73</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.72/">V18.72</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.71/">V18.71</a>,
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.70/">V18.70</a>,
@@ -1785,6 +1786,11 @@ Similarly, to reduce compilation times, support for specific degrees can be remo
 <a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.73/">Version 18.73</a>:
 <OL>
 <LI> Replaced <CODE>MK_ERROR_OUT</CODE> with <CODE>MK_THROW</CODE> to throw an exception rather than exit directly.
+</OL>
+
+<a href="https://www.cs.jhu.edu/~misha/Code/PoissonRecon/Version18.74/">Version 18.74</a>:
+<OL>
+<LI> Made code compliant with MSVC 17.14.
 </OL>
 
 </DETAILS>
