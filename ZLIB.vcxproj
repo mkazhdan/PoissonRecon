@@ -23,25 +23,26 @@
     <ClCompile Include="ZLIB\compress.c" />
     <ClCompile Include="ZLIB\crc32.c" />
     <ClCompile Include="ZLIB\deflate.c" />
-    <ClCompile Include="ZLIB\gzio.c" />
-    <ClCompile Include="ZLIB\infblock.c" />
-    <ClCompile Include="ZLIB\infcodes.c" />
+    <ClCompile Include="ZLIB\gzclose.c" />
+    <ClCompile Include="ZLIB\gzlib.c" />
+    <ClCompile Include="ZLIB\gzread.c" />
+    <ClCompile Include="ZLIB\gzwrite.c" />
+    <ClCompile Include="ZLIB\infback.c" />
     <ClCompile Include="ZLIB\inffast.c" />
     <ClCompile Include="ZLIB\inflate.c" />
     <ClCompile Include="ZLIB\inftrees.c" />
-    <ClCompile Include="ZLIB\infutil.c" />
     <ClCompile Include="ZLIB\trees.c" />
     <ClCompile Include="ZLIB\uncompr.c" />
     <ClCompile Include="ZLIB\zutil.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ZLIB\crc32.h" />
     <ClInclude Include="ZLIB\deflate.h" />
-    <ClInclude Include="ZLIB\infblock.h" />
-    <ClInclude Include="ZLIB\infcodes.h" />
+    <ClInclude Include="ZLIB\gzguts.h" />
     <ClInclude Include="ZLIB\inffast.h" />
     <ClInclude Include="ZLIB\inffixed.h" />
+    <ClInclude Include="ZLIB\inflate.h" />
     <ClInclude Include="ZLIB\inftrees.h" />
-    <ClInclude Include="ZLIB\infutil.h" />
     <ClInclude Include="ZLIB\trees.h" />
     <ClInclude Include="ZLIB\zconf.h" />
     <ClInclude Include="ZLIB\zlib.h" />
