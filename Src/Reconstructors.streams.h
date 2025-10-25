@@ -240,7 +240,7 @@ namespace PoissonRecon
 
 			OutputInputFaceStream( void )
 			{
-				size_t sz = std::thread::hardware_concurrency();
+				size_t sz = ThreadPool::NumThreads();
 
 				_backingVectors.resize( sz , nullptr );
 
@@ -293,7 +293,7 @@ namespace PoissonRecon
 
 			~OutputInputFaceStream( void )
 			{
-				size_t sz = std::thread::hardware_concurrency();
+				size_t sz = ThreadPool::NumThreads();
 
 				delete _backingVector;
 				delete _backingFile;
@@ -351,7 +351,7 @@ namespace PoissonRecon
 			OutputInputFactoryTypeStream( Factory &factory , std::function< Vertex ( const Position< Real , Dim > & , const Gradient< Real , Dim > & , const Weight< Real > & , const Data & ...  ) > converter )
 				: _converter( converter )
 			{
-				size_t sz = std::thread::hardware_concurrency();
+				size_t sz = ThreadPool::NumThreads();
 
 				_backingVectors.resize( sz , nullptr );
 
@@ -399,7 +399,7 @@ namespace PoissonRecon
 
 			~OutputInputFactoryTypeStream( void )
 			{
-				size_t sz = std::thread::hardware_concurrency();
+				size_t sz = ThreadPool::NumThreads();
 
 				delete _backingVector;
 				delete _backingFile;
