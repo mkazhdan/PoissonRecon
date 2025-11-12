@@ -2525,7 +2525,7 @@ namespace PoissonRecon
 			const DenseNodeData< T , FEMSignatures >& _coefficients;
 			DenseNodeData< T , FEMSignatures > _coarseCoefficients;
 		public:
-			_MultiThreadedEvaluator( const FEMTree* tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads=std::thread::hardware_concurrency() );
+			_MultiThreadedEvaluator( const FEMTree* tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads=ThreadPool::NumThreads() );
 			template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > values( Point< Real , Dim > p , int thread=0 , const FEMTreeNode* node=NULL );
 			template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > centerValues( const FEMTreeNode* node , int thread=0 );
 			template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > cornerValues( const FEMTreeNode* node , int corner , int thread=0 );
@@ -2539,7 +2539,7 @@ namespace PoissonRecon
 			std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > > _neighborKeys;
 			const DensityEstimator< DensityDegree >& _density;
 		public:
-			MultiThreadedWeightEvaluator( const FEMTree* tree , const DensityEstimator< DensityDegree >& density , int threads=std::thread::hardware_concurrency() );
+			MultiThreadedWeightEvaluator( const FEMTree* tree , const DensityEstimator< DensityDegree >& density , int threads=ThreadPool::NumThreads() );
 			Real weight( Point< Real , Dim > p , int thread=0 );
 		};
 
@@ -2555,7 +2555,7 @@ namespace PoissonRecon
 			typename FEMIntegrator::template PointEvaluator< UIntPack< FEMSigs ... > , ZeroUIntPack< Dim > > *_pointEvaluator;
 			const SparseNodeData< T , FEMSignatures >& _coefficients;
 		public:
-			MultiThreadedSparseEvaluator( const FEMTree* tree , const SparseNodeData< T , FEMSignatures >& coefficients , int threads=std::thread::hardware_concurrency() );
+			MultiThreadedSparseEvaluator( const FEMTree* tree , const SparseNodeData< T , FEMSignatures >& coefficients , int threads=ThreadPool::NumThreads() );
 			~MultiThreadedSparseEvaluator( void ){ if( _pointEvaluator ) delete _pointEvaluator; }
 			void addValue( Point< Real , Dim > p , T &t , int thread=0 , const FEMTreeNode* node=NULL );
 			template< typename AccumulationFunctor/*=std::function< void ( const T & , Real s ) > */ >

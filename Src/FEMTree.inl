@@ -337,7 +337,7 @@ FEMTree< Dim , Real >::FEMTree( size_t blockSize ) : _nodeInitializer( *this ) ,
 {
 	if( blockSize )
 	{
-		nodeAllocators.resize( std::thread::hardware_concurrency() );
+		nodeAllocators.resize( ThreadPool::NumThreads() );
 		for( size_t i=0 ; i<nodeAllocators.size() ; i++ )
 		{
 			nodeAllocators[i] = new Allocator< FEMTreeNode >();
