@@ -2,7 +2,7 @@
 /* png.c - location for general purpose libpng functions
  *
  * Last changed in libpng 1.2.21 October 4, 2007
- * For conditions of distribution and use, see copyright notice in png.h
+ * For conditions of distribution and use, see copyright notice in PNG/png.h
  * Copyright (c) 1998-2007 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -10,13 +10,13 @@
 
 #define PNG_INTERNAL
 #define PNG_NO_EXTERN
-#include "png.h"
+#include "PNG/png.h"
 
-/* Generate a compiler error if there is an old png.h in the search path. */
+/* Generate a compiler error if there is an old PNG/png.h in the search path. */
 typedef version_1_2_29 Your_png_h_is_not_version_1_2_29;
 
 /* Version information for C files.  This had better match the version
- * string defined in png.h.  */
+ * string defined in PNG/png.h.  */
 
 #ifdef PNG_USE_GLOBAL_ARRAYS
 /* png_libpng_ver was changed to a function in version 1.0.5c */
@@ -68,7 +68,7 @@ PNG_CONST int FARDATA png_pass_ystart[] = {0, 0, 4, 0, 2, 0, 1};
 PNG_CONST int FARDATA png_pass_yinc[] = {8, 8, 8, 4, 4, 2, 2};
 
 /* Height of interlace block.  This is not currently used - if you need
- * it, uncomment it here and in png.h
+ * it, uncomment it here and in PNG/png.h
 PNG_CONST int FARDATA png_pass_height[] = {8, 8, 4, 4, 2, 2, 1};
 */
 
@@ -702,10 +702,10 @@ png_get_copyright(png_structp png_ptr)
 /* The following return the library version as a short string in the
  * format 1.0.0 through 99.99.99zz.  To get the version of *.h files
  * used with your application, print out PNG_LIBPNG_VER_STRING, which
- * is defined in png.h.
+ * is defined in PNG/png.h.
  * Note: now there is no difference between png_get_libpng_ver() and
  * png_get_header_ver().  Due to the version_nn_nn_nn typedef guard,
- * it is guaranteed that png.c uses the correct version of png.h.
+ * it is guaranteed that png.c uses the correct version of PNG/png.h.
  */
 png_charp PNGAPI
 png_get_libpng_ver(png_structp png_ptr)

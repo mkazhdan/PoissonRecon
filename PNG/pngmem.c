@@ -2,7 +2,7 @@
 /* pngmem.c - stub functions for memory allocation
  *
  * Last changed in libpng 1.2.27 [April 29, 2008]
- * For conditions of distribution and use, see copyright notice in png.h
+ * For conditions of distribution and use, see copyright notice in PNG/png.h
  * Copyright (c) 1998-2008 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -15,13 +15,13 @@
  */
 
 #define PNG_INTERNAL
-#include "png.h"
+#include "PNG/png.h"
 
 #if defined(PNG_READ_SUPPORTED) || defined(PNG_WRITE_SUPPORTED)
 
 /* Borland DOS special memory handler */
 #if defined(__TURBOC__) && !defined(_Windows) && !defined(__FLAT__)
-/* if you change this, be sure to change the one in png.h also */
+/* if you change this, be sure to change the one in PNG/png.h also */
 
 /* Allocate memory for a png_struct.  The malloc and memset can be replaced
    by a single call to calloc() if this is thought to improve performance. */
@@ -95,7 +95,7 @@ png_destroy_struct_2(png_voidp struct_ptr, png_free_ptr free_fn,
 
 /* Allocate memory.  For reasonable files, size should never exceed
  * 64K.  However, zlib may allocate more then 64K if you don't tell
- * it not to.  See zconf.h and png.h for more information. zlib does
+ * it not to.  See zconf.h and PNG/png.h for more information. zlib does
  * need to allocate exactly 64K, so whatever you call here must
  * have the ability to do that.
  *
@@ -421,7 +421,7 @@ png_destroy_struct_2(png_voidp struct_ptr, png_free_ptr free_fn,
 
 /* Allocate memory.  For reasonable files, size should never exceed
    64K.  However, zlib may allocate more then 64K if you don't tell
-   it not to.  See zconf.h and png.h for more information.  zlib does
+   it not to.  See zconf.h and PNG/png.h for more information.  zlib does
    need to allocate exactly 64K, so whatever you call here must
    have the ability to do that. */
 
