@@ -4,7 +4,9 @@
 #ifdef USE_CHOLMOD
 #include <Cholmod/cholmod.h>
 #if defined( WIN32 ) || defined( _WIN64 )
+#ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Need to explicitly exclude VCOMP.lib" )
+#endif // SHOW_WARNINGS
 #pragma comment( lib , "CHOLMOD_FULL.lib" )
 #endif // WIN32 || _WIN64
 #ifdef DLONG
