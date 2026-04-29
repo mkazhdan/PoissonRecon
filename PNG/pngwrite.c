@@ -2,15 +2,15 @@
 /* pngwrite.c - general routines to write a PNG file
  *
  * Last changed in libpng 1.2.27 [April 29, 2008]
- * For conditions of distribution and use, see copyright notice in png.h
+ * For conditions of distribution and use, see copyright notice in PNG/png.h
  * Copyright (c) 1998-2008 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  */
 
-/* get internal access to png.h */
+/* get internal access to PNG/png.h */
 #define PNG_INTERNAL
-#include "png.h"
+#include "PNG/png.h"
 #ifdef PNG_WRITE_SUPPORTED
 
 /* Writes all the PNG information.  This is the suggested way to use the
@@ -510,7 +510,7 @@ png_create_write_struct_2(png_const_charp user_png_ver, png_voidp error_ptr,
         if (user_png_ver)
         {
           png_snprintf(msg, 80,
-             "Application was compiled with png.h from libpng-%.20s",
+             "Application was compiled with PNG/png.h from libpng-%.20s",
              user_png_ver);
           png_warning(png_ptr, msg);
         }
@@ -582,7 +582,7 @@ png_write_init_2(png_structp png_ptr, png_const_charp user_png_ver,
       if (user_png_ver)
       {
         png_snprintf(msg, 80,
-           "Application was compiled with png.h from libpng-%.20s",
+           "Application was compiled with PNG/png.h from libpng-%.20s",
            user_png_ver);
         png_warning(png_ptr, msg);
       }

@@ -2,14 +2,14 @@
 /* pngwtran.c - transforms the data in a row for PNG writers
  *
  * Last changed in libpng 1.2.9 April 14, 2006
- * For conditions of distribution and use, see copyright notice in png.h
+ * For conditions of distribution and use, see copyright notice in PNG/png.h
  * Copyright (c) 1998-2006 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  */
 
 #define PNG_INTERNAL
-#include "png.h"
+#include "PNG/png.h"
 #ifdef PNG_WRITE_SUPPORTED
 
 /* Transform the data according to the user's wishes.  The order of

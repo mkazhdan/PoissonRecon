@@ -10,3 +10,5 @@
 V*/
 *.user
 Makefile.9
+build/
+install/
