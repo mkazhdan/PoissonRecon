@@ -40,9 +40,9 @@ DAMAGE.
 
 namespace PoissonRecon
 {
-#ifdef WIN32
+#ifdef _WIN32
 	int strcasecmp( const char* c1 , const char* c2 );
-#endif // WIN32
+#endif // _WIN32
 
 	class CmdLineReadable
 	{

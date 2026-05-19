@@ -199,15 +199,15 @@ namespace PoissonRecon
 
 	inline bool ImageReader::ValidExtension( const char *ext )
 	{
-#ifdef WIN32
+#ifdef _WIN32
 		if     ( !_stricmp( ext , "jpeg" ) || !_stricmp( ext , "jpg" ) ) return true;
 		else if( !_stricmp( ext , "png" )                              ) return true;
 		else if( !_stricmp( ext , "iGrid" )                            ) return true;
-#else // !WIN32
+#else // !_WIN32
 		if( !strcasecmp( ext , "jpeg" ) || !strcasecmp( ext , "jpg" ) ) return true;
 		else if( !strcasecmp( ext , "png" )                           ) return true;
 		else if( !strcasecmp( ext , "iGrid" )                         ) return true;
-#endif // WIN32
+#endif // _WIN32
 		return false;
 	}
 
@@ -216,15 +216,15 @@ namespace PoissonRecon
 		unsigned int width , height , channels;
 		ImageReader* reader = NULL;
 		char* ext = FileNameParser::Extension( fileName );
-#ifdef WIN32
+#ifdef _WIN32
 		if     ( !_stricmp( ext , "jpeg" ) || !_stricmp( ext , "jpg" ) ) reader = new       JPEGReader( fileName , width , height , channels );
 		else if( !_stricmp( ext , "png" )                              ) reader = new        PNGReader( fileName , width , height , channels );
 		else if( !_stricmp( ext , "iGrid" )                            ) reader = new TiledImageReader( fileName , width , height , channels );
-#else // !WIN32
+#else // !_WIN32
 		if( !strcasecmp( ext , "jpeg" ) || !strcasecmp( ext , "jpg" ) ) reader = new       JPEGReader( fileName , width , height , channels );
 		else if( !strcasecmp( ext , "png" )                           ) reader = new        PNGReader( fileName , width , height , channels );
 		else if( !strcasecmp( ext , "iGrid" )                         ) reader = new TiledImageReader( fileName , width , height , channels );
-#endif // WIN32
+#endif // _WIN32
 		else
 		{
 			delete[] ext;
@@ -240,33 +240,33 @@ namespace PoissonRecon
 	inline void ImageReader::GetInfo( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels )
 	{
 		char* ext = FileNameParser::Extension( fileName );
-#ifdef WIN32
+#ifdef _WIN32
 		if( !_stricmp( ext , "jpeg" ) || !_stricmp( ext , "jpg" ) ) JPEGReader::GetInfo( fileName , width , height , channels );
 		else if( !_stricmp( ext , "png" ) )                          PNGReader::GetInfo( fileName , width , height , channels );
 		else if( !_stricmp( ext , "iGrid" ) )                 TiledImageReader::GetInfo( fileName , width , height , channels );
-#else // !WIN32
+#else // !_WIN32
 		if( !strcasecmp( ext , "jpeg" ) || !strcasecmp( ext , "jpg" ) ) JPEGReader::GetInfo( fileName , width , height , channels );
 		else if( !strcasecmp( ext , "png" ) )                            PNGReader::GetInfo( fileName , width , height , channels );
 		else if( !strcasecmp( ext , "iGrid" ) )                   TiledImageReader::GetInfo( fileName , width , height , channels );
-#endif // WIN32
+#endif // _WIN32
 		delete[] ext;
 	}
 
 	inline bool ImageWriter::ValidExtension( const char *ext )
 	{
-#ifdef WIN32
+#ifdef _WIN32
 		if( !_stricmp( ext , "jpeg" ) || !_stricmp( ext , "jpg" ) ) return true;
 		else if( !_stricmp( ext , "png" ) )                         return true;
 #ifdef SUPPORT_TILES
 		else if( !_stricmp( ext , "iGrid" ) )                       return true;
 #endif // SUPPORT_TILES
-#else // !WIN32
+#else // !_WIN32
 		if( !strcasecmp( ext , "jpeg" ) || !strcasecmp( ext , "jpg" ) ) return true;
 		else if( !strcasecmp( ext , "png" ) )                           return true;
 #ifdef SUPPORT_TILES
 		else if( !strcasecmp( ext , "iGrid" ) )                         return true;
 #endif // SUPPORT_TILES
-#endif // WIN32
+#endif // _WIN32
 		return false;
 	}
 
@@ -274,19 +274,19 @@ namespace PoissonRecon
 	{
 		ImageWriter* writer = NULL;
 		char* ext = FileNameParser::Extension( fileName );
-#ifdef WIN32
+#ifdef _WIN32
 		if( !_stricmp( ext , "jpeg" ) || !_stricmp( ext , "jpg" ) ) writer = new JPEGWriter( fileName , width , height , channels , params.quality );
 		else if( !_stricmp( ext , "png" ) ) writer = new PNGWriter( fileName , width , height , channels , params.quality );
 #ifdef SUPPORT_TILES
 		else if( !_stricmp( ext , "iGrid" ) ) writer = new TiledImageWriter( fileName , width , height , channels , params );
 #endif // SUPPORT_TILES
-#else // !WIN32
+#else // !_WIN32
 		if( !strcasecmp( ext , "jpeg" ) || !strcasecmp( ext , "jpg" ) ) writer = new JPEGWriter( fileName , width , height , channels , params.quality );
 		else if( !strcasecmp( ext , "png" ) ) writer = new PNGWriter( fileName , width , height , channels , params.quality );
 #ifdef SUPPORT_TILES
 		else if( !strcasecmp( ext , "iGrid" ) ) writer = new TiledImageWriter( fileName , width , height , channels , params );
 #endif // SUPPORT_TILES
-#endif // WIN32
+#endif // _WIN32
 		else
 		{
 			delete[] ext;
