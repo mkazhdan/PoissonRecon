@@ -26,9 +26,9 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 
-#if defined( WIN32 ) || defined( _WIN64 )
+#if defined( _WIN32 ) || defined( _WIN64 )
 inline int strcasecmp( const char* c1 , const char* c2 ){ return _stricmp( c1 , c2 ); }
-#endif // WIN32 || _WIN64
+#endif // _WIN32 || _WIN64
 
 template< > inline void         CmdLineType< char*       >::CleanUp( char** t ){ if( *t ) free( *t ) ; *t = NULL; }
 
@@ -59,21 +59,21 @@ void CmdLineType< Point< Real , Dim > >::WriteValue( Point< Real , Dim > t , cha
 	sprintf( str+start , "}" );
 }
 
-#if defined( WIN32 ) || defined( _WIN64 )
+#if defined( _WIN32 ) || defined( _WIN64 )
 template< > inline char*  CmdLineType< char*       >::Copy( char* t ){ return _strdup( t ); }
-#else // !WIN32 && !_WIN64
+#else // !_WIN32 && !_WIN64
 template< > inline char*  CmdLineType< char*       >::Copy( char* t ){ return strdup( t ); }
-#endif // WIN32 || _WIN64
+#endif // _WIN32 || _WIN64
 
 template< > inline int          CmdLineType< int          >::StringToType( const char* str ){ return atoi( str ); }
 template< > inline unsigned int CmdLineType< unsigned int >::StringToType( const char* str ){ return (unsigned int)atoll( str ); }
 template< > inline float        CmdLineType< float        >::StringToType( const char* str ){ return float( atof( str ) ); }
 template< > inline double       CmdLineType< double       >::StringToType( const char* str ){ return double( atof( str ) ); }
-#if defined( WIN32 ) || defined( _WIN64 )
+#if defined( _WIN32 ) || defined( _WIN64 )
 template< > inline char *       CmdLineType< char*        >::StringToType( const char* str ){ return _strdup( str ); }
-#else // !WIN32 && !_WIN64
+#else // !_WIN32 && !_WIN64
 template< > inline char *       CmdLineType< char*        >::StringToType( const char* str ){ return  strdup( str ); }
-#endif // WIN32 || _WIN64
+#endif // _WIN32 || _WIN64
 template< > inline std::string  CmdLineType< std::string  >::StringToType( const char* str ){ return std::string( str ); }
 
 template< typename Real , unsigned int Dim >
@@ -113,11 +113,11 @@ Point< Real , Dim > CmdLineType< Point< Real , Dim > >::StringToType( const char
 /////////////////////
 // CmdLineReadable //
 /////////////////////
-#if defined( WIN32 ) || defined( _WIN64 )
+#if defined( _WIN32 ) || defined( _WIN64 )
 inline CmdLineReadable::CmdLineReadable( const char *name ) : set(false) { this->name = _strdup( name ); }
-#else // !WIN32 && !_WIN64
+#else // !_WIN32 && !_WIN64
 inline CmdLineReadable::CmdLineReadable( const char *name ) : set(false) { this->name =  strdup( name ); }
-#endif // WIN32 || _WIN64
+#endif // _WIN32 || _WIN64
 
 inline CmdLineReadable::~CmdLineReadable( void ){ if( name ) free( name ) ; name = NULL; }
 inline int CmdLineReadable::read( char** , int ){ set = true ; return 0; }

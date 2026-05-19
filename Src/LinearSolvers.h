@@ -3,10 +3,10 @@
 
 #ifdef USE_CHOLMOD
 #include <Cholmod/cholmod.h>
-#if defined( WIN32 ) || defined( _WIN64 )
+#if defined( _WIN32 ) || defined( _WIN64 )
 #pragma message( "[WARNING] Need to explicitly exclude VCOMP.lib" )
 #pragma comment( lib , "CHOLMOD_FULL.lib" )
-#endif // WIN32 || _WIN64
+#endif // _WIN32 || _WIN64
 #ifdef DLONG
 typedef long long SOLVER_LONG;
 #define CHOLMOD( name ) cholmod_l_ ## name

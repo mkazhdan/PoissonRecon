@@ -93,15 +93,15 @@ namespace PoissonRecon
 	////////////////
 	inline double Time( void )
 	{
-#ifdef WIN32
+#ifdef _WIN32
 		struct _timeb t;
 		_ftime( &t );
 		return double( t.time ) + double( t.millitm ) / 1000.0;
-#else // WIN32
+#else // !_WIN32
 		struct timeval t;
 		gettimeofday( &t , NULL );
 		return t.tv_sec + double( t.tv_usec ) / 1000000;
-#endif // WIN32
+#endif // _WIN32
 	}
 
 	struct Timer
