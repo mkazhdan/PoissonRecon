@@ -315,13 +315,20 @@ void _RunClients
 
 	for( unsigned int c=0 ; c<serverSockets.size() ; c++ ) SocketStream( serverSockets[c] ).read( clientIndices[c] );
 
-	int maxFiles = 2*clientPartitionInfo.slabs;
+	// Phase 7 opens 2*ThreadPool::NumThreads() additional file-backed streams
+	// (vertex + face streams) on top of the per-slab files, plus assorted PLY
+	// and temp files. The original 2*slabs budget under-provisioned this and
+	// caused EMFILE in FileDescription::FileDescription on Windows.
+	int maxFiles = 2*clientPartitionInfo.slabs + 4*(int)ThreadPool::NumThreads() + 32;
+	if( maxFiles < 512 ) maxFiles = 512;
 #ifdef _WIN32
-	if( _setmaxstdio( maxFiles )!=maxFiles ) MK_THROW( "Could not set max file handles: " , maxFiles );
+	if( maxFiles > 8192 ) maxFiles = 8192;   // Windows CRT hard cap
+	int newMax = _setmaxstdio( maxFiles );
+	if( newMax!=maxFiles ) MK_THROW( "_setmaxstdio failed: requested=" , maxFiles , " got=" , newMax , " errno=" , errno );
 #else // !_WIN32
 	struct rlimit rl;
-	getrlimit( RLIMIT_NOFILE , &rl ); 
-	rl.rlim_cur = maxFiles+3; 
+	getrlimit( RLIMIT_NOFILE , &rl );
+	rl.rlim_cur = maxFiles+3;
 	setrlimit( RLIMIT_NOFILE , &rl );
 #endif // _WIN32
 

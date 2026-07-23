@@ -341,7 +341,7 @@ PhaseInfo Server< Real , Dim , BType , Degree >::_phase4( const ClientReconstruc
 		idx++;
 		std::vector< node_index_type > oldToNew( idx , -1 );
 		for( unsigned int i=0 ; i<newToOld.size() ; i++ ) if( newToOld[i]!=-1 ) oldToNew[ newToOld[i] ] = i;
-		for( unsigned int i=0 ; i<clientsToServer.size() ; i++ ) for( unsigned int j=0 ; j<clientsToServer[i].size() ; j++ ) clientsToServer[i][j] = oldToNew[ clientsToServer[i][j] ];
+		for( unsigned int i=0 ; i<clientsToServer.size() ; i++ ) for( unsigned int j=0 ; j<clientsToServer[i].size() ; j++ ) if (clientsToServer[i][j] != -1) clientsToServer[i][j] = oldToNew[ clientsToServer[i][j] ];
 		phaseInfo.processTime += timer.wallTime();
 		profiler.update();
 	}

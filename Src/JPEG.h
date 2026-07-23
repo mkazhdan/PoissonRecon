@@ -40,9 +40,12 @@ DAMAGE.
 #include "JPEG-turbo/turbojpeg.h"
 #include "JPEG-turbo/jpeglib.h"
 #else // !USE_JPEG_TURBO
-#include "JPEG/jpeglib.h"
-#include "JPEG/jerror.h"
-#include "JPEG/jmorecfg.h"
+// The bundled JPEG headers provide no extern "C" guards of their own
+extern "C" {
+	#include "JPEG/jpeglib.h"
+	#include "JPEG/jerror.h"
+	#include "JPEG/jmorecfg.h"
+}
 #endif // USE_JPEG_TURBO
 #else // !_WIN32
 #ifdef USE_JPEG_TURBO

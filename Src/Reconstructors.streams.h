@@ -29,9 +29,14 @@ DAMAGE.
 #ifndef RECONSTRUCTORS_STREAMS_INCLUDED
 #define RECONSTRUCTORS_STREAMS_INCLUDED
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "FEMTree.h"
 #include "MyExceptions.h"
 #include "Array.h"
+#include <cerrno>
 
 namespace PoissonRecon
 {
@@ -189,18 +194,38 @@ namespace PoissonRecon
 		public:
 			struct FileDescription
 			{
-				FILE *fp;
+				FILE* fp;
 
-				FileDescription( FILE *fp ) : fp(fp) , _closeFile(false)
+				FileDescription(FILE* fp) : fp(fp), _closeFile(false)
 				{
-					if( !this->fp )
+					if (!this->fp)
 					{
+#ifdef _WIN32
+						char tempPath[MAX_PATH];
+						if (GetTempPathA(MAX_PATH, tempPath) == 0) MK_THROW("GetTempPath failed");
+
+						// Build a unique filename ourselves. GetTempFileNameA pre-creates
+						// the file, which can conflict with fopen due to AV scanners or
+						// indexers briefly holding the new file. Letting fopen create the
+						// file fresh avoids this race.
+						static std::atomic<unsigned long long> counter{ 0 };
+						char tempFile[MAX_PATH];
+						int n = snprintf(tempFile, MAX_PATH, "%spsr_%lu_%llu.tmp",
+							tempPath,
+							(unsigned long)GetCurrentProcessId(),
+							(unsigned long long)counter.fetch_add(1));
+						if (n <= 0 || n >= MAX_PATH) MK_THROW("Temp file path too long");
+
+						this->fp = fopen(tempFile, "wb+");
+						if (!this->fp) MK_THROW("fopen failed for: ", tempFile, " errno=", errno);
+#else
 						this->fp = std::tmpfile();
+						if (!this->fp) MK_THROW("Failed to open temporary file");
+#endif
 						_closeFile = true;
-						if( !this->fp ) MK_THROW( "Failed to open temporary file" );
 					}
 				}
-				~FileDescription( void ){ if( _closeFile ) fclose(fp); }
+				~FileDescription(void) { if (_closeFile) fclose(fp); }
 			protected:
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Probably can let the system handle closing the file" )

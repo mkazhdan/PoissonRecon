@@ -29,6 +29,7 @@ DAMAGE.
 #include "PreProcessor.h"
 
 #define DEFAULT_DIMENSION 3
+#define NOMINMAX
 
 #include <stdio.h>
 #include <stdlib.h>
