@@ -1,0 +1,103 @@
+name: build
+
+# Build verification for the Windows/MSVC solution and the Linux Makefile.
+# Runs on GitHub-hosted runners (free for public repositories).
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Windows: build AdaptiveSolvers.sln with MSBuild.
+  # ---------------------------------------------------------------------------
+  windows:
+    name: windows-msvc (${{ matrix.config }} x64)
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Debug is stable under full parallelism.
+          - config: Debug
+            mflag: '/m'
+          # Release is built serially: a pre-existing MSVC backend ICE (C1001)
+          # can hit heavily-templated TUs under parallel LTCG. It reproduces on
+          # v143 and v145 alike and is unrelated to the project's own code.
+          - config: Release
+            mflag: '/m:1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install Boost (PoissonReconClient/Server need boost/asio)
+        run: choco install boost-msvc-14.3 -y --no-progress
+
+      - name: Expose Boost at the path the projects expect
+        shell: pwsh
+        run: |
+          # The .vcxproj files hard-code D:\Code\boost_1_80_0 (a local dev path).
+          # Point that path at whatever Boost chocolatey installed under C:\local
+          # via a directory junction, so no project file needs editing. Boost.Asio
+          # is header-only, so any recent version works.
+          $src = (Get-ChildItem C:\local -Directory -Filter 'boost_1_*' |
+                  Sort-Object Name | Select-Object -Last 1).FullName
+          if (-not $src) { throw "Boost install not found under C:\local" }
+          Write-Host "Linking D:\Code\boost_1_80_0 -> $src"
+          New-Item -ItemType Directory -Force -Path D:\Code | Out-Null
+          New-Item -ItemType Junction -Path D:\Code\boost_1_80_0 -Target $src | Out-Null
+
+      - name: Build
+        shell: pwsh
+        run: |
+          # GitHub runners ship Visual Studio 2022 (toolset v143); the checked-in
+          # projects target v145 (VS 2026), so override the toolset for CI.
+          msbuild AdaptiveSolvers.sln `
+            /p:Configuration=${{ matrix.config }} `
+            /p:Platform=x64 `
+            /p:PlatformToolset=v143 `
+            ${{ matrix.mflag }} /v:minimal /nologo
+
+  # ---------------------------------------------------------------------------
+  # Linux: build every target via the Makefile with GCC.
+  # ---------------------------------------------------------------------------
+  linux:
+    name: linux-gcc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          # No libpng-dev on purpose: the code compiles against the bundled
+          # libpng-1.2.29 headers and accesses png_struct internals directly,
+          # so it must also LINK the bundled libpng (-lmypng) — a modern system
+          # libpng (opaque structs) would build but be ABI-broken at runtime.
+          # turbojpeg.h is only #included; the code calls the classic libjpeg
+          # API, so plain -ljpeg is what actually links.
+          sudo apt-get install -y --no-install-recommends \
+            g++ make \
+            zlib1g-dev \
+            libjpeg-turbo8-dev libturbojpeg0-dev \
+            libboost-dev libboost-system-dev
+
+      # The bundled libpng-1.2.29 enables MMX inline asm on x86_64 with modern
+      # GCC, which no longer compiles; -DPNG_NO_ASSEMBLER_CODE turns it off.
+      # Built once up front so the parallel build below can't race on it.
+      - name: Build bundled libpng (assembler disabled)
+        run: make -C PNG COMPILER=gcc CC="gcc -DPNG_NO_ASSEMBLER_CODE"
+
+      - name: Build all targets
+        run: |
+          make COMPILER=gcc \
+               CC="gcc -DPNG_NO_ASSEMBLER_CODE" \
+               CXX="g++ -DPNG_NO_ASSEMBLER_CODE" \
+               LFLAGS_IMG="-lmypng -lz -ljpeg" \
+               -j"$(nproc)"
+
+      - name: List built binaries
+        run: ls -la Bin/Linux/
