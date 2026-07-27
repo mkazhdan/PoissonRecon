@@ -34,15 +34,17 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Install Boost (PoissonReconClient/Server need boost/asio)
-        run: choco install boost-msvc-14.3 -y --no-progress
+        # Pin 1.80.0: the code uses boost::asio::io_service, whose deprecated
+        # alias was removed in Boost 1.87. This is also the version the project
+        # was developed against and the one referenced by the .vcxproj paths.
+        run: choco install boost-msvc-14.3 --version=1.80.0 -y --no-progress
 
       - name: Expose Boost at the path the projects expect
         shell: pwsh
         run: |
           # The .vcxproj files hard-code D:\Code\boost_1_80_0 (a local dev path).
-          # Point that path at whatever Boost chocolatey installed under C:\local
-          # via a directory junction, so no project file needs editing. Boost.Asio
-          # is header-only, so any recent version works.
+          # Point that path at the Boost chocolatey installed under C:\local via
+          # a directory junction, so no project file needs editing.
           $src = (Get-ChildItem C:\local -Directory -Filter 'boost_1_*' |
                   Sort-Object Name | Select-Object -Last 1).FullName
           if (-not $src) { throw "Boost install not found under C:\local" }
