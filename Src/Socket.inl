@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -114,24 +114,30 @@ void SendOnSocket( Socket& s , Pointer( C ) data , size_t dataSize , const char*
 
 inline bool GetHostEndpointAddress( EndpointAddress* address , const char* prefix )
 {
-	boost::asio::ip::tcp::resolver resolver( io_service );
-	boost::asio::ip::tcp::resolver::query query( boost::asio::ip::host_name() , std::string( "" ) , boost::asio::ip::resolver_query_base::numeric_service );
-	boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve( query ) , end;
-	for( int count=0 ; iterator!=end ; )
-	{
-		if( (*iterator).endpoint().address().is_v4() )
+	_InitSockets();
+	char hostName[256];
+	if( gethostname( hostName , sizeof(hostName) )!=0 ) MK_THROW( "gethostname failed: " , LastSocketError() );
+
+	struct addrinfo hints , *results = NULL;
+	memset( &hints , 0 , sizeof(hints) );
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	if( getaddrinfo( hostName , NULL , &hints , &results )!=0 ) return false;
+
+	bool found = false;
+	for( struct addrinfo *it=results ; it && !found ; it=it->ai_next )
+		if( it->ai_family==AF_INET )
 		{
-			std::string addrss_string = (*iterator).endpoint().address().to_string();
-			const char* _address = addrss_string.c_str();
-			if( !prefix || strstr( _address , prefix ) )
+			EndpointAddress _address( ( (struct sockaddr_in *)it->ai_addr )->sin_addr );
+			std::string addressString = _address.to_string();
+			if( !prefix || strstr( addressString.c_str() , prefix ) )
 			{
-				*address = (*iterator).endpoint().address();
-				return true;
+				*address = _address;
+				found = true;
 			}
 		}
-		iterator++;
-	}
-	return false;
+	freeaddrinfo( results );
+	return found;
 }
 
 inline bool GetHostAddress( char* address , const char* prefix )
@@ -142,82 +148,147 @@ inline bool GetHostAddress( char* address , const char* prefix )
 	return true;
 }
 
+// Local/peer endpoint queries, via getsockname/getpeername.
 inline int GetLocalSocketPort( Socket& s )
 {
-	return s->local_endpoint().port();
+	struct sockaddr_in addr;
+	socklen_t len = sizeof(addr);
+	if( getsockname( s->fd , (struct sockaddr *)&addr , &len )!=0 ) MK_THROW( "getsockname failed: " , LastSocketError() );
+	return (int)ntohs( addr.sin_port );
 }
 
 inline EndpointAddress GetLocalSocketEndpointAddress( Socket& s )
 {
-	return s->local_endpoint().address();
+	struct sockaddr_in addr;
+	socklen_t len = sizeof(addr);
+	if( getsockname( s->fd , (struct sockaddr *)&addr , &len )!=0 ) MK_THROW( "getsockname failed: " , LastSocketError() );
+	return EndpointAddress( addr.sin_addr );
 }
 
 inline int GetPeerSocketPort( Socket& s )
 {
-	return s->remote_endpoint().port();
+	struct sockaddr_in addr;
+	socklen_t len = sizeof(addr);
+	if( getpeername( s->fd , (struct sockaddr *)&addr , &len )!=0 ) MK_THROW( "getpeername failed: " , LastSocketError() );
+	return (int)ntohs( addr.sin_port );
 }
 
 inline EndpointAddress GetPeerSocketEndpointAddress( Socket& s )
 {
-	return s->remote_endpoint().address();
+	struct sockaddr_in addr;
+	socklen_t len = sizeof(addr);
+	if( getpeername( s->fd , (struct sockaddr *)&addr , &len )!=0 ) MK_THROW( "getpeername failed: " , LastSocketError() );
+	return EndpointAddress( addr.sin_addr );
 }
 
 inline Socket GetConnectSocket( const char* address , int port , int ms , bool progress )
 {
+	_InitSockets();
 	char _port[128];
-	sprintf( _port , "%d" , port );
-	boost::asio::ip::tcp::resolver resolver( io_service );
-	boost::asio::ip::tcp::resolver::query query( address , _port );
-	boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve( query );
-	Socket s = new boost::asio::ip::tcp::socket( io_service );
-	boost::system::error_code ec;
+	snprintf( _port , sizeof(_port) , "%d" , port );
+
+	struct addrinfo hints;
+	memset( &hints , 0 , sizeof(hints) );
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+
+	// Retry until the peer accepts, matching the original blocking behavior.
+	// A failed connect() leaves the descriptor unusable, so every attempt gets
+	// a freshly created socket.
 	long long sleepCount = 0;
-	do
+	while( true )
 	{
-		boost::asio::connect( *s , resolver.resolve(query) , ec );
+		struct addrinfo *results = NULL;
+		NativeSocket fd = _INVALID_NATIVE_SOCKET_;
+		bool connected = false;
+
+		if( getaddrinfo( address , _port , &hints , &results )==0 )
+		{
+			for( struct addrinfo *it=results ; it && !connected ; it=it->ai_next )
+			{
+				fd = socket( it->ai_family , it->ai_socktype , it->ai_protocol );
+				if( fd==_INVALID_NATIVE_SOCKET_ ) continue;
+				if( connect( fd , it->ai_addr , (int)it->ai_addrlen )==0 ) connected = true;
+				else
+				{
+					_CloseNativeSocket( fd );
+					fd = _INVALID_NATIVE_SOCKET_;
+				}
+			}
+			freeaddrinfo( results );
+		}
+
+		if( connected )
+		{
+			if( progress ) printf( "\n" ) , fflush( stdout );
+			return new _SocketHolder( fd );
+		}
+
 		sleepCount++;
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
-		if( progress && !(sleepCount%ms) ) printf( "." );
+		if( progress && ms>0 && !(sleepCount%ms) ) printf( "." ) , fflush( stdout );
 	}
-	while( ec );
-	if( progress ) printf( "\n" ) , fflush( stdout );
-	return s;
 }
 
 inline Socket GetConnectSocket( EndpointAddress address , int port , int ms , bool progress )
 {
-	char _port[128];
-	sprintf( _port , "%d" , port );
-	boost::asio::ip::tcp::resolver resolver( io_service );
-	boost::asio::ip::tcp::resolver::query query( address.to_string().c_str() , _port );
-	boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve( query );
-	Socket s = new boost::asio::ip::tcp::socket( io_service );
-	boost::system::error_code ec;
-	long long sleepCount = 0;
-	do
-	{
-		boost::asio::connect( *s , resolver.resolve(query) , ec );
-		sleepCount++;
-		std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
-		if( progress && !(sleepCount%ms) ) std::cout << ".";
-	}
-	while( ec );
-	if( progress ) std::cout << std::endl;
-	return s;
+	return GetConnectSocket( address.to_string().c_str() , port , ms , progress );
 }
 
 inline Socket AcceptSocket( AcceptorSocket listen )
 {
-	Socket s = new boost::asio::ip::tcp::socket( io_service );
-	listen->accept( *s );
-	return s;
+	if( listen==_INVALID_ACCEPTOR_SOCKET_ ) MK_THROW( "Invalid acceptor socket" );
+	NativeSocket fd;
+	while( true )
+	{
+		fd = accept( listen->fd , NULL , NULL );
+		if( fd!=_INVALID_NATIVE_SOCKET_ ) break;
+		if( !_SocketErrorIsInterrupt() ) MK_THROW( "accept failed: " , LastSocketError() );
+	}
+	return new _SocketHolder( fd );
 }
 
 inline AcceptorSocket GetListenSocket( int &port )
 {
-	AcceptorSocket s = new boost::asio::ip::tcp::acceptor( io_service , boost::asio::ip::tcp::endpoint( boost::asio::ip::tcp::v4() , port ) );
-	port = s->local_endpoint().port();
-	return s;
+	_InitSockets();
+	NativeSocket fd = socket( AF_INET , SOCK_STREAM , IPPROTO_TCP );
+	if( fd==_INVALID_NATIVE_SOCKET_ ) MK_THROW( "Failed to create listen socket: " , LastSocketError() );
+
+	// Allow rebinding a port left in TIME_WAIT by a previous run (the behavior
+	// the acceptor previously provided by default).
+	int reuse = 1;
+	setsockopt( fd , SOL_SOCKET , SO_REUSEADDR , (const char *)&reuse , sizeof(reuse) );
+
+	struct sockaddr_in addr;
+	memset( &addr , 0 , sizeof(addr) );
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons( (unsigned short)port );
+
+	if( bind( fd , (struct sockaddr *)&addr , sizeof(addr) )!=0 )
+	{
+		std::string err = LastSocketError();
+		_CloseNativeSocket( fd );
+		MK_THROW( "Failed to bind listen socket on port " , port , ": " , err );
+	}
+	if( ::listen( fd , SOMAXCONN )!=0 )
+	{
+		std::string err = LastSocketError();
+		_CloseNativeSocket( fd );
+		MK_THROW( "Failed to listen on port " , port , ": " , err );
+	}
+
+	// Report the actual port, which matters when 0 was requested.
+	socklen_t len = sizeof(addr);
+	if( getsockname( fd , (struct sockaddr *)&addr , &len )!=0 )
+	{
+		std::string err = LastSocketError();
+		_CloseNativeSocket( fd );
+		MK_THROW( "getsockname failed on listen socket: " , err );
+	}
+	port = (int)ntohs( addr.sin_port );
+
+	return new _SocketHolder( fd );
 }
 
 inline void CloseSocket( Socket& s )

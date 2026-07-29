@@ -33,34 +33,8 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Fetch Boost 1.80 headers (PoissonReconClient/Server need boost/asio)
-        shell: pwsh
-        run: |
-          # Boost 1.80 specifically: the code uses boost::asio::io_service, whose
-          # deprecated alias was removed in Boost 1.87, and it is the version the
-          # .vcxproj paths reference. choco's boost-msvc-14.3 downloads from the
-          # decommissioned boostorg.jfrog.io and fails, so pull the official
-          # source archive instead. Boost.Asio is header-only, so headers suffice.
-          curl.exe -fsSL -o boost.7z https://archives.boost.io/release/1.80.0/source/boost_1_80_0.7z
-          # Extract only the boost/ header tree (named dir extracts recursively).
-          7z x boost.7z -oC:\local -y boost_1_80_0/boost | Out-Null
-          if (-not (Test-Path C:\local\boost_1_80_0\boost\asio.hpp)) { throw "Boost headers missing after extract" }
-
-      - name: Expose Boost at the path the projects expect
-        shell: pwsh
-        run: |
-          # The .vcxproj files hard-code D:\Code\boost_1_80_0 (a local dev path);
-          # point it at the extracted headers via a junction, so no project file
-          # needs editing.
-          New-Item -ItemType Directory -Force -Path D:\Code | Out-Null
-          New-Item -ItemType Junction -Path D:\Code\boost_1_80_0 -Target C:\local\boost_1_80_0 | Out-Null
-
       - name: Build
         shell: pwsh
-        env:
-          # Header-only Boost (no .lib files present): disable MSVC auto-linking
-          # so no boost_system import library is required.
-          CL: /DBOOST_ALL_NO_LIB
         run: |
           # GitHub runners ship Visual Studio 2022 (toolset v143); the checked-in
           # projects target v145 (VS 2026), so override the toolset for CI.
@@ -91,8 +65,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             g++ make \
             zlib1g-dev \
-            libjpeg-turbo8-dev libturbojpeg0-dev \
-            libboost-dev libboost-system-dev
+            libjpeg-turbo8-dev libturbojpeg0-dev
 
       # The bundled libpng-1.2.29 enables MMX inline asm on x86_64 with modern
       # GCC, which no longer compiles; -DPNG_NO_ASSEMBLER_CODE turns it off.

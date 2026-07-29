@@ -8,14 +8,14 @@ are permitted provided that the following conditions are met:
 Redistributions of source code must retain the above copyright notice, this list of
 conditions and the following disclaimer. Redistributions in binary form must reproduce
 the above copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the distribution. 
+in the documentation and/or other materials provided with the distribution.
 
 Neither the name of the Johns Hopkins University nor the names of its contributors
 may be used to endorse or promote products derived from this software without specific
-prior written permission. 
+prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES
 OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
 SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
@@ -35,8 +35,24 @@ DAMAGE.
 #endif // _WIN32_WINNT
 #endif // _WIN32
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment( lib , "ws2_32.lib" )
+#else // !_WIN32
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <errno.h>
+#endif // _WIN32
+
 #include <iostream>
-#include <boost/asio.hpp>
+#include <string>
+#include <string.h>
 #include <stdarg.h>
 #include <thread>
 #include "Array.h"
@@ -48,42 +64,154 @@ namespace PoissonRecon
 
 	static const unsigned int SOCKET_CONNECT_WAIT = 500;		// Default time to wait on a socket (in ms)
 
-	typedef boost::asio::ip::tcp::socket *Socket;
-	typedef boost::asio::ip::tcp::acceptor *AcceptorSocket;
-	typedef boost::asio::ip::address EndpointAddress;
+	////////////////////////////////////////////////////////////////////////////
+	// Platform abstraction over the native socket API.
+	//
+	// Only blocking, synchronous TCP is used, so the native BSD/Winsock calls
+	// are sufficient; there is no dependency on an external networking library.
+	////////////////////////////////////////////////////////////////////////////
+#ifdef _WIN32
+	typedef SOCKET NativeSocket;
+	static const NativeSocket _INVALID_NATIVE_SOCKET_ = INVALID_SOCKET;
+	inline int  _CloseNativeSocket( NativeSocket s ){ return closesocket( s ); }
+	inline int  _LastSocketErrorCode( void ){ return WSAGetLastError(); }
+	inline bool _SocketErrorIsInterrupt( void ){ return WSAGetLastError()==WSAEINTR; }
+#else // !_WIN32
+	typedef int NativeSocket;
+	static const NativeSocket _INVALID_NATIVE_SOCKET_ = -1;
+	inline int  _CloseNativeSocket( NativeSocket s ){ return close( s ); }
+	inline int  _LastSocketErrorCode( void ){ return errno; }
+	inline bool _SocketErrorIsInterrupt( void ){ return errno==EINTR; }
+#endif // _WIN32
+
+	// Winsock requires per-process initialization. The function-local static
+	// makes this happen exactly once, and is thread-safe under C++11.
+	inline void _InitSockets( void )
+	{
+#ifdef _WIN32
+		struct Initializer
+		{
+			Initializer( void )
+			{
+				WSADATA wsaData;
+				if( WSAStartup( MAKEWORD( 2 , 2 ) , &wsaData )!=0 ) MK_THROW( "WSAStartup failed" );
+			}
+			~Initializer( void ){ WSACleanup(); }
+		};
+		static Initializer initializer;
+#endif // _WIN32
+	}
+
+	// Sockets are handed around as pointers (and compared against NULL), so the
+	// native descriptor is wrapped in a heap-allocated holder that closes on
+	// destruction -- matching the ownership semantics the callers already use.
+	struct _SocketHolder
+	{
+		NativeSocket fd;
+		_SocketHolder( NativeSocket fd=_INVALID_NATIVE_SOCKET_ ) : fd(fd){}
+		~_SocketHolder( void ){ if( fd!=_INVALID_NATIVE_SOCKET_ ) _CloseNativeSocket( fd ); }
+		_SocketHolder( const _SocketHolder & ) = delete;
+		_SocketHolder &operator = ( const _SocketHolder & ) = delete;
+	};
+
+	typedef _SocketHolder *Socket;
+	typedef _SocketHolder *AcceptorSocket;
 	const Socket _INVALID_SOCKET_ = (Socket)NULL;
 	const AcceptorSocket _INVALID_ACCEPTOR_SOCKET_ = (AcceptorSocket)NULL;
-	static boost::asio::io_service io_service;
 
+	// IPv4 address value-type. (The original implementation likewise only ever
+	// surfaced v4 addresses.)
+	struct EndpointAddress
+	{
+		struct in_addr addr;
+
+		EndpointAddress( void ){ memset( &addr , 0 , sizeof(addr) ); }
+		explicit EndpointAddress( struct in_addr a ) : addr(a){}
+
+		std::string to_string( void ) const
+		{
+			char buffer[ INET_ADDRSTRLEN ];
+			if( !inet_ntop( AF_INET , (void *)&addr , buffer , INET_ADDRSTRLEN ) ) return std::string();
+			return std::string( buffer );
+		}
+	};
+
+	inline const char *LastSocketError( void )
+	{
+		static thread_local char buffer[512];
+		int err = _LastSocketErrorCode();
+#ifdef _WIN32
+		if( !FormatMessageA( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS , NULL , err , 0 , buffer , sizeof(buffer) , NULL ) )
+			snprintf( buffer , sizeof(buffer) , "socket error %d" , err );
+		else
+		{
+			// Trim the trailing CR/LF FormatMessage appends.
+			size_t len = strlen( buffer );
+			while( len && ( buffer[len-1]=='\n' || buffer[len-1]=='\r' ) ) buffer[--len] = 0;
+		}
+#else // !_WIN32
+		snprintf( buffer , sizeof(buffer) , "%s" , strerror( err ) );
+#endif // _WIN32
+		return buffer;
+	}
+
+	// recv/send may transfer fewer bytes than requested, so both loop until the
+	// full buffer has been moved -- the behavior the callers rely on.
 	template< class C > int socket_receive( Socket &s , C *destination , size_t len )
 	{
-		boost::system::error_code ec;
-		int ret = (int)( boost::asio::read( *s , boost::asio::buffer( destination , len ) , ec ) );
-		if( ec ) MK_THROW( "Failed to read from socket" );
-		return ret;
+		if( s==_INVALID_SOCKET_ ) MK_THROW( "Failed to read from socket: invalid socket" );
+		char *ptr = (char *)destination;
+		size_t transferred = 0;
+		while( transferred<len )
+		{
+			size_t remaining = len - transferred;
+			int chunk = (int)( remaining>(size_t)(1<<30) ? (1<<30) : remaining );
+			int ret = (int)recv( s->fd , ptr+transferred , chunk , 0 );
+			if( ret>0 ) transferred += (size_t)ret;
+			else if( ret==0 ) MK_THROW( "Failed to read from socket: connection closed" );
+			else if( !_SocketErrorIsInterrupt() ) MK_THROW( "Failed to read from socket: " , LastSocketError() );
+		}
+		return (int)transferred;
 	}
 
 	template< class C > int socket_send( Socket& s , const C* source , size_t len )
 	{
-		boost::system::error_code ec;
-		int ret = (int)( boost::asio::write( *s , boost::asio::buffer( source , len ) , ec ) );
-		if( ec ) MK_THROW( "Failed to write to socket" );
-		return ret;
+		if( s==_INVALID_SOCKET_ ) MK_THROW( "Failed to write to socket: invalid socket" );
+		const char *ptr = (const char *)source;
+		size_t transferred = 0;
+		while( transferred<len )
+		{
+			size_t remaining = len - transferred;
+			int chunk = (int)( remaining>(size_t)(1<<30) ? (1<<30) : remaining );
+			int ret = (int)send( s->fd , ptr+transferred , chunk , 0 );
+			if( ret>0 ) transferred += (size_t)ret;
+			else if( !_SocketErrorIsInterrupt() ) MK_THROW( "Failed to write to socket: " , LastSocketError() );
+		}
+		return (int)transferred;
 	}
 
 	inline bool AddressesEqual( const EndpointAddress& a1 ,  const EndpointAddress& a2 ){ return a1.to_string()==a2.to_string(); }
-	inline const char *LastSocketError( void ){ return ""; }
+
 	inline void PrintHostAddresses( FILE* fp )
 	{
-		boost::asio::ip::tcp::resolver resolver( io_service );
-		boost::asio::ip::tcp::resolver::query query( boost::asio::ip::host_name() , std::string( "" ) , boost::asio::ip::resolver_query_base::numeric_service );
-		boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve( query ) , end;
-		for( int count=0 ; iterator!=end ; )
-		{
-			if( (*iterator).endpoint().address().is_v4() ) fprintf( fp , "%d]  %s\n" , count++ , (*iterator).endpoint().address().to_string().c_str() );
-			//		else                                           fprintf( fp , "%d]* %s\n" , count++ , (*iterator).endpoint().address().to_string().c_str() );
-			iterator++;
-		}
+		_InitSockets();
+		char hostName[256];
+		if( gethostname( hostName , sizeof(hostName) )!=0 ) MK_THROW( "gethostname failed: " , LastSocketError() );
+
+		struct addrinfo hints , *results = NULL;
+		memset( &hints , 0 , sizeof(hints) );
+		hints.ai_family = AF_INET;
+		hints.ai_socktype = SOCK_STREAM;
+		if( getaddrinfo( hostName , NULL , &hints , &results )!=0 ) MK_THROW( "getaddrinfo failed for host: " , hostName );
+
+		int count = 0;
+		for( struct addrinfo *it=results ; it ; it=it->ai_next )
+			if( it->ai_family==AF_INET )
+			{
+				EndpointAddress address( ( (struct sockaddr_in *)it->ai_addr )->sin_addr );
+				fprintf( fp , "%d]  %s\n" , count++ , address.to_string().c_str() );
+			}
+		freeaddrinfo( results );
 	}
 
 #ifdef ARRAY_DEBUG

@@ -220,10 +220,10 @@ $(BIN)$(PR_TARGET): $(PR_OBJECTS)
 	$(CXX) -pthread -o $@ $(PR_OBJECTS) -L$(BIN) $(LFLAGS) $(LFLAGS_IMG)
 
 $(BIN)$(PRC_TARGET): $(PRC_OBJECTS)
-	$(CXX) -pthread -o $@ $(PRC_OBJECTS) -L$(BIN) -lboost_system $(LFLAGS)
+	$(CXX) -pthread -o $@ $(PRC_OBJECTS) -L$(BIN) $(LFLAGS)
 
 $(BIN)$(PRS_TARGET): $(PRS_OBJECTS)
-	$(CXX) -pthread -o $@ $(PRS_OBJECTS) -L$(BIN) -lboost_system $(LFLAGS)
+	$(CXX) -pthread -o $@ $(PRS_OBJECTS) -L$(BIN) $(LFLAGS)
 
 $(BIN)$(SR_TARGET): $(SR_OBJECTS)
 	cd PNG  && $(MAKE) COMPILER=$(COMPILER)
