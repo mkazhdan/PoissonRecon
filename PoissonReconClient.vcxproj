@@ -73,6 +73,10 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <BoostDir Condition="'$(BoostDir)'=='' And '$(BOOST_ROOT)'!=''">$(BOOST_ROOT)\</BoostDir>
+    <BoostDir Condition="'$(BoostDir)'==''">C:\Research\Libraries\</BoostDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)\Bin\$(Platform)\$(Configuration)\</OutDir>
@@ -101,7 +105,7 @@
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <OpenMPSupport>true</OpenMPSupport>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Research\Libraries\;.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(BoostDir);.</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -136,7 +140,7 @@
       <PreprocessorDefinitions>NOMINMAX;WIN32;_CRT_SECURE_NO_DEPRECATE;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>C:\Research\Libraries\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(BoostDir)</AdditionalIncludeDirectories>
       <OpenMPSupport>true</OpenMPSupport>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
@@ -166,6 +170,12 @@
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <PropertyGroup Condition="!Exists('$(BoostDir)boost\asio.hpp')">
+    <BuildDependsOn>SkipWithoutBoost</BuildDependsOn>
+  </PropertyGroup>
+  <Target Name="SkipWithoutBoost">
+    <Message Importance="high" Text="$(ProjectName): skipped, since boost\asio.hpp is not in BoostDir='$(BoostDir)' (set BOOST_ROOT)." />
+  </Target>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
