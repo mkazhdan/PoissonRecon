@@ -2,7 +2,7 @@
 /* pngtest.c - a simple test program to test libpng
  *
  * Last changed in libpng 1.2.27 - [April 29, 2008]
- * For conditions of distribution and use, see copyright notice in png.h
+ * For conditions of distribution and use, see copyright notice in PNG/png.h
  * Copyright (c) 1998-2008 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -28,7 +28,7 @@
  * of files at once by typing "pngtest -m file1.png file2.png ..."
  */
 
-#include "png.h"
+#include "PNG/png.h"
 
 #if defined(_WIN32_WCE)
 #  if _WIN32_WCE < 211
@@ -59,7 +59,7 @@
 #  endif
 #endif
 
-/* Makes pngtest verbose so we can find problems (needs to be before png.h) */
+/* Makes pngtest verbose so we can find problems (needs to be before PNG/png.h) */
 #ifndef PNG_DEBUG
 #  define PNG_DEBUG 0
 #endif
@@ -471,7 +471,7 @@ pngtest_error(png_structp png_ptr, png_const_charp message)
 
 /* Allocate memory.  For reasonable files, size should never exceed
    64K.  However, zlib may allocate more then 64K if you don't tell
-   it not to.  See zconf.h and png.h for more information.  zlib does
+   it not to.  See zconf.h and PNG/png.h for more information.  zlib does
    need to allocate exactly 64K, so whatever you call here must
    have the ability to do that.
 
@@ -1344,8 +1344,8 @@ main(int argc, char *argv[])
    if (strcmp(png_libpng_ver, PNG_LIBPNG_VER_STRING))
    {
       fprintf(STDERR,
-         "Warning: versions are different between png.h and png.c\n");
-      fprintf(STDERR, "  png.h version: %s\n", PNG_LIBPNG_VER_STRING);
+         "Warning: versions are different between PNG/png.h and png.c\n");
+      fprintf(STDERR, "  PNG/png.h version: %s\n", PNG_LIBPNG_VER_STRING);
       fprintf(STDERR, "  png.c version: %s\n\n", png_libpng_ver);
       ++ierror;
    }
@@ -1559,5 +1559,5 @@ main(int argc, char *argv[])
    return (int)(ierror != 0);
 }
 
-/* Generate a compiler error if there is an old png.h in the search path. */
+/* Generate a compiler error if there is an old PNG/png.h in the search path. */
 typedef version_1_2_29 your_png_h_is_not_version_1_2_29;

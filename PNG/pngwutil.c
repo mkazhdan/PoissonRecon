@@ -2,14 +2,14 @@
 /* pngwutil.c - utilities to write a PNG file
  *
  * Last changed in libpng 1.2.27 [April 29, 2008]
- * For conditions of distribution and use, see copyright notice in png.h
+ * For conditions of distribution and use, see copyright notice in PNG/png.h
  * Copyright (c) 1998-2008 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  */
 
 #define PNG_INTERNAL
-#include "png.h"
+#include "PNG/png.h"
 #ifdef PNG_WRITE_SUPPORTED
 
 /* Place a 32-bit number into a buffer in PNG byte order.  We work

@@ -2,14 +2,14 @@
 /* pngpread.c - read a png file in push mode
  *
  * Last changed in libpng 1.2.27 [April 29, 2008]
- * For conditions of distribution and use, see copyright notice in png.h
+ * For conditions of distribution and use, see copyright notice in PNG/png.h
  * Copyright (c) 1998-2008 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  */
 
 #define PNG_INTERNAL
-#include "png.h"
+#include "PNG/png.h"
 
 #ifdef PNG_PROGRESSIVE_READ_SUPPORTED
 
@@ -1004,7 +1004,7 @@ png_read_push_finish_row(png_structp png_ptr)
    PNG_CONST int FARDATA png_pass_yinc[] = {8, 8, 8, 4, 4, 2, 2};
 
    /* Height of interlace block.  This is not currently used - if you need
-    * it, uncomment it here and in png.h
+    * it, uncomment it here and in PNG/png.h
    PNG_CONST int FARDATA png_pass_height[] = {8, 8, 4, 4, 2, 2, 1};
    */
 #endif
